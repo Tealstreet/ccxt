@@ -3,9 +3,11 @@
 // ----------------------------------------------------------------------------
 
 const log = require ('ololog')
-    , assert = require ('assert')
-    , testOHLCV = require ('../../../test/Exchange/test.ohlcv.js')
-    , errors = require ('../../../base/errors.js')
+    , chai = require ('chai')
+    , asTable = require ('as-table')
+    , assert = chai.assert
+    , testOHLCV = require ('ccxt/js/test/Exchange/test.ohlcv.js')
+    , errors = require ('ccxt/js/base/errors.js')
 
 /*  ------------------------------------------------------------------------ */
 
@@ -19,12 +21,11 @@ module.exports = async (exchange, symbol) => {
         'dsx',
         'idex2', // rinkeby testnet, trades too rare
         'bitvavo',
-        'zb', // supports watchOHLCV for contracts only
-        'bitget',  // timeframes structure differs from rest 
+        'zb'
     ]
 
     if (skippedExchanges.includes (exchange.id)) {
-        log (exchange.id, method + '() test skipped')
+        log (exchange.id, method, 'test skipped')
         return
     }
 
@@ -33,12 +34,12 @@ module.exports = async (exchange, symbol) => {
         return
     }
 
-    const timeframe = (exchange.timeframes && ('1m' in exchange.timeframes)) ? '1m' : Object.keys (exchange.timeframes)[0]
+    const timeframe = Object.keys (exchange.timeframes)[0]
 
     let response = undefined
 
     let now = Date.now ()
-    const ends = now + 10000
+    const ends = now + 15000
 
     while (now < ends) {
 
@@ -57,8 +58,10 @@ module.exports = async (exchange, symbol) => {
                 if (i > 0) {
                     const previous = response[i - 1]
                     if (current[0] && previous[0]) {
-                        assert (current[0] >= previous[0],
-                            'OHLCV timestamp ordering is wrong at candle ' + i.toString () + ' ' + current[0].toString () + ' < ' + previous[0].toString ())
+                        assert (
+                            current[0] >= previous[0],
+                            'OHLCV timestamp ordering is wrong at candle ' + i.toString () + ' ' + current[0].toString () + ' < ' + previous[0].toString ()
+                        )
                     }
                 }
             }
