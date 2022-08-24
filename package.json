@@ -16,6 +16,7 @@
   },
   "readme": "README.md",
   "scripts": {
+    "run-scratch": "node scratch.js",
     "docker": "docker-compose run --rm ccxt",
     "build": "npm run pre-transpile && npm run transpile && npm run post-transpile && npm run update-badges",
     "force-build": "npm run pre-transpile && npm run force-transpile && npm run post-transpile && npm run update-badges",
@@ -591,5 +592,8 @@
     "url": "https://opencollective.com/ccxt",
     "logo": "https://opencollective.com/ccxt/logo.txt"
   },
-  "ethereum": "0x26a3CB49578F07000575405a57888681249c35Fd"
+  "ethereum": "0x26a3CB49578F07000575405a57888681249c35Fd",
+  "dependencies": {
+    "dotenv": "^16.0.1"
+  }
 }
