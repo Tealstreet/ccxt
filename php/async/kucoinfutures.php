@@ -304,6 +304,24 @@ class kucoinfutures extends kucoin {
                 // 'fetchBalance' => array(
                 //    'code' => 'BTC',
                 // ),
+                // TEALSTREET
+                'orderTypes' => array(
+                    'market' => 'market',
+                    'limit' => 'limit',
+                    'stop' => 'stop',
+                    'stoplimit' => 'stop',
+                ),
+                'reverseOrderTypes' => array(
+                    'market' => 'market',
+                    'limit' => 'limit',
+                    'stop' => 'stop',
+                    'take_profit' => 'stop',
+                ),
+                'triggerTypes' => array(
+                    'Mark' => 'MarkPrice',
+                    'Last' => 'LastPrice',
+                    'Index' => 'IndexPrice',
+                ),
             ),
         ));
     }
@@ -1008,6 +1026,7 @@ class kucoinfutures extends kucoin {
          * @param {string} $params->stopPriceType  TP, IP or MP, defaults to TP
          * @param {bool} $params->closeOrder set to true to close position
          * @param {bool} $params->forceHold A mark to forcely hold the funds for an order, even though it's an order to reduce the position size. This helps the order stay on the order book and not get canceled when the position size changes. Set to false by default.
+         * @param {bool} $params->closeOnTrigger set to true to close position when triggerPrice has been hit
          * @return {array} an {@link https://docs.ccxt.com/en/latest/manual.html#order-structure order structure}
          */
         yield $this->load_markets();
@@ -1058,7 +1077,7 @@ class kucoinfutures extends kucoin {
                 throw new ArgumentsRequired($this->id . ' createOrder() requires a $visibleSize parameter for $iceberg orders');
             }
         }
-        $params = $this->omit($params, array( 'timeInForce', 'stopPrice', 'triggerPrice' )); // Time in force only valid for limit orders, exchange error when gtc for $market orders
+        // $params = $this->omit($params, array( 'timeInForce', 'stopPrice', 'triggerPrice' )); // Time in force only valid for limit orders, exchange error when gtc for $market orders
         $response = yield $this->futuresPrivatePostOrders (array_merge($request, $params));
         //
         //    {
@@ -1090,6 +1109,7 @@ class kucoinfutures extends kucoin {
             'timeInForce' => null,
             'postOnly' => null,
             'stopPrice' => null,
+            'closeOnTrigger' => null,
             'info' => $response,
         );
     }
@@ -1283,6 +1303,10 @@ class kucoinfutures extends kucoin {
             'symbol' => $this->safe_symbol($marketId, $market),
             'status' => null,
         );
+    }
+
+    public function fetch_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
+        return yield $this->fetch_orders_by_status('active', $symbol, $since, $limit, $params);
     }
 
     public function fetch_orders_by_status($status, $symbol = null, $since = null, $limit = null, $params = array ()) {

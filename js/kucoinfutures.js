@@ -301,6 +301,24 @@ module.exports = class kucoinfutures extends kucoin {
                 // 'fetchBalance': {
                 //    'code': 'BTC',
                 // },
+                // TEALSTREET
+                'orderTypes': {
+                    'market': 'market',
+                    'limit': 'limit',
+                    'stop': 'stop',
+                    'stoplimit': 'stop',
+                },
+                'reverseOrderTypes': {
+                    'market': 'market',
+                    'limit': 'limit',
+                    'stop': 'stop',
+                    'take_profit': 'stop',
+                },
+                'triggerTypes': {
+                    'Mark': 'MarkPrice',
+                    'Last': 'LastPrice',
+                    'Index': 'IndexPrice',
+                },
             },
         });
     }
@@ -1029,6 +1047,7 @@ module.exports = class kucoinfutures extends kucoin {
          * @param {string} params.stopPriceType  TP, IP or MP, defaults to TP
          * @param {bool} params.closeOrder set to true to close position
          * @param {bool} params.forceHold A mark to forcely hold the funds for an order, even though it's an order to reduce the position size. This helps the order stay on the order book and not get canceled when the position size changes. Set to false by default.
+         * @param {bool} params.closeOnTrigger set to true to close position when triggerPrice has been hit
          * @returns {object} an [order structure]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
         await this.loadMarkets ();
@@ -1079,7 +1098,7 @@ module.exports = class kucoinfutures extends kucoin {
                 throw new ArgumentsRequired (this.id + ' createOrder() requires a visibleSize parameter for iceberg orders');
             }
         }
-        params = this.omit (params, [ 'timeInForce', 'stopPrice', 'triggerPrice' ]); // Time in force only valid for limit orders, exchange error when gtc for market orders
+        // params = this.omit (params, [ 'timeInForce', 'stopPrice', 'triggerPrice' ]); // Time in force only valid for limit orders, exchange error when gtc for market orders
         const response = await this.futuresPrivatePostOrders (this.extend (request, params));
         //
         //    {
@@ -1111,6 +1130,7 @@ module.exports = class kucoinfutures extends kucoin {
             'timeInForce': undefined,
             'postOnly': undefined,
             'stopPrice': undefined,
+            'closeOnTrigger': undefined,
             'info': response,
         };
     }
@@ -1310,6 +1330,10 @@ module.exports = class kucoinfutures extends kucoin {
             'symbol': this.safeSymbol (marketId, market),
             'status': undefined,
         };
+    }
+
+    async fetchOrders (symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        return await this.fetchOrdersByStatus ('active', symbol, since, limit, params);
     }
 
     async fetchOrdersByStatus (status, symbol = undefined, since = undefined, limit = undefined, params = {}) {
