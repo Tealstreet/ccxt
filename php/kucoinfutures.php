@@ -647,6 +647,10 @@ class kucoinfutures extends kucoin {
         );
     }
 
+    public function fetch_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
+        return $this->fetch_orders_by_status('active', $symbol, $since, $limit, $params);
+    }
+
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
         /**
          * fetches information on open orders with bid (buy) and ask (sell) prices, volumes and other $data
@@ -1016,7 +1020,7 @@ class kucoinfutures extends kucoin {
          * @param {array} $params  Extra parameters specific to the exchange API endpoint
          * @param {float} $params->leverage Leverage size of the order
          * @param {float} $params->stopPrice The $price at which a trigger order is triggered at
-         * @param {bool} $params->reduceOnly A mark to reduce the position size only. Set to false by default. Need to set the position size when reduceOnly is true.
+         * @param {bool} $params->reduceOnly A mark to reduce the position size only. Set to false by default. Need to set the position size when $reduceOnly is true.
          * @param {string} $params->timeInForce GTC, GTT, IOC, or FOK, default is GTC, limit orders only
          * @param {string} $params->postOnly Post only flag, invalid when $timeInForce is IOC or FOK
          * @param {string} $params->clientOid client order id, defaults to uuid if not passed
@@ -1025,7 +1029,7 @@ class kucoinfutures extends kucoin {
          * @param {string} $params->stopPriceType  TP, IP or MP, defaults to TP
          * @param {bool} $params->closeOrder set to true to close position
          * @param {bool} $params->forceHold A mark to forcely hold the funds for an order, even though it's an order to reduce the position size. This helps the order stay on the order book and not get canceled when the position size changes. Set to false by default.
-         * @param {bool} $params->closeOnTrigger set to true to close position when triggerPrice has been hit
+         * @param {bool} $params->closeOnTrigger set to true to close position when triggerPrice has been hit - TEALSTREET
          * @return {array} an {@link https://docs.ccxt.com/en/latest/manual.html#order-structure order structure}
          */
         $this->load_markets();
@@ -1045,6 +1049,10 @@ class kucoinfutures extends kucoin {
             'size' => $preciseAmount,
             'leverage' => 1,
         );
+        // $reduceOnly = $this->safe_value($params, 'reduceOnly');
+        // if ($reduceOnly === true) {
+        //     $request['reduceOnly'] = $reduceOnly;
+        // }
         $stopPrice = $this->safe_value_2($params, 'triggerPrice', 'stopPrice');
         if ($stopPrice) {
             $request['stop'] = ($side === 'buy') ? 'up' : 'down';
@@ -1076,7 +1084,7 @@ class kucoinfutures extends kucoin {
                 throw new ArgumentsRequired($this->id . ' createOrder() requires a $visibleSize parameter for $iceberg orders');
             }
         }
-        // $params = $this->omit($params, array( 'timeInForce', 'stopPrice', 'triggerPrice' )); // Time in force only valid for limit orders, exchange error when gtc for $market orders
+        $params = $this->omit($params, array( 'timeInForce', 'stopPrice', 'triggerPrice' )); // Time in force only valid for limit orders, exchange error when gtc for $market orders
         $response = $this->futuresPrivatePostOrders (array_merge($request, $params));
         //
         //    {
@@ -1302,10 +1310,6 @@ class kucoinfutures extends kucoin {
             'symbol' => $this->safe_symbol($marketId, $market),
             'status' => null,
         );
-    }
-
-    public function fetch_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
-        return $this->fetch_orders_by_status('active', $symbol, $since, $limit, $params);
     }
 
     public function fetch_orders_by_status($status, $symbol = null, $since = null, $limit = null, $params = array ()) {

@@ -643,6 +643,9 @@ class kucoinfutures(kucoin):
             'network': self.safe_string(data, 'chain'),
         }
 
+    async def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
+        return await self.fetch_orders_by_status('active', symbol, since, limit, params)
+
     async def fetch_order_book(self, symbol, limit=None, params={}):
         """
         fetches information on open orders with bid(buy) and ask(sell) prices, volumes and other data
@@ -1006,7 +1009,7 @@ class kucoinfutures(kucoin):
         :param str params['stopPriceType']:  TP, IP or MP, defaults to TP
         :param bool params['closeOrder']: set to True to close position
         :param bool params['forceHold']: A mark to forcely hold the funds for an order, even though it's an order to reduce the position size. This helps the order stay on the order book and not get canceled when the position size changes. Set to False by default.
-        :param bool params['closeOnTrigger']: set to True to close position when triggerPrice has been hit
+        :param bool params['closeOnTrigger']: set to True to close position when triggerPrice has been hit - TEALSTREET
         :returns dict: an `order structure <https://docs.ccxt.com/en/latest/manual.html#order-structure>`
         """
         await self.load_markets()
@@ -1025,6 +1028,10 @@ class kucoinfutures(kucoin):
             'size': preciseAmount,
             'leverage': 1,
         }
+        # reduceOnly = self.safe_value(params, 'reduceOnly')
+        # if reduceOnly is True:
+        #     request['reduceOnly'] = reduceOnly
+        # }
         stopPrice = self.safe_value_2(params, 'triggerPrice', 'stopPrice')
         if stopPrice:
             request['stop'] = 'up' if (side == 'buy') else 'down'
@@ -1049,7 +1056,7 @@ class kucoinfutures(kucoin):
             visibleSize = self.safe_value(params, 'visibleSize')
             if visibleSize is None:
                 raise ArgumentsRequired(self.id + ' createOrder() requires a visibleSize parameter for iceberg orders')
-        # params = self.omit(params, ['timeInForce', 'stopPrice', 'triggerPrice'])  # Time in force only valid for limit orders, exchange error when gtc for market orders
+        params = self.omit(params, ['timeInForce', 'stopPrice', 'triggerPrice'])  # Time in force only valid for limit orders, exchange error when gtc for market orders
         response = await self.futuresPrivatePostOrders(self.extend(request, params))
         #
         #    {
@@ -1270,9 +1277,6 @@ class kucoinfutures(kucoin):
             'symbol': self.safe_symbol(marketId, market),
             'status': None,
         }
-
-    async def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
-        return await self.fetch_orders_by_status('active', symbol, since, limit, params)
 
     async def fetch_orders_by_status(self, status, symbol=None, since=None, limit=None, params={}):
         """
