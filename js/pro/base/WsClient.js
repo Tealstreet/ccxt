@@ -7,8 +7,8 @@ const functions = require ("../../base/functions.js")
         milliseconds,
     } = functions
     , Client = require ('./Client')
-    // eslint-disable-next-line
-    , WebSocket = isNode ? require ('ws') : self.WebSocket
+    // TEALSTREET
+    , WebSocket = window.WebSocket
 
 module.exports = class WsClient extends Client {
 

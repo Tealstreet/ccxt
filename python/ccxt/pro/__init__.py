@@ -32,6 +32,8 @@ from ccxt.pro.bitstamp import bitstamp                                    # noqa
 from ccxt.pro.bittrex import bittrex                                      # noqa: F401
 from ccxt.pro.bitvavo import bitvavo                                      # noqa: F401
 from ccxt.pro.bybit import bybit                                          # noqa: F401
+from ccxt.pro.bybitinverse import bybitinverse                            # noqa: F401
+from ccxt.pro.bybitlinear import bybitlinear                              # noqa: F401
 from ccxt.pro.cex import cex                                              # noqa: F401
 from ccxt.pro.coinbaseprime import coinbaseprime                          # noqa: F401
 from ccxt.pro.coinbasepro import coinbasepro                              # noqa: F401
@@ -84,6 +86,8 @@ exchanges = [
     'bitvavo',
     'bybit',
     'cex',
+    'bybitinverse',
+    'bybitlinear',
     'coinbaseprime',
     'coinbasepro',
     'coinex',
