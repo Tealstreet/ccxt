@@ -224,6 +224,7 @@ module.exports = class Exchange {
     } // describe ()
 
     constructor (userConfig = {}) {
+
         Object.assign (this, functions)
         //
         //     if (isNode) {
