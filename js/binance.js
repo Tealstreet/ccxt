@@ -917,7 +917,7 @@ module.exports = class binance extends Exchange {
                     'EOS': 'EOS',
                     'SPL': 'SOL',
                 },
-                'reverseNetworks': {
+                'networksById': {
                     'tronscan.org': 'TRC20',
                     'etherscan.io': 'ERC20',
                     'bscscan.com': 'BSC',
@@ -4611,7 +4611,8 @@ module.exports = class binance extends Exchange {
         //        }
         //    ]
         //
-        return this.parseDepositWithdrawFees (response, codes, 'coin');
+        const ids = this.networkCodesToIds (codes);
+        return this.parseDepositWithdrawFees (response, ids, 'coin');
     }
 
     parseDepositWithdrawFee (fee, currency = undefined) {
@@ -4660,6 +4661,7 @@ module.exports = class binance extends Exchange {
         for (let j = 0; j < networkList.length; j++) {
             const networkEntry = networkList[j];
             const networkId = this.safeString (networkEntry, 'network');
+            const networkCode = this.networkIdToCode (networkId);
             const withdrawFee = this.safeNumber (networkEntry, 'withdrawFee');
             const isDefault = this.safeValue (networkEntry, 'isDefault');
             if (isDefault === true) {
@@ -4668,7 +4670,6 @@ module.exports = class binance extends Exchange {
                     'percentage': undefined,
                 };
             }
-            const networkCode = this.safeCurrencyCode (networkId);
             result['networks'][networkCode] = {
                 'withdraw': {
                     'fee': withdrawFee,
