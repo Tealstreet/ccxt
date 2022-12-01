@@ -3072,7 +3072,7 @@ module.exports = class Exchange {
         };
     }
 
-    assignDefaultDepositWithdrawFees (fee) {
+    assignDefaultDepositWithdrawFees (fee, currency = undefined) {
         /**
          * @ignore
          * @method
@@ -3082,9 +3082,24 @@ module.exports = class Exchange {
          */
         const networkKeys = Object.keys (fee['networks']);
         const numNetworks = networkKeys.length;
+        const defaultChains = {
+            'ETH': 'ERC20',
+            'TRX': 'TRC20',
+            'BNB': 'BEP20',
+        };
         if (numNetworks === 1) {
             fee['withdraw'] = fee['networks'][networkKeys[0]]['withdraw'];
             fee['deposit'] = fee['networks'][networkKeys[0]]['deposit'];
+            return fee;
+        }
+        const currencyCode = currency['code'];
+        const codeAsChain = this.safeString (defaultChains, currencyCode, currencyCode);
+        for (let i = 0; i < numNetworks; i++) {
+            const network = networkKeys[i];
+            if (network === codeAsChain) {
+                fee['withdraw'] = fee['networks'][networkKeys[i]]['withdraw'];
+                fee['deposit'] = fee['networks'][networkKeys[i]]['deposit'];
+            }
         }
         return fee;
     }
