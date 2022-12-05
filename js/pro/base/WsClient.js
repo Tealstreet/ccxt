@@ -7,8 +7,17 @@ const functions = require ("../../base/functions.js")
         milliseconds,
     } = functions
     , Client = require ('./Client')
-    // TEALSTREET
-    , WebSocket = window.WebSocket
+
+
+// TEALSTREET
+let WebSocket = null
+try {
+    WebSocket = window.WebSocket
+} catch (e) {
+    // @eslint-disable-next-line
+    // WebSocket = require ('ws')
+}
+
 
 module.exports = class WsClient extends Client {
 
