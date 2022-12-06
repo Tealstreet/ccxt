@@ -286,14 +286,6 @@ module.exports = class digifinex extends Exchange {
         });
     }
 
-    safeNetwork (networkId) {
-        if (networkId === undefined) {
-            return undefined;
-        } else {
-            return networkId.toUpperCase ();
-        }
-    }
-
     async fetchCurrencies (params = {}) {
         /**
          * @method
@@ -355,10 +347,11 @@ module.exports = class digifinex extends Exchange {
             const minWithdraw = this.safeNumber (currency, 'min_withdraw_amount');
             const minDeposit = this.safeNumber (currency, 'min_deposit_amount');
             const networkId = this.safeString (currency, 'chain');
+            const networkCode = this.networkIdToCode (networkId);
             const network = {
+                'info': currency,
                 'id': networkId,
-                'network': this.safeNetwork (networkId),
-                'name': undefined,
+                'network': networkCode,
                 'active': active,
                 'fee': fee,
                 'precision': this.parseNumber ('0.00000001'), // todo fix hardcoded value
@@ -378,7 +371,6 @@ module.exports = class digifinex extends Exchange {
                         'max': undefined,
                     },
                 },
-                'info': currency,
             };
             if (code in result) {
                 if (Array.isArray (result[code]['info'])) {
