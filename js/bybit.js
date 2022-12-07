@@ -3237,7 +3237,6 @@ module.exports = class bybit extends Exchange {
         const rawTimeInForce = this.safeString (order, 'timeInForce');
         const timeInForce = this.parseTimeInForce (rawTimeInForce);
         const stopPrice = this.omitZero (this.safeString (order, 'triggerPrice'));
-        const postOnly = (rawTimeInForce !== undefined) && (timeInForce === 'PO');
         return this.safeOrder ({
             'info': order,
             'id': id,
@@ -3248,7 +3247,7 @@ module.exports = class bybit extends Exchange {
             'symbol': symbol,
             'type': type,
             'timeInForce': timeInForce,
-            'postOnly': postOnly,
+            'postOnly': undefined,
             'side': side,
             'price': price,
             'triggerPrice': stopPrice,
