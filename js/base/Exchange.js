@@ -805,6 +805,7 @@ module.exports = class Exchange {
             'defaultNetworkCodeReplacements': {
                 'ETH': { 'ERC20': 'ETH' },
                 'TRX': { 'TRC20': 'TRX' },
+                'CRO': { 'CRC20': 'CRONOS' },
             },
         };
     }
