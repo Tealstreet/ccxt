@@ -2,23 +2,13 @@
 
 //  ---------------------------------------------------------------------------
 
-<<<<<<< HEAD
 const zbRest = require ('../zb.js');
-const { ExchangeError } = require ('../base/errors');
+const { ExchangeError, AuthenticationError } = require ('../base/errors');
 const { ArrayCache } = require ('./base/Cache');
 
 //  ---------------------------------------------------------------------------
 
 module.exports = class zb extends zbRest {
-=======
-const ccxt = require ('ccxt');
-const { ExchangeError, NotSupported, AuthenticationError } = require ('ccxt/js/base/errors');
-const { ArrayCache, ArrayCacheByTimestamp } = require ('./base/Cache');
-
-//  ---------------------------------------------------------------------------
-
-module.exports = class zb extends ccxt.zb {
->>>>>>> 82f22f658b0 (add)
     describe () {
         return this.deepExtend (super.describe (), {
             'has': {
@@ -26,21 +16,11 @@ module.exports = class zb extends ccxt.zb {
                 'watchOrderBook': true,
                 'watchTicker': true,
                 'watchTrades': true,
-<<<<<<< HEAD
-            },
-            'urls': {
-                'api': {
-                    'ws': 'wss://api.{hostname}/websocket',
-=======
                 'watchOHLCV': true,
             },
             'urls': {
                 'api': {
-                    'ws': {
-                        'spot': 'wss://api.zb.work/websocket',
-                        'contract': 'wss://fapi.zb.com/ws/public/v1',
-                    },
->>>>>>> 82f22f658b0 (add)
+                    'ws': 'wss://api.{hostname}/websocket',
                 },
             },
             'options': {
@@ -51,26 +31,6 @@ module.exports = class zb extends ccxt.zb {
         });
     }
 
-<<<<<<< HEAD
-    async watchPublic (name, symbol, method, params = {}) {
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        symbol = market['symbol'];
-        const messageHash = market['baseId'] + market['quoteId'] + '_' + name;
-        const url = this.implodeHostname (this.urls['api']['ws']);
-        const request = {
-            'event': 'addChannel',
-            'channel': messageHash,
-        };
-        const message = this.extend (request, params);
-        const subscription = {
-            'name': name,
-            'symbol': symbol,
-            'marketId': market['id'],
-            'messageHash': messageHash,
-            'method': method,
-        };
-=======
     async watchPublic (url, messageHash, symbol, method, limit = undefined, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
@@ -103,22 +63,10 @@ module.exports = class zb extends ccxt.zb {
         if (isLimitSet) {
             subscription['limit'] = limit;
         }
->>>>>>> 82f22f658b0 (add)
         return await this.watch (url, messageHash, message, messageHash, subscription);
     }
 
     async watchTicker (symbol, params = {}) {
-<<<<<<< HEAD
-        /**
-         * @method
-         * @name zb#watchTicker
-         * @description watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
-         * @param {string} symbol unified symbol of the market to fetch the ticker for
-         * @param {object} params extra parameters specific to the zb api endpoint
-         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/en/latest/manual.html#ticker-structure}
-         */
-        return await this.watchPublic ('ticker', symbol, this.handleTicker, params);
-=======
         await this.loadMarkets ();
         const market = this.market (symbol);
         let messageHash = undefined;
@@ -128,7 +76,7 @@ module.exports = class zb extends ccxt.zb {
         } else {
             messageHash = market['id'] + '.' + 'Ticker';
         }
-        const url = this.urls['api']['ws'][type];
+        const url = this.implodeHostname (this.urls['api']['ws'][type]);
         return await this.watchPublic (url, messageHash, symbol, this.handleTicker, undefined, params);
     }
 
@@ -172,16 +120,12 @@ module.exports = class zb extends ccxt.zb {
             'quoteVolume': undefined,
             'info': ticker,
         }, market, false);
->>>>>>> 82f22f658b0 (add)
     }
 
     handleTicker (client, message, subscription) {
         //
-<<<<<<< HEAD
-=======
         // spot ticker
         //
->>>>>>> 82f22f658b0 (add)
         //     {
         //         date: '1624398991255',
         //         ticker: {
@@ -199,14 +143,6 @@ module.exports = class zb extends ccxt.zb {
         //         channel: 'btcusdt_ticker'
         //     }
         //
-<<<<<<< HEAD
-        const symbol = this.safeString (subscription, 'symbol');
-        const channel = this.safeString (message, 'channel');
-        const market = this.market (symbol);
-        const data = this.safeValue (message, 'ticker');
-        data['date'] = this.safeValue (message, 'date');
-        const ticker = this.parseTicker (data, market);
-=======
         // contract ticker
         //      {
         //          channel: 'BTC_USDT.Ticker',
@@ -234,29 +170,12 @@ module.exports = class zb extends ccxt.zb {
             data['date'] = this.safeValue (message, 'date');
             ticker = this.parseTicker (data, market);
         }
->>>>>>> 82f22f658b0 (add)
         ticker['symbol'] = symbol;
         this.tickers[symbol] = ticker;
         client.resolve (ticker, channel);
         return message;
     }
 
-<<<<<<< HEAD
-    async watchTrades (symbol, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name zb#watchTrades
-         * @description get the list of most recent trades for a particular symbol
-         * @param {string} symbol unified symbol of the market to fetch trades for
-         * @param {int|undefined} since timestamp in ms of the earliest trade to fetch
-         * @param {int|undefined} limit the maximum amount of trades to fetch
-         * @param {object} params extra parameters specific to the zb api endpoint
-         * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/en/latest/manual.html?#public-trades}
-         */
-        await this.loadMarkets ();
-        symbol = this.symbol (symbol);
-        const trades = await this.watchPublic ('trades', symbol, this.handleTrades, params);
-=======
     async watchOHLCV (symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets ();
         const market = this.market (symbol);
@@ -268,7 +187,7 @@ module.exports = class zb extends ccxt.zb {
         }
         const interval = this.timeframes[timeframe];
         const messageHash = market['id'] + '.KLine' + '_' + interval;
-        const url = this.urls['api']['ws']['contract'];
+        const url = this.implodeHostname (this.urls['api']['ws']['contract']);
         const ohlcv = await this.watchPublic (url, messageHash, symbol, this.handleOHLCV, limit, params);
         if (this.newUpdates) {
             limit = ohlcv.getLimit (symbol, limit);
@@ -333,9 +252,8 @@ module.exports = class zb extends ccxt.zb {
         } else {
             messageHash = market['id'] + '.' + 'Trade';
         }
-        const url = this.urls['api']['ws'][type];
+        const url = this.implodeHostname (this.urls['api']['ws'][type]);
         const trades = await this.watchPublic (url, messageHash, symbol, this.handleTrades, limit, params);
->>>>>>> 82f22f658b0 (add)
         if (this.newUpdates) {
             limit = trades.getLimit (symbol, limit);
         }
@@ -343,8 +261,6 @@ module.exports = class zb extends ccxt.zb {
     }
 
     handleTrades (client, message, subscription) {
-<<<<<<< HEAD
-=======
         // contract trades
         // {
         //     "channel":"BTC_USDT.Trade",
@@ -371,7 +287,6 @@ module.exports = class zb extends ccxt.zb {
         //     ]
         //  }
         // spot trades
->>>>>>> 82f22f658b0 (add)
         //
         //     {
         //         data: [
@@ -387,34 +302,6 @@ module.exports = class zb extends ccxt.zb {
         const symbol = this.safeString (subscription, 'symbol');
         const market = this.market (symbol);
         const data = this.safeValue (message, 'data');
-<<<<<<< HEAD
-        const trades = this.parseTrades (data, market);
-        let tradesArray = this.safeValue (this.trades, symbol);
-        if (tradesArray === undefined) {
-            const limit = this.safeInteger (this.options, 'tradesLimit', 1000);
-            tradesArray = new ArrayCache (limit);
-        }
-        for (let i = 0; i < trades.length; i++) {
-            tradesArray.append (trades[i]);
-        }
-        this.trades[symbol] = tradesArray;
-        client.resolve (tradesArray, channel);
-    }
-
-    async watchOrderBook (symbol, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name zb#watchOrderBook
-         * @description watches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
-         * @param {string} symbol unified symbol of the market to fetch the order book for
-         * @param {int|undefined} limit the maximum amount of order book entries to return
-         * @param {object} params extra parameters specific to the zb api endpoint
-         * @returns {object} A dictionary of [order book structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-book-structure} indexed by market symbols
-         */
-        if (limit !== undefined) {
-            if ((limit !== 5) && (limit !== 10) && (limit !== 20)) {
-                throw new ExchangeError (this.id + ' watchOrderBook limit argument must be undefined, 5, 10 or 20');
-=======
         const type = this.safeString (message, 'type');
         let trades = undefined;
         if (type === 'Whole') {
@@ -444,40 +331,15 @@ module.exports = class zb extends ccxt.zb {
         if (limit !== undefined) {
             if ((limit !== 5) && (limit !== 10)) {
                 throw new ExchangeError (this.id + ' watchOrderBook limit argument must be undefined, 5, or 10');
->>>>>>> 82f22f658b0 (add)
             }
         } else {
             limit = 5; // default
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-<<<<<<< HEAD
-        symbol = market['symbol'];
-        const name = 'quick_depth';
-        const messageHash = market['baseId'] + market['quoteId'] + '_' + name;
-        const url = this.implodeHostname (this.urls['api']['ws']) + '/' + market['baseId'];
-        const request = {
-            'event': 'addChannel',
-            'channel': messageHash,
-            'length': limit,
-        };
-        const message = this.extend (request, params);
-        const subscription = {
-            'name': name,
-            'symbol': symbol,
-            'marketId': market['id'],
-            'messageHash': messageHash,
-            'method': this.handleOrderBook,
-        };
-        const orderbook = await this.watch (url, messageHash, message, messageHash, subscription);
-        return orderbook.limit ();
-    }
-
-    handleOrderBook (client, message, subscription) {
-=======
         const type = market['spot'] ? 'spot' : 'contract';
         let messageHash = undefined;
-        let url = this.urls['api']['ws'][type];
+        let url = this.implodeHostname (this.urls['api']['ws'][type]);
         if (type === 'spot') {
             url += '/' + market['baseId'];
             messageHash = market['baseId'] + market['quoteId'] + '_' + 'quick_depth';
@@ -522,7 +384,6 @@ module.exports = class zb extends ccxt.zb {
 
     handleOrderBook (client, message, subscription) {
         // spot snapshot
->>>>>>> 82f22f658b0 (add)
         //
         //     {
         //         lastTime: 1624524640066,
@@ -553,21 +414,6 @@ module.exports = class zb extends ccxt.zb {
         //         showMarket: 'btcusdt'
         //     }
         //
-<<<<<<< HEAD
-        const channel = this.safeString (message, 'channel');
-        const limit = this.safeInteger (subscription, 'limit');
-        const symbol = this.safeString (subscription, 'symbol');
-        let orderbook = this.safeValue (this.orderbooks, symbol);
-        if (orderbook === undefined) {
-            orderbook = this.orderBook ({}, limit);
-            this.orderbooks[symbol] = orderbook;
-        }
-        const timestamp = this.safeInteger (message, 'lastTime');
-        const parsed = this.parseOrderBook (message, symbol, timestamp, 'listDown', 'listUp');
-        orderbook.reset (parsed);
-        orderbook['symbol'] = symbol;
-        client.resolve (orderbook, channel);
-=======
         // contract snapshot
         // {
         //     channel: 'BTC_USDT.Depth',
@@ -658,7 +504,6 @@ module.exports = class zb extends ccxt.zb {
         for (let i = 0; i < deltas.length; i++) {
             this.handleDelta (bookside, deltas[i]);
         }
->>>>>>> 82f22f658b0 (add)
     }
 
     handleMessage (client, message) {
@@ -699,20 +544,6 @@ module.exports = class zb extends ccxt.zb {
         //         channel: 'btcusdt_trades'
         //     }
         //
-<<<<<<< HEAD
-        const dataType = this.safeString (message, 'dataType');
-        if (dataType !== undefined) {
-            const channel = this.safeString (message, 'channel');
-            const subscription = this.safeValue (client.subscriptions, channel);
-            if (subscription !== undefined) {
-                const method = this.safeValue (subscription, 'method');
-                if (method !== undefined) {
-                    return method.call (this, client, message, subscription);
-                }
-            }
-            return message;
-        }
-=======
         // contract snapshot
         //
         // {
@@ -772,6 +603,5 @@ module.exports = class zb extends ccxt.zb {
             }
         }
         return message;
->>>>>>> 82f22f658b0 (add)
     }
 };
