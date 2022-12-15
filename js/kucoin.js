@@ -475,6 +475,7 @@ module.exports = class kucoin extends Exchange {
                     'main': 'main',
                     'funding': 'main',
                     'future': 'contract',
+                    'swap': 'contract',
                     'mining': 'pool',
                 },
                 'networks': {
