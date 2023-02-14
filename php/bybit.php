@@ -30,6 +30,8 @@ class bybit extends Exchange {
                 'cancelAllOrders' => true,
                 'cancelOrder' => true,
                 'createOrder' => true,
+                'createPostOnlyOrder' => true,
+                'createReduceOnlyOrder' => true,
                 'createStopLimitOrder' => true,
                 'createStopMarketOrder' => true,
                 'createStopOrder' => true,
@@ -42,6 +44,7 @@ class bybit extends Exchange {
                 'fetchBorrowRates' => false,
                 'fetchClosedOrders' => true,
                 'fetchCurrencies' => true,
+                'fetchDeposit' => false,
                 'fetchDepositAddress' => true,
                 'fetchDepositAddresses' => false,
                 'fetchDepositAddressesByNetwork' => true,
@@ -71,7 +74,7 @@ class bybit extends Exchange {
                 'fetchTrades' => true,
                 'fetchTradingFee' => true,
                 'fetchTradingFees' => true,
-                'fetchTransactions' => null,
+                'fetchTransactions' => false,
                 'fetchTransfers' => true,
                 'fetchWithdrawals' => true,
                 'setLeverage' => true,
@@ -94,7 +97,6 @@ class bybit extends Exchange {
                 '1d' => 'D',
                 '1w' => 'W',
                 '1M' => 'M',
-                '1y' => 'Y',
             ),
             'urls' => array(
                 'test' => array(
@@ -313,6 +315,7 @@ class bybit extends Exchange {
                         'asset/v2/private/exchange/exchange-order-all' => 1,
                         'unified/v3/private/account/borrow-history' => 1,
                         'unified/v3/private/account/borrow-rate' => 1,
+                        'unified/v3/private/account/info' => 1,
                         'user/v3/private/frozen-sub-member' => 10, // 5/s
                         'user/v3/private/query-sub-members' => 5, // 10/s
                         'user/v3/private/query-api' => 5, // 10/s
@@ -468,6 +471,12 @@ class bybit extends Exchange {
                         'unified/v3/private/position/set-risk-limit' => 2.5,
                         'unified/v3/private/position/trading-stop' => 2.5,
                         'unified/v3/private/account/upgrade-unified-account' => 2.5,
+                        'unified/v3/private/account/setMarginMode' => 2.5,
+                        // tax
+                        'fht/compliance/tax/v3/private/registertime' => 50,
+                        'fht/compliance/tax/v3/private/create' => 50,
+                        'fht/compliance/tax/v3/private/status' => 50,
+                        'fht/compliance/tax/v3/private/url' => 50,
                     ),
                     'delete' => array(
                         // spot
@@ -748,6 +757,7 @@ class bybit extends Exchange {
                     '3200300' => '\\ccxt\\InsufficientFunds', // array("retCode":3200300,"retMsg":"Insufficient margin balance.","result":null,"retExtMap":array())
                 ),
                 'broad' => array(
+                    'Request timeout' => '\\ccxt\\RequestTimeout', // array("retCode":10016,"retMsg":"Request timeout, please try again later","result":array(),"retExtInfo":array(),"time":1675307914985)
                     'unknown orderInfo' => '\\ccxt\\OrderNotFound', // array("ret_code":-1,"ret_msg":"unknown orderInfo","ext_code":"","ext_info":"","result":null,"time_now":"1584030414.005545","rate_limit_status":99,"rate_limit_reset_ms":1584030414003,"rate_limit":100)
                     'invalid api_key' => '\\ccxt\\AuthenticationError', // array("ret_code":10003,"ret_msg":"invalid api_key","ext_code":"","ext_info":"","result":null,"time_now":"1599547085.415797")
                     // the below two issues are caused as described => issues/9149#issuecomment-1146559498, when response is such =>  array("ret_code":130021,"ret_msg":"oc_diff[1707966351], new_oc[1707966351] with ob[....]+AB[....]","ext_code":"","ext_info":"","result":null,"time_now":"1658395300.872766","rate_limit_status":99,"rate_limit_reset_ms":1658395300855,"rate_limit":100)
@@ -819,6 +829,9 @@ class bybit extends Exchange {
                     'withdraw' => array(),
                     'deposit' => array(),
                 ),
+            ),
+            'commonCurrencies' => array(
+                'GAS' => 'GASDAO',
             ),
         ));
     }
@@ -1035,23 +1048,17 @@ class bybit extends Exchange {
         if ($this->options['adjustForTimeDifference']) {
             $this->load_time_difference();
         }
-        list($type, $query) = $this->handle_market_type_and_params('fetchMarkets', null, $params);
-        if ($type === 'spot') {
-            // spot and swap ids are equal
-            // so they can't be loaded together
-            return $this->fetch_spot_markets($query);
-        }
         $promises = array(
+            $this->fetch_spot_markets($params),
             $this->fetch_derivatives_markets(array( 'category' => 'linear' )),
             $this->fetch_derivatives_markets(array( 'category' => 'inverse' )),
-            $this->fetch_derivatives_markets(array( 'category' => 'option' )),
         );
-        $linearMarkets = $promises[0];
-        $inverseMarkets = $promises[1];
-        $optionMarkets = $promises[2];
-        $markets = $linearMarkets;
-        $markets = $this->array_concat($markets, $inverseMarkets);
-        return $this->array_concat($markets, $optionMarkets);
+        $spotMarkets = $promises[0];
+        $linearMarkets = $promises[1];
+        $inverseMarkets = $promises[2];
+        $markets = $spotMarkets;
+        $markets = $this->array_concat($markets, $linearMarkets);
+        return $this->array_concat($markets, $inverseMarkets);
     }
 
     public function fetch_spot_markets($params) {
@@ -1158,14 +1165,14 @@ class bybit extends Exchange {
         $params['limit'] = 1000; // minimize number of requests
         $response = $this->publicGetDerivativesV3PublicInstrumentsInfo ($params);
         $data = $this->safe_value($response, 'result', array());
-        $markets = $this->safe_value_2($data, 'list', 'dataList', array());
-        $paginationCursor = $this->safe_string($data, 'cursor');
+        $markets = $this->safe_value($data, 'list', array());
+        $paginationCursor = $this->safe_string($data, 'nextPageCursor');
         if ($paginationCursor !== null) {
             while ($paginationCursor !== null) {
                 $params['cursor'] = $paginationCursor;
                 $response = $this->publicGetDerivativesV3PublicInstrumentsInfo ($params);
                 $data = $this->safe_value($response, 'result', array());
-                $rawMarkets = $this->safe_value_2($data, 'list', 'dataList', array());
+                $rawMarkets = $this->safe_value($data, 'list', array());
                 $rawMarketsLength = count($rawMarkets);
                 if ($rawMarketsLength === 0) {
                     break;
@@ -1211,7 +1218,7 @@ class bybit extends Exchange {
         //             "nextPageCursor" => ""
         //         ),
         //         "retExtInfo" => array(),
-        //         "time" => 1667533491917
+        //         "time" => 1667533491916
         //     }
         //
         // $option $response
@@ -1220,9 +1227,8 @@ class bybit extends Exchange {
         //         "retCode" => 0,
         //         "retMsg" => "success",
         //         "result" => {
-        //             "resultTotalSize" => 1,
-        //             "cursor" => "",
-        //             "dataList" => array(
+        //             "nextPageCursor" => "",
+        //             "list" => array(
         //                 {
         //                     "category" => "option",
         //                     "symbol" => "BTC-30SEP22-35000-P",
@@ -1367,8 +1373,8 @@ class bybit extends Exchange {
                 'contract' => true,
                 'linear' => $linear,
                 'inverse' => $inverse,
-                'taker' => $this->safe_number($market, 'taker_fee'),
-                'maker' => $this->safe_number($market, 'maker_fee'),
+                'taker' => $this->safe_number($market, 'takerFee', $this->parse_number('0.0006')),
+                'maker' => $this->safe_number($market, 'makerFee', $this->parse_number('0.0001')),
                 'contractSize' => $contractSize,
                 'expiry' => $expiry,
                 'expiryDatetime' => $expiryDatetime,
@@ -1437,7 +1443,7 @@ class bybit extends Exchange {
         //     }
         //
         $marketId = $this->safe_string($ticker, 's');
-        $symbol = $this->safe_symbol($marketId, $market);
+        $symbol = $this->safe_symbol($marketId, $market, null, 'spot');
         $timestamp = $this->safe_integer($ticker, 't');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
@@ -1552,15 +1558,15 @@ class bybit extends Exchange {
         //
         $timestamp = $this->safe_integer($ticker, 'time');
         $marketId = $this->safe_string($ticker, 'symbol');
-        $symbol = $this->safe_symbol($marketId, $market);
+        $symbol = $this->safe_symbol($marketId, $market, null, 'contract');
         $last = $this->safe_string_2($ticker, 'last_price', 'lastPrice');
         $open = $this->safe_string_n($ticker, array( 'prev_price_24h', 'openPrice', 'prevPrice24h' ));
         $percentage = $this->safe_string_n($ticker, array( 'price_24h_pcnt', 'change24h', 'price24hPcnt' ));
         $percentage = Precise::string_mul($percentage, '100');
         $quoteVolume = $this->safe_string_n($ticker, array( 'turnover_24h', 'turnover24h', 'quoteVolume' ));
         $baseVolume = $this->safe_string_n($ticker, array( 'volume_24h', 'volume24h', 'volume' ));
-        $bid = $this->safe_string_n($ticker, array( 'bid_price', 'bid', 'bestBidPrice', 'bidPrice' ));
-        $ask = $this->safe_string_n($ticker, array( 'ask_price', 'ask', 'bestAskPrice', 'askPrice' ));
+        $bid = $this->safe_string_n($ticker, array( 'bid_price', 'bid', 'bestBidPrice', 'bidPrice', 'bid1Price' ));
+        $ask = $this->safe_string_n($ticker, array( 'ask_price', 'ask', 'bestAskPrice', 'askPrice', 'ask1Price' ));
         $high = $this->safe_string_n($ticker, array( 'high_price_24h', 'high24h', 'highPrice', 'highPrice24h' ));
         $low = $this->safe_string_n($ticker, array( 'low_price_24h', 'low24h', 'lowPrice', 'lowPrice24h' ));
         return $this->safe_ticker(array(
@@ -1570,9 +1576,9 @@ class bybit extends Exchange {
             'high' => $high,
             'low' => $low,
             'bid' => $bid,
-            'bidVolume' => $this->safe_string($ticker, 'bidSize'),
+            'bidVolume' => $this->safe_string_2($ticker, 'bidSize', 'bid1Size'),
             'ask' => $ask,
-            'askVolume' => $this->safe_string($ticker, 'askSize'),
+            'askVolume' => $this->safe_string_2($ticker, 'askSize', 'ask1Size'),
             'vwap' => null,
             'open' => $open,
             'close' => $last,
@@ -1794,7 +1800,7 @@ class bybit extends Exchange {
         $this->load_markets();
         $symbols = $this->market_symbols($symbols);
         $request = array();
-        list($subType, $query) = $this->handle_sub_type_and_params('fetchTickers', null, $params);
+        list($subType, $query) = $this->handle_sub_type_and_params('fetchTickers', null, $params, 'linear');
         if ($subType === 'option') {
             // bybit requires a $symbol when $query tockers for options markets
             throw new NotSupported($this->id . ' fetchTickers() is not supported for option markets');
@@ -1853,15 +1859,20 @@ class bybit extends Exchange {
 
     public function fetch_tickers($symbols = null, $params = array ()) {
         /**
-         * fetches price tickers for multiple markets, statistical calculations with the information calculated over the past 24 hours each market
+         * fetches price tickers for multiple markets, statistical calculations with the information calculated over the past 24 hours each $market
          * @see https://bybit-exchange.github.io/docs/futuresV2/linear/#t-latestsymbolinfo
          * @see https://bybit-exchange.github.io/docs/spot/v3/#t-spot_latestsymbolinfo
-         * @param {[string]|null} $symbols unified $symbols of the markets to fetch the ticker for, all market tickers are returned if not assigned
+         * @param {[string]|null} $symbols unified $symbols of the markets to fetch the ticker for, all $market tickers are returned if not assigned
          * @param {array} $params extra parameters specific to the bybit api endpoint
-         * @return {array} an array of {@link https://docs.ccxt.com/en/latest/manual.html#ticker-structure ticker structures}
+         * @return {array} a dictionary of {@link https://docs.ccxt.com/en/latest/manual.html#ticker-structure ticker structures}
          */
         $this->load_markets();
-        list($type, $query) = $this->handle_market_type_and_params('fetchTickers', null, $params);
+        $market = null;
+        if ($symbols !== null) {
+            $symbols = $this->market_symbols($symbols);
+            $market = $this->market($symbols[0]);
+        }
+        list($type, $query) = $this->handle_market_type_and_params('fetchTickers', $market, $params);
         if ($type === 'spot') {
             return $this->fetch_spot_tickers($symbols, $query);
         } else {
@@ -1928,25 +1939,23 @@ class bybit extends Exchange {
     public function fetch_spot_ohlcv($symbol, $timeframe = '1m', $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
         $market = $this->market($symbol);
+        $duration = $this->parse_timeframe($timeframe);
         $request = array(
             'symbol' => $market['id'],
+            'limit' => $limit,
         );
-        $duration = $this->parse_timeframe($timeframe);
-        $now = $this->seconds();
-        $sinceTimestamp = null;
-        if ($limit === null) {
-            $limit = 200; // default is 200 when requested with `$since`
-        }
-        if ($since === null) {
-            $sinceTimestamp = $now - $limit * $duration;
-        } else {
-            $sinceTimestamp = intval($since / 1000);
+        if ($since !== null) {
+            $request['startTime'] = $since;
+            if ($limit === null) {
+                $request['endTime'] = $this->sum($since, 1000 * $duration * 1000);
+            } else {
+                $request['endTime'] = $this->sum($since, $limit * $duration * 1000);
+            }
         }
         if ($limit !== null) {
-            $request['limit'] = $limit; // max 200, default 200
+            $request['limit'] = $limit; // max 1000, default 1000
         }
         $request['interval'] = $timeframe;
-        $request['from'] = $sinceTimestamp;
         $response = $this->publicGetSpotV3PublicQuoteKline (array_merge($request, $params));
         //
         //     {
@@ -2006,7 +2015,7 @@ class bybit extends Exchange {
         }
         $request['start'] = $since;
         $request['end'] = $end;
-        $request['interval'] = $this->timeframes[$timeframe];
+        $request['interval'] = $this->safe_string($this->timeframes, $timeframe, $timeframe);
         $price = $this->safe_string($params, 'price');
         $params = $this->omit($params, 'price');
         $methods = array(
@@ -2037,7 +2046,7 @@ class bybit extends Exchange {
         //         }
         //     }
         //
-        $result = $this->safe_value($response, 'result');
+        $result = $this->safe_value($response, 'result', array());
         $ohlcvs = $this->safe_value($result, 'list', array());
         return $this->parse_ohlcvs($ohlcvs, $market, $timeframe, $since, $limit);
     }
@@ -2061,6 +2070,60 @@ class bybit extends Exchange {
         }
     }
 
+    public function parse_funding_rate($ticker, $market = null) {
+        //     {
+        //         "symbol" => "BTCUSDT",
+        //         "bidPrice" => "19255",
+        //         "askPrice" => "19255.5",
+        //         "lastPrice" => "19255.50",
+        //         "lastTickDirection" => "ZeroPlusTick",
+        //         "prevPrice24h" => "18634.50",
+        //         "price24hPcnt" => "0.033325",
+        //         "highPrice24h" => "19675.00",
+        //         "lowPrice24h" => "18610.00",
+        //         "prevPrice1h" => "19278.00",
+        //         "markPrice" => "19255.00",
+        //         "indexPrice" => "19260.68",
+        //         "openInterest" => "48069.549",
+        //         "turnover24h" => "4686694853.047006",
+        //         "volume24h" => "243730.252",
+        //         "fundingRate" => "0.0001",
+        //         "nextFundingTime" => "1663689600000",
+        //         "predictedDeliveryPrice" => "",
+        //         "basisRate" => "",
+        //         "deliveryFeeRate" => "",
+        //         "deliveryTime" => "0"
+        //     }
+        //
+        $timestamp = $this->safe_integer($ticker, 'timestamp'); // added artificially to avoid changing the signature
+        $ticker = $this->omit($ticker, 'timestamp');
+        $marketId = $this->safe_string($ticker, 'symbol');
+        $symbol = $this->safe_symbol($marketId, $market, null, 'swap');
+        $fundingRate = $this->safe_number($ticker, 'fundingRate');
+        $fundingTimestamp = $this->safe_integer($ticker, 'nextFundingTime');
+        $markPrice = $this->safe_number($ticker, 'markPrice');
+        $indexPrice = $this->safe_number($ticker, 'indexPrice');
+        return array(
+            'info' => $ticker,
+            'symbol' => $symbol,
+            'markPrice' => $markPrice,
+            'indexPrice' => $indexPrice,
+            'interestRate' => null,
+            'estimatedSettlePrice' => null,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'fundingRate' => $fundingRate,
+            'fundingTimestamp' => $fundingTimestamp,
+            'fundingDatetime' => $this->iso8601($fundingTimestamp),
+            'nextFundingRate' => null,
+            'nextFundingTimestamp' => null,
+            'nextFundingDatetime' => null,
+            'previousFundingRate' => null,
+            'previousFundingTimestamp' => null,
+            'previousFundingDatetime' => null,
+        );
+    }
+
     public function fetch_funding_rate($symbol, $params = array ()) {
         /**
          * fetch the current funding rate
@@ -2070,82 +2133,87 @@ class bybit extends Exchange {
          */
         $this->load_markets();
         $market = $this->market($symbol);
-        $request = array(
-            'symbol' => $market['id'],
-        );
-        $isUsdcSettled = $market['settle'] === 'USDC';
-        $method = null;
-        if ($isUsdcSettled) {
-            $method = 'privatePostPerpetualUsdcOpenapiPrivateV1PredictedFunding';
-        } else {
-            $method = $market['linear'] ? 'privateGetPrivateLinearFundingPredictedFunding' : 'privateGetV2PrivateFundingPredictedFunding';
+        $params['symbol'] = $market['id'];
+        $symbols = [ $market['symbol'] ];
+        $fr = $this->fetch_funding_rates($symbols, $params);
+        return $this->safe_value($fr, $market['symbol']);
+    }
+
+    public function fetch_funding_rates($symbols = null, $params = array ()) {
+        /**
+         * fetches funding rates for multiple markets
+         * @param {[string]|null} $symbols unified $symbols of the markets to fetch the funding rates for, all $market funding rates are returned if not assigned
+         * @param {array} $params extra parameters specific to the bybit api endpoint
+         * @return {array} an array of {@link https://docs.ccxt.com/en/latest/manual.html#funding-rate-structure funding rate structures}
+         */
+        $this->load_markets();
+        $symbols = $this->market_symbols($symbols);
+        $firstSymbol = $this->safe_string($symbols, 0);
+        $type = 'swap';
+        $market = null;
+        if ($firstSymbol !== null) {
+            $market = $this->market($firstSymbol);
+            $type = $market['type'];
         }
-        $response = $this->$method (array_merge($request, $params));
+        $request = array();
+        $subType = null;
+        list($subType, $params) = $this->handle_sub_type_and_params('fetchFundingRates', $market, $params, 'linear');
+        if ($type !== 'swap') {
+            throw new NotSupported($this->id . ' fetchFundingRates() does not support ' . $type . ' markets');
+        } else {
+            $request['category'] = $subType;
+        }
+        $response = $this->publicGetDerivativesV3PublicTickers (array_merge($request, $params));
         //
-        // linear
         //     {
-        //       "ret_code" => 0,
-        //       "ret_msg" => "OK",
-        //       "ext_code" => "",
-        //       "ext_info" => "",
-        //       "result" => array(
-        //         "predicted_funding_rate" => 0.0001,
-        //         "predicted_funding_fee" => 0.00231849
-        //       ),
-        //       "time_now" => "1658446366.304113",
-        //       "rate_limit_status" => 119,
-        //       "rate_limit_reset_ms" => 1658446366300,
-        //       "rate_limit" => 120
+        //         "retCode" => 0,
+        //         "retMsg" => "OK",
+        //         "result" => {
+        //             "category" => "linear",
+        //             "list" => array(
+        //                 array(
+        //                     "symbol" => "BTCUSDT",
+        //                     "bidPrice" => "19255",
+        //                     "askPrice" => "19255.5",
+        //                     "lastPrice" => "19255.50",
+        //                     "lastTickDirection" => "ZeroPlusTick",
+        //                     "prevPrice24h" => "18634.50",
+        //                     "price24hPcnt" => "0.033325",
+        //                     "highPrice24h" => "19675.00",
+        //                     "lowPrice24h" => "18610.00",
+        //                     "prevPrice1h" => "19278.00",
+        //                     "markPrice" => "19255.00",
+        //                     "indexPrice" => "19260.68",
+        //                     "openInterest" => "48069.549",
+        //                     "turnover24h" => "4686694853.047006",
+        //                     "volume24h" => "243730.252",
+        //                     "fundingRate" => "0.0001",
+        //                     "nextFundingTime" => "1663689600000",
+        //                     "predictedDeliveryPrice" => "",
+        //                     "basisRate" => "",
+        //                     "deliveryFeeRate" => "",
+        //                     "deliveryTime" => "0"
+        //                 }
+        //             )
+        //         ),
+        //         "retExtInfo" => null,
+        //         "time" => 1663670053454
         //     }
         //
-        // inverse
-        //     {
-        //       "ret_code" => 0,
-        //       "ret_msg" => "OK",
-        //       "ext_code" => "",
-        //       "ext_info" => "",
-        //       "result" => array(
-        //         "predicted_funding_rate" => -0.00001769,
-        //         "predicted_funding_fee" => 0
-        //       ),
-        //       "time_now" => "1658445512.778048",
-        //       "rate_limit_status" => 119,
-        //       "rate_limit_reset_ms" => 1658445512773,
-        //       "rate_limit" => 120
-        //     }
-        //
-        // usdc
-        //     {
-        //       "result" => array(
-        //         "predictedFundingRate" => "0.0002213",
-        //         "predictedFundingFee" => "0"
-        //       ),
-        //       "retCode" => 0,
-        //       "retMsg" => "success"
-        //     }
-        //
-        $result = $this->safe_value($response, 'result', array());
-        $fundingRate = $this->safe_number_2($result, 'predicted_funding_rate', 'predictedFundingRate');
-        $timestamp = $this->safe_timestamp($response, 'time_now');
-        return array(
-            'info' => $response,
-            'symbol' => $symbol,
-            'markPrice' => null,
-            'indexPrice' => null,
-            'interestRate' => null,
-            'estimatedSettlePrice' => null,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'fundingRate' => $fundingRate,
-            'fundingTimestamp' => null,
-            'fundingDatetime' => null,
-            'nextFundingRate' => null,
-            'nextFundingTimestamp' => null,
-            'nextFundingDatetime' => null,
-            'previousFundingRate' => null,
-            'previousFundingTimestamp' => null,
-            'previousFundingDatetime' => null,
-        );
+        $tickerList = $this->safe_value($response, 'result', array());
+        $timestamp = $this->safe_integer($response, 'time');
+        if (gettype($tickerList) !== 'array' || array_keys($tickerList) !== array_keys(array_keys($tickerList))) {
+            $tickerList = $this->safe_value($tickerList, 'list');
+        }
+        $fundingRates = array();
+        for ($i = 0; $i < count($tickerList); $i++) {
+            $rawTicker = $tickerList[$i];
+            $rawTicker['timestamp'] = $timestamp; // will be removed inside the parser
+            $ticker = $this->parse_funding_rate($tickerList[$i], null);
+            $symbol = $ticker['symbol'];
+            $fundingRates[$symbol] = $ticker;
+        }
+        return $this->filter_by_array($fundingRates, 'symbol', $symbols);
     }
 
     public function fetch_funding_rate_history($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -2216,7 +2284,7 @@ class bybit extends Exchange {
             $timestamp = $this->safe_integer($entry, 'fundingRateTimestamp');
             $rates[] = array(
                 'info' => $entry,
-                'symbol' => $this->safe_symbol($this->safe_string($entry, 'symbol')),
+                'symbol' => $this->safe_symbol($this->safe_string($entry, 'symbol'), null, null, 'swap'),
                 'fundingRate' => $this->safe_number($entry, 'fundingRate'),
                 'timestamp' => $timestamp,
                 'datetime' => $this->iso8601($timestamp),
@@ -2299,19 +2367,19 @@ class bybit extends Exchange {
             $side = ($isBuyer === 0) ? 'buy' : 'sell';
         }
         $marketId = $this->safe_string($trade, 'symbol');
-        $market = $this->safe_market($marketId, $market);
-        $fee = array();
-        $feeToken = $this->safe_string($trade, 'feeTokenId');
-        if ($feeToken !== null) {
+        $market = $this->safe_market($marketId, $market, null, 'spot');
+        $fee = null;
+        $feeCost = $this->safe_string($trade, 'execFee');
+        if ($feeCost !== null) {
+            $feeToken = $this->safe_string($trade, 'feeTokenId');
             $feeCurrency = $this->safe_currency_code($feeToken);
-            $feeCost = $this->safe_string($trade, 'execFee');
             $fee = array(
                 'cost' => $feeCost,
                 'currency' => $feeCurrency,
             );
         }
         return $this->safe_trade(array(
-            'id' => $this->safe_string($trade, 'id'),
+            'id' => $this->safe_string($trade, 'tradeId'),
             'info' => $trade,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -2444,10 +2512,10 @@ class bybit extends Exchange {
         //
         $id = $this->safe_string_n($trade, array( 'execId', 'id', 'tradeId' ));
         $marketId = $this->safe_string($trade, 'symbol');
-        $market = $this->safe_market($marketId, $market);
+        $market = $this->safe_market($marketId, $market, null, 'contract');
         $symbol = $market['symbol'];
-        $amountString = $this->safe_string_n($trade, array( 'orderQty', 'size', 'execQty' ));
-        $priceString = $this->safe_string_n($trade, array( 'orderPrice', 'price', 'execPrice' ));
+        $amountString = $this->safe_string_n($trade, array( 'execQty', 'orderQty', 'size' ));
+        $priceString = $this->safe_string_n($trade, array( 'execPrice', 'orderPrice', 'price' ));
         $costString = $this->safe_string($trade, 'execValue');
         $timestamp = $this->safe_integer_n($trade, array( 'time', 'execTime', 'tradeTime' ));
         $side = $this->safe_string_lower($trade, 'side');
@@ -3113,11 +3181,13 @@ class bybit extends Exchange {
             'PENDING_CANCEL' => 'open',
             'PENDING_NEW' => 'open',
             'REJECTED' => 'rejected',
+            'PARTIALLY_FILLED_CANCELLED' => 'canceled',
             // v3 contract / unified margin
             'Created' => 'open',
             'New' => 'open',
             'Rejected' => 'rejected', // order is triggered but failed upon being placed
             'PartiallyFilled' => 'open',
+            'PartiallyFilledCancelled' => 'canceled',
             'Filled' => 'closed',
             'PendingCancel' => 'open',
             'Cancelled' => 'canceled',
@@ -3184,7 +3254,7 @@ class bybit extends Exchange {
         //     }
         //
         $marketId = $this->safe_string($order, 'symbol');
-        $market = $this->safe_market($marketId, $market);
+        $market = $this->safe_market($marketId, $market, null, 'contract');
         $symbol = $market['symbol'];
         $timestamp = $this->safe_integer($order, 'createdTime');
         $id = $this->safe_string($order, 'orderId');
@@ -3229,8 +3299,8 @@ class bybit extends Exchange {
             'postOnly' => null,
             'side' => $side,
             'price' => $price,
-            'triggerPrice' => $stopPrice,
             'stopPrice' => $stopPrice,
+            'triggerPrice' => $stopPrice,
             'amount' => $amount,
             'cost' => $cost,
             'average' => null,
@@ -3276,7 +3346,7 @@ class bybit extends Exchange {
         //     }
         //
         $marketId = $this->safe_string($order, 'symbol');
-        $market = $this->safe_market($marketId, $market);
+        $market = $this->safe_market($marketId, $market, null, 'spot');
         $timestamp = $this->safe_integer($order, 'createTime');
         $type = $this->safe_string_lower($order, 'orderType');
         $price = $this->safe_string($order, 'orderPrice');
@@ -3288,11 +3358,11 @@ class bybit extends Exchange {
         $timeInForce = $this->parse_time_in_force($this->safe_string($order, 'timeInForce'));
         $triggerPrice = $this->safe_string($order, 'triggerPrice');
         $postOnly = ($timeInForce === 'PO');
-        $amount = $this->safe_string($order, 'orderQty');
-        if ($amount === null || $amount === '0') {
-            if ($market['spot'] && $type === 'market' && $side === 'buy') {
-                $amount = $filled;
-            }
+        $amount = null;
+        if ($market['spot'] && $type === 'market' && $side === 'buy') {
+            $amount = $filled;
+        } else {
+            $amount = $this->safe_string($order, 'orderQty');
         }
         return $this->safe_order(array(
             'id' => $this->safe_string($order, 'orderId'),
@@ -3382,6 +3452,9 @@ class bybit extends Exchange {
             );
             $result = $this->fetch_orders($symbol, null, null, array_merge($request, $params));
             $length = count($result);
+            if ($length === 0) {
+                throw new OrderNotFound('Order ' . $id . ' does not exist.');
+            }
             if ($length > 1) {
                 throw new InvalidOrder($this->id . ' returned more than one order');
             }
@@ -4146,7 +4219,7 @@ class bybit extends Exchange {
             $request['symbol'] = $market['id'];
         }
         $subType = null;
-        list($subType, $params) = $this->handle_sub_type_and_params('cancelAllOrders', $market, $params);
+        list($subType, $params) = $this->handle_sub_type_and_params('cancelAllOrders', $market, $params, 'linear');
         $request['category'] = $subType;
         list($settle, $params) = $this->handle_option_and_params($params, 'cancelAllOrders', 'settle', $settle);
         if ($settle !== null) {
@@ -4336,7 +4409,7 @@ class bybit extends Exchange {
         $market = null;
         if ($symbol === null) {
             $subType = null;
-            list($subType, $params) = $this->handle_sub_type_and_params('fetchUnifiedMarginOrders', $market, $params);
+            list($subType, $params) = $this->handle_sub_type_and_params('fetchUnifiedMarginOrders', $market, $params, 'linear');
             $request['category'] = $subType;
         } else {
             $market = $this->market($symbol);
@@ -4409,28 +4482,18 @@ class bybit extends Exchange {
     public function fetch_derivatives_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
         $market = null;
-        $settle = null;
         $request = array(
             // 'symbol' => $market['id'],
-            // 'order_id' => 'string'
-            // 'order_link_id' => 'string', // unique client order id, max 36 characters
-            // 'symbol' => $market['id'], // default BTCUSD
-            // 'order' => 'desc', // asc
-            // 'page' => 1,
-            // 'limit' => 20, // max 50
-            // 'order_status' => 'Created,New'
-            // conditional orders ---------------------------------------------
-            // 'stop_order_id' => 'string',
-            // 'stop_order_status' => 'Untriggered',
+            // 'orderId' => 'string'
+            // 'orderLinkId' => 'string', // unique client order id, max 36 characters
+            // 'orderStatus' => 'Created,New'
+            // 'orderFilter' => 'StopOrder', // 'Order' or 'StopOrder'
+            // 'limit' => 20, // Limit for $data size per page. [1, 50]. Default => 20
+            // 'cursor' => 'string', // used for pagination
         );
         if ($symbol !== null) {
             $market = $this->market($symbol);
-            $settle = $market['settle'];
             $request['symbol'] = $market['id'];
-        }
-        list($settle, $params) = $this->handle_option_and_params($params, 'cancelAllOrders', 'settle', $settle);
-        if ($settle !== null) {
-            $request['settleCoin'] = $settle;
         }
         $isStop = $this->safe_value($params, 'stop', false);
         $params = $this->omit($params, array( 'stop' ));
@@ -4604,7 +4667,7 @@ class bybit extends Exchange {
         if ($enableUnifiedMargin) {
             $request['orderStatus'] = 'Canceled';
         } else {
-            $request['orderStatus'] = array( 'Filled', 'Canceled' );
+            $request['orderStatus'] = 'Filled,Canceled';
         }
         return $this->fetch_orders($symbol, $since, $limit, array_merge($request, $params));
     }
@@ -4665,7 +4728,7 @@ class bybit extends Exchange {
         $market = null;
         if ($symbol === null) {
             $subType = null;
-            list($subType, $params) = $this->handle_sub_type_and_params('fetchUnifiedMarginOrders', $market, $params);
+            list($subType, $params) = $this->handle_sub_type_and_params('fetchUnifiedMarginOrders', $market, $params, 'linear');
             $request['category'] = $subType;
         } else {
             $market = $this->market($symbol);
@@ -4962,7 +5025,6 @@ class bybit extends Exchange {
 
     public function fetch_my_unified_margin_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
-        $this->load_markets();
         $market = null;
         $settle = null;
         $request = array(
@@ -4979,7 +5041,7 @@ class bybit extends Exchange {
             $request['symbol'] = $market['id'];
         }
         $subType = null;
-        list($subType, $params) = $this->handle_sub_type_and_params('fetchMyTrades', $market, $params);
+        list($subType, $params) = $this->handle_sub_type_and_params('fetchMyTrades', $market, $params, 'linear');
         $request['category'] = $subType;
         list($settle, $params) = $this->handle_option_and_params($params, 'cancelAllOrders', 'settle', $settle);
         if ($settle !== null) {
@@ -5003,7 +5065,7 @@ class bybit extends Exchange {
         //                 array(
         //                     "orderType" => "Limit",
         //                     "symbol" => "BTC-14JUL22-17500-C",
-        //                     "orderLinkId" => "188889689-yuanzhen-558998998898",
+        //                     "orderLinkId" => "188889689-yuanzhen-558998998899",
         //                     "side" => "Buy",
         //                     "orderId" => "09c5836f-81ef-4208-a5b4-43135d3e02a2",
         //                     "leavesQty" => "0.0000",
@@ -5316,23 +5378,21 @@ class bybit extends Exchange {
     public function fetch_deposits($code = null, $since = null, $limit = null, $params = array ()) {
         /**
          * fetch all deposits made to an account
+         * @see https://bybit-exchange.github.io/docs/account_asset/v3/#t-depositsrecordquery
          * @param {string|null} $code unified $currency $code
-         * @param {int|null} $since the earliest time in ms to fetch deposits for
-         * @param {int|null} $limit the maximum number of deposits structures to retrieve
+         * @param {int|null} $since the earliest time in ms to fetch deposits for, default = 30 days before the current time
+         * @param {int|null} $limit the maximum number of deposits structures to retrieve, default = 50, max = 50
          * @param {array} $params extra parameters specific to the bybit api endpoint
+         * @param {int|null} $params->until the latest time in ms to fetch deposits for, default = 30 days after $since
+         *
+         * EXCHANGE SPECIFIC PARAMETERS
+         * @param {string|null} $params->cursor used for pagination
          * @return {[array]} a list of {@link https://docs.ccxt.com/en/latest/manual.html#transaction-structure transaction structures}
-         */
+        */
         $this->load_markets();
-        $request = array(
-            // 'coin' => $currency['id'],
-            // 'currency' => $currency['id'], // alias
-            // 'start_date' => $this->iso8601($since),
-            // 'end_date' => $this->iso8601(till),
-            'wallet_fund_type' => 'Deposit', // Deposit, Withdraw, RealisedPNL, Commission, Refund, Prize, ExchangeOrderWithdraw, ExchangeOrderDeposit
-            // 'page' => 1,
-            // 'limit' => 20, // max 50
-        );
+        $request = array();
         $currency = null;
+        $until = $this->safe_integer($params, 'until');
         if ($code !== null) {
             $currency = $this->currency($code);
             $request['coin'] = $currency['id'];
@@ -5343,8 +5403,11 @@ class bybit extends Exchange {
         if ($limit !== null) {
             $request['limit'] = $limit;
         }
-        // Currently only works for deposits prior to 2021-07-15
-        // will be updated soon
+        if ($until !== null) {
+            $request['endTime'] = $until;
+        } elseif ($since !== null) {
+            $request['endTime'] = $since . (86400000 * 30);
+        }
         $response = $this->privateGetAssetV3PrivateDepositRecordQuery (array_merge($request, $params));
         //
         //    {
@@ -5713,7 +5776,7 @@ class bybit extends Exchange {
         return $this->parse_transaction($result, $currency);
     }
 
-    public function fetch_position($symbol = null, $params = array ()) {
+    public function fetch_position($symbol, $params = array ()) {
         /**
          * fetch data on a single open contract trade $position
          * @param {string} $symbol unified $market $symbol of the $market the $position is held in, default is null
@@ -5853,7 +5916,7 @@ class bybit extends Exchange {
         $positions = $this->safe_value_2($result, 'list', 'dataList', array());
         $timestamp = $this->safe_integer($response, 'time');
         $first = $this->safe_value($positions, 0);
-        $position = $this->parse_position($first);
+        $position = $this->parse_position($first, $market);
         return array_merge($position, array(
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -5865,7 +5928,8 @@ class bybit extends Exchange {
         $request = array();
         $type = null;
         if (gettype($symbols) === 'array' && array_keys($symbols) === array_keys(array_keys($symbols))) {
-            if (strlen($symbols) > 1) {
+            $symbolsLength = count($symbols);
+            if ($symbolsLength > 1) {
                 throw new ArgumentsRequired($this->id . ' fetchPositions() does not accept an array with more than one symbol');
             }
         } elseif ($symbols !== null) {
@@ -5875,7 +5939,7 @@ class bybit extends Exchange {
         // market null
         list($type, $params) = $this->handle_market_type_and_params('fetchPositions', null, $params);
         $subType = null;
-        list($subType, $params) = $this->handle_sub_type_and_params('fetchPositions', null, $params);
+        list($subType, $params) = $this->handle_sub_type_and_params('fetchPositions', null, $params, 'linear');
         $request['category'] = $subType;
         if ($type === 'option') {
             $request['category'] = 'option';
@@ -6008,17 +6072,20 @@ class bybit extends Exchange {
 
     public function fetch_derivatives_positions($symbols = null, $params = array ()) {
         $this->load_markets();
+        $request = array();
         if (gettype($symbols) === 'array' && array_keys($symbols) === array_keys(array_keys($symbols))) {
-            if (strlen($symbols) > 1) {
+            $symbolsLength = count($symbols);
+            if ($symbolsLength > 1) {
                 throw new ArgumentsRequired($this->id . ' fetchPositions() does not accept an array with more than one symbol');
             }
+            if ($symbolsLength === 1) {
+                $request['symbol'] = $this->market_id($symbols[0]);
+            }
         } elseif ($symbols !== null) {
-            $symbols = array( $symbols );
+            $request['symbol'] = $this->market_id($symbols);
+        } else {
+            $request['dataFilter'] = 'valid';
         }
-        $symbols = $this->market_symbols($symbols);
-        $request = array(
-            'dataFilter' => 'valid',
-        );
         $settle = null;
         list($settle, $params) = $this->handle_option_and_params($params, 'fetchPositions', 'settle', $settle);
         if ($settle !== null) {
@@ -6100,7 +6167,8 @@ class bybit extends Exchange {
          * @return {[array]} a list of {@link https://docs.ccxt.com/en/latest/manual.html#position-structure position structure}
          */
         if (gettype($symbols) === 'array' && array_keys($symbols) === array_keys(array_keys($symbols))) {
-            if (strlen($symbols) > 1) {
+            $symbolsLength = count($symbols);
+            if ($symbolsLength > 1) {
                 throw new ArgumentsRequired($this->id . ' fetchPositions() does not accept an array with more than one symbol');
             }
         } elseif ($symbols !== null) {
@@ -6215,10 +6283,18 @@ class bybit extends Exchange {
         //     }
         //
         $contract = $this->safe_string($position, 'symbol');
-        $market = $this->safe_market($contract, $market);
+        $market = $this->safe_market($contract, $market, null, 'contract');
         $size = Precise::string_abs($this->safe_string($position, 'size'));
         $side = $this->safe_string($position, 'side');
-        $side = ($side === 'Buy') ? 'long' : 'short';
+        if ($side !== null) {
+            if ($side === 'Buy') {
+                $side = 'long';
+            } elseif ($side === 'Sell') {
+                $side = 'short';
+            } else {
+                $side = null;
+            }
+        }
         $notional = $this->safe_string($position, 'positionValue');
         $unrealisedPnl = $this->omit_zero($this->safe_string($position, 'unrealisedPnl'));
         $initialMarginString = $this->safe_string($position, 'positionIM');
@@ -6228,8 +6304,8 @@ class bybit extends Exchange {
             $timestamp = $this->safe_integer($position, 'updatedAt');
         }
         // default to cross of USDC margined positions
-        $autoAddMargin = $this->safe_integer($position, 'autoAddMargin', 1);
-        $marginMode = $autoAddMargin ? 'cross' : 'isolated';
+        $tradeMode = $this->safe_integer($position, 'tradeMode', 0);
+        $marginMode = $tradeMode ? 'isolated' : 'cross';
         $collateralString = $this->safe_string($position, 'positionBalance');
         $entryPrice = $this->omit_zero($this->safe_string($position, 'entryPrice'));
         $liquidationPrice = $this->omit_zero($this->safe_string($position, 'liqPrice'));
@@ -6385,7 +6461,7 @@ class bybit extends Exchange {
                 'symbol' => $market['id'],
                 'leverage' => $leverage,
             );
-            $method = 'privatePostOptionUsdcOpenapiPrivateV1PositionSetLeverage';
+            $method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave';
         }
         return $this->$method (array_merge($request, $params));
     }
@@ -6461,7 +6537,7 @@ class bybit extends Exchange {
         //
         $result = $this->safe_value($response, 'result', array());
         $id = $this->safe_string($result, 'symbol');
-        $market = $this->safe_market($id, $market);
+        $market = $this->safe_market($id, $market, null, 'contract');
         $data = $this->safe_value($result, 'list', array());
         return $this->parse_open_interests($data, $market, $since, $limit);
     }
@@ -6514,7 +6590,7 @@ class bybit extends Exchange {
         //
         $result = $this->safe_value($response, 'result', array());
         $id = $this->safe_string($result, 'symbol');
-        $market = $this->safe_market($id, $market);
+        $market = $this->safe_market($id, $market, null, 'contract');
         $data = $this->safe_value($result, 'list', array());
         return $this->parse_open_interest($data[0], $market);
     }
@@ -6556,7 +6632,7 @@ class bybit extends Exchange {
         $timestamp = $this->safe_integer($interest, 'timestamp');
         $value = $this->safe_number_2($interest, 'open_interest', 'openInterest');
         return array(
-            'symbol' => $this->safe_symbol($market['id']),
+            'symbol' => $market['symbol'],
             'openInterestAmount' => null,
             'openInterestValue' => $value,
             'timestamp' => $timestamp,
@@ -7279,7 +7355,7 @@ class bybit extends Exchange {
         //     }
         //
         $marketId = $this->safe_string($fee, 'symbol');
-        $symbol = $this->safe_symbol($marketId);
+        $symbol = $this->safe_symbol($marketId, null, null, 'contract');
         return array(
             'info' => $fee,
             'symbol' => $symbol,

@@ -628,7 +628,7 @@ class bitso(Exchange):
         market = self.market(symbol)
         request = {
             'book': market['id'],
-            'time_bucket': self.timeframes[timeframe],
+            'time_bucket': self.safe_string(self.timeframes, timeframe, timeframe),
         }
         if since is not None:
             request['start'] = since
@@ -1035,6 +1035,7 @@ class bitso(Exchange):
             'side': side,
             'price': price,
             'stopPrice': None,
+            'triggerPrice': None,
             'amount': amount,
             'cost': None,
             'remaining': remaining,

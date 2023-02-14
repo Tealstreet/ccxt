@@ -37,13 +37,14 @@ const Exchange  = require ('./js/base/Exchange')
 //-----------------------------------------------------------------------------
 // this is updated by vss.js when building
 
-const version = '2.4.24'
+const version = '2.7.94'
 
 Exchange.ccxtVersion = version
 
 //-----------------------------------------------------------------------------
 
 const exchanges = {
+    'ace':                     require ('./js/ace.js'),
     'alpaca':                  require ('./js/alpaca.js'),
     'ascendex':                require ('./js/ascendex.js'),
     'bequant':                 require ('./js/bequant.js'),
@@ -137,8 +138,8 @@ const exchanges = {
     'paymium':                 require ('./js/paymium.js'),
     'phemex':                  require ('./js/phemex.js'),
     'poloniex':                require ('./js/poloniex.js'),
+    'poloniexfutures':         require ('./js/poloniexfutures.js'),
     'probit':                  require ('./js/probit.js'),
-    'qtrade':                  require ('./js/qtrade.js'),
     'ripio':                   require ('./js/ripio.js'),
     'stex':                    require ('./js/stex.js'),
     'therock':                 require ('./js/therock.js'),
@@ -153,11 +154,11 @@ const exchanges = {
     'yobit':                   require ('./js/yobit.js'),
     'zaif':                    require ('./js/zaif.js'),
     'zb':                      require ('./js/zb.js'),
-    'zipmex':                  require ('./js/zipmex.js'),
     'zonda':                   require ('./js/zonda.js'),
 }
 
 const pro = {
+    'alpaca':                  require ('./js/pro/alpaca.js'),
     'ascendex':                require ('./js/pro/ascendex.js'),
     'bequant':                 require ('./js/pro/bequant.js'),
     'binance':                 require ('./js/pro/binance.js'),
@@ -175,6 +176,7 @@ const pro = {
     'bitstamp':                require ('./js/pro/bitstamp.js'),
     'bittrex':                 require ('./js/pro/bittrex.js'),
     'bitvavo':                 require ('./js/pro/bitvavo.js'),
+    'btcex':                   require ('./js/pro/btcex.js'),
     'bybit':                   require ('./js/pro/bybit.js'),
     'cex':                     require ('./js/pro/cex.js'),
     'coinbaseprime':           require ('./js/pro/coinbaseprime.js'),
@@ -186,6 +188,7 @@ const pro = {
     'exmo':                    require ('./js/pro/exmo.js'),
     'gate':                    require ('./js/pro/gate.js'),
     'gateio':                  require ('./js/pro/gateio.js'),
+    'gemini':                  require ('./js/pro/gemini.js'),
     'hitbtc':                  require ('./js/pro/hitbtc.js'),
     'hollaex':                 require ('./js/pro/hollaex.js'),
     'huobi':                   require ('./js/pro/huobi.js'),
@@ -208,7 +211,6 @@ const pro = {
     'whitebit':                require ('./js/pro/whitebit.js'),
     'woo':                     require ('./js/pro/woo.js'),
     'zb':                      require ('./js/pro/zb.js'),
-    'zipmex':                  require ('./js/pro/zipmex.js'),
 }
 
 for (const exchange in pro) {
@@ -223,7 +225,9 @@ for (const exchange in pro) {
     }
 }
 
+pro.version = version;
 pro.exchanges = Object.keys (pro)
+pro['Exchange'] = wsExchange
 
 //-----------------------------------------------------------------------------
 

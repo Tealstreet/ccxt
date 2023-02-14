@@ -8,34 +8,43 @@ const BaseExchange = require ("../../base/Exchange")
         IndexedOrderBook,
         CountedOrderBook,
     } = require ('./OrderBook')
-    , functions = require ('./functions');
+    , functions = require ('./functions')
+    ,  { ExchangeError, NotSupported } = require ('../../base/errors')
+    , Future = require ('./Future');
 
 module.exports = class Exchange extends BaseExchange {
+    constructor (options = {}) {
+        super (options);
+        this.newUpdates = (options.newUpdates !== undefined) ? options.newUpdates : true;
+    }
 
     getUrl () {
+        // XXX-TEALSTREET-XXX
         return this.urls['api']['ws'];
+        // XXX-TEALSTREET-XXX
     }
 
     getClient () {
+        // XXX-TEALSTREET-XXX
         return this.client (this.getUrl ());
+        // XXX-TEALSTREET-XXX
     }
 
     async watchHeartbeat () {
+        // XXX-TEALSTREET-XXX
         await this.loadMarkets ();
         const url = this.getUrl ();
         return await this.create_future (url, 'ping');
+        // XXX-TEALSTREET-XXX
     }
 
     handlePong (client, message) {
+        // XXX-TEALSTREET-XXX
         // https://docs.kucoin.com/#ping
         client.lastPong = this.milliseconds ();
         client.resolve ('pong', 'ping');
         return message;
-    }
-
-    constructor (options = {}) {
-        super (options);
-        this.newUpdates = options.newUpdates || true;
+        // XXX-TEALSTREET-XXX
     }
 
     inflate (data) {
@@ -71,11 +80,17 @@ module.exports = class Exchange extends BaseExchange {
             const onConnected = this.onConnected.bind (this);
             // decide client type here: ws / signalr / socketio
             const wsOptions = this.safeValue (this.options, 'ws', {});
-            const options = this.extend (this.streaming, {
+            const options = this.deepExtend (this.streaming, {
                 'log': this.log ? this.log.bind (this) : this.log,
                 'ping': this.ping ? this.ping.bind (this) : this.ping,
                 'verbose': this.verbose,
                 'throttle': throttle (this.tokenBucket),
+                // XXX-TEALSTREET-XXX
+                // add support for proxies
+                // 'options': {
+                //     'agent': this.agent || this.httpsAgent || this.httpAgent,
+                // }
+                // XXX-TEALSTREET-XXX
             }, wsOptions);
             this.clients[url] = new WsClient (url, onMessage, onError, onClose, onConnected, options);
         }
@@ -83,9 +98,9 @@ module.exports = class Exchange extends BaseExchange {
     }
 
     spawn (method, ... args) {
-        (method.apply (this, args)).catch ((e) => {
-            // todo: handle spawned errors
-        })
+        const future = Future ()
+        method.apply (this, args).then (future.resolve).catch (future.reject)
+        return future
     }
 
     delay (timeout, method, ... args) {
@@ -95,8 +110,10 @@ module.exports = class Exchange extends BaseExchange {
     }
 
     create_future (url, messageHash) {
+        // XXX-TEALSTREET-XXX
         const client = this.client (url);
         return client.future (messageHash);
+        // XXX-TEALSTREET-XXX
     }
 
     watch (url, messageHash, message = undefined, subscribeHash = undefined, subscription = undefined) {
@@ -205,14 +222,59 @@ module.exports = class Exchange extends BaseExchange {
         return undefined;
     }
 
+    async loadOrderBook (client, messageHash, symbol, limit = undefined, params = {}) {
+        if (!(symbol in this.orderbooks)) {
+            client.reject (new ExchangeError (this.id + ' loadOrderBook() orderbook is not initiated'), messageHash);
+            return;
+        }
+        const maxRetries = this.handleOption ('watchOrderBook', 'maxRetries', 3);
+        let tries = 0;
+        try {
+            const stored = this.orderbooks[symbol];
+            while (tries < maxRetries) {
+                const cache = stored.cache;
+                const orderBook = await this.fetchOrderBook (symbol, limit, params);
+                const index = this.getCacheIndex (orderBook, cache);
+                if (index >= 0) {
+                    stored.reset (orderBook);
+                    this.handleDeltas (stored, cache.slice (index));
+                    stored.cache.length = 0;
+                    client.resolve (stored, messageHash);
+                    return;
+                }
+                tries++;
+            }
+            client.reject (new ExchangeError (this.id + ' nonce is behind the cache after ' + maxRetries.toString () + ' tries.'), messageHash);
+            delete this.clients[client.url];
+        } catch (e) {
+            client.reject (e, messageHash);
+            await this.loadOrderBook (client, messageHash, symbol, limit, params);
+        }
+    }
+
+    handleDeltas (orderbook, deltas) {
+        for (let i = 0; i < deltas.length; i++) {
+            this.handleDelta (orderbook, deltas[i]);
+        }
+    }
+
+    // eslint-disable-next-line no-unused-vars
+    getCacheIndex (orderbook, deltas) {
+        // return the first index of the cache that can be applied to the orderbook or -1 if not possible
+        return -1;
+    }
+
     formatScientificNotationFTX (n) {
+        // XXX-TEALSTREET-XXX
         if (n === 0) {
             return '0e-00';
         }
         return n.toExponential ().replace ('e-', 'e-0');
+        // XXX-TEALSTREET-XXX
     }
 
     rejectAllClients () {
+        // XXX-TEALSTREET-XXX
         // console.log ("clients :", this.clients)
         Object.values (this.clients || {}).forEach ((c) => {
             try {
@@ -223,5 +285,6 @@ module.exports = class Exchange extends BaseExchange {
                 }
             }
         })
+        // XXX-TEALSTREET-XXX
     }
 };

@@ -32,7 +32,10 @@ class bitget(Exchange, ccxt.async_support.bitget):
             },
             'urls': {
                 'api': {
+                    # XXX-TEALSTREET-XXX
+                    # 'ws': 'wss://ws.bitget.com/spot/v1/stream',
                     'ws': 'wss://ws.bitget.com/mix/v1/stream',
+                    # XXX-TEALSTREET-XXX
                 },
             },
             'options': {
@@ -46,6 +49,7 @@ class bitget(Exchange, ccxt.async_support.bitget):
                     '30m': '30m',
                     '1h': '1H',
                     '4h': '4H',
+                    '6h': '6H',
                     '12h': '12H',
                     '1d': '1D',
                     '1w': '1W',
@@ -70,6 +74,12 @@ class bitget(Exchange, ccxt.async_support.bitget):
         if market['spot']:
             return market['info']['symbolName']
         else:
+            # XXX-TEALSTREET-XXX
+            # if not sandboxMode:
+            #     return market['id'].replace('_UMCBL', '')
+            # else:
+            #     return market['id'].replace('_SUMCBL', '')
+            # }
             formattedId = market['id']
             marketIdParts = formattedId.split('_')
             if len(marketIdParts) >= 2:
@@ -77,6 +87,7 @@ class bitget(Exchange, ccxt.async_support.bitget):
                 # suffix = marketIdParts[1]
                 formattedId = prefix
             return formattedId
+            # XXX-TEALSTREET-XXX
 
     def get_market_id_from_arg(self, arg):
         #
@@ -86,6 +97,7 @@ class bitget(Exchange, ccxt.async_support.bitget):
         marketId = self.safe_string(arg, 'instId')
         if instType == 'sp':
             marketId += '_SPBL'
+        # XXX-TEALSTREET-XXX
         elif marketId[-5:] == 'SPERP':
             marketId = marketId + '_SCMCBL'
         elif marketId[-5:] == 'SUSDT':
@@ -98,6 +110,14 @@ class bitget(Exchange, ccxt.async_support.bitget):
             marketId = marketId + '_UMCBL'
         elif marketId[-3:] == 'USD':
             marketId = marketId + '_DMCBL'
+        # else:
+        #     if not sandboxMode:
+        #         marketId += '_UMCBL'
+        #     else:
+        #         marketId += '_SUMCBL'
+        #     }
+        # }
+        # XXX-TEALSTREET-XXX
         return marketId
 
     async def watch_ticker(self, symbol, params={}):
@@ -332,6 +352,7 @@ class bitget(Exchange, ccxt.async_support.bitget):
             self.safe_number(ohlcv, 2),
             self.safe_number(ohlcv, 3),
             self.safe_number(ohlcv, 4),
+            self.safe_number(ohlcv, 5),
         ]
 
     async def watch_order_book(self, symbol, limit=None, params={}):
@@ -345,7 +366,6 @@ class bitget(Exchange, ccxt.async_support.bitget):
         await self.load_markets()
         market = self.market(symbol)
         symbol = market['symbol']
-        # symbol = 'BTCUSD'
         messageHash = 'orderbook' + ':' + symbol
         instType = 'sp' if market['spot'] else 'mc'
         channel = 'books'
@@ -527,7 +547,10 @@ class bitget(Exchange, ccxt.async_support.bitget):
         amount = self.safe_string(trade, 2)
         return self.safe_trade({
             'info': trade,
+            # XXX-TEALSTREET-XXX
+            # 'id': None,
             'id': self.uuid(),
+            # XXX-TEALSTREET-XXX
             'order': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -553,18 +576,26 @@ class bitget(Exchange, ccxt.async_support.bitget):
         await self.load_markets()
         market = None
         marketId = None
-        messageHash = 'order:'
+        messageHash = 'order'
         subscriptionHash = 'order:trades'
         if symbol is not None:
             market = self.market(symbol)
             symbol = market['symbol']
             marketId = market['id']
-            messageHash += market['symbol']
+            messageHash = messageHash + ':' + symbol
         type = None
         type, params = self.handle_market_type_and_params('watchOrders', market, params)
         if (type == 'spot') and (symbol is None):
             raise ArgumentsRequired(self.id + ' watchOrders requires a symbol argument for ' + type + ' markets.')
-        instType = 'spbl' if (type == 'spot') else 'umcbl'
+        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
+        instType = None
+        if type == 'spot':
+            instType = 'spbl'
+        else:
+            if not sandboxMode:
+                instType = 'UMCBL'
+            else:
+                instType = 'SUMCBL'
         instId = marketId if (type == 'spot') else 'default'  # different from other streams here the 'rest' id is required for spot markets, contract markets require default here
         args = {
             'instType': instType,
@@ -606,7 +637,8 @@ class bitget(Exchange, ccxt.async_support.bitget):
         #
         arg = self.safe_value(message, 'arg', {})
         instType = self.safe_string(arg, 'instType')
-        isContractUpdate = instType == 'umcbl'
+        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
+        isContractUpdate = (instType == 'umcbl') if (not sandboxMode) else (instType == 'sumcbl')
         data = self.safe_value(message, 'data', [])
         if self.orders is None:
             limit = self.safe_integer(self.options, 'ordersLimit', 1000)
@@ -628,6 +660,7 @@ class bitget(Exchange, ccxt.async_support.bitget):
             symbol = keys[i]
             messageHash = 'order:' + symbol
             client.resolve(stored, messageHash)
+        client.resolve(stored, 'order')
 
     def parse_ws_order(self, order, market=None):
         #
@@ -742,6 +775,7 @@ class bitget(Exchange, ccxt.async_support.bitget):
             'side': side,
             'price': price,
             'stopPrice': None,
+            'triggerPrice': None,
             'amount': amount,
             'cost': cost,
             'average': average,
@@ -784,9 +818,10 @@ class bitget(Exchange, ccxt.async_support.bitget):
         type, params = self.handle_market_type_and_params('watchMyTrades', market, params)
         if type == 'spot':
             raise NotSupported(self.id + ' watchMyTrades is not supported for ' + type + ' markets.')
+        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
         subscriptionHash = 'order:trades'
         args = {
-            'instType': 'umcbl',
+            'instType': 'umcbl' if (not sandboxMode) else 'sumcbl',
             'channel': 'orders',
             'instId': 'default',
         }
@@ -961,19 +996,19 @@ class bitget(Exchange, ccxt.async_support.bitget):
         message = self.extend(request, params)
         return await self.watch(url, messageHash, message, messageHash)
 
-    async def authenticate(self, params={}):
+    def authenticate(self, params={}):
         self.check_required_credentials()
         url = self.urls['api']['ws']
         client = self.client(url)
-        future = client.future('authenticated')
-        messageHash = 'login'
-        authenticated = self.safe_value(client.subscriptions, messageHash)
-        if authenticated is None:
+        messageHash = 'authenticated'
+        future = self.safe_value(client.subscriptions, messageHash)
+        if future is None:
             timestamp = str(self.seconds())
             auth = timestamp + 'GET' + '/user/verify'
             signature = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256, 'base64')
+            operation = 'login'
             request = {
-                'op': messageHash,
+                'op': operation,
                 'args': [
                     {
                         'apiKey': self.apiKey,
@@ -983,8 +1018,10 @@ class bitget(Exchange, ccxt.async_support.bitget):
                     },
                 ],
             }
-            self.spawn(self.watch, url, messageHash, self.extend(request, params), messageHash)
-        return await future
+            message = self.extend(request, params)
+            future = self.watch(url, messageHash, message)
+            client.subscriptions[messageHash] = future
+        return future
 
     async def watch_private(self, messageHash, subscriptionHash, args, params={}):
         await self.authenticate()
@@ -1000,25 +1037,27 @@ class bitget(Exchange, ccxt.async_support.bitget):
         #
         #  {event: 'login', code: 0}
         #
-        future = client.futures['authenticated']
-        future.resolve(1)
-        client.resolve(1, 'login')
-        return message
+        messageHash = 'authenticated'
+        client.resolve(message, messageHash)
 
     def handle_error_message(self, client, message):
         #
         #    {event: 'error', code: 30015, msg: 'Invalid sign'}
         #
-        event = self.safe_integer(message, 'event')
+        event = self.safe_string(message, 'event')
         try:
             if event == 'error':
                 code = self.safe_string(message, 'code')
                 feedback = self.id + ' ' + self.json(message)
                 self.throw_exactly_matched_exception(self.exceptions['ws']['exact'], code, feedback)
+            return False
         except Exception as e:
             if isinstance(e, AuthenticationError):
-                return False
-        return message
+                messageHash = 'authenticated'
+                client.reject(e, messageHash)
+                if messageHash in client.subscriptions:
+                    del client.subscriptions[messageHash]
+            return True
 
     def handle_message(self, client, message):
         #
@@ -1055,7 +1094,7 @@ class bitget(Exchange, ccxt.async_support.bitget):
         #        arg: {instType: 'spbl', channel: 'account', instId: 'default'}
         #    }
         #
-        if not self.handle_error_message(client, message):
+        if self.handle_error_message(client, message):
             return
         content = self.safe_string(message, 'message')
         if content == 'pong':

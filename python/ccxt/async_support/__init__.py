@@ -4,7 +4,7 @@
 
 # -----------------------------------------------------------------------------
 
-__version__ = '2.4.24'
+__version__ = '2.7.94'
 
 # -----------------------------------------------------------------------------
 
@@ -53,6 +53,7 @@ from ccxt.base.errors import RequestTimeout                           # noqa: F4
 from ccxt.base.errors import error_hierarchy                          # noqa: F401
 
 
+from ccxt.async_support.ace import ace                                          # noqa: F401
 from ccxt.async_support.alpaca import alpaca                                    # noqa: F401
 from ccxt.async_support.ascendex import ascendex                                # noqa: F401
 from ccxt.async_support.bequant import bequant                                  # noqa: F401
@@ -146,8 +147,8 @@ from ccxt.async_support.okx import okx                                          
 from ccxt.async_support.paymium import paymium                                  # noqa: F401
 from ccxt.async_support.phemex import phemex                                    # noqa: F401
 from ccxt.async_support.poloniex import poloniex                                # noqa: F401
+from ccxt.async_support.poloniexfutures import poloniexfutures                  # noqa: F401
 from ccxt.async_support.probit import probit                                    # noqa: F401
-from ccxt.async_support.qtrade import qtrade                                    # noqa: F401
 from ccxt.async_support.ripio import ripio                                      # noqa: F401
 from ccxt.async_support.stex import stex                                        # noqa: F401
 from ccxt.async_support.therock import therock                                  # noqa: F401
@@ -162,10 +163,10 @@ from ccxt.async_support.woo import woo                                          
 from ccxt.async_support.yobit import yobit                                      # noqa: F401
 from ccxt.async_support.zaif import zaif                                        # noqa: F401
 from ccxt.async_support.zb import zb                                            # noqa: F401
-from ccxt.async_support.zipmex import zipmex                                    # noqa: F401
 from ccxt.async_support.zonda import zonda                                      # noqa: F401
 
 exchanges = [
+    'ace',
     'alpaca',
     'ascendex',
     'bequant',
@@ -259,8 +260,8 @@ exchanges = [
     'paymium',
     'phemex',
     'poloniex',
+    'poloniexfutures',
     'probit',
-    'qtrade',
     'ripio',
     'stex',
     'therock',
@@ -275,7 +276,6 @@ exchanges = [
     'yobit',
     'zaif',
     'zb',
-    'zipmex',
     'zonda',
 ]
 
