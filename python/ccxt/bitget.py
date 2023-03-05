@@ -856,19 +856,16 @@ class bitget(Exchange):
         :param dict params: extra parameters specific to the binance api endpoint
         :returns dict: response from the exchange
         """
-        # BITGET HAS NOT IMPLEMENTED THIS YET
-        unifiedResponse = {
-            'symbol': None,
-            'tradeMode': 'hedged',
+        if not symbol:
+            raise ArgumentsRequired(self.id + ' setPositionMode requires a symbol argument')
+        market = self.market(symbol)
+        subType = self.get_sub_type_from_market_id(market['id'])
+        request = {
+            'productType': subType,
+            'holdMode': 'double_hold' if hedged else 'single_hold',
         }
-        return unifiedResponse
-        # defaultSubType = self.safe_string(self.options, 'defaultSubType')
-        # request = {
-        #     'productType': 'umcbl' if (defaultSubType == 'linear') else 'dmcbl',
-        #     'holdMode': 'double_hold' if hedged else 'single_hold',
-        # }
-        # response = self.privateMixPostAccountSetPositionMode(self.extend(request, params))
-        # return response
+        response = self.privateMixPostAccountSetPositionMode(self.extend(request, params))
+        return response
 
     def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         self.load_markets()
@@ -2269,14 +2266,18 @@ class bitget(Exchange):
         rawStopTrigger = self.safe_string(order, 'triggerType')
         trigger = self.parse_stop_trigger(rawStopTrigger)
         side = self.safe_string_2(order, 'side', 'posSide')
-        reduce = False
-        close = False
+        reduce = self.safe_value(order, 'reduceOnly', False)
+        close = reduce
+        planType = self.safe_string(order, 'planType')
+        if planType == 'sl':
+            reduce = True
+            close = True
         if side and side.split('_')[0] == 'close':
             reduce = True
             close = True
-        if (side == 'open_long') or (side == 'close_short'):
+        if (side == 'open_long') or (side == 'close_short') or (side == 'buy_single'):
             side = 'buy'
-        elif (side == 'close_long') or (side == 'open_short'):
+        elif (side == 'close_long') or (side == 'open_short') or (side == 'sell_single'):
             side = 'sell'
         if rawStopTrigger:
             if type == 'market':
@@ -2347,6 +2348,7 @@ class bitget(Exchange):
         market = self.market(symbol)
         marketType, query = self.handle_market_type_and_params('createOrder', market, params)
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
+        tradeMode = self.safe_value(params, 'tradeMode', 'hedged')
         isTriggerOrder = triggerPrice is not None
         stopLossPrice = None
         isStopLossOrder = None
@@ -2456,12 +2458,19 @@ class bitget(Exchange):
                 else:
                     method = 'privateMixPostPlanPlaceTPSL'
             else:
-                if reduceOnly:
-                    request['side'] = 'close_short' if (side == 'buy') else 'close_long'
+                if tradeMode == 'oneway':
+                    request['side'] = 'buy_single' if (side == 'buy') else 'sell_single'
+                    if reduceOnly:
+                        request['reduceOnly'] = True
                 else:
-                    request['side'] = 'open_long' if (side == 'buy') else 'open_short'
+                    if reduceOnly:
+                        request['side'] = 'close_short' if (side == 'buy') else 'close_long'
+                    else:
+                        request['side'] = 'open_long' if (side == 'buy') else 'open_short'
+                if reduceOnly:
+                    request['cancelOrder'] = True
             request['marginCoin'] = market['settleId']
-        omitted = self.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly'])
+        omitted = self.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginType', 'reduceOnly', 'close'])
         response = getattr(self, method)(self.extend(request, omitted))
         #
         #     {
@@ -3599,10 +3608,16 @@ class bitget(Exchange):
         sellLeverage = self.safe_float(data, 'fixedShortLeverage')
         marginCoin = self.safe_string(data, 'marginCoin')
         holdMode = self.safe_string(data, 'holdMode')
-        tradeMode = holdMode == 'hedged' if 'double_hold' else 'oneway'
+        tradeMode = 'hedged'
+        if holdMode == 'single_hold':
+            tradeMode = 'oneway'
+            if isIsolated:
+                leverage = buyLeverage
         accountConfig = {
             'info': data,
             'markets': {},
+            'tradeMode': tradeMode,
+            'marginType': 'isolated' if isIsolated else 'cross',
         }
         leverageConfigs = accountConfig['markets']
         leverageConfigs[market['symbol']] = {

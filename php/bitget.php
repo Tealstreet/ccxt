@@ -840,25 +840,23 @@ class bitget extends Exchange {
 
     public function set_position_mode($hedged, $symbol = null, $params = array ()) {
         /**
-         * set $hedged to true or false for a market
+         * set $hedged to true or false for a $market
          * @param {bool} $hedged set to true to use dualSidePosition
          * @param {string|null} $symbol not used by binance setPositionMode ()
          * @param {array} $params extra parameters specific to the binance api endpoint
          * @return {array} $response from the exchange
          */
-        // BITGET HAS NOT IMPLEMENTED THIS YET
-        $unifiedResponse = array(
-            'symbol' => null,
-            'tradeMode' => 'hedged',
+        if (!$symbol) {
+            throw new ArgumentsRequired($this->id . ' setPositionMode requires a $symbol argument');
+        }
+        $market = $this->market($symbol);
+        $subType = $this->get_sub_type_from_market_id($market['id']);
+        $request = array(
+            'productType' => $subType,
+            'holdMode' => $hedged ? 'double_hold' : 'single_hold',
         );
-        return $unifiedResponse;
-        // $defaultSubType = $this->safe_string($this->options, 'defaultSubType');
-        // $request = array(
-        //     'productType' => ($defaultSubType === 'linear') ? 'umcbl' : 'dmcbl',
-        //     'holdMode' => $hedged ? 'double_hold' : 'single_hold',
-        // );
-        // $response = $this->privateMixPostAccountSetPositionMode (array_merge($request, $params));
-        // return $response;
+        $response = $this->privateMixPostAccountSetPositionMode (array_merge($request, $params));
+        return $response;
     }
 
     public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -2334,15 +2332,20 @@ class bitget extends Exchange {
         $rawStopTrigger = $this->safe_string($order, 'triggerType');
         $trigger = $this->parse_stop_trigger($rawStopTrigger);
         $side = $this->safe_string_2($order, 'side', 'posSide');
-        $reduce = false;
-        $close = false;
+        $reduce = $this->safe_value($order, 'reduceOnly', false);
+        $close = $reduce;
+        $planType = $this->safe_string($order, 'planType');
+        if ($planType === 'sl') {
+            $reduce = true;
+            $close = true;
+        }
         if ($side && explode('_', $side)[0] === 'close') {
             $reduce = true;
             $close = true;
         }
-        if (($side === 'open_long') || ($side === 'close_short')) {
+        if (($side === 'open_long') || ($side === 'close_short') || ($side === 'buy_single')) {
             $side = 'buy';
-        } elseif (($side === 'close_long') || ($side === 'open_short')) {
+        } elseif (($side === 'close_long') || ($side === 'open_short') || ($side === 'sell_single')) {
             $side = 'sell';
         }
         if ($rawStopTrigger) {
@@ -2418,6 +2421,7 @@ class bitget extends Exchange {
         $market = $this->market($symbol);
         list($marketType, $query) = $this->handle_market_type_and_params('createOrder', $market, $params);
         $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
+        $tradeMode = $this->safe_value($params, 'tradeMode', 'hedged');
         $isTriggerOrder = $triggerPrice !== null;
         $stopLossPrice = null;
         $isStopLossOrder = null;
@@ -2550,15 +2554,25 @@ class bitget extends Exchange {
                     $method = 'privateMixPostPlanPlaceTPSL';
                 }
             } else {
-                if ($reduceOnly) {
-                    $request['side'] = ($side === 'buy') ? 'close_short' : 'close_long';
+                if ($tradeMode === 'oneway') {
+                    $request['side'] = ($side === 'buy') ? 'buy_single' : 'sell_single';
+                    if ($reduceOnly) {
+                        $request['reduceOnly'] = true;
+                    }
                 } else {
-                    $request['side'] = ($side === 'buy') ? 'open_long' : 'open_short';
+                    if ($reduceOnly) {
+                        $request['side'] = ($side === 'buy') ? 'close_short' : 'close_long';
+                    } else {
+                        $request['side'] = ($side === 'buy') ? 'open_long' : 'open_short';
+                    }
+                }
+                if ($reduceOnly) {
+                    $request['cancelOrder'] = true;
                 }
             }
             $request['marginCoin'] = $market['settleId'];
         }
-        $omitted = $this->omit($query, array( 'stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly' ));
+        $omitted = $this->omit($query, array( 'stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginType', 'reduceOnly', 'close' ));
         $response = $this->$method (array_merge($request, $omitted));
         //
         //     {
@@ -3772,10 +3786,18 @@ class bitget extends Exchange {
         $sellLeverage = $this->safe_float($data, 'fixedShortLeverage');
         $marginCoin = $this->safe_string($data, 'marginCoin');
         $holdMode = $this->safe_string($data, 'holdMode');
-        $tradeMode = $holdMode === 'double_hold' ? 'hedged' : 'oneway';
+        $tradeMode = 'hedged';
+        if ($holdMode === 'single_hold') {
+            $tradeMode = 'oneway';
+            if ($isIsolated) {
+                $leverage = $buyLeverage;
+            }
+        }
         $accountConfig = array(
             'info' => $data,
             'markets' => array(),
+            'tradeMode' => $tradeMode,
+            'marginType' => $isIsolated ? 'isolated' : 'cross',
         );
         $leverageConfigs = $accountConfig['markets'];
         $leverageConfigs[$market['symbol']] = array(
