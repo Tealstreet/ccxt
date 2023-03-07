@@ -2372,7 +2372,7 @@ module.exports = class bitget extends Exchange {
         let reduce = this.safeValue (order, 'reduceOnly', false);
         let close = reduce;
         const planType = this.safeString (order, 'planType');
-        if (planType === 'sl') {
+        if (planType === 'sl' || planType === 'pos_loss' || planType === 'loss_plan' || planType === 'psl') {
             reduce = true;
             close = true;
         }

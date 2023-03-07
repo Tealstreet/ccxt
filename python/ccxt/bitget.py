@@ -2269,7 +2269,7 @@ class bitget(Exchange):
         reduce = self.safe_value(order, 'reduceOnly', False)
         close = reduce
         planType = self.safe_string(order, 'planType')
-        if planType == 'sl':
+        if planType == 'sl' or planType == 'pos_loss' or planType == 'loss_plan' or planType == 'psl':
             reduce = True
             close = True
         if side and side.split('_')[0] == 'close':

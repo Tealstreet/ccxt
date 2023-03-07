@@ -2335,7 +2335,7 @@ class bitget extends Exchange {
         $reduce = $this->safe_value($order, 'reduceOnly', false);
         $close = $reduce;
         $planType = $this->safe_string($order, 'planType');
-        if ($planType === 'sl') {
+        if ($planType === 'sl' || $planType === 'pos_loss' || $planType === 'loss_plan' || $planType === 'psl') {
             $reduce = true;
             $close = true;
         }
