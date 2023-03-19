@@ -1393,7 +1393,7 @@ class Transpiler {
             }
 
             // async or not
-            let keyword = matches[1]
+            const keyword = matches[1]
 
             // method name
             let method = matches[2]

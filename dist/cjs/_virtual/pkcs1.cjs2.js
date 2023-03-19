@@ -2,7 +2,6 @@
 
 var _commonjsHelpers = require('./_commonjsHelpers.js');
 var require$$1 = require('buffer');
-require('constants');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
@@ -17,7 +16,7 @@ var BigInteger = _commonjsHelpers.commonjsRequire("../libs/jsbn.cjs", "/$$rollup
 var CryptoJS = _commonjsHelpers.commonjsRequire("../../crypto-js/crypto-js.cjs", "/$$rollup_base$$/js/src/static_dependencies/node-rsa/schemes");
 var constants = { RSA_NO_PADDING: 3 };
 var Buffer = require$$1__default["default"].Buffer;
-
+// require('constants');
 var SIGN_INFO_HEAD = {
     md2: Buffer.from('3020300c06082a864886f70d020205000410', 'hex'),
     md5: Buffer.from('3020300c06082a864886f70d020505000410', 'hex'),
