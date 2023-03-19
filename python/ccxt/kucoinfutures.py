@@ -1017,6 +1017,10 @@ class kucoinfutures(kucoin):
         isStopLoss = stopLossPrice is not None
         isTakeProfit = takeProfitPrice is not None
         if stopPrice:
+            if price is not None:
+                request['type'] = 'limit'
+            else:
+                request['type'] = 'market'
             request['stop'] = 'up' if (side == 'buy') else 'down'
             request['stopPrice'] = self.price_to_precision(symbol, stopPrice)
             request['stopPriceType'] = 'MP'
@@ -1029,6 +1033,7 @@ class kucoinfutures(kucoin):
                 request['stopPrice'] = self.price_to_precision(symbol, takeProfitPrice)
             request['reduceOnly'] = True
             request['stopPriceType'] = 'MP'
+        type = request['type']
         uppercaseType = type.upper()
         timeInForce = self.safe_string_upper(params, 'timeInForce')
         if uppercaseType == 'LIMIT':

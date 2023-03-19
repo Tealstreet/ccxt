@@ -22,7 +22,7 @@ class bitget extends Exchange["default"] {
                 'spot': true,
                 'margin': false,
                 'swap': true,
-                'future': true,
+                'future': false,
                 'option': false,
                 'addMargin': true,
                 'cancelAllOrders': true,
@@ -30,7 +30,6 @@ class bitget extends Exchange["default"] {
                 'cancelOrders': true,
                 'createOrder': true,
                 'createReduceOnlyOrder': false,
-                'editOrder': true,
                 'fetchAccounts': false,
                 'fetchBalance': true,
                 'fetchBorrowRate': false,
@@ -38,13 +37,12 @@ class bitget extends Exchange["default"] {
                 'fetchBorrowRateHistory': false,
                 'fetchBorrowRates': false,
                 'fetchBorrowRatesPerSymbol': false,
-                'fetchCanceledOrders': true,
                 'fetchClosedOrders': true,
                 'fetchCurrencies': true,
                 'fetchDepositAddress': true,
                 'fetchDepositAddresses': false,
                 'fetchDeposits': true,
-                'fetchFundingHistory': true,
+                'fetchFundingHistory': false,
                 'fetchFundingRate': true,
                 'fetchFundingRateHistory': true,
                 'fetchFundingRates': false,
@@ -63,7 +61,6 @@ class bitget extends Exchange["default"] {
                 'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
-                'fetchOrders': false,
                 'fetchOrderTrades': true,
                 'fetchPosition': true,
                 'fetchPositionMode': false,
@@ -77,24 +74,22 @@ class bitget extends Exchange["default"] {
                 'fetchTradingFee': true,
                 'fetchTradingFees': true,
                 'fetchTransfer': false,
-                'fetchTransfers': true,
+                'fetchTransfers': undefined,
                 'fetchWithdrawal': false,
                 'fetchWithdrawals': true,
                 'reduceMargin': true,
                 'setLeverage': true,
                 'setMarginMode': true,
-                'setPositionMode': true,
+                'setPositionMode': false,
                 'transfer': true,
                 'withdraw': false,
             },
             'timeframes': {
                 '1m': '1m',
-                '3m': '3m',
                 '5m': '5m',
                 '15m': '15m',
                 '30m': '30m',
                 '1h': '1h',
-                '2h': '2h',
                 '4h': '4h',
                 '6h': '6h',
                 '12h': '12h',
@@ -132,7 +127,6 @@ class bitget extends Exchange["default"] {
                             'market/fills': 1,
                             'market/candles': 1,
                             'market/depth': 1,
-                            'market/spot-vip-level': 2,
                         },
                     },
                     'mix': {
@@ -150,7 +144,6 @@ class bitget extends Exchange["default"] {
                             'market/open-interest': 1,
                             'market/mark-price': 1,
                             'market/symbol-leverage': 1,
-                            'market/contract-vip-level': 2,
                         },
                     },
                 },
@@ -179,19 +172,12 @@ class bitget extends Exchange["default"] {
                             'wallet/transfer': 4,
                             'wallet/withdrawal': 4,
                             'wallet/subTransfer': 10,
-                            'plan/placePlan': 1,
-                            'plan/modifyPlan': 1,
-                            'plan/cancelPlan': 1,
-                            'plan/currentPlan': 1,
-                            'plan/historyPlan': 1,
                         },
                     },
                     'mix': {
                         'get': {
                             'account/account': 2,
                             'account/accounts': 2,
-                            'account/accountBill': 2,
-                            'account/accountBusinessBill': 4,
                             'account/open-count': 1,
                             'order/current': 2,
                             'order/history': 2,
@@ -216,9 +202,9 @@ class bitget extends Exchange["default"] {
                         },
                         'post': {
                             'account/setLeverage': 8,
+                            'account/setPositionMode': 8,
                             'account/setMargin': 8,
                             'account/setMarginMode': 8,
-                            'account/setPositionMode': 8,
                             'order/placeOrder': 2,
                             'order/batch-orders': 2,
                             'order/cancel-order': 2,
@@ -228,7 +214,6 @@ class bitget extends Exchange["default"] {
                             'plan/modifyPlan': 2,
                             'plan/modifyPlanPreset': 2,
                             'plan/placeTPSL': 2,
-                            'plan/placeTrailStop': 2,
                             'plan/placePositionsTPSL': 2,
                             'plan/modifyTPSLPlan': 2,
                             'plan/cancelPlan': 2,
@@ -617,7 +602,6 @@ class bitget extends Exchange["default"] {
                     '40016': errors.PermissionDenied,
                     '40017': errors.ExchangeError,
                     '40018': errors.PermissionDenied,
-                    '40019': errors.InvalidOrder,
                     '40102': errors.BadRequest,
                     '40103': errors.BadRequest,
                     '40104': errors.ExchangeError,
@@ -690,9 +674,6 @@ class bitget extends Exchange["default"] {
                     '40712': errors.InsufficientFunds,
                     '40713': errors.ExchangeError,
                     '40714': errors.ExchangeError,
-                    '41114': errors.OnMaintenance,
-                    '43011': errors.InvalidOrder,
-                    '43025': errors.InvalidOrder,
                     '45110': errors.InvalidOrder,
                     // spot
                     'invalid sign': errors.AuthenticationError,
@@ -769,75 +750,163 @@ class bitget extends Exchange["default"] {
             'options': {
                 'timeframes': {
                     'spot': {
-                        '1m': '1m',
-                        '5m': '5m',
-                        '15m': '15m',
-                        '30m': '30m',
+                        '1m': '1min',
+                        '5m': '5min',
+                        '15m': '15min',
+                        '30m': '30min',
                         '1h': '1h',
                         '4h': '4h',
-                        '6h': '6Hutc',
-                        '12h': '12Hutc',
-                        '1d': '1Dutc',
-                        '3d': '3Dutc',
-                        '1w': '1Wutc',
-                        '1M': '1Mutc',
+                        '6h': '6h',
+                        '12h': '12h',
+                        '1d': '1day',
+                        '3d': '3day',
+                        '1w': '1week',
+                        '1M': '1M',
                     },
                     'swap': {
-                        '1m': '1m',
-                        '3m': '3m',
-                        '5m': '5m',
-                        '15m': '15m',
-                        '30m': '30m',
-                        '1h': '1H',
-                        '2h': '2H',
-                        '4h': '4H',
-                        '6h': '6Hutc',
-                        '12h': '12Hutc',
-                        '1d': '1Dutc',
-                        '3d': '3Dutc',
-                        '1w': '1Wutc',
-                        '1M': '1Mutc',
+                        '1m': '60',
+                        '5m': '300',
+                        '15m': '900',
+                        '30m': '1800',
+                        '1h': '3600',
+                        '4h': '14400',
+                        '12h': '43200',
+                        '1d': '86400',
+                        '1w': '604800',
                     },
                 },
                 'fetchMarkets': [
                     'spot',
                     'swap',
                 ],
-                'defaultType': 'spot',
+                'defaultType': 'swap',
                 'defaultSubType': 'linear',
+                'subTypes': ['umcbl', 'dmcbl', 'cmcbl'],
                 'createMarketBuyOrderRequiresPrice': true,
-                'broker': 'p4sve',
+                'broker': {
+                // 'spot': 'CCXT#',
+                // 'swap': 'CCXT#',
+                },
                 'withdraw': {
                     'fillResponseFromRequest': true,
-                },
-                'accountsByType': {
-                    'main': 'EXCHANGE',
-                    'spot': 'EXCHANGE',
-                    'future': 'USDT_MIX',
-                    'contract': 'CONTRACT',
-                    'mix': 'USD_MIX',
-                },
-                'accountsById': {
-                    'EXCHANGE': 'spot',
-                    'USDT_MIX': 'future',
-                    'CONTRACT': 'swap',
-                    'USD_MIX': 'swap',
-                },
-                'sandboxMode': false,
-                'networks': {
-                    'TRX': 'TRC20',
-                    'ETH': 'ERC20',
-                    'BSC': 'BEP20',
-                },
-                'networksById': {
-                    'TRC20': 'TRX',
-                    'BSC': 'BEP20',
                 },
             },
         });
     }
     setSandboxMode(enabled) {
-        this.options['sandboxMode'] = enabled;
+        const currSubTypes = this.getSubTypes();
+        if (enabled) {
+            this.options['subTypesBackup'] = currSubTypes;
+            const newSubTypes = [];
+            for (let i = 0; i < currSubTypes.length; i++) {
+                newSubTypes.push('s' + currSubTypes[i]);
+            }
+            this.options['subTypes'] = newSubTypes;
+        }
+        else if ('subTypesBackup' in this.options) {
+            this.options['subTypes'] = this.options['subTypesBackup'];
+            delete this.options['subTypesBackup'];
+        }
+    }
+    getSubTypes() {
+        return this.safeValue(this.options, 'subTypes', ['umcbl', 'dmcbl', 'cmcbl']);
+    }
+    getSupportedMapping(key, mapping = {}) {
+        // swap and future use same api for bitget
+        if (key === 'future') {
+            key = 'swap';
+        }
+        if (key in mapping) {
+            return mapping[key];
+        }
+        else {
+            throw new errors.NotSupported(this.id + ' ' + key + ' does not have a value in mapping');
+        }
+    }
+    getSubTypeFromMarketId(marketId) {
+        if (!marketId) {
+            return undefined;
+        }
+        const subTypeParts = marketId.split('_');
+        if (subTypeParts.length > 1) {
+            return subTypeParts[1].toLowerCase();
+        }
+        else {
+            return '';
+        }
+    }
+    async setPositionMode(hedged, symbol = undefined, params = {}) {
+        /**
+         * @method
+         * @name binance#setPositionMode
+         * @description set hedged to true or false for a market
+         * @param {bool} hedged set to true to use dualSidePosition
+         * @param {string|undefined} symbol not used by binance setPositionMode ()
+         * @param {object} params extra parameters specific to the binance api endpoint
+         * @returns {object} response from the exchange
+         */
+        if (!symbol) {
+            throw new errors.ArgumentsRequired(this.id + ' setPositionMode requires a symbol argument');
+        }
+        const market = this.market(symbol);
+        const subType = this.getSubTypeFromMarketId(market['id']);
+        const request = {
+            'productType': subType,
+            'holdMode': hedged ? 'double_hold' : 'single_hold',
+        };
+        const response = await this.privateMixPostAccountSetPositionMode(this.extend(request, params));
+        return response;
+    }
+    async fetchOpenOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets();
+        let subTypes = [];
+        const request = {};
+        let market = undefined;
+        if (symbol) {
+            market = this.market(symbol);
+            subTypes = [this.getSubTypeFromMarketId(market['id'])];
+            request['symbol'] = market['id'];
+        }
+        else {
+            subTypes = this.getSubTypes();
+        }
+        const stop = this.safeValue(params, 'stop');
+        if (stop) {
+            params = this.omit(params, 'stop');
+            let promises = [];
+            for (let i = 0; i < subTypes.length; i++) {
+                const subType = subTypes[i];
+                request['productType'] = subType;
+                request['isPlan'] = 'plan';
+                promises.push(this.privateMixGetPlanCurrentPlan(this.extend(request, params)));
+                request['isPlan'] = 'profit_loss';
+                promises.push(this.privateMixGetPlanCurrentPlan(this.extend(request, params)));
+            }
+            promises = await Promise.all(promises);
+            let orders = [];
+            for (let i = 0; i < promises.length; i++) {
+                const response = promises[i];
+                const data = this.safeValue(response, 'data');
+                orders = this.arrayConcat(orders, data);
+            }
+            return this.parseOrders(orders, undefined, since, limit);
+        }
+        else {
+            let promises = [];
+            for (let i = 0; i < subTypes.length; i++) {
+                const subType = subTypes[i];
+                request['productType'] = subType;
+                promises.push(this.privateMixGetOrderMarginCoinCurrent(this.extend(request, params)));
+            }
+            promises = await Promise.all(promises);
+            let orders = [];
+            for (let i = 0; i < promises.length; i++) {
+                const response = promises[i];
+                const data = this.safeValue(response, 'data');
+                orders = this.arrayConcat(orders, data);
+            }
+            return this.parseOrders(orders, undefined, since, limit);
+        }
     }
     async fetchTime(params = {}) {
         /**
@@ -866,37 +935,29 @@ class bitget extends Exchange["default"] {
          * @param {object} params extra parameters specific to the exchange api endpoint
          * @returns {[object]} an array of objects representing market data
          */
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
-        let types = this.safeValue(this.options, 'fetchMarkets', ['spot', 'swap']);
-        if (sandboxMode) {
-            types = ['swap'];
-        }
-        let promises = [];
+        const types = this.safeValue(this.options, 'fetchMarkets', ['spot', 'swap']);
+        let result = [];
         for (let i = 0; i < types.length; i++) {
             const type = types[i];
             if (type === 'swap') {
-                let subTypes = undefined;
-                if (sandboxMode) {
-                    // the following are simulated trading markets [ 'sumcbl', 'sdmcbl', 'scmcbl' ];
-                    subTypes = ['sumcbl', 'sdmcbl', 'scmcbl'];
-                }
-                else {
-                    subTypes = ['umcbl', 'dmcbl', 'cmcbl'];
-                }
+                const subTypes = this.getSubTypes();
+                let promises = [];
                 for (let j = 0; j < subTypes.length; j++) {
                     promises.push(this.fetchMarketsByType(type, this.extend(params, {
                         'productType': subTypes[j],
                     })));
                 }
+                promises = await Promise.all(promises);
+                let result = [];
+                for (let j = 0; j < promises.length; j++) {
+                    result = this.arrayConcat(result, promises[j]);
+                }
+                return result;
             }
             else {
-                promises.push(this.fetchMarketsByType(types[i], params));
+                const markets = await this.fetchMarketsByType(types[i], params);
+                result = this.arrayConcat(result, markets);
             }
-        }
-        promises = await Promise.all(promises);
-        let result = promises[0];
-        for (let i = 1; i < promises.length; i++) {
-            result = this.arrayConcat(result, promises[i]);
         }
         return result;
     }
@@ -918,7 +979,6 @@ class bitget extends Exchange["default"] {
         //        quoteCoin: 'USDT',
         //        minTradeAmount: '2',
         //        maxTradeAmount: '0',
-        //        minTradeUSDT": '5',
         //        takerFeeRate: '0.001',
         //        makerFeeRate: '0.001',
         //        priceScale: '4',
@@ -942,14 +1002,17 @@ class bitget extends Exchange["default"] {
         //        minTradeNum: '0.001',
         //        priceEndStep: '5',
         //        volumePlace: '3',
-        //        pricePlace: '1',
-        //        symbolStatus: "normal",
-        //        offTime: "-1",
-        //        limitOpenTime: "-1"
+        //        pricePlace: '1'
         //    }
         //
         const marketId = this.safeString(market, 'symbol');
-        const quoteId = this.safeString(market, 'quoteCoin');
+        let quoteId = this.safeString(market, 'quoteCoin');
+        if (marketId.slice(-6) === 'SCMCBL') {
+            quoteId = 'SUSDC';
+        }
+        else if (marketId.slice(-5) === 'CMCBL') {
+            quoteId = 'USDC';
+        }
         const baseId = this.safeString(market, 'baseCoin');
         const quote = this.safeCurrencyCode(quoteId);
         const base = this.safeCurrencyCode(baseId);
@@ -994,8 +1057,14 @@ class bitget extends Exchange["default"] {
                 symbol = symbol + ':' + settle;
             }
             contract = true;
-            linear = (typeId === 'UMCBL') || (typeId === 'CMCBL') || (typeId === 'SUMCBL') || (typeId === 'SCMCBL');
+            const sumcbl = (typeId === 'SUMCBL');
+            const sdmcbl = (typeId === 'SDMCBL');
+            const scmcbl = (typeId === 'SCMCBL');
+            linear = (typeId === 'UMCBL') || (typeId === 'CMCBL') || sumcbl || scmcbl;
             inverse = !linear;
+            if (sumcbl || sdmcbl || scmcbl) {
+                symbol = marketId;
+            }
             const priceDecimals = this.safeInteger(market, 'pricePlace');
             const amountDecimals = this.safeInteger(market, 'volumePlace');
             const priceStep = this.safeString(market, 'priceEndStep');
@@ -1011,14 +1080,10 @@ class bitget extends Exchange["default"] {
             const amountString = preciseAmount.toString();
             amountPrecision = this.parseNumber(amountString);
         }
-        const status = this.safeString2(market, 'status', 'symbolStatus');
+        const status = this.safeString(market, 'status');
         let active = undefined;
         if (status !== undefined) {
-            active = (status === 'online' || status === 'normal');
-        }
-        let minCost = undefined;
-        if (quote === 'USDT') {
-            minCost = this.safeNumber(market, 'minTradeUSDT');
+            active = status === 'online';
         }
         return {
             'id': marketId,
@@ -1056,15 +1121,15 @@ class bitget extends Exchange["default"] {
                     'max': undefined,
                 },
                 'amount': {
-                    'min': this.safeNumber2(market, 'minTradeNum', 'minTradeAmount'),
-                    'max': this.safeNumber(market, 'maxTradeAmount'),
+                    'min': this.safeNumber(market, 'minTradeNum'),
+                    'max': undefined,
                 },
                 'price': {
                     'min': undefined,
                     'max': undefined,
                 },
                 'cost': {
-                    'min': minCost,
+                    'min': undefined,
                     'max': undefined,
                 },
             },
@@ -1227,14 +1292,14 @@ class bitget extends Exchange["default"] {
          * @method
          * @name bitget#fetchDeposits
          * @description fetch all deposits made to an account
-         * @see https://bitgetlimited.github.io/apidoc/en/spot/#get-deposit-list
+         * @url https://bitgetlimited.github.io/apidoc/en/spot/#get-deposit-list
          * @param {string|undefined} code unified currency code
          * @param {int} since the earliest time in ms to fetch deposits for
          * @param {int|undefined} limit the maximum number of deposits structures to retrieve
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @param {string|undefined} params.pageNo pageNo default 1
          * @param {string|undefined} params.pageSize pageSize default 20. Max 100
-         * @returns {[object]} a list of [transaction structures]{@link https://docs.ccxt.com/#/?id=transaction-structure}
+         * @returns {[object]} a list of [transaction structures]{@link https://docs.ccxt.com/en/latest/manual.html#transaction-structure}
          */
         await this.loadMarkets();
         if (code === undefined) {
@@ -1288,7 +1353,7 @@ class bitget extends Exchange["default"] {
          * @param {string|undefined} tag
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @param {string} params.chain the chain to withdraw to
-         * @returns {object} a [transaction structure]{@link https://docs.ccxt.com/#/?id=transaction-structure}
+         * @returns {object} a [transaction structure]{@link https://docs.ccxt.com/en/latest/manual.html#transaction-structure}
          */
         this.checkAddress(address);
         const chain = this.safeString(params, 'chain');
@@ -1354,14 +1419,14 @@ class bitget extends Exchange["default"] {
          * @method
          * @name bitget#fetchWithdrawals
          * @description fetch all withdrawals made from an account
-         * @see https://bitgetlimited.github.io/apidoc/en/spot/#get-withdraw-list
+         * @url https://bitgetlimited.github.io/apidoc/en/spot/#get-withdraw-list
          * @param {string|undefined} code unified currency code
          * @param {int} since the earliest time in ms to fetch withdrawals for
          * @param {int|undefined} limit the maximum number of withdrawals structures to retrieve
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @param {string|undefined} params.pageNo pageNo default 1
          * @param {string|undefined} params.pageSize pageSize default 20. Max 100
-         * @returns {[object]} a list of [transaction structures]{@link https://docs.ccxt.com/#/?id=transaction-structure}
+         * @returns {[object]} a list of [transaction structures]{@link https://docs.ccxt.com/en/latest/manual.html#transaction-structure}
          */
         await this.loadMarkets();
         if (code === undefined) {
@@ -1463,19 +1528,14 @@ class bitget extends Exchange["default"] {
          * @name bitget#fetchDepositAddress
          * @description fetch the deposit address for a currency associated with this account
          * @param {string} code unified currency code
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} an [address structure]{@link https://docs.ccxt.com/#/?id=address-structure}
+         * @param {object} params extra parameters specific to the binance api endpoint
+         * @returns {object} an [address structure]{@link https://docs.ccxt.com/en/latest/manual.html#address-structure}
          */
         await this.loadMarkets();
-        const networkCode = this.safeString(params, 'network');
-        const networkId = this.networkCodeToId(networkCode, code);
         const currency = this.currency(code);
         const request = {
             'coin': currency['code'],
         };
-        if (networkId !== undefined) {
-            request['chain'] = networkId;
-        }
         const response = await this.privateSpotGetWalletDepositAddress(this.extend(request, params));
         //
         //     {
@@ -1505,12 +1565,11 @@ class bitget extends Exchange["default"] {
         //
         const currencyId = this.safeString(depositAddress, 'coin');
         const networkId = this.safeString(depositAddress, 'chain');
-        const parsedCurrency = this.safeCurrencyCode(currencyId, currency);
         return {
-            'currency': parsedCurrency,
+            'currency': this.safeCurrencyCode(currencyId, currency),
             'address': this.safeString(depositAddress, 'address'),
             'tag': this.safeString(depositAddress, 'tag'),
-            'network': this.networkIdToCode(networkId, parsedCurrency),
+            'network': networkId,
             'info': depositAddress,
         };
     }
@@ -1522,7 +1581,7 @@ class bitget extends Exchange["default"] {
          * @param {string} symbol unified symbol of the market to fetch the order book for
          * @param {int|undefined} limit the maximum amount of order book entries to return
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} A dictionary of [order book structures]{@link https://docs.ccxt.com/#/?id=order-book-structure} indexed by market symbols
+         * @returns {object} A dictionary of [order book structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-book-structure} indexed by market symbols
          */
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -1588,12 +1647,8 @@ class bitget extends Exchange["default"] {
         //     }
         //
         let marketId = this.safeString(ticker, 'symbol');
-        if ((market === undefined) && (marketId !== undefined) && (marketId.indexOf('_') === -1)) {
-            // fetchTickers fix:
-            // spot symbol are different from the "request id"
-            // so we need to convert it to the exchange-specific id
-            // otherwise we will not be able to find the market
-            marketId = marketId + '_SPBL';
+        if (!(marketId in this.markets_by_id)) {
+            marketId += '_SPBL';
         }
         const symbol = this.safeSymbol(marketId, market);
         const high = this.safeString(ticker, 'high24h');
@@ -1636,7 +1691,7 @@ class bitget extends Exchange["default"] {
          * @description fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
          * @param {string} symbol unified symbol of the market to fetch the ticker for
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/en/latest/manual.html#ticker-structure}
          */
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -1680,9 +1735,8 @@ class bitget extends Exchange["default"] {
          * @see https://bitgetlimited.github.io/apidoc/en/mix/#get-all-symbol-ticker
          * @param {[string]|undefined} symbols unified symbols of the markets to fetch the ticker for, all market tickers are returned if not assigned
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a dictionary of [ticker structures]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         * @returns {object} an array of [ticker structures]{@link https://docs.ccxt.com/en/latest/manual.html#ticker-structure}
          */
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
         await this.loadMarkets();
         let type = undefined;
         let market = undefined;
@@ -1697,13 +1751,8 @@ class bitget extends Exchange["default"] {
         });
         const request = {};
         if (method === 'publicMixGetMarketTickers') {
-            let subType = undefined;
-            [subType, params] = this.handleSubTypeAndParams('fetchTickers', undefined, params);
-            let productType = (subType === 'linear') ? 'UMCBL' : 'DMCBL';
-            if (sandboxMode) {
-                productType = 'S' + productType;
-            }
-            request['productType'] = productType;
+            const defaultSubType = this.safeString(this.options, 'defaultSubType');
+            request['productType'] = (defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL';
         }
         const response = await this[method](this.extend(request, params));
         //
@@ -1782,18 +1831,18 @@ class bitget extends Exchange["default"] {
         // private
         //
         //     {
-        //         accountId: '4383649766',
-        //         symbol: 'ETHBTC_SPBL',
-        //         orderId: '1009402341131468800',
-        //         fillId: '1009402351489581068',
+        //         accountId: '6394957606',
+        //         symbol: 'LTCUSDT_SPBL',
+        //         orderId: '864752115272552448',
+        //         fillId: '864752115685969921',
         //         orderType: 'limit',
-        //         side: 'sell',
-        //         fillPrice: '0.06997800',
-        //         fillQuantity: '0.04120000',
-        //         fillTotalAmount: '0.00288309',
-        //         feeCcy: 'BTC',
-        //         fees: '-0.00000288',
-        //         cTime: '1676386195060'
+        //         side: 'buy',
+        //         fillPrice: '127.92000000',
+        //         fillQuantity: '0.10000000',
+        //         fillTotalAmount: '12.79200000',
+        //         feeCcy: 'LTC',
+        //         fees: '0.00000000',
+        //         cTime: '1641898891373'
         //     }
         //
         //     {
@@ -1827,7 +1876,7 @@ class bitget extends Exchange["default"] {
             fee = {
                 'code': currencyCode,
                 'currency': currencyCode,
-                'cost': Precise["default"].stringNeg(feeAmount),
+                'cost': feeAmount,
             };
         }
         const datetime = this.iso8601(timestamp);
@@ -1899,7 +1948,7 @@ class bitget extends Exchange["default"] {
          * @description fetch the trading fees for a market
          * @param {string} symbol unified market symbol
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [fee structure]{@link https://docs.ccxt.com/#/?id=fee-structure}
+         * @returns {object} a [fee structure]{@link https://docs.ccxt.com/en/latest/manual.html#fee-structure}
          */
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -1936,7 +1985,7 @@ class bitget extends Exchange["default"] {
          * @name bitget#fetchTradingFees
          * @description fetch the trading fees for multiple markets
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a dictionary of [fee structures]{@link https://docs.ccxt.com/#/?id=fee-structure} indexed by market symbols
+         * @returns {object} a dictionary of [fee structures]{@link https://docs.ccxt.com/en/latest/manual.html#fee-structure} indexed by market symbols
          */
         await this.loadMarkets();
         const response = await this.publicSpotGetPublicProducts(params);
@@ -2041,28 +2090,28 @@ class bitget extends Exchange["default"] {
             'spot': 'publicSpotGetMarketCandles',
             'swap': 'publicMixGetMarketCandles',
         });
-        const until = this.safeInteger2(query, 'until', 'till');
+        const until = this.safeInteger2(params, 'until', 'till');
+        params = this.omit(params, ['until', 'till']);
         if (limit === undefined) {
             limit = 100;
         }
-        const timeframes = this.options['timeframes'][marketType];
-        const selectedTimeframe = this.safeString(timeframes, timeframe, timeframe);
-        const duration = this.parseTimeframe(timeframe);
-        if (market['spot']) {
-            request['period'] = selectedTimeframe;
+        if (market['type'] === 'spot') {
+            request['period'] = this.options['timeframes']['spot'][timeframe];
             request['limit'] = limit;
             if (since !== undefined) {
                 request['after'] = since;
                 if (until === undefined) {
-                    request['before'] = this.sum(since, limit * duration * 1000);
+                    const millisecondsPerTimeframe = this.options['timeframes']['swap'][timeframe] * 1000;
+                    request['before'] = this.sum(since, millisecondsPerTimeframe * limit);
                 }
             }
             if (until !== undefined) {
                 request['before'] = until;
             }
         }
-        else if (market['swap']) {
-            request['granularity'] = selectedTimeframe;
+        else if (market['type'] === 'swap') {
+            request['granularity'] = this.options['timeframes']['swap'][timeframe];
+            const duration = this.parseTimeframe(timeframe);
             const now = this.milliseconds();
             if (since === undefined) {
                 request['startTime'] = now - (limit - 1) * (duration * 1000);
@@ -2078,8 +2127,7 @@ class bitget extends Exchange["default"] {
                 }
             }
         }
-        const ommitted = this.omit(query, ['until', 'till']);
-        const response = await this[method](this.extend(request, ommitted));
+        const response = await this[method](this.extend(request, query));
         //  [ ["1645911960000","39406","39407","39374.5","39379","35.526","1399132.341"] ]
         const data = this.safeValue(response, 'data', response);
         return this.parseOHLCVs(data, market, timeframe, since, limit);
@@ -2092,65 +2140,77 @@ class bitget extends Exchange["default"] {
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
          */
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
         await this.loadMarkets();
         const [marketType, query] = this.handleMarketTypeAndParams('fetchBalance', undefined, params);
         const method = this.getSupportedMapping(marketType, {
             'spot': 'privateSpotGetAccountAssets',
             'swap': 'privateMixGetAccountAccounts',
         });
-        const request = {};
         if (marketType === 'swap') {
-            let subType = undefined;
-            [subType, params] = this.handleSubTypeAndParams('fetchBalance', undefined, params);
-            let productType = (subType === 'linear') ? 'UMCBL' : 'DMCBL';
-            if (sandboxMode) {
-                productType = 'S' + productType;
+            const subTypes = this.getSubTypes();
+            let promises = [];
+            for (let i = 0; i < subTypes.length; i++) {
+                const subType = subTypes[i];
+                const request = {
+                    'productType': subType,
+                };
+                promises.push(this[method](this.extend(request, query)));
             }
-            request['productType'] = productType;
+            promises = await Promise.all(promises);
+            let result = {};
+            for (let i = 0; i < promises.length; i++) {
+                const response = promises[i];
+                const data = this.safeValue(response, 'data');
+                const parsedBalance = this.parseBalance(data);
+                result = this.deepExtend(result, parsedBalance);
+            }
+            return result;
         }
-        const response = await this[method](this.extend(request, query));
-        // spot
-        //     {
-        //       code: '00000',
-        //       msg: 'success',
-        //       requestTime: 1645928868827,
-        //       data: [
-        //         {
-        //           coinId: 1,
-        //           coinName: 'BTC',
-        //           available: '0.00070000',
-        //           frozen: '0.00000000',
-        //           lock: '0.00000000',
-        //           uTime: '1645921706000'
-        //         }
-        //       ]
-        //     }
-        //
-        // swap
-        //     {
-        //       code: '00000',
-        //       msg: 'success',
-        //       requestTime: 1645928929251,
-        //       data: [
-        //         {
-        //           marginCoin: 'USDT',
-        //           locked: '0',
-        //           available: '8.078525',
-        //           crossMaxAvailable: '8.078525',
-        //           fixedMaxAvailable: '8.078525',
-        //           maxTransferOut: '8.078525',
-        //           equity: '10.02508',
-        //           usdtEquity: '10.02508',
-        //           btcEquity: '0.00026057027'
-        //         }
-        //       ]
-        //     }
-        const data = this.safeValue(response, 'data');
-        return this.parseBalance(data);
+        else {
+            const request = {};
+            const response = await this[method](this.extend(request, query));
+            // spot
+            //     {
+            //       code: '00000',
+            //       msg: 'success',
+            //       requestTime: 1645928868827,
+            //       data: [
+            //         {
+            //           coinId: 1,
+            //           coinName: 'BTC',
+            //           available: '0.00070000',
+            //           frozen: '0.00000000',
+            //           lock: '0.00000000',
+            //           uTime: '1645921706000'
+            //         }
+            //       ]
+            //     }
+            //
+            // swap
+            //     {
+            //       code: '00000',
+            //       msg: 'success',
+            //       requestTime: 1645928929251,
+            //       data: [
+            //         {
+            //           marginCoin: 'USDT',
+            //           locked: '0',
+            //           available: '8.078525',
+            //           crossMaxAvailable: '8.078525',
+            //           fixedMaxAvailable: '8.078525',
+            //           maxTransferOut: '8.078525',
+            //           equity: '10.02508',
+            //           usdtEquity: '10.02508',
+            //           btcEquity: '0.00026057027'
+            //         }
+            //       ]
+            //     }
+            const data = this.safeValue(response, 'data');
+            return this.parseBalance(data);
+        }
     }
     parseBalance(balance) {
-        const result = { 'info': balance };
+        const result = { 'info': {} };
         //
         //     {
         //       coinId: '1',
@@ -2161,15 +2221,32 @@ class bitget extends Exchange["default"] {
         //       uTime: '1661595535000'
         //     }
         //
+        // {
+        //   'marginCoin': 'USDT',
+        //   'locked': '0',
+        //   'available': '25',
+        //   'crossMaxAvailable': '25',
+        //   'fixedMaxAvailable': '25',
+        //   'maxTransferOut': '25',
+        //   'equity': '25',
+        //   'usdtEquity': '25',
+        //   'btcEquity': '0.00152089221',
+        //   'unrealizedPL': None
+        // }
         for (let i = 0; i < balance.length; i++) {
             const entry = balance[i];
-            const currencyId = this.safeString2(entry, 'coinName', 'marginCoin');
+            const currencyId = this.safeString2(entry, 'coinId', 'marginCoin');
             const code = this.safeCurrencyCode(currencyId);
+            const info = this.safeValue(entry, 'info', {});
+            const infoForCode = this.safeValue(info, code, {});
+            result['info'][code] = this.deepExtend(infoForCode, entry);
             const account = this.account();
-            const frozen = this.safeString(entry, 'frozen');
-            const locked = this.safeString2(entry, 'lock', 'locked');
-            account['used'] = Precise["default"].stringAdd(frozen, locked);
-            account['free'] = this.safeString(entry, 'available');
+            const free = this.safeString2(entry, 'crossMaxAvailable', 'available', '0');
+            const total = this.safeString2(entry, 'equity', 'available', '0');
+            const used = Precise["default"].stringSub(total, free);
+            account['used'] = used;
+            account['free'] = free;
+            account['total'] = total;
             result[code] = account;
         }
         return this.safeBalance(result);
@@ -2178,14 +2255,17 @@ class bitget extends Exchange["default"] {
         const statuses = {
             'new': 'open',
             'init': 'open',
-            'not_trigger': 'open',
-            'triggered': 'closed',
             'full_fill': 'closed',
             'filled': 'closed',
-            'fail_trigger': 'canceled',
-            'cancel': 'canceled',
-            'cancelled': 'canceled',
-            'canceled': 'canceled',
+            'not_trigger': 'untriggered',
+        };
+        return this.safeString(statuses, status, status);
+    }
+    parseStopTrigger(status) {
+        const statuses = {
+            'market_price': 'mark',
+            'fill_price': 'last',
+            'index_price': 'index',
         };
         return this.safeString(statuses, status, status);
     }
@@ -2233,60 +2313,94 @@ class bitget extends Exchange["default"] {
         // stop
         //
         //     {
-        //         "orderId": "910246821491617792",
-        //         "symbol": "BTCUSDT_UMCBL",
-        //         "marginCoin": "USDT",
-        //         "size": "16",
-        //         "executePrice": "20000",
-        //         "triggerPrice": "24000",
-        //         "status": "not_trigger",
-        //         "orderType": "limit",
-        //         "planType": "normal_plan",
-        //         "side": "open_long",
-        //         "triggerType": "market_price",
-        //         "presetTakeProfitPrice": "0",
-        //         "presetTakeLossPrice": "0",
-        //         "cTime": "1652745674488"
+        //         'orderId': '989690453925896192',
+        //       'symbol': 'AAVEUSDT_UMCBL',
+        //       'marginCoin': 'USDT',
+        //       'size': '0.6',
+        //       'executePrice': '0',
+        //       'triggerPrice': '54.781',
+        //       'status': 'not_trigger',
+        //       'orderType': 'market',
+        //       'planType': 'normal_plan',
+        //       'side': 'open_short',
+        //       'triggerType': 'market_price',
+        //       'presetTakeProfitPrice': '0',
+        //       'presetTakeLossPrice': '0',
+        //       'rangeRate': '',
+        //       'cTime': '1671686512452'
         //     }
         //
         const marketId = this.safeString(order, 'symbol');
-        market = this.safeMarket(marketId, market);
+        const instType = this.getSubTypeFromMarketId(marketId);
+        market = this.safeMarket(marketId);
         const symbol = market['symbol'];
         const id = this.safeString(order, 'orderId');
         const price = this.safeString2(order, 'price', 'executePrice');
         const amount = this.safeString2(order, 'quantity', 'size');
         const filled = this.safeString2(order, 'fillQuantity', 'filledQty');
         const cost = this.safeString2(order, 'fillTotalAmount', 'filledAmount');
-        const average = this.safeString2(order, 'fillPrice', 'priceAvg');
-        const type = this.safeString(order, 'orderType');
+        const average = this.safeString(order, 'fillPrice');
+        let type = this.safeString(order, 'orderType');
         const timestamp = this.safeInteger(order, 'cTime');
+        const rawStopTrigger = this.safeString(order, 'triggerType');
+        const trigger = this.parseStopTrigger(rawStopTrigger);
         let side = this.safeString2(order, 'side', 'posSide');
-        if ((side === 'open_long') || (side === 'close_short')) {
+        let reduce = this.safeValue(order, 'reduceOnly', false);
+        let close = reduce;
+        const planType = this.safeString(order, 'planType');
+        if (planType === 'sl' || planType === 'pos_loss' || planType === 'loss_plan' || planType === 'psl') {
+            reduce = true;
+            close = true;
+        }
+        if (side && side.split('_')[0] === 'close') {
+            reduce = true;
+            close = true;
+        }
+        if ((side === 'open_long') || (side === 'close_short') || (side === 'buy_single')) {
             side = 'buy';
         }
-        else if ((side === 'close_long') || (side === 'open_short')) {
+        else if ((side === 'close_long') || (side === 'open_short') || (side === 'sell_single')) {
             side = 'sell';
+        }
+        if (rawStopTrigger) {
+            if (type === 'market') {
+                type = 'stop';
+            }
+            else {
+                type = 'stopLimit';
+            }
+        }
+        else {
+            if (type === 'market') {
+                type = 'market';
+            }
+            else {
+                type = 'limit';
+            }
         }
         const clientOrderId = this.safeString2(order, 'clientOrderId', 'clientOid');
         const fee = undefined;
         const rawStatus = this.safeString2(order, 'status', 'state');
         const status = this.parseOrderStatus(rawStatus);
         const lastTradeTimestamp = this.safeInteger(order, 'uTime');
+        const timeInForce = this.safeString(order, 'timeInForce');
+        const postOnly = timeInForce === 'postOnly';
+        const stopPrice = this.safeNumber(order, 'triggerPrice');
         return this.safeOrder({
             'info': order,
             'id': id,
+            'instType': instType,
             'clientOrderId': clientOrderId,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
             'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
             'type': type,
-            'timeInForce': undefined,
-            'postOnly': undefined,
+            'timeInForce': 'GTC',
+            'postOnly': postOnly,
             'side': side,
             'price': price,
-            'stopPrice': this.safeNumber(order, 'triggerPrice'),
-            'triggerPrice': this.safeNumber(order, 'triggerPrice'),
+            'stopPrice': stopPrice,
             'average': average,
             'cost': cost,
             'amount': amount,
@@ -2295,6 +2409,9 @@ class bitget extends Exchange["default"] {
             'status': status,
             'fee': fee,
             'trades': undefined,
+            'reduce': reduce,
+            'close': close,
+            'trigger': trigger, // TEALSTREET
         }, market);
     }
     async createOrder(symbol, type, side, amount, price = undefined, params = {}) {
@@ -2308,30 +2425,83 @@ class bitget extends Exchange["default"] {
          * @param {float} amount how much of currency you want to trade in units of base currency
          * @param {float|undefined} price the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @returns {object} an [order structure]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
+        // {
+        //     'stopPrice': 0.3866,
+        //   'timeInForce': 'GTC',
+        //   'reduceOnly': None,
+        //   'trigger': 'Last',
+        //   'closeOnTrigger': True,
+        //   'basePrice': 0.3894
+        // }
         await this.loadMarkets();
         const market = this.market(symbol);
         const [marketType, query] = this.handleMarketTypeAndParams('createOrder', market, params);
+        const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
+        const tradeMode = this.safeValue(params, 'tradeMode', 'hedged');
+        let isTriggerOrder = triggerPrice !== undefined;
+        let stopLossPrice = undefined;
+        let isStopLossOrder = undefined;
+        let takeProfitPrice = undefined;
+        let isTakeProfitOrder = undefined;
+        const reduceOnly = this.safeValue2(params, 'close', 'reduceOnly', false);
+        const basePrice = this.safeValue(params, 'basePrice');
+        if (triggerPrice !== undefined && basePrice !== undefined) {
+            // triggerOrder is NOT stopOrder
+            isTriggerOrder = !reduceOnly;
+            type = 'market';
+            if (!isTriggerOrder) {
+                if (side === 'buy') {
+                    if (triggerPrice > basePrice) {
+                        isStopLossOrder = true;
+                        stopLossPrice = triggerPrice;
+                    }
+                    else {
+                        isTakeProfitOrder = true;
+                        takeProfitPrice = triggerPrice;
+                    }
+                }
+                else {
+                    if (triggerPrice < basePrice) {
+                        isStopLossOrder = true;
+                        stopLossPrice = triggerPrice;
+                    }
+                    else {
+                        isTakeProfitOrder = true;
+                        takeProfitPrice = triggerPrice;
+                    }
+                }
+            }
+        }
+        else {
+            stopLossPrice = this.safeValue(params, 'stopLossPrice');
+            isStopLossOrder = stopLossPrice !== undefined;
+            takeProfitPrice = this.safeValue(params, 'takeProfitPrice');
+            isTakeProfitOrder = takeProfitPrice !== undefined;
+        }
         const request = {
             'symbol': market['id'],
             'orderType': type,
         };
         const isMarketOrder = type === 'market';
-        const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-        const isTriggerOrder = triggerPrice !== undefined;
-        const stopLossPrice = this.safeValue(params, 'stopLossPrice');
-        const isStopLossOrder = stopLossPrice !== undefined;
-        const takeProfitPrice = this.safeValue(params, 'takeProfitPrice');
-        const isTakeProfitOrder = takeProfitPrice !== undefined;
-        const isStopLossOrTakeProfit = isStopLossOrder || isTakeProfitOrder;
+        const isStopOrder = isStopLossOrder || isTakeProfitOrder;
         if (this.sum(isTriggerOrder, isStopLossOrder, isTakeProfitOrder) > 1) {
             throw new errors.ExchangeError(this.id + ' createOrder() params can only contain one of triggerPrice, stopLossPrice, takeProfitPrice');
         }
         if ((type === 'limit') && (triggerPrice === undefined)) {
             request['price'] = this.priceToPrecision(symbol, price);
         }
-        const clientOrderId = this.safeString2(params, 'clientOid', 'clientOrderId');
+        let clientOrderId = this.safeString2(params, 'client_oid', 'clientOrderId');
+        if (clientOrderId === undefined) {
+            const broker = this.safeValue(this.options, 'broker');
+            if (broker !== undefined) {
+                const brokerId = this.safeString(broker, market['type']);
+                if (brokerId !== undefined) {
+                    clientOrderId = brokerId + this.uuid22();
+                }
+            }
+        }
         let method = this.getSupportedMapping(marketType, {
             'spot': 'privateSpotPostTradeOrders',
             'swap': 'privateMixPostOrderPlaceOrder',
@@ -2339,12 +2509,9 @@ class bitget extends Exchange["default"] {
         const exchangeSpecificParam = this.safeString2(params, 'force', 'timeInForceValue');
         const postOnly = this.isPostOnly(isMarketOrder, exchangeSpecificParam === 'post_only', params);
         if (marketType === 'spot') {
-            if (isStopLossOrTakeProfit) {
-                throw new errors.InvalidOrder(this.id + ' createOrder() does not support stop loss/take profit orders on spot markets, only swap markets');
+            if (isStopOrder) {
+                throw new errors.InvalidOrder(this.id + ' createOrder() does not support stop orders on spot markets, only swap markets');
             }
-            let timeInForceKey = 'force';
-            let quantityKey = 'quantity';
-            let quantity = undefined;
             const createMarketBuyOrderRequiresPrice = this.safeValue(this.options, 'createMarketBuyOrderRequiresPrice', true);
             if (createMarketBuyOrderRequiresPrice && isMarketOrder && (side === 'buy')) {
                 if (price === undefined) {
@@ -2354,56 +2521,49 @@ class bitget extends Exchange["default"] {
                     const amountString = this.numberToString(amount);
                     const priceString = this.numberToString(price);
                     const cost = this.parseNumber(Precise["default"].stringMul(amountString, priceString));
-                    quantity = this.priceToPrecision(symbol, cost);
+                    request['quantity'] = this.priceToPrecision(symbol, cost);
                 }
             }
             else {
-                quantity = this.amountToPrecision(symbol, amount);
+                request['quantity'] = this.amountToPrecision(symbol, amount);
             }
-            if (clientOrderId !== undefined) {
-                request['clientOrderId'] = clientOrderId;
-            }
+            request['clientOrderId'] = clientOrderId;
             request['side'] = side;
-            if (triggerPrice !== undefined) {
-                quantityKey = 'size';
-                timeInForceKey = 'timeInForceValue';
-                // default triggerType to market price for unification
-                const triggerType = this.safeString(params, 'triggerType', 'market_price');
-                request['triggerType'] = triggerType;
-                request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
-                request['executePrice'] = this.priceToPrecision(symbol, price);
-                method = 'privateSpotPostPlanPlacePlan';
-            }
-            if (quantity !== undefined) {
-                request[quantityKey] = quantity;
-            }
             if (postOnly) {
-                request[timeInForceKey] = 'post_only';
+                request['force'] = 'post_only';
             }
             else {
-                request[timeInForceKey] = 'normal';
+                request['force'] = 'gtc';
             }
         }
         else {
-            if (clientOrderId !== undefined) {
-                request['clientOid'] = clientOrderId;
+            request['clientOid'] = clientOrderId;
+            let isCloseOrder = true;
+            if (amount && amount > 0) {
+                request['size'] = this.amountToPrecision(symbol, amount);
+                isCloseOrder = false;
             }
-            request['size'] = this.amountToPrecision(symbol, amount);
             if (postOnly) {
                 request['timeInForceValue'] = 'post_only';
             }
-            const reduceOnly = this.safeValue(params, 'reduceOnly', false);
-            if (triggerPrice !== undefined) {
-                // default triggerType to market price for unification
-                const triggerType = this.safeString(params, 'triggerType', 'market_price');
+            if (isTriggerOrder || isStopOrder) {
+                let triggerType = this.safeString2(params, 'triggerType', 'trigger', 'fill_price');
+                if (triggerType === 'Mark' || triggerType === 'market_price') {
+                    triggerType = 'market_price';
+                }
+                else {
+                    triggerType = 'fill_price';
+                }
                 request['triggerType'] = triggerType;
+            }
+            if (isTriggerOrder) {
                 request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
-                if (price !== undefined) {
+                if (price) {
                     request['executePrice'] = this.priceToPrecision(symbol, price);
                 }
                 method = 'privateMixPostPlanPlacePlan';
             }
-            if (isStopLossOrTakeProfit) {
+            if (isStopOrder) {
                 if (!isMarketOrder) {
                     throw new errors.ExchangeError(this.id + ' createOrder() bitget stopLoss or takeProfit orders must be market orders');
                 }
@@ -2415,20 +2575,36 @@ class bitget extends Exchange["default"] {
                     request['triggerPrice'] = this.priceToPrecision(symbol, takeProfitPrice);
                     request['planType'] = 'profit_plan';
                 }
-                request['holdSide'] = (side === 'buy') ? 'long' : 'short';
-                method = 'privateMixPostPlanPlaceTPSL';
-            }
-            else {
-                if (reduceOnly) {
-                    request['side'] = (side === 'buy') ? 'close_short' : 'close_long';
+                request['holdSide'] = (side === 'buy') ? 'short' : 'long';
+                if (isCloseOrder) {
+                    method = 'privateMixPostPlanPlacePositionsTPSL';
                 }
                 else {
-                    request['side'] = (side === 'buy') ? 'open_long' : 'open_short';
+                    method = 'privateMixPostPlanPlaceTPSL';
+                }
+            }
+            else {
+                if (tradeMode === 'oneway') {
+                    request['side'] = (side === 'buy') ? 'buy_single' : 'sell_single';
+                    if (reduceOnly) {
+                        request['reduceOnly'] = true;
+                    }
+                }
+                else {
+                    if (reduceOnly) {
+                        request['side'] = (side === 'buy') ? 'close_short' : 'close_long';
+                    }
+                    else {
+                        request['side'] = (side === 'buy') ? 'open_long' : 'open_short';
+                    }
+                }
+                if (reduceOnly) {
+                    request['cancelOrder'] = true;
                 }
             }
             request['marginCoin'] = market['settleId'];
         }
-        const omitted = this.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly']);
+        const omitted = this.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginType', 'reduceOnly', 'close']);
         const response = await this[method](this.extend(request, omitted));
         //
         //     {
@@ -2444,108 +2620,6 @@ class bitget extends Exchange["default"] {
         const data = this.safeValue(response, 'data');
         return this.parseOrder(data, market);
     }
-    async editOrder(id, symbol, type, side, amount, price = undefined, params = {}) {
-        /**
-         * @method
-         * @name bitget#editOrder
-         * @description edit a trade order
-         * @param {string} id cancel order id
-         * @param {string} symbol unified symbol of the market to create an order in
-         * @param {string} type 'market' or 'limit'
-         * @param {string} side 'buy' or 'sell'
-         * @param {float} amount how much of currency you want to trade in units of base currency
-         * @param {float|undefined} price the price at which the order is to be fullfilled, in units of the base currency, ignored in market orders
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
-         */
-        await this.loadMarkets();
-        const market = this.market(symbol);
-        const [marketType, query] = this.handleMarketTypeAndParams('editOrder', market, params);
-        const request = {
-            'orderId': id,
-            'orderType': type,
-        };
-        const isMarketOrder = type === 'market';
-        const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-        const isTriggerOrder = triggerPrice !== undefined;
-        const stopLossPrice = this.safeValue(params, 'stopLossPrice');
-        const isStopLossOrder = stopLossPrice !== undefined;
-        const takeProfitPrice = this.safeValue(params, 'takeProfitPrice');
-        const isTakeProfitOrder = takeProfitPrice !== undefined;
-        const isStopOrder = isStopLossOrder || isTakeProfitOrder;
-        if (this.sum(isTriggerOrder, isStopLossOrder, isTakeProfitOrder) > 1) {
-            throw new errors.ExchangeError(this.id + ' editOrder() params can only contain one of triggerPrice, stopLossPrice, takeProfitPrice');
-        }
-        if (!isStopOrder && !isTriggerOrder) {
-            throw new errors.InvalidOrder(this.id + ' editOrder() only support plan orders');
-        }
-        let method = this.getSupportedMapping(marketType, {
-            'spot': 'privateSpotPostPlanModifyPlan',
-            'swap': 'privateMixPostPlanModifyPlan',
-        });
-        if (triggerPrice !== undefined) {
-            // default triggerType to market price for unification
-            const triggerType = this.safeString(params, 'triggerType', 'market_price');
-            request['triggerType'] = triggerType;
-            request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
-            request['executePrice'] = this.priceToPrecision(symbol, price);
-        }
-        if (marketType === 'spot') {
-            if (isStopOrder) {
-                throw new errors.InvalidOrder(this.id + ' editOrder() does not support stop orders on spot markets, only swap markets');
-            }
-            const editMarketBuyOrderRequiresPrice = this.safeValue(this.options, 'editMarketBuyOrderRequiresPrice', true);
-            if (editMarketBuyOrderRequiresPrice && isMarketOrder && (side === 'buy')) {
-                if (price === undefined) {
-                    throw new errors.InvalidOrder(this.id + ' editOrder() requires price argument for market buy orders on spot markets to calculate the total amount to spend (amount * price), alternatively set the editMarketBuyOrderRequiresPrice option to false and pass in the cost to spend into the amount parameter');
-                }
-                else {
-                    const amountString = this.numberToString(amount);
-                    const priceString = this.numberToString(price);
-                    const cost = this.parseNumber(Precise["default"].stringMul(amountString, priceString));
-                    request['size'] = this.priceToPrecision(symbol, cost);
-                }
-            }
-            else {
-                request['size'] = this.amountToPrecision(symbol, amount);
-            }
-        }
-        else {
-            request['symbol'] = market['id'];
-            request['size'] = this.amountToPrecision(symbol, amount);
-            if (isStopOrder) {
-                if (!isMarketOrder) {
-                    throw new errors.ExchangeError(this.id + ' editOrder() bitget stopLoss or takeProfit orders must be market orders');
-                }
-                if (isStopLossOrder) {
-                    request['triggerPrice'] = this.priceToPrecision(symbol, stopLossPrice);
-                    request['planType'] = 'loss_plan';
-                }
-                else if (isTakeProfitOrder) {
-                    request['triggerPrice'] = this.priceToPrecision(symbol, takeProfitPrice);
-                    request['planType'] = 'profit_plan';
-                }
-                method = 'privateMixPostPlanModifyTPSLPlan';
-            }
-            request['marginCoin'] = market['settleId'];
-        }
-        const omitted = this.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice']);
-        const response = await this[method](this.extend(request, omitted));
-        //
-        // spot
-        //     {
-        //         "code": "00000",
-        //         "msg": "success",
-        //         "requestTime": 1668136575920,
-        //         "data": {
-        //         "orderId": "974792060738441216",
-        //         "clientOrderId": "974792554995224576"
-        //         }
-        //     }
-        //
-        const data = this.safeValue(response, 'data');
-        return this.parseOrder(data, market);
-    }
     async cancelOrder(id, symbol = undefined, params = {}) {
         /**
          * @method
@@ -2554,39 +2628,43 @@ class bitget extends Exchange["default"] {
          * @param {string} id order id
          * @param {string} symbol unified symbol of the market the order was made in
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} An [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @returns {object} An [order structure]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
-        this.checkRequiredSymbol('cancelOrder', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument for spot orders');
+        }
         await this.loadMarkets();
         const market = this.market(symbol);
+        // const orderType = this.safeString (params, 'type');
+        params = this.omit(params, ['type']);
         const [marketType, query] = this.handleMarketTypeAndParams('cancelOrder', market, params);
         let method = this.getSupportedMapping(marketType, {
             'spot': 'privateSpotPostTradeCancelOrder',
             'swap': 'privateMixPostOrderCancelOrder',
         });
+        const stop = this.safeValue(params, 'stop');
+        let planType = this.safeString(params, 'planType');
+        const idComponents = id.split(':');
+        const formattedId = idComponents[0];
+        if (!planType && (idComponents.length > 1)) {
+            planType = idComponents[1];
+        }
         const request = {
             'symbol': market['id'],
-            'orderId': id,
+            'orderId': formattedId,
         };
-        const stop = this.safeValue(query, 'stop');
-        if (stop) {
-            if (marketType === 'spot') {
-                method = 'privateSpotPostPlanCancelPlan';
+        if (stop || planType) {
+            if (planType === undefined) {
+                throw new errors.ArgumentsRequired(this.id + ' cancelOrder() requires a planType parameter for stop orders, either normal_plan, profit_plan or loss_plan');
             }
-            else {
-                const planType = this.safeString(params, 'planType');
-                if (planType === undefined) {
-                    throw new errors.ArgumentsRequired(this.id + ' cancelOrder() requires a planType parameter for stop orders, either normal_plan, profit_plan or loss_plan');
-                }
-                request['planType'] = planType;
-                method = 'privateMixPostPlanCancelPlan';
-            }
+            request['planType'] = planType;
+            method = 'privateMixPostPlanCancelPlan';
+            params = this.omit(params, ['stop', 'planType']);
         }
         if (marketType === 'swap') {
             request['marginCoin'] = market['settleId'];
         }
-        const ommitted = this.omit(query, ['stop', 'planType']);
-        const response = await this[method](this.extend(request, ommitted));
+        const response = await this[method](this.extend(request, query));
         return this.parseOrder(response, market);
     }
     async cancelOrders(ids, symbol = undefined, params = {}) {
@@ -2597,9 +2675,11 @@ class bitget extends Exchange["default"] {
          * @param {[string]} ids order ids
          * @param {string} symbol unified market symbol, default is undefined
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} an list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @returns {object} an list of [order structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
-        this.checkRequiredSymbol('cancelOrders', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' cancelOrders() requires a symbol argument');
+        }
         await this.loadMarkets();
         const market = this.market(symbol);
         const type = this.safeString(params, 'type', market['type']);
@@ -2672,20 +2752,15 @@ class bitget extends Exchange["default"] {
          * @param {string|undefined} symbol unified market symbol
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @param {string} params.code marginCoin unified currency code
-         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
         await this.loadMarkets();
-        let market = undefined;
+        const market = undefined;
+        const defaultSubType = this.safeString(this.options, 'defaultSubType');
         if (symbol !== undefined) {
-            market = this.market(symbol);
+            return await this.cancelAllOrdersForSymbol(symbol, params);
         }
-        let subType = undefined;
-        [subType, params] = this.handleSubTypeAndParams('cancelAllOrders', market, params);
-        let productType = (subType === 'linear') ? 'UMCBL' : 'DMCBL';
-        if (sandboxMode) {
-            productType = 'S' + productType;
-        }
+        const productType = (defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL';
         const [marketType, query] = this.handleMarketTypeAndParams('cancelAllOrders', market, params);
         if (marketType === 'spot') {
             throw new errors.NotSupported(this.id + ' cancelAllOrders () does not support spot markets');
@@ -2694,13 +2769,14 @@ class bitget extends Exchange["default"] {
             'productType': productType,
         };
         let method = undefined;
-        const stop = this.safeValue(query, 'stop');
-        const planType = this.safeString(query, 'planType');
+        const stop = this.safeValue(params, 'stop');
+        const planType = this.safeString(params, 'planType');
         if (stop !== undefined || planType !== undefined) {
             if (planType === undefined) {
                 throw new errors.ArgumentsRequired(this.id + ' cancelOrder() requires a planType parameter for stop orders, either normal_plan, profit_plan, loss_plan, pos_profit, pos_loss, moving_plan or track_plan');
             }
             method = 'privateMixPostPlanCancelAllPlan';
+            params = this.omit(params, ['stop']);
         }
         else {
             const code = this.safeString2(params, 'code', 'marginCoin');
@@ -2711,8 +2787,8 @@ class bitget extends Exchange["default"] {
             request['marginCoin'] = this.safeCurrencyCode(code, currency);
             method = 'privateMixPostOrderCancelAllOrders';
         }
-        const ommitted = this.omit(query, ['stop', 'code', 'marginCoin']);
-        const response = await this[method](this.extend(request, ommitted));
+        params = this.omit(query, ['code', 'marginCoin']);
+        const response = await this[method](this.extend(request, params));
         //
         //     {
         //         "code": "00000",
@@ -2733,6 +2809,17 @@ class bitget extends Exchange["default"] {
         //
         return response;
     }
+    async cancelAllOrdersForSymbol(symbol, params = {}) {
+        const market = this.market(symbol);
+        const ordersForSymbol = await this.fetchOpenOrders(symbol);
+        const orderIds = this.pluck(ordersForSymbol, 'id');
+        const request = {
+            'symbol': market['id'],
+            'orderIds': orderIds,
+            'marginCoin': market['settleId'],
+        };
+        return await this.privateMixPostOrderCancelBatchOrders(this.extend(request, params));
+    }
     async fetchOrder(id, symbol = undefined, params = {}) {
         /**
          * @method
@@ -2740,9 +2827,11 @@ class bitget extends Exchange["default"] {
          * @description fetches information on an order made by the user
          * @param {string} symbol unified symbol of the market the order was made in
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} An [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @returns {object} An [order structure]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
-        this.checkRequiredSymbol('fetchOrder', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' fetchOrder() requires a symbol argument');
+        }
         await this.loadMarkets();
         const market = this.market(symbol);
         const [marketType, query] = this.handleMarketTypeAndParams('fetchOrder', market, params);
@@ -2810,23 +2899,23 @@ class bitget extends Exchange["default"] {
         const first = this.safeValue(data, 0, data);
         return this.parseOrder(first, market);
     }
-    async fetchOpenOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
+    async fetchOpenOrders2(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         /**
          * @method
          * @name bitget#fetchOpenOrders
          * @description fetch all unfilled currently open orders
          * @param {string} symbol unified market symbol
          * @param {int|undefined} since the earliest time in ms to fetch open orders for
-         * @param {int|undefined} limit the maximum number of open order structures to retrieve
+         * @param {int|undefined} limit the maximum number of  open orders structures to retrieve
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
-        this.checkRequiredSymbol('fetchOpenOrders', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' fetchOpenOrders() requires a symbol argument');
+        }
         await this.loadMarkets();
         const market = this.market(symbol);
-        let marketType = undefined;
-        let query = undefined;
-        [marketType, query] = this.handleMarketTypeAndParams('fetchOpenOrders', market, params);
+        const [marketType, query] = this.handleMarketTypeAndParams('fetchOpenOrders', market, params);
         const request = {
             'symbol': market['id'],
         };
@@ -2834,18 +2923,10 @@ class bitget extends Exchange["default"] {
             'spot': 'privateSpotPostTradeOpenOrders',
             'swap': 'privateMixGetOrderCurrent',
         });
-        const stop = this.safeValue(query, 'stop');
+        const stop = this.safeValue(params, 'stop');
         if (stop) {
-            if (marketType === 'spot') {
-                method = 'privateSpotPostPlanCurrentPlan';
-                if (limit !== undefined) {
-                    request['pageSize'] = limit;
-                }
-            }
-            else {
-                method = 'privateMixGetPlanCurrentPlan';
-            }
-            query = this.omit(query, 'stop');
+            method = 'privateMixGetPlanCurrentPlan';
+            params = this.omit(params, 'stop');
         }
         const response = await this[method](this.extend(request, query));
         //
@@ -2927,34 +3008,7 @@ class bitget extends Exchange["default"] {
         //         ]
         //     }
         //
-        // spot plan order
-        //
-        //     {
-        //         "code": "00000",
-        //         "msg": "success",
-        //         "requestTime": 1668134581006,
-        //         "data": {
-        //             "nextFlag": false,
-        //             "endId": 974792555020390400,
-        //             "orderList": [{
-        //                 "orderId": "974792555020390400",
-        //                 "symbol": "TRXUSDT_SPBL",
-        //                 "size": "151",
-        //                 "executePrice": "0.041572",
-        //                 "triggerPrice": "0.041572",
-        //                 "status": "not_trigger",
-        //                 "orderType": "limit",
-        //                 "side": "buy",
-        //                 "triggerType": "fill_price",
-        //                 "cTime": "1668134576563"
-        //             }]
-        //         }
-        //     }
-        //
-        let data = this.safeValue(response, 'data', []);
-        if (!Array.isArray(data)) {
-            data = this.safeValue(data, 'orderList', []);
-        }
+        const data = this.safeValue(response, 'data', []);
         return this.parseOrders(data, market, since, limit);
     }
     async fetchClosedOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -2962,78 +3016,26 @@ class bitget extends Exchange["default"] {
          * @method
          * @name bitget#fetchClosedOrders
          * @description fetches information on multiple closed orders made by the user
-         * @see https://bitgetlimited.github.io/apidoc/en/spot/#get-order-history
-         * @see https://bitgetlimited.github.io/apidoc/en/mix/#get-history-orders
-         * @param {string} symbol unified market symbol of the closed orders
-         * @param {int|undefined} since timestamp in ms of the earliest order
-         * @param {int|undefined} limit the max number of closed orders to return
+         * @param {string} symbol unified market symbol of the market orders were made in
+         * @param {int|undefined} since the earliest time in ms to fetch orders for
+         * @param {int|undefined} limit the maximum number of  orde structures to retrieve
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
-        await this.loadMarkets();
-        this.checkRequiredSymbol('fetchClosedOrders', symbol);
-        const market = this.market(symbol);
-        const response = await this.fetchCanceledAndClosedOrders(symbol, since, limit, params);
-        const result = [];
-        for (let i = 0; i < response.length; i++) {
-            const entry = response[i];
-            const status = this.parseOrderStatus(this.safeString2(entry, 'state', 'status'));
-            if (status === 'closed') {
-                result.push(entry);
-            }
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' fetchClosedOrders() requires a symbol argument');
         }
-        return this.parseOrders(result, market, since, limit);
-    }
-    async fetchCanceledOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name bitget#fetchCanceledOrders
-         * @description fetches information on multiple canceled orders made by the user
-         * @see https://bitgetlimited.github.io/apidoc/en/spot/#get-order-history
-         * @see https://bitgetlimited.github.io/apidoc/en/mix/#get-history-orders
-         * @param {string} symbol unified market symbol of the canceled orders
-         * @param {int|undefined} since timestamp in ms of the earliest order
-         * @param {int|undefined} limit the max number of canceled orders to return
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
-         */
-        await this.loadMarkets();
-        this.checkRequiredSymbol('fetchCanceledOrders', symbol);
-        const market = this.market(symbol);
-        const response = await this.fetchCanceledAndClosedOrders(symbol, since, limit, params);
-        const result = [];
-        for (let i = 0; i < response.length; i++) {
-            const entry = response[i];
-            const status = this.parseOrderStatus(this.safeString2(entry, 'state', 'status'));
-            if (status === 'canceled') {
-                result.push(entry);
-            }
-        }
-        return this.parseOrders(result, market, since, limit);
-    }
-    async fetchCanceledAndClosedOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
         const market = this.market(symbol);
-        let marketType = undefined;
-        [marketType, params] = this.handleMarketTypeAndParams('fetchCanceledAndClosedOrders', market, params);
+        const [marketType, query] = this.handleMarketTypeAndParams('fetchClosedOrders', market, params);
         const request = {
             'symbol': market['id'],
         };
-        let method = this.getSupportedMapping(marketType, {
+        const method = this.getSupportedMapping(marketType, {
             'spot': 'privateSpotPostTradeHistory',
             'swap': 'privateMixGetOrderHistory',
         });
-        const stop = this.safeValue(params, 'stop');
-        if (stop) {
-            if (marketType === 'spot') {
-                method = 'privateSpotPostPlanHistoryPlan';
-            }
-            else {
-                method = 'privateMixGetPlanHistoryPlan';
-            }
-            params = this.omit(params, 'stop');
-        }
-        if (marketType === 'swap' || stop) {
+        if (marketType === 'swap') {
             if (limit === undefined) {
                 limit = 100;
             }
@@ -3044,125 +3046,68 @@ class bitget extends Exchange["default"] {
             request['startTime'] = since;
             request['endTime'] = this.milliseconds();
         }
-        const response = await this[method](this.extend(request, params));
+        const response = await this[method](this.extend(request, query));
         //
-        // spot
-        //
+        //  spot
         //     {
-        //         "code": "00000",
-        //         "msg": "success",
-        //         "requestTime": 1663623237813,
-        //         "data": [
-        //             {
-        //                 "accountId": "7264631750",
-        //                 "symbol": "BTCUSDT_SPBL",
-        //                 "orderId": "909129926745432064",
-        //                 "clientOrderId": "9e12ee3d-6a87-4e68-b1cc-094422d223a5",
-        //                 "price": "30001.580000000000",
-        //                 "quantity": "0.000600000000",
-        //                 "orderType": "limit",
-        //                 "side": "sell",
-        //                 "status": "full_fill",
-        //                 "fillPrice": "30001.580000000000",
-        //                 "fillQuantity": "0.000600000000",
-        //                 "fillTotalAmount": "18.000948000000",
-        //                 "cTime": "1652479386030"
-        //             },
-        //             ...
-        //         ]
+        //       code: '00000',
+        //       msg: 'success',
+        //       requestTime: 1645925335553,
+        //       data: [
+        //         {
+        //           accountId: '6394957606',
+        //           symbol: 'BTCUSDT_SPBL',
+        //           orderId: '881623995442958336',
+        //           clientOrderId: '135335e9-b054-4e43-b00a-499f11d3a5cc',
+        //           price: '39000.000000000000',
+        //           quantity: '0.000700000000',
+        //           orderType: 'limit',
+        //           side: 'buy',
+        //           status: 'full_fill',
+        //           fillPrice: '39000.000000000000',
+        //           fillQuantity: '0.000700000000',
+        //           fillTotalAmount: '27.300000000000',
+        //           cTime: '1645921460972'
+        //         }
+        //       ]
         //     }
         //
         // swap
-        //
         //     {
-        //         "code": "00000",
-        //         "msg": "success",
-        //         "requestTime": 1663622728935,
-        //         "data": {
-        //             "nextFlag": false,
-        //             "endId": "908510348120305664",
-        //             "orderList": [
-        //                 {
-        //                     "symbol": "BTCUSDT_UMCBL",
-        //                     "size": 0.004,
-        //                     "orderId": "954568553644306433",
-        //                     "clientOid": "954568553677860864",
-        //                     "filledQty": 0.000,
-        //                     "fee": 0E-8,
-        //                     "price": 18000.00,
-        //                     "state": "canceled",
-        //                     "side": "open_long",
-        //                     "timeInForce": "normal",
-        //                     "totalProfits": 0E-8,
-        //                     "posSide": "long",
-        //                     "marginCoin": "USDT",
-        //                     "filledAmount": 0.0000,
-        //                     "orderType": "limit",
-        //                     "leverage": "3",
-        //                     "marginMode": "fixed",
-        //                     "cTime": "1663312798899",
-        //                     "uTime": "1663312809425"
-        //                 },
-        //                 ...
-        //             ]
-        //         }
-        //     }
-        //
-        // spot plan order
-        //
-        //     {
-        //         "code": "00000",
-        //         "msg": "success",
-        //         "requestTime": 1668134626684,
-        //         "data": {
-        //             "nextFlag": false,
-        //             "endId": 974792060738441216,
-        //             "orderList": [
-        //                 {
-        //                 "orderId": "974792060738441216",
-        //                 "symbol": "TRXUSDT_SPBL",
-        //                 "size": "156",
-        //                 "executePrice": "0.041272",
-        //                 "triggerPrice": "0.041222",
-        //                 "status": "cancel",
-        //                 "orderType": "limit",
-        //                 "side": "buy",
-        //                 "triggerType": "fill_price",
-        //                 "cTime": "1668134458717"
-        //                 }
-        //             ]
-        //         }
-        //     }
-        //
-        // swap plan order
-        //
-        //     {
-        //         "code":"00000",
-        //         "data":[
-        //             {
-        //                 "orderId":"803521986049314816",
-        //                 "executeOrderId":"84271931884910",
-        //                 "symbol":"BTCUSDT_UMCBL",
-        //                 "marginCoin":"USDT",
-        //                 "size":"1",
-        //                 "executePrice":"38923.1",
-        //                 "triggerPrice":"45000.3",
-        //                 "status":"cancel",
-        //                 "orderType":"limit",
-        //                 "planType":"normal_plan",
-        //                 "side":"open_long",
-        //                 "triggerType":"fill_price",
-        //                 "presetTakeProfitPrice":"0",
-        //                 "presetTakeLossPrice":"0",
-        //                 "ctime":"1627300490867"
-        //             }
-        //         ],
-        //         "msg":"success",
-        //         "requestTime":1627354109502
+        //       code: '00000',
+        //       msg: 'success',
+        //       requestTime: 1645925688701,
+        //       data: {
+        //         nextFlag: false,
+        //         endId: '881640729145409536',
+        //         orderList: [
+        //           {
+        //             symbol: 'BTCUSDT_UMCBL',
+        //             size: 0.001,
+        //             orderId: '881640729145409536',
+        //             clientOid: '881640729204129792',
+        //             filledQty: 0.001,
+        //             fee: 0,
+        //             price: null,
+        //             priceAvg: 38429.5,
+        //             state: 'filled',
+        //             side: 'open_long',
+        //             timeInForce: 'normal',
+        //             totalProfits: 0,
+        //             posSide: 'long',
+        //             marginCoin: 'USDT',
+        //             filledAmount: 38.4295,
+        //             orderType: 'market',
+        //             cTime: '1645925450611',
+        //             uTime: '1645925450746'
+        //           }
+        //         ]
+        //       }
         //     }
         //
         const data = this.safeValue(response, 'data');
-        return this.safeValue(data, 'orderList', data);
+        const orderList = this.safeValue(data, 'orderList', data);
+        return this.parseOrders(orderList, market, since, limit);
     }
     async fetchLedger(code = undefined, since = undefined, limit = undefined, params = {}) {
         /**
@@ -3173,7 +3118,7 @@ class bitget extends Exchange["default"] {
          * @param {int|undefined} since timestamp in ms of the earliest ledger entry, default is undefined
          * @param {int|undefined} limit max number of ledger entrys to return, default is undefined
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [ledger structure]{@link https://docs.ccxt.com/#/?id=ledger-structure}
+         * @returns {object} a [ledger structure]{@link https://docs.ccxt.com/en/latest/manual.html#ledger-structure}
          */
         await this.loadMarkets();
         let currency = undefined;
@@ -3261,9 +3206,11 @@ class bitget extends Exchange["default"] {
          * @param {int|undefined} since the earliest time in ms to fetch trades for
          * @param {int|undefined} limit the maximum number of trades structures to retrieve
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/#/?id=trade-structure}
+         * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/en/latest/manual.html#trade-structure}
          */
-        this.checkRequiredSymbol('fetchMyTrades', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' fetchMyTrades() requires a symbol argument');
+        }
         await this.loadMarkets();
         const market = this.market(symbol);
         if (market['swap']) {
@@ -3312,9 +3259,11 @@ class bitget extends Exchange["default"] {
          * @param {int|undefined} since the earliest time in ms to fetch trades for
          * @param {int|undefined} limit the maximum number of trades to retrieve
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/#/?id=trade-structure}
+         * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/en/latest/manual.html#trade-structure}
          */
-        this.checkRequiredSymbol('fetchOrderTrades', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' fetchOrderTrades() requires a symbol argument');
+        }
         await this.loadMarkets();
         const market = this.market(symbol);
         const [marketType, query] = this.handleMarketTypeAndParams('fetchOrderTrades', market, params);
@@ -3360,7 +3309,7 @@ class bitget extends Exchange["default"] {
          * @description fetch data on a single open contract trade position
          * @param {string} symbol unified market symbol of the market the position is held in, default is undefined
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [position structure]{@link https://docs.ccxt.com/#/?id=position-structure}
+         * @returns {object} a [position structure]{@link https://docs.ccxt.com/en/latest/manual.html#position-structure}
          */
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -3398,7 +3347,7 @@ class bitget extends Exchange["default"] {
         //     }
         //
         const data = this.safeValue(response, 'data', []);
-        return this.parsePositions(data);
+        return this.parsePosition(data[0], market);
     }
     async fetchPositions(symbols = undefined, params = {}) {
         /**
@@ -3407,23 +3356,12 @@ class bitget extends Exchange["default"] {
          * @description fetch all open positions
          * @param {[string]|undefined} symbols list of unified market symbols
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [position structure]{@link https://docs.ccxt.com/#/?id=position-structure}
+         * @returns {[object]} a list of [position structure]{@link https://docs.ccxt.com/en/latest/manual.html#position-structure}
          */
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
         await this.loadMarkets();
-        let market = undefined;
-        if (symbols !== undefined) {
-            const first = this.safeString(symbols, 0);
-            market = this.market(first);
-        }
-        let subType = undefined;
-        [subType, params] = this.handleSubTypeAndParams('fetchPositions', market, params);
-        let productType = (subType === 'linear') ? 'UMCBL' : 'DMCBL';
-        if (sandboxMode) {
-            productType = 'S' + productType;
-        }
+        const defaultSubType = this.safeString(this.options, 'defaultSubType');
         const request = {
-            'productType': productType,
+            'productType': (defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
         };
         const response = await this.privateMixGetPositionAllPosition(this.extend(request, params));
         //
@@ -3485,93 +3423,62 @@ class bitget extends Exchange["default"] {
         //     }
         //
         const marketId = this.safeString(position, 'symbol');
+        const instType = this.getSubTypeFromMarketId(marketId);
         market = this.safeMarket(marketId, market);
-        const symbol = market['symbol'];
         const timestamp = this.safeInteger(position, 'cTime');
         let marginMode = this.safeString(position, 'marginMode');
-        let collateral = undefined;
-        let initialMargin = undefined;
-        const unrealizedPnl = this.safeString(position, 'unrealizedPL');
-        const rawCollateral = this.safeString(position, 'margin');
         if (marginMode === 'fixed') {
             marginMode = 'isolated';
-            collateral = Precise["default"].stringAdd(rawCollateral, unrealizedPnl);
         }
         else if (marginMode === 'crossed') {
             marginMode = 'cross';
-            initialMargin = rawCollateral;
         }
-        const holdMode = this.safeString(position, 'holdMode');
-        let hedged = undefined;
-        if (holdMode === 'double_hold') {
+        let hedged = this.safeString(position, 'holdMode');
+        if (hedged === 'double_hold') {
             hedged = true;
         }
-        else if (holdMode === 'single_hold') {
+        else if (hedged === 'single_hold') {
             hedged = false;
         }
         const side = this.safeString(position, 'holdSide');
-        const leverage = this.safeString(position, 'leverage');
-        const contractSizeNumber = this.safeValue(market, 'contractSize');
-        const contractSize = this.numberToString(contractSizeNumber);
-        const baseAmount = this.safeString(position, 'total');
-        const entryPrice = this.safeString(position, 'averageOpenPrice');
-        const maintenanceMarginPercentage = this.safeString(position, 'keepMarginRate');
-        const openNotional = Precise["default"].stringMul(entryPrice, baseAmount);
-        if (initialMargin === undefined) {
-            initialMargin = Precise["default"].stringDiv(openNotional, leverage);
+        let contracts = this.safeFloat2(position, 'total', 'openDelegateCount');
+        let liquidation = this.safeNumber2(position, 'liquidationPrice', 'liqPx');
+        if (contracts === 0) {
+            contracts = undefined;
         }
-        const contracts = this.parseNumber(Precise["default"].stringDiv(baseAmount, contractSize));
-        const markPrice = this.safeString(position, 'marketPrice');
-        const notional = Precise["default"].stringMul(baseAmount, markPrice);
-        const initialMarginPercentage = Precise["default"].stringDiv(initialMargin, notional);
-        let liquidationPrice = this.parseNumber(this.omitZero(this.safeString(position, 'liquidationPrice')));
-        const calcTakerFeeRate = '0.0006';
-        const calcTakerFeeMult = '0.9994';
-        if ((liquidationPrice === undefined) && (marginMode === 'isolated') && Precise["default"].stringGt(baseAmount, '0')) {
-            let signedMargin = Precise["default"].stringDiv(rawCollateral, baseAmount);
-            let signedMmp = maintenanceMarginPercentage;
-            if (side === 'short') {
-                signedMargin = Precise["default"].stringNeg(signedMargin);
-                signedMmp = Precise["default"].stringNeg(signedMmp);
-            }
-            let mmrMinusOne = Precise["default"].stringSub('1', signedMmp);
-            let numerator = Precise["default"].stringSub(entryPrice, signedMargin);
-            if (side === 'long') {
-                mmrMinusOne = Precise["default"].stringMul(mmrMinusOne, calcTakerFeeMult);
-            }
-            else {
-                numerator = Precise["default"].stringMul(numerator, calcTakerFeeMult);
-            }
-            liquidationPrice = this.parseNumber(Precise["default"].stringDiv(numerator, mmrMinusOne));
+        else if (side === 'short' && contracts > 0) {
+            contracts = -1 * contracts;
         }
-        const feeToClose = Precise["default"].stringMul(notional, calcTakerFeeRate);
-        const maintenanceMargin = Precise["default"].stringAdd(Precise["default"].stringMul(maintenanceMarginPercentage, notional), feeToClose);
-        const marginRatio = Precise["default"].stringDiv(maintenanceMargin, collateral);
-        const percentage = Precise["default"].stringMul(Precise["default"].stringDiv(unrealizedPnl, initialMargin, 4), '100');
+        if (liquidation === 0) {
+            liquidation = undefined;
+        }
+        const initialMargin = this.safeNumber(position, 'margin');
+        const markPrice = this.safeNumber(position, 'markPrice');
         return {
             'info': position,
-            'id': undefined,
-            'symbol': symbol,
-            'notional': this.parseNumber(notional),
+            'id': market['symbol'] + ':' + side,
+            'instType': instType,
+            'symbol': market['symbol'],
+            'notional': undefined,
             'marginMode': marginMode,
-            'liquidationPrice': liquidationPrice,
-            'entryPrice': this.parseNumber(entryPrice),
-            'unrealizedPnl': this.parseNumber(unrealizedPnl),
-            'percentage': this.parseNumber(percentage),
+            'liquidationPrice': liquidation,
+            'entryPrice': this.safeNumber(position, 'averageOpenPrice'),
+            'unrealizedPnl': this.safeNumber(position, 'unrealizedPL'),
+            'percentage': undefined,
             'contracts': contracts,
-            'contractSize': contractSizeNumber,
-            'markPrice': this.parseNumber(markPrice),
+            'contractSize': this.safeNumber(position, 'total'),
+            'markPrice': markPrice,
             'side': side,
             'hedged': hedged,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
-            'maintenanceMargin': this.parseNumber(maintenanceMargin),
-            'maintenanceMarginPercentage': this.parseNumber(maintenanceMarginPercentage),
-            'collateral': this.parseNumber(collateral),
-            'initialMargin': this.parseNumber(initialMargin),
-            'initialMarginPercentage': this.parseNumber(initialMarginPercentage),
-            'leverage': this.parseNumber(leverage),
-            'marginRatio': this.parseNumber(marginRatio),
+            'maintenanceMargin': undefined,
+            'maintenanceMarginPercentage': this.safeNumber(position, 'keepMarginRate'),
+            'collateral': this.safeNumber(position, 'margin'),
+            'initialMargin': initialMargin,
+            'initialMarginPercentage': undefined,
+            'leverage': this.safeNumber(position, 'leverage'),
+            'marginRatio': undefined,
         };
     }
     async fetchFundingRateHistory(symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -3585,7 +3492,9 @@ class bitget extends Exchange["default"] {
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @returns {[object]} a list of [funding rate structures]{@link https://docs.ccxt.com/en/latest/manual.html?#funding-rate-history-structure}
          */
-        this.checkRequiredSymbol('fetchFundingRateHistory', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' fetchFundingRateHistory() requires a symbol argument');
+        }
         await this.loadMarkets();
         const market = this.market(symbol);
         const request = {
@@ -3637,7 +3546,7 @@ class bitget extends Exchange["default"] {
          * @description fetch the current funding rate
          * @param {string} symbol unified market symbol
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [funding rate structure]{@link https://docs.ccxt.com/#/?id=funding-rate-structure}
+         * @returns {object} a [funding rate structure]{@link https://docs.ccxt.com/en/latest/manual.html#funding-rate-structure}
          */
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -3691,107 +3600,6 @@ class bitget extends Exchange["default"] {
             'previousFundingDatetime': undefined,
         };
     }
-    async fetchFundingHistory(symbol, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name bitget#fetchFundingHistory
-         * @description fetch the funding history
-         * @see https://bitgetlimited.github.io/apidoc/en/mix/#get-account-bill
-         * @param {string} symbol unified market symbol
-         * @param {int|undefined} since the starting timestamp in milliseconds
-         * @param {int|undefined} limit the number of entries to return
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [funding history structures]{@link https://docs.ccxt.com/#/?id=funding-history-structure}
-         */
-        await this.loadMarkets();
-        const market = this.market(symbol);
-        if (!market['swap']) {
-            throw new errors.BadSymbol(this.id + ' fetchFundingHistory() supports swap contracts only');
-        }
-        if (since === undefined) {
-            since = this.milliseconds() - 31556952000; // 1 year
-        }
-        const request = {
-            'symbol': market['id'],
-            'marginCoin': market['quoteId'],
-            'startTime': since,
-            'endTime': this.milliseconds(),
-        };
-        if (limit !== undefined) {
-            request['pageSize'] = limit;
-        }
-        const response = await this.privateMixGetAccountAccountBill(this.extend(request, params));
-        //
-        //    {
-        //        "code": "00000",
-        //        "msg": "success",
-        //        "data": {
-        //            "result": [
-        //                {
-        //                    "id": "892962903462432768",
-        //                    "symbol": "ETHUSDT_UMCBL",
-        //                    "marginCoin": "USDT",
-        //                    "amount": "0",
-        //                    "fee": "-0.1765104",
-        //                    "feeByCoupon": "",
-        //                    "feeCoin": "USDT",
-        //                    "business": "contract_settle_fee",
-        //                    "cTime": "1648624867354"
-        //                }
-        //            ],
-        //            "endId": "885353495773458432",
-        //            "nextFlag": false,
-        //            "preFlag": false
-        //    }
-        //
-        const data = this.safeValue(response, 'data', {});
-        const result = this.safeValue(data, 'result', []);
-        return this.parseFundingHistories(result, market, since, limit);
-    }
-    parseFundingHistory(contract, market = undefined) {
-        //
-        //     {
-        //         "id": "892962903462432768",
-        //         "symbol": "ETHUSDT_UMCBL",
-        //         "marginCoin": "USDT",
-        //         "amount": "0",
-        //         "fee": "-0.1765104",
-        //         "feeByCoupon": "",
-        //         "feeCoin": "USDT",
-        //         "business": "contract_settle_fee",
-        //         "cTime": "1648624867354"
-        //     }
-        //
-        const marketId = this.safeString(contract, 'symbol');
-        const symbol = this.safeSymbol(marketId, market, undefined, 'swap');
-        const currencyId = this.safeString(contract, 'marginCoin');
-        const code = this.safeCurrencyCode(currencyId);
-        const amount = this.safeNumber(contract, 'amount');
-        const timestamp = this.safeInteger(contract, 'cTime');
-        const id = this.safeString(contract, 'id');
-        return {
-            'info': contract,
-            'symbol': symbol,
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'code': code,
-            'amount': amount,
-            'id': id,
-        };
-    }
-    parseFundingHistories(contracts, market = undefined, since = undefined, limit = undefined) {
-        const result = [];
-        for (let i = 0; i < contracts.length; i++) {
-            const contract = contracts[i];
-            const business = this.safeString(contract, 'business');
-            if (business !== 'contract_settle_fee') {
-                continue;
-            }
-            result.push(this.parseFundingHistory(contract, market));
-        }
-        const sorted = this.sortBy(result, 'timestamp');
-        return this.filterBySinceLimit(sorted, since, limit);
-    }
     async modifyMarginHelper(symbol, amount, type, params = {}) {
         await this.loadMarkets();
         const holdSide = this.safeString(params, 'holdSide');
@@ -3841,7 +3649,7 @@ class bitget extends Exchange["default"] {
          * @param {string} symbol unified market symbol
          * @param {float} amount the amount of margin to remove
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [margin structure]{@link https://docs.ccxt.com/#/?id=reduce-margin-structure}
+         * @returns {object} a [margin structure]{@link https://docs.ccxt.com/en/latest/manual.html#reduce-margin-structure}
          */
         if (amount > 0) {
             throw new errors.BadRequest(this.id + ' reduceMargin() amount parameter must be a negative value');
@@ -3860,7 +3668,7 @@ class bitget extends Exchange["default"] {
          * @param {string} symbol unified market symbol
          * @param {float} amount amount of margin to add
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [margin structure]{@link https://docs.ccxt.com/#/?id=add-margin-structure}
+         * @returns {object} a [margin structure]{@link https://docs.ccxt.com/en/latest/manual.html#add-margin-structure}
          */
         const holdSide = this.safeString(params, 'holdSide');
         if (holdSide === undefined) {
@@ -3875,44 +3683,29 @@ class bitget extends Exchange["default"] {
          * @description fetch the set leverage for a market
          * @param {string} symbol unified market symbol
          * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [leverage structure]{@link https://docs.ccxt.com/#/?id=leverage-structure}
+         * @returns {object} a [leverage structure]{@link https://docs.ccxt.com/en/latest/manual.html#leverage-structure}
          */
         await this.loadMarkets();
         const market = this.market(symbol);
         const request = {
             'symbol': market['id'],
-            'marginCoin': market['settleId'],
         };
-        const response = await this.privateMixGetAccountAccount(this.extend(request, params));
+        const response = await this.publicMixGetMarketSymbolLeverage(this.extend(request, params));
         //
         //     {
         //         "code": "00000",
         //         "msg": "success",
-        //         "requestTime": 0,
+        //         "requestTime": 1652347673483,
         //         "data": {
-        //             "marginCoin": "SUSDT",
-        //             "locked": "0",
-        //             "available": "3000",
-        //             "crossMaxAvailable": "3000",
-        //             "fixedMaxAvailable": "3000",
-        //             "maxTransferOut": "3000",
-        //             "equity": "3000",
-        //             "usdtEquity": "3000",
-        //             "btcEquity": "0.12217217236",
-        //             "crossRiskRate": "0",
-        //             "crossMarginLeverage": 20,
-        //             "fixedLongLeverage": 40,
-        //             "fixedShortLeverage": 10,
-        //             "marginMode": "fixed",
-        //             "holdMode": "double_hold",
-        //             "unrealizedPL": null,
-        //             "bonus": "0"
+        //             "symbol": "BTCUSDT_UMCBL",
+        //             "minLeverage": "1",
+        //             "maxLeverage": "125"
         //         }
         //     }
         //
         return response;
     }
-    async setLeverage(leverage, symbol = undefined, params = {}) {
+    async setLeverage(symbol, buyLeverage, sellLeverage, params = {}) {
         /**
          * @method
          * @name bitget#setLeverage
@@ -3922,16 +3715,54 @@ class bitget extends Exchange["default"] {
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @returns {object} response from the exchange
          */
-        this.checkRequiredSymbol('setLeverage', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' setLeverage() requires a symbol argument');
+        }
         await this.loadMarkets();
         const market = this.market(symbol);
-        const request = {
-            'symbol': market['id'],
-            'marginCoin': market['settleId'],
-            'leverage': leverage,
-            // 'holdSide': 'long',
-        };
-        return await this.privateMixPostAccountSetLeverage(this.extend(request, params));
+        const marginMode = this.safeString2(params, 'marginType', 'marginMode');
+        params = this.omit(params, ['marginType', 'marginMode', 'tradeMode']);
+        if (marginMode === 'isolated') {
+            let promises = [];
+            const request = {
+                'symbol': market['id'],
+                'marginCoin': market['settleId'],
+            };
+            if (buyLeverage !== undefined) {
+                request['leverage'] = buyLeverage;
+                request['holdSide'] = 'long';
+                promises.push(this.privateMixPostAccountSetLeverage(this.extend(request, params)));
+            }
+            if (sellLeverage !== undefined) {
+                request['leverage'] = sellLeverage;
+                request['holdSide'] = 'short';
+                promises.push(this.privateMixPostAccountSetLeverage(this.extend(request, params)));
+            }
+            promises = await Promise.all(promises);
+            if (promises.length === 1) {
+                return promises[0];
+            }
+            else {
+                return promises;
+            }
+        }
+        else {
+            const request = {
+                'symbol': market['id'],
+                'marginCoin': market['settleId'],
+                'leverage': buyLeverage,
+                // 'holdSide': 'long',
+            };
+            return await this.privateMixPostAccountSetLeverage(this.extend(request, params));
+        }
+    }
+    async switchIsolated(symbol, isIsolated, buyLeverage, sellLeverage, params = {}) {
+        if (isIsolated) {
+            await this.setMarginMode('fixed', symbol, params);
+        }
+        else {
+            await this.setMarginMode('crossed', symbol, params);
+        }
     }
     async setMarginMode(marginMode, symbol = undefined, params = {}) {
         /**
@@ -3943,7 +3774,9 @@ class bitget extends Exchange["default"] {
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @returns {object} response from the exchange
          */
-        this.checkRequiredSymbol('setMarginMode', symbol);
+        if (symbol === undefined) {
+            throw new errors.ArgumentsRequired(this.id + ' setMarginMode() requires a symbol argument');
+        }
         marginMode = marginMode.toLowerCase();
         if ((marginMode !== 'fixed') && (marginMode !== 'crossed')) {
             throw new errors.ArgumentsRequired(this.id + ' setMarginMode() marginMode must be "fixed" or "crossed"');
@@ -3955,46 +3788,79 @@ class bitget extends Exchange["default"] {
             'marginCoin': market['settleId'],
             'marginMode': marginMode,
         };
-        return await this.privateMixPostAccountSetMarginMode(this.extend(request, params));
+        try {
+            return await this.privateMixPostAccountSetMarginMode(this.extend(request, params));
+        }
+        catch (e) {
+            // bitget {"code":"45117","msg":"当前持有仓位或委托，无法调整保证金模式","requestTime":1671924219093,"data":null}
+            if (e instanceof errors.ExchangeError) {
+                if (e.toString().indexOf('45117') >= 0) {
+                    throw new errors.ExchangeError(this.id + ' ' + this.json({ 'code': 45117, 'msg': 'Cannot switch Margin Type for market with open positions or orders.' }));
+                }
+            }
+            throw e;
+        }
     }
-    async setPositionMode(hedged, symbol = undefined, params = {}) {
-        /**
-         * @method
-         * @name bitget#setPositionMode
-         * @description set hedged to true or false for a market
-         * @param {bool} hedged set to true to use dualSidePosition
-         * @param {string|undefined} symbol not used by bitget setPositionMode ()
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} response from the exchange
-         *
-         */
+    async fetchAccountConfiguration(symbol, params = {}) {
         await this.loadMarkets();
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
-        const holdMode = hedged ? 'double_hold' : 'single_hold';
+        const market = this.market(symbol);
         const request = {
-            'holdMode': holdMode,
+            'symbol': market['id'],
+            'marginCoin': market['settleId'],
         };
-        let subType = undefined;
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market(symbol);
+        const response = await this.privateMixGetAccountAccount(this.extend(request, params));
+        const data = this.safeValue(response, 'data');
+        return this.parseAccountConfiguration(data, market);
+    }
+    parseAccountConfiguration(data, market) {
+        // {
+        //     "marginCoin":"USDT",
+        //   "locked":0,
+        //   "available":13168.86110692,
+        //   "crossMaxAvailable":13168.86110692,
+        //   "fixedMaxAvailable":13168.86110692,
+        //   "maxTransferOut":13168.86110692,
+        //   "equity":13178.86110692,
+        //   "usdtEquity":13178.861106922,
+        //   "btcEquity":0.344746495477,
+        //   "crossRiskRate":0,
+        //   "crossMarginLeverage":20,
+        //   "fixedLongLeverage":20,
+        //   "fixedShortLeverage":20,
+        //   "marginMode":"crossed",
+        //   "holdMode":"double_hold"
+        // }
+        const marginMode = this.safeString(data, 'marginMode');
+        const isIsolated = (marginMode === 'fixed');
+        let leverage = this.safeFloat(data, 'crossMarginLeverage');
+        const buyLeverage = this.safeFloat(data, 'fixedLongLeverage');
+        const sellLeverage = this.safeFloat(data, 'fixedShortLeverage');
+        const marginCoin = this.safeString(data, 'marginCoin');
+        const holdMode = this.safeString(data, 'holdMode');
+        let tradeMode = 'hedged';
+        if (holdMode === 'single_hold') {
+            tradeMode = 'oneway';
+            if (isIsolated) {
+                leverage = buyLeverage;
+            }
         }
-        [subType, params] = this.handleSubTypeAndParams('setPositionMode', market, params);
-        let productType = (subType === 'linear') ? 'UMCBL' : 'DMCBL';
-        if (sandboxMode) {
-            productType = 'S' + productType;
-        }
-        request['productType'] = productType;
-        const response = await this.privateMixPostAccountSetPositionMode(this.extend(request, params));
-        //
-        //    {
-        //         "code": "40919",
-        //         "msg": "This function is not open yet",
-        //         "requestTime": 1672212431093,
-        //         "data": null
-        //     }
-        //
-        return response;
+        const accountConfig = {
+            'info': data,
+            'markets': {},
+            'tradeMode': tradeMode,
+            'marginType': isIsolated ? 'isolated' : 'cross',
+        };
+        const leverageConfigs = accountConfig['markets'];
+        leverageConfigs[market['symbol']] = {
+            'marginType': isIsolated ? 'isolated' : 'cross',
+            'isIsolated': isIsolated,
+            'leverage': leverage,
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'marginCoin': marginCoin,
+            'tradeMode': tradeMode,
+        };
+        return accountConfig;
     }
     async fetchOpenInterest(symbol, params = {}) {
         /**
@@ -4004,7 +3870,7 @@ class bitget extends Exchange["default"] {
          * @see https://bitgetlimited.github.io/apidoc/en/mix/#get-open-interest
          * @param {string} symbol Unified CCXT market symbol
          * @param {object} params exchange specific parameters
-         * @returns {object} an open interest structure{@link https://docs.ccxt.com/#/?id=interest-history-structure}
+         * @returns {object} an open interest structure{@link https://docs.ccxt.com/en/latest/manual.html#interest-history-structure}
          */
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -4030,60 +3896,6 @@ class bitget extends Exchange["default"] {
         const data = this.safeValue(response, 'data', {});
         return this.parseOpenInterest(data, market);
     }
-    async fetchTransfers(code = undefined, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name bitget#fetchTransfers
-         * @description fetch a history of internal transfers made on an account
-         * @see https://bitgetlimited.github.io/apidoc/en/spot/#get-transfer-list
-         * @param {string|undefined} code unified currency code of the currency transferred
-         * @param {int|undefined} since the earliest time in ms to fetch transfers for
-         * @param {int|undefined} limit the maximum number of  transfers structures to retrieve
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [transfer structures]{@link https://docs.ccxt.com/#/?id=transfer-structure}
-         */
-        await this.loadMarkets();
-        let type = undefined;
-        [type, params] = this.handleMarketTypeAndParams('fetchTransfers', undefined, params);
-        const fromAccount = this.safeString(params, 'fromAccount', type);
-        params = this.omit(params, 'fromAccount');
-        const accountsByType = this.safeValue(this.options, 'accountsByType', {});
-        type = this.safeString(accountsByType, fromAccount);
-        const request = {
-            'fromType': type,
-        };
-        let currency = undefined;
-        if (code !== undefined) {
-            currency = this.currency(code);
-            request['coinId'] = currency['id'];
-        }
-        if (since !== undefined) {
-            request['before'] = since;
-        }
-        if (limit !== undefined) {
-            request['limit'] = limit;
-        }
-        const response = await this.privateSpotGetAccountTransferRecords(this.extend(request, params));
-        //
-        //     {
-        //         "code":"00000",
-        //         "message":"success",
-        //         "data":[{
-        //             "cTime":"1622697148",
-        //             "coinId":"22",
-        //             "coinName":"usdt",
-        //             "groupType":"deposit",
-        //             "bizType":"transfer-in",
-        //             "quantity":"1",
-        //             "balance": "1",
-        //             "fees":"0",
-        //             "billId":"1291"
-        //         }]
-        //     }
-        //
-        const data = this.safeValue(response, 'data', []);
-        return this.parseTransfers(data, currency, since, limit);
-    }
     async transfer(code, amount, fromAccount, toAccount, params = {}) {
         /**
          * @method
@@ -4098,7 +3910,7 @@ class bitget extends Exchange["default"] {
          *
          * EXCHANGE SPECIFIC PARAMS
          * @param {string} params.clientOid custom id
-         * @returns {object} a [transfer structure]{@link https://docs.ccxt.com/#/?id=transfer-structure}
+         * @returns {object} a [transfer structure]{@link https://docs.ccxt.com/en/latest/manual.html#transfer-structure}
          */
         await this.loadMarkets();
         const currency = this.currency(code);
@@ -4130,8 +3942,6 @@ class bitget extends Exchange["default"] {
     }
     parseTransfer(transfer, currency = undefined) {
         //
-        // transfer
-        //
         //    {
         //        "code": "00000",
         //        "msg": "success",
@@ -4139,50 +3949,23 @@ class bitget extends Exchange["default"] {
         //        "data": "SUCCESS"
         //    }
         //
-        // fetchTransfers
-        //
-        //     {
-        //         "cTime":"1622697148",
-        //         "coinId":"22",
-        //         "coinName":"usdt",
-        //         "groupType":"deposit",
-        //         "bizType":"transfer-in",
-        //         "quantity":"1",
-        //         "balance": "1",
-        //         "fees":"0",
-        //         "billId":"1291"
-        //     }
-        //
-        let timestamp = this.safeInteger2(transfer, 'requestTime', 'tradeTime');
-        if (timestamp === undefined) {
-            timestamp = this.safeTimestamp(transfer, 'cTime');
-        }
-        const msg = this.safeStringLowerN(transfer, ['msg', 'status']);
-        let currencyId = this.safeString2(transfer, 'code', 'coinName');
-        if (currencyId === '00000') {
-            currencyId = undefined;
-        }
-        const fromAccountRaw = this.safeString(transfer, 'fromType');
-        const accountsById = this.safeValue(this.options, 'accountsById', {});
-        const fromAccount = this.safeString(accountsById, fromAccountRaw, fromAccountRaw);
-        const toAccountRaw = this.safeString(transfer, 'toType');
-        const toAccount = this.safeString(accountsById, toAccountRaw, toAccountRaw);
+        const timestamp = this.safeInteger(transfer, 'requestTime');
+        const msg = this.safeString(transfer, 'msg');
         return {
             'info': transfer,
-            'id': this.safeString2(transfer, 'id', 'billId'),
+            'id': this.safeString(transfer, 'id'),
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
-            'currency': this.safeCurrencyCode(currencyId),
-            'amount': this.safeNumberN(transfer, ['size', 'quantity', 'amount']),
-            'fromAccount': fromAccount,
-            'toAccount': toAccount,
-            'status': this.parseTransferStatus(msg),
+            'currency': this.safeString(currency, 'code'),
+            'amount': this.safeNumber(transfer, 'size'),
+            'fromAccount': undefined,
+            'toAccount': undefined,
+            'status': (msg === 'success') ? 'ok' : msg,
         };
     }
     parseTransferStatus(status) {
         const statuses = {
             'success': 'ok',
-            'successful': 'ok',
         };
         return this.safeString(statuses, status, status);
     }
@@ -4196,10 +3979,12 @@ class bitget extends Exchange["default"] {
         //
         const timestamp = this.safeInteger(interest, 'timestamp');
         const id = this.safeString(interest, 'symbol');
-        const symbol = this.safeSymbol(id, market);
+        market = this.safeMarket(id, market);
         const amount = this.safeNumber(interest, 'amount');
         return {
-            'symbol': symbol,
+            'symbol': this.safeSymbol(id),
+            'baseVolume': amount,
+            'quoteVolume': undefined,
             'openInterestAmount': amount,
             'openInterestValue': undefined,
             'timestamp': timestamp,
@@ -4282,13 +4067,11 @@ class bitget extends Exchange["default"] {
                 }
             }
             const signature = this.hmac(this.encode(auth), this.encode(this.secret), 'sha256', 'base64');
-            const broker = this.safeString(this.options, 'broker');
             headers = {
                 'ACCESS-KEY': this.apiKey,
                 'ACCESS-SIGN': signature,
                 'ACCESS-TIMESTAMP': timestamp,
                 'ACCESS-PASSPHRASE': this.password,
-                'X-CHANNEL-API-CODE': broker,
             };
             if (method === 'POST') {
                 headers['Content-Type'] = 'application/json';

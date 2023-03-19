@@ -2,7 +2,7 @@ declare class OrderBookSide extends Array {
     constructor(deltas?: any[], depth?: any);
     storeArray(delta: any): void;
     store(price: any, size: any): void;
-    limit(): void;
+    limit(n?: any): void;
 }
 declare class CountedOrderBookSide extends OrderBookSide {
     store(price: any, size: any, count: any): void;
@@ -12,7 +12,7 @@ declare class IndexedOrderBookSide extends Array {
     constructor(deltas?: any[], depth?: number);
     store(price: any, size: any, id: any): void;
     storeArray(delta: any): void;
-    limit(): void;
+    limit(n?: any): void;
 }
 declare class Asks extends OrderBookSide {
     get side(): boolean;

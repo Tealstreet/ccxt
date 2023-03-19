@@ -7,13 +7,17 @@ require('../../static_dependencies/qs/index.cjs.js');
 require('../../static_dependencies/BN/bn.cjs.js');
 require('../functions/crypto.js');
 var time = require('../functions/time.js');
-var WebSocket = require('ws');
 
-function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
-
-var WebSocket__default = /*#__PURE__*/_interopDefaultLegacy(WebSocket);
-
-const WebSocketPlatform = platform.isNode ? WebSocket__default["default"] : self.WebSocket;
+// TEALSTREET
+let WebSocket = null;
+try {
+    WebSocket = window.WebSocket;
+}
+catch (e) {
+    // @eslint-disable-next-line
+    // WebSocket = require ('ws')
+}
+const WebSocketPlatform = platform.isNode ? WebSocket : self.WebSocket;
 class WsClient extends Client {
     createConnection() {
         if (this.verbose) {

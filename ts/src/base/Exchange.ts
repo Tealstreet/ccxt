@@ -10,6 +10,7 @@ const {
     , extend
     , clone
     , flatten
+    , pluck
     , unique
     , indexBy
     , sortBy
@@ -133,7 +134,7 @@ import {inflate, inflate64, gunzip} from './ws/functions.js'
     , ArgumentsRequired
     , RateLimitExceeded } from "./errors.js"
 
-import BN from '../static_dependencies/BN/bn.cjs'
+
 import { Precise } from './Precise.js'
 
 //-----------------------------------------------------------------------------
@@ -145,13 +146,12 @@ import { OrderBook as WsOrderBook, IndexedOrderBook, CountedOrderBook } from './
 //
 
 // import types
-import {Market, Trade, Fee, Ticker, OHLCV, Order, OrderBook, Balance, Balances, Dictionary, Transaction, DepositAddressResponse } from './types'
+import {Market, Trade, Fee, Ticker, OHLCV, Order, OrderBook, Balance, Balances, Dictionary, DepositAddressResponse } from './types'
 export {Market, Trade, Fee, Ticker} from './types'
 
 
 // ----------------------------------------------------------------------------
 // move this elsewhere
-import { ArrayCache, ArrayCacheByTimestamp, ArrayCacheBySymbolById } from './ws/Cache.js'
 
 // ----------------------------------------------------------------------------
 export default class Exchange {
@@ -291,6 +291,7 @@ export default class Exchange {
     extend = extend
     clone = clone
     flatten = flatten
+    pluck = pluck
     unique = unique
     indexBy = indexBy
     sortBy = sortBy
@@ -391,6 +392,11 @@ export default class Exchange {
     inflate = inflate
     inflate64 = inflate64
     gunzip = gunzip
+
+    // TEALSTREET
+    private _loadMarketsPromise: Promise<Dictionary<Market>>;
+    private _loadMarketsResolve: (value: (PromiseLike<Dictionary<Market>> | Dictionary<Market>)) => void;
+    private _loadMarketsReject: (reason?: any) => void;
 
     describe () {
         return {
@@ -989,7 +995,7 @@ export default class Exchange {
     // TEALSTREET
     setMarketsAndResolve(markets, currencies = undefined) {
         this.setMarkets (markets, currencies);
-        this._loadMarketsResolve && this._loadMarketsResolve()
+        this._loadMarketsResolve && this._loadMarketsResolve(this.markets)
         return this.markets;
     }
 

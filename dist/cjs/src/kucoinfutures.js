@@ -1046,6 +1046,12 @@ class kucoinfutures extends kucoin {
         const isStopLoss = stopLossPrice !== undefined;
         const isTakeProfit = takeProfitPrice !== undefined;
         if (stopPrice) {
+            if (price !== undefined) {
+                request['type'] = 'limit';
+            }
+            else {
+                request['type'] = 'market';
+            }
             request['stop'] = (side === 'buy') ? 'up' : 'down';
             request['stopPrice'] = this.priceToPrecision(symbol, stopPrice);
             request['stopPriceType'] = 'MP';
@@ -1062,6 +1068,7 @@ class kucoinfutures extends kucoin {
             request['reduceOnly'] = true;
             request['stopPriceType'] = 'MP';
         }
+        type = request['type'];
         const uppercaseType = type.toUpperCase();
         const timeInForce = this.safeStringUpper(params, 'timeInForce');
         if (uppercaseType === 'LIMIT') {

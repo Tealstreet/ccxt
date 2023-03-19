@@ -2228,9 +2228,6 @@ class Exchange(object):
         if datetime is None:
             datetime = self.iso8601(timestamp)
         triggerPrice = self.parse_number(self.safe_string_2(order, 'triggerPrice', 'stopPrice'))
-        elif postOnly is None:
-            # timeInForce is not None here
-            postOnly = timeInForce == 'PO'
         return self.extend(order, {
             'id': self.safe_string(order, 'id'),
             'clientOrderId': self.safe_string(order, 'clientOrderId'),
@@ -2765,9 +2762,6 @@ class Exchange(object):
             if responseNetworksLength == 0:
                 raise NotSupported(self.id + ' - ' + networkCode + ' network did not return any result for ' + currencyCode)
             else:
-                # if networkCode was provided by user, we should check it after response, as the referenced exchange doesn't support network-code during request
-                networkId = networkCode if isIndexedByUnifiedNetworkCode else self.networkCodeToId(networkCode, currencyCode)
-                if networkId in indexedNetworkEntries:
                 # if networkCode was provided by user, we should check it after response, referenced exchange doesn't support network-code during request
                 networkId = networkCode if isIndexedByUnifiedNetworkCode else self.networkCodeToId(networkCode, currencyCode)
                 if networkId in indexedNetworkEntries:
@@ -3379,7 +3373,13 @@ class Exchange(object):
             if symbol in self.markets:
                 return self.markets[symbol]
             elif symbol in self.markets_by_id:
-                return self.markets_by_id[symbol]
+                markets = self.markets_by_id[symbol]
+                defaultType = self.safe_string_2(self.options, 'defaultType', 'defaultSubType', 'spot')
+                for i in range(0, len(markets)):
+                    market = markets[i]
+                    if market[defaultType]:
+                        return market
+                return markets[0]
 
     def market(self, symbol):
         # symbol = symbol + ':USDT'

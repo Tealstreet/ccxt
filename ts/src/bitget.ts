@@ -2184,7 +2184,7 @@ export default class bitget extends Exchange {
                 const parsedBalance = this.parseBalance (data);
                 result = this.deepExtend (result, parsedBalance);
             }
-            return result;
+            return result as any;
         } else {
             const request = {};
             const response = await this[method] (this.extend (request, query));
@@ -3139,7 +3139,7 @@ export default class bitget extends Exchange {
             currency = this.currency (code);
             request['coinId'] = currency['id'];
         }
-        const response = await this.privateSpotPostAccountBills (this.extend (request, params));
+        const response = await (this as any).privateSpotPostAccountBills (this.extend (request, params));
         //
         //     {
         //       code: '00000',
@@ -3236,7 +3236,7 @@ export default class bitget extends Exchange {
         if (limit !== undefined) {
             request['limit'] = limit;
         }
-        const response = await this.privateSpotPostTradeFills (this.extend (request, params));
+        const response = await (this as any).privateSpotPostTradeFills (this.extend (request, params));
         //
         //     {
         //       code: '00000',
@@ -3333,7 +3333,7 @@ export default class bitget extends Exchange {
             'symbol': market['id'],
             'marginCoin': market['settleId'],
         };
-        const response = await this.privateMixGetPositionSinglePosition (this.extend (request, params));
+        const response = await (this as any).privateMixGetPositionSinglePosition (this.extend (request, params));
         //
         //     {
         //       code: '00000',
@@ -3380,7 +3380,7 @@ export default class bitget extends Exchange {
         const request = {
             'productType': (defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
         };
-        const response = await this.privateMixGetPositionAllPosition (this.extend (request, params));
+        const response = await (this as any).privateMixGetPositionAllPosition (this.extend (request, params));
         //
         //     {
         //       code: '00000',
@@ -3450,7 +3450,7 @@ export default class bitget extends Exchange {
         } else if (marginMode === 'crossed') {
             marginMode = 'cross';
         }
-        let hedged = this.safeString (position, 'holdMode');
+        let hedged: boolean | string = this.safeString (position, 'holdMode');
         if (hedged === 'double_hold') {
             hedged = true;
         } else if (hedged === 'single_hold') {
@@ -3522,7 +3522,7 @@ export default class bitget extends Exchange {
         if (limit !== undefined) {
             request['pageSize'] = limit;
         }
-        const response = await this.publicMixGetMarketHistoryFundRate (this.extend (request, params));
+        const response = await (this as any).publicMixGetMarketHistoryFundRate (this.extend (request, params));
         //
         //     {
         //         "code": "00000",
@@ -3573,7 +3573,7 @@ export default class bitget extends Exchange {
         const request = {
             'symbol': market['id'],
         };
-        const response = await this.publicMixGetMarketCurrentFundRate (this.extend (request, params));
+        const response = await (this as any).publicMixGetMarketCurrentFundRate (this.extend (request, params));
         //
         //     {
         //         "code": "00000",
@@ -3631,7 +3631,7 @@ export default class bitget extends Exchange {
             'holdSide': holdSide, // long or short
         };
         params = this.omit (params, 'holdSide');
-        const response = await this.privateMixPostAccountSetMargin (this.extend (request, params));
+        const response = await (this as any).privateMixPostAccountSetMargin (this.extend (request, params));
         //
         //     {
         //         "code": "00000",
@@ -3713,7 +3713,7 @@ export default class bitget extends Exchange {
         const request = {
             'symbol': market['id'],
         };
-        const response = await this.publicMixGetMarketSymbolLeverage (this.extend (request, params));
+        const response = await (this as any).publicMixGetMarketSymbolLeverage (this.extend (request, params));
         //
         //     {
         //         "code": "00000",
@@ -3755,12 +3755,12 @@ export default class bitget extends Exchange {
             if (buyLeverage !== undefined) {
                 request['leverage'] = buyLeverage;
                 request['holdSide'] = 'long';
-                promises.push (this.privateMixPostAccountSetLeverage (this.extend (request, params)));
+                promises.push ((this as any).privateMixPostAccountSetLeverage (this.extend (request, params)));
             }
             if (sellLeverage !== undefined) {
                 request['leverage'] = sellLeverage;
                 request['holdSide'] = 'short';
-                promises.push (this.privateMixPostAccountSetLeverage (this.extend (request, params)));
+                promises.push ((this as any).privateMixPostAccountSetLeverage (this.extend (request, params)));
             }
             promises = await Promise.all (promises);
             if (promises.length === 1) {
@@ -3775,7 +3775,7 @@ export default class bitget extends Exchange {
                 'leverage': buyLeverage,
                 // 'holdSide': 'long',
             };
-            return await this.privateMixPostAccountSetLeverage (this.extend (request, params));
+            return await (this as any).privateMixPostAccountSetLeverage (this.extend (request, params));
         }
     }
 
@@ -3812,7 +3812,7 @@ export default class bitget extends Exchange {
             'marginMode': marginMode,
         };
         try {
-            return await this.privateMixPostAccountSetMarginMode (this.extend (request, params));
+            return await (this as any).privateMixPostAccountSetMarginMode (this.extend (request, params));
         } catch (e) {
             // bitget {"code":"45117","msg":"当前持有仓位或委托，无法调整保证金模式","requestTime":1671924219093,"data":null}
             if (e instanceof ExchangeError) {
@@ -3831,7 +3831,7 @@ export default class bitget extends Exchange {
             'symbol': market['id'],
             'marginCoin': market['settleId'],
         };
-        const response = await this.privateMixGetAccountAccount (this.extend (request, params));
+        const response = await (this as any).privateMixGetAccountAccount (this.extend (request, params));
         const data = this.safeValue (response, 'data');
         return this.parseAccountConfiguration (data, market);
     }
@@ -3905,7 +3905,7 @@ export default class bitget extends Exchange {
         const request = {
             'symbol': market['id'],
         };
-        const response = await this.publicMixGetMarketOpenInterest (this.extend (request, params));
+        const response = await (this as any).publicMixGetMarketOpenInterest (this.extend (request, params));
         //
         //     {
         //         "code": "00000",
@@ -3954,7 +3954,7 @@ export default class bitget extends Exchange {
             'amount': amount,
             'coin': currency['info']['coinName'],
         };
-        const response = await this.privateSpotPostWalletTransfer (this.extend (request, params));
+        const response = await (this as any).privateSpotPostWalletTransfer (this.extend (request, params));
         //
         //    {
         //        "code": "00000",

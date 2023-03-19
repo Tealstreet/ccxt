@@ -11,7 +11,9 @@ var Future = require('./ws/Future.js');
 var OrderBook = require('./ws/OrderBook.js');
 
 // ----------------------------------------------------------------------------
-const { isNode, keys, values, deepExtend, extend, clone, flatten, unique, indexBy, sortBy, sortBy2, safeFloat2, groupBy, aggregate, uuid, unCamelCase, precisionFromString, throttle, capitalize, now, buildOHLCVC, decimalToPrecision, safeValue, safeValue2, safeString, safeString2, seconds, milliseconds, binaryToBase16, numberToBE, base16ToBinary, stringToBinary, iso8601, omit, isJsonEncodedObject, safeInteger, sum, omitZero, implodeParams, extractParams, json, vwap, merge, binaryConcat, hash, ecdsa, totp, arrayConcat, encode, urlencode, hmac, numberToString, parseTimeframe, safeInteger2, safeStringLower, parse8601, yyyymmdd, safeStringUpper, safeTimestamp, binaryConcatArray, uuidv1, numberToLE, ymdhms, stringToBase64, decode, uuid22, safeIntegerProduct2, safeIntegerProduct, safeStringLower2, yymmdd, base58ToBinary, eddsa, safeTimestamp2, rawencode, keysort, inArray, isEmpty, ordered, jwt, filterBy, uuid16, safeFloat, base64ToBinary, safeStringUpper2, urlencodeWithArrayRepeat, microseconds, binaryToBase64, rsa, strip, toArray, safeFloatN, safeIntegerN, safeIntegerProductN, safeTimestampN, safeValueN, safeStringN, safeStringLowerN, safeStringUpperN, urlencodeNested, parseDate, ymd, isArray, base64ToString, crc32, TRUNCATE, ROUND, DECIMAL_PLACES, NO_PADDING, TICK_SIZE } = functions$1;
+const { isNode, keys, values, deepExtend, extend, clone, flatten, pluck, unique, indexBy, sortBy, sortBy2, safeFloat2, groupBy, aggregate, uuid, unCamelCase, precisionFromString, throttle, capitalize, now, buildOHLCVC, decimalToPrecision, safeValue, safeValue2, safeString, safeString2, seconds, milliseconds, binaryToBase16, numberToBE, base16ToBinary, stringToBinary, iso8601, omit, isJsonEncodedObject, safeInteger, sum, omitZero, implodeParams, extractParams, json, vwap, merge, binaryConcat, hash, ecdsa, totp, arrayConcat, encode, urlencode, hmac, numberToString, parseTimeframe, safeInteger2, safeStringLower, parse8601, yyyymmdd, safeStringUpper, safeTimestamp, binaryConcatArray, uuidv1, numberToLE, ymdhms, stringToBase64, decode, uuid22, safeIntegerProduct2, safeIntegerProduct, safeStringLower2, yymmdd, base58ToBinary, eddsa, safeTimestamp2, rawencode, keysort, inArray, isEmpty, ordered, jwt, filterBy, uuid16, safeFloat, base64ToBinary, safeStringUpper2, urlencodeWithArrayRepeat, microseconds, binaryToBase64, rsa, strip, toArray, safeFloatN, safeIntegerN, safeIntegerProductN, safeTimestampN, safeValueN, safeStringN, safeStringLowerN, safeStringUpperN, urlencodeNested, parseDate, ymd, isArray, base64ToString, crc32, TRUNCATE, ROUND, DECIMAL_PLACES, NO_PADDING, TICK_SIZE } = functions$1;
+// ----------------------------------------------------------------------------
+// move this elsewhere
 // ----------------------------------------------------------------------------
 class Exchange {
     constructor(userConfig = {}) {
@@ -107,6 +109,7 @@ class Exchange {
         this.extend = extend;
         this.clone = clone;
         this.flatten = flatten;
+        this.pluck = pluck;
         this.unique = unique;
         this.indexBy = indexBy;
         this.sortBy = sortBy;
@@ -318,6 +321,11 @@ class Exchange {
         }
         // init the request rate limiter
         this.initRestRateLimiter();
+        // TEALSTREET
+        this._loadMarketsPromise = new Promise((resolve, reject) => {
+            this._loadMarketsResolve = resolve;
+            this._loadMarketsReject = reject;
+        });
         // init predefined markets if any
         if (this.markets) {
             this.setMarkets(this.markets);
@@ -780,10 +788,16 @@ class Exchange {
     onJsonResponse(responseBody) {
         return this.quoteJsonNumbers ? responseBody.replace(/":([+.0-9eE-]+)([,}])/g, '":"$1"$2') : responseBody;
     }
+    // TEALSTREET
+    setMarketsAndResolve(markets, currencies = undefined) {
+        this.setMarkets(markets, currencies);
+        this._loadMarketsResolve && this._loadMarketsResolve(this.markets);
+        return this.markets;
+    }
     async loadMarketsHelper(reload = false, params = {}) {
         if (!reload && this.markets) {
             if (!this.markets_by_id) {
-                return this.setMarkets(this.markets);
+                return this.setMarketsAndResolve(this.markets);
             }
             return this.markets;
         }
@@ -793,7 +807,7 @@ class Exchange {
             currencies = await this.fetchCurrencies();
         }
         const markets = await this.fetchMarkets(params);
-        return this.setMarkets(markets, currencies);
+        return this.setMarketsAndResolve(markets, currencies);
     }
     loadMarkets(reload = false, params = {}) {
         // this method is async, it returns a promise
@@ -807,7 +821,7 @@ class Exchange {
                 throw error;
             });
         }
-        return this.marketsLoading;
+        return this._loadMarketsPromise;
     }
     fetchCurrencies(params = {}) {
         // markets are returned as a list
@@ -2959,10 +2973,7 @@ class Exchange {
         }
         throw new errors.ExchangeError(this.id + ' does not have currency code ' + code);
     }
-    market(symbol) {
-        if (this.markets === undefined) {
-            throw new errors.ExchangeError(this.id + ' markets not loaded');
-        }
+    marketHelper(symbol) {
         if (typeof symbol === 'string') {
             if (symbol in this.markets) {
                 return this.markets[symbol];
@@ -2978,6 +2989,21 @@ class Exchange {
                 }
                 return markets[0];
             }
+        }
+    }
+    market(symbol) {
+        // symbol = symbol + ':USDT';
+        if (this.markets === undefined) {
+            throw new errors.ExchangeError(this.id + ' markets not loaded');
+        }
+        if (this.markets_by_id === undefined) {
+            throw new errors.ExchangeError(this.id + ' markets not loaded');
+        }
+        // TEALSTREET patch for backwards compatability
+        // this.marketHelper (symbol.split (':')[0]);
+        const foundMarket = this.marketHelper(symbol) || this.marketHelper(symbol + ':USDT') || this.marketHelper(symbol + ':BTC');
+        if (foundMarket) {
+            return foundMarket;
         }
         throw new errors.BadSymbol(this.id + ' does not have market symbol ' + symbol);
     }

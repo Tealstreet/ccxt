@@ -522,6 +522,8 @@ class Exchange {
         'roundTimeframe' => 'round_timeframe',
         'setTimeout_safe' => 'set_timeout_safe',
         'urlencodeBase64' => 'urlencode_base64',
+        '_loadMarketsResolve' => '_load_markets_resolve',
+        '_loadMarketsReject' => '_load_markets_reject',
         'encodeURIComponent' => 'encode_uri_component',
         'checkRequiredVersion' => 'check_required_version',
         'checkAddress' => 'check_address',
@@ -534,6 +536,7 @@ class Exchange {
         'handleRestResponse' => 'handle_rest_response',
         'onRestResponse' => 'on_rest_response',
         'onJsonResponse' => 'on_json_response',
+        'setMarketsAndResolve' => 'set_markets_and_resolve',
         'loadMarketsHelper' => 'load_markets_helper',
         'loadMarkets' => 'load_markets',
         'fetchCurrencies' => 'fetch_currencies',
@@ -695,6 +698,7 @@ class Exchange {
         'parseLastPrice' => 'parse_last_price',
         'fetchDepositAddress' => 'fetch_deposit_address',
         'commonCurrencyCode' => 'common_currency_code',
+        'marketHelper' => 'market_helper',
         'handleWithdrawTagAndParams' => 'handle_withdraw_tag_and_params',
         'createLimitOrder' => 'create_limit_order',
         'createMarketOrder' => 'create_market_order',
@@ -4473,10 +4477,7 @@ class Exchange {
         throw new ExchangeError($this->id . ' does not have currency $code ' . $code);
     }
 
-    public function market($symbol) {
-        if ($this->markets === null) {
-            throw new ExchangeError($this->id . ' $markets not loaded');
-        }
+    public function market_helper($symbol) {
         if (gettype($symbol) === 'string') {
             if (is_array($this->markets) && array_key_exists($symbol, $this->markets)) {
                 return $this->markets[$symbol];
@@ -4492,7 +4493,23 @@ class Exchange {
                 return $markets[0];
             }
         }
-        throw new BadSymbol($this->id . ' does not have $market $symbol ' . $symbol);
+    }
+
+    public function market($symbol) {
+        // $symbol = $symbol . ':USDT';
+        if ($this->markets === null) {
+            throw new ExchangeError($this->id . ' markets not loaded');
+        }
+        if ($this->markets_by_id === null) {
+            throw new ExchangeError($this->id . ' markets not loaded');
+        }
+        // TEALSTREET patch for backwards compatability
+        // $this->marketHelper (explode(':', $symbol)[0]);
+        $foundMarket = $this->marketHelper ($symbol) || $this->marketHelper ($symbol . ':USDT') || $this->marketHelper ($symbol . ':BTC');
+        if ($foundMarket) {
+            return $foundMarket;
+        }
+        throw new BadSymbol($this->id . ' does not have market $symbol ' . $symbol);
     }
 
     public function handle_withdraw_tag_and_params($tag, $params) {

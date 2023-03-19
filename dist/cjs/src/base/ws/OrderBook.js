@@ -42,9 +42,9 @@ class OrderBook {
             this.datetime = time.iso8601(this.timestamp);
         }
     }
-    limit() {
-        this.asks.limit();
-        this.bids.limit();
+    limit(n = undefined) {
+        this.asks.limit(n);
+        this.bids.limit(n);
         return this;
     }
     update(snapshot) {

@@ -109,6 +109,7 @@ export default class Exchange {
     extend: (...args: any[]) => any;
     clone: (x: any) => any;
     flatten: (x: any, out?: any[]) => any[];
+    pluck: (x: any, k: any) => any[];
     unique: (x: any) => any[];
     indexBy: (x: any, k: any, out?: {}) => {};
     sortBy: (array: any, key: any, descending?: boolean, direction?: number) => any;
@@ -208,6 +209,9 @@ export default class Exchange {
     inflate: typeof inflate;
     inflate64: typeof inflate64;
     gunzip: typeof gunzip;
+    private _loadMarketsPromise;
+    private _loadMarketsResolve;
+    private _loadMarketsReject;
     describe(): {
         id: any;
         name: any;
@@ -422,6 +426,7 @@ export default class Exchange {
     handleRestResponse(response: any, url: any, method?: string, requestHeaders?: any, requestBody?: any): any;
     onRestResponse(statusCode: any, statusText: any, url: any, method: any, responseHeaders: any, responseBody: any, requestHeaders: any, requestBody: any): any;
     onJsonResponse(responseBody: any): any;
+    setMarketsAndResolve(markets: any, currencies?: any): Dictionary<Market>;
     loadMarketsHelper(reload?: boolean, params?: {}): Promise<Dictionary<Market>>;
     loadMarkets(reload?: boolean, params?: {}): Promise<Dictionary<Market>>;
     fetchCurrencies(params?: {}): Promise<unknown>;
@@ -639,7 +644,8 @@ export default class Exchange {
     account(): Balance;
     commonCurrencyCode(currency: string): string;
     currency(code: any): any;
-    market(symbol: string): any;
+    marketHelper(symbol: any): any;
+    market(symbol: any): any;
     handleWithdrawTagAndParams(tag: any, params: any): any[];
     createLimitOrder(symbol: string, side: string, amount: any, price: any, params?: {}): Promise<Order>;
     createMarketOrder(symbol: string, side: string, amount: any, price?: any, params?: {}): Promise<Order>;

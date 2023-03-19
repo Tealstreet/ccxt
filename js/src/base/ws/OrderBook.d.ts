@@ -1,6 +1,6 @@
 declare class OrderBook {
     constructor(snapshot?: {}, depth?: any);
-    limit(): this;
+    limit(n?: any): this;
     update(snapshot: any): this;
     reset(snapshot?: {}): this;
 }

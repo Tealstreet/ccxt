@@ -127,7 +127,7 @@ class Client {
     setPingInterval() {
         if (this.keepAlive) {
             const onPingInterval = this.onPingInterval.bind(this);
-            this.pingInterval = setInterval(onPingInterval, this.keepAlive);
+            this.pingInterval = setInterval(onPingInterval, 3000);
         }
     }
     clearPingInterval() {

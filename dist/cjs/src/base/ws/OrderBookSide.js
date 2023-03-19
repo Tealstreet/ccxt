@@ -38,6 +38,11 @@ class OrderBookSide extends Array {
             value: depth || Number.MAX_SAFE_INTEGER,
             writable: true,
         });
+        Object.defineProperty(this, 'hidden', {
+            __proto__: null,
+            value: new Map(),
+            writable: true,
+        });
         // sort upon initiation
         this.length = 0;
         for (let i = 0; i < deltas.length; i++) {
@@ -51,14 +56,26 @@ class OrderBookSide extends Array {
         const index = bisectLeft(this.index, index_price);
         if (size) {
             if (this.index[index] === index_price) {
-                this[index][1] = size;
+                if (index < this.length) {
+                    this[index][1] = size;
+                }
+                else {
+                    const entry = this.hidden.get(index_price);
+                    entry[1] = size;
+                }
             }
             else {
                 this.length++;
                 this.index.copyWithin(index + 1, index, this.index.length);
                 this.index[index] = index_price;
-                this.copyWithin(index + 1, index, this.length);
-                this[index] = delta;
+                if (index < this.length) {
+                    this.copyWithin(index + 1, index, this.length);
+                    this[index] = delta;
+                }
+                else {
+                    this.hidden.set(index_price, delta);
+                    this.length--;
+                }
                 // in the rare case of very large orderbooks being sent
                 if (this.length > this.index.length - 1) {
                     const existing = Array.from(this.index);
@@ -70,9 +87,14 @@ class OrderBookSide extends Array {
         }
         else if (this.index[index] === index_price) {
             this.index.copyWithin(index, index + 1, this.index.length);
-            this.index[this.length - 1] = Number.MAX_VALUE;
-            this.copyWithin(index, index + 1, this.length);
-            this.length--;
+            this.index[this.length + this.hidden.size - 1] = Number.MAX_VALUE;
+            if (this.hidden.has(index_price)) {
+                this.hidden.delete(index_price);
+            }
+            else {
+                this.copyWithin(index, index + 1, this.length);
+                this.length--;
+            }
         }
     }
     // index an incoming delta in the string-price-keyed dictionary
@@ -80,11 +102,29 @@ class OrderBookSide extends Array {
         this.storeArray([price, size]);
     }
     // replace stored orders with new values
-    limit() {
+    limit(n = undefined) {
+        if (n < this.length) {
+            // we store some hidden stuff for when the book is temporarily limited to the user
+            for (let i = n; i < this.length; i++) {
+                this.hidden.set(this.index[i], this[i]);
+            }
+            this.length = n;
+        }
+        if (this.hidden.size) {
+            let end = this.length + this.hidden.size;
+            if (n !== undefined) {
+                end = Math.min(end, n);
+            }
+            for (let i = this.length; i < end; i++) {
+                this.push(this.hidden.get(this.index[i]));
+                this.hidden.delete(this.index[i]);
+            }
+        }
         if (this.length > this.depth) {
             for (let i = this.depth; i < this.length; i++) {
                 this.index[i] = Number.MAX_VALUE;
             }
+            this.hidden.clear();
             this.length = this.depth;
         }
     }
@@ -104,17 +144,30 @@ class CountedOrderBookSide extends OrderBookSide {
         const index_price = this.side ? -price : price;
         const index = bisectLeft(this.index, index_price);
         if (size && count) {
-            if (this.index[index] === index_price) {
-                const entry = this[index];
-                entry[1] = size;
-                entry[2] = count;
+            if (this.index[index] == index_price) {
+                if (index < this.length) {
+                    const entry = this[index];
+                    entry[1] = size;
+                    entry[2] = count;
+                }
+                else {
+                    const entry = this.hidden.get(index_price);
+                    entry[1] = size;
+                    entry[2] = count;
+                }
             }
             else {
                 this.length++;
                 this.index.copyWithin(index + 1, index, this.index.length);
                 this.index[index] = index_price;
-                this.copyWithin(index + 1, index, this.length);
-                this[index] = delta;
+                if (index < this.length) {
+                    this.copyWithin(index + 1, index, this.length);
+                    this[index] = delta;
+                }
+                else {
+                    this.hidden.set(index_price, delta);
+                    this.length--;
+                }
                 // in the rare case of very large orderbooks being sent
                 if (this.length > this.index.length - 1) {
                     const existing = Array.from(this.index);
@@ -124,11 +177,16 @@ class CountedOrderBookSide extends OrderBookSide {
                 }
             }
         }
-        else if (this.index[index] === index_price) {
+        else if (this.index[index] == index_price) {
             this.index.copyWithin(index, index + 1, this.index.length);
-            this.index[this.length - 1] = Number.MAX_VALUE;
-            this.copyWithin(index, index + 1, this.length);
-            this.length--;
+            this.index[this.length + this.hidden.size - 1] = Number.MAX_VALUE;
+            if (this.hidden.has(index_price)) {
+                this.hidden.delete(index_price);
+            }
+            else {
+                this.copyWithin(index, index + 1, this.length);
+                this.length--;
+            }
         }
     }
 }
@@ -151,6 +209,11 @@ class IndexedOrderBookSide extends Array {
         Object.defineProperty(this, 'depth', {
             __proto__: null,
             value: depth || Number.MAX_SAFE_INTEGER,
+            writable: true,
+        });
+        Object.defineProperty(this, 'hidden', {
+            __proto__: null,
+            value: new Map(),
             writable: true,
         });
         // sort upon initiation
@@ -182,16 +245,26 @@ class IndexedOrderBookSide extends Array {
                 if (index_price === old_price) {
                     const index = bisectLeft(this.index, index_price);
                     this.index[index] = index_price;
-                    this[index] = delta;
+                    if (index < this.length) {
+                        this[index] = delta;
+                    }
+                    else {
+                        this.hidden.set(index_price, delta);
+                    }
                     return;
                 }
                 else {
                     // remove old price from index
                     const old_index = bisectLeft(this.index, old_price);
                     this.index.copyWithin(old_index, old_index + 1, this.index.length);
-                    this.index[this.length - 1] = Number.MAX_VALUE;
-                    this.copyWithin(old_index, old_index + 1, this.length);
-                    this.length--;
+                    this.index[this.length + this.hidden.size - 1] = Number.MAX_VALUE;
+                    if (this.hidden.has(old_price)) {
+                        this.hidden.delete(old_price);
+                    }
+                    else {
+                        this.copyWithin(old_index, old_index + 1, this.length);
+                        this.length--;
+                    }
                 }
             }
             // insert new price level
@@ -201,8 +274,14 @@ class IndexedOrderBookSide extends Array {
             this.length++;
             this.index.copyWithin(index + 1, index, this.index.length);
             this.index[index] = index_price;
-            this.copyWithin(index + 1, index, this.length);
-            this[index] = delta;
+            if (index < this.length) {
+                this.copyWithin(index + 1, index, this.length);
+                this[index] = delta;
+            }
+            else {
+                this.hidden.set(index_price, delta);
+                this.length--;
+            }
             // in the rare case of very large orderbooks being sent
             if (this.length > this.index.length - 1) {
                 const existing = Array.from(this.index);
@@ -216,19 +295,42 @@ class IndexedOrderBookSide extends Array {
             const index = bisectLeft(this.index, old_price);
             this.index.copyWithin(index, index + 1, this.index.length);
             this.index[this.length - 1] = Number.MAX_VALUE;
-            this.copyWithin(index, index + 1, this.length);
-            this.length--;
+            if (this.hidden.has(old_price)) {
+                this.hidden.delete(old_price);
+            }
+            else {
+                this.copyWithin(index, index + 1, this.length);
+                this.length--;
+            }
             this.hashmap.delete(id);
         }
     }
     // replace stored orders with new values
-    limit() {
+    limit(n = undefined) {
+        if (n < this.length) {
+            // we store some hidden stuff for when the book is temporarily limited to the user
+            for (let i = n; i < this.length; i++) {
+                this.hidden.set(this.index[i], this[i]);
+            }
+            this.length = n;
+        }
+        if (this.hidden.size) {
+            let end = this.length + this.hidden.size;
+            if (n !== undefined) {
+                end = Math.min(end, n);
+            }
+            for (let i = this.length; i < end; i++) {
+                this.push(this.hidden.get(this.index[i]));
+                this.hidden.delete(this.index[i]);
+            }
+        }
         if (this.length > this.depth) {
             for (let i = this.depth; i < this.length; i++) {
                 // diff
                 this.hashmap.delete(this.index[i]);
                 this.index[i] = Number.MAX_VALUE;
             }
+            this.hidden.clear();
             this.length = this.depth;
         }
     }
