@@ -371,6 +371,8 @@ class phemex(ccxt.async_support.phemex):
         :returns dict: A dictionary of `order book structures <https://docs.ccxt.com/#/?id=order-book-structure>` indexed by market symbols
         """
         await self.load_markets()
+        print(symbol)
+        print(self.markets)
         market = self.market(symbol)
         symbol = market['symbol']
         url = self.urls['api']['ws']

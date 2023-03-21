@@ -406,6 +406,8 @@ class phemex extends \ccxt\async\phemex {
              * @return {array} A dictionary of ~@link https://docs.ccxt.com/#/?id=order-book-structure order book structures~ indexed by $market symbols
              */
             Async\await($this->load_markets());
+            var_dump ($symbol);
+            var_dump ($this->markets);
             $market = $this->market($symbol);
             $symbol = $market['symbol'];
             $url = $this->urls['api']['ws'];

@@ -404,6 +404,8 @@ export default class phemex extends phemexRest {
          * @returns {object} A dictionary of [order book structures]{@link https://docs.ccxt.com/#/?id=order-book-structure} indexed by market symbols
          */
         await this.loadMarkets ();
+        console.log (symbol);
+        console.log (this.markets);
         const market = this.market (symbol);
         symbol = market['symbol'];
         const url = this.urls['api']['ws'];
