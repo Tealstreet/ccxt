@@ -15,6 +15,13 @@ let base58Encoder = null
 
 /*  ------------------------------------------------------------------------ */
 
+const urlencodesafe = (object) => {
+    try {
+        return qs.stringify (object);
+    } catch (e) {
+        return new URLSearchParams(object).toString()
+    }
+}
 
 const json =  (data, params = undefined) => JSON.stringify (data)
     , isJsonEncodedObject = object => (
@@ -32,7 +39,7 @@ const json =  (data, params = undefined) => JSON.stringify (data)
     , binaryConcat = (...args) => args.reduce ((a, b) => a.concat (b))
     , binaryConcatArray = (arr) => arr.reduce ((a, b) => a.concat (b))
 
-    , urlencode = object => qs.stringify (object)
+    , urlencode = object => urlencodesafe(object)
     , urlencodeNested =  object => qs.stringify (object) // implemented only in python
     , urlencodeWithArrayRepeat = object => qs.stringify (object, { arrayFormat: 'repeat' })
     , rawencode = object => qs.stringify (object, { encode: false })
@@ -110,7 +117,7 @@ function byteArrayToWordArray (ba) {
 
 
 export {
-    json 
+    json
     , isJsonEncodedObject
     , stringToBinary
     , stringToBase64
