@@ -8,6 +8,10 @@
     ".": {
       "import": "./js/ccxt.js",
       "require": "./dist/ccxt.cjs"
+    },
+    "./js/base/*": {
+      "import": "./js/src/base/*",
+      "require": "./js/src/base/*"
     }
   },
   "engines": {
