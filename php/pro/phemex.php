@@ -406,13 +406,11 @@ class phemex extends \ccxt\async\phemex {
              * @return {array} A dictionary of ~@link https://docs.ccxt.com/#/?id=order-book-structure order book structures~ indexed by $market symbols
              */
             Async\await($this->load_markets());
-            var_dump ($symbol);
-            var_dump ($this->markets);
             $market = $this->market($symbol);
             $symbol = $market['symbol'];
             $url = $this->urls['api']['ws'];
             $requestId = $this->request_id();
-            $name = 'orderbook';
+            $name = 'orderbook_p';
             $messageHash = $name . ':' . $symbol;
             $method = $name . '.subscribe';
             $subscribe = array(
@@ -502,12 +500,12 @@ class phemex extends \ccxt\async\phemex {
         $symbol = $market['symbol'];
         $type = $this->safe_string($message, 'type');
         $depth = $this->safe_integer($message, 'depth');
-        $name = 'orderbook';
+        $name = 'orderbook_p';
         $messageHash = $name . ':' . $symbol;
         $nonce = $this->safe_integer($message, 'sequence');
         $timestamp = $this->safe_integer_product($message, 'timestamp', 0.000001);
         if ($type === 'snapshot') {
-            $book = $this->safe_value($message, 'book', array());
+            $book = $this->safe_value_2($message, 'book', 'orderbook_p', array());
             $snapshot = $this->customParseOrderBook ($book, $symbol, $timestamp, 'bids', 'asks', 0, 1, $market);
             $snapshot['nonce'] = $nonce;
             $orderbook = $this->order_book($snapshot, $depth);
@@ -516,7 +514,7 @@ class phemex extends \ccxt\async\phemex {
         } else {
             $orderbook = $this->safe_value($this->orderbooks, $symbol);
             if ($orderbook !== null) {
-                $changes = $this->safe_value($message, 'book', array());
+                $changes = $this->safe_value_2($message, 'book', 'orderbook_p', array());
                 $asks = $this->safe_value($changes, 'asks', array());
                 $bids = $this->safe_value($changes, 'bids', array());
                 $this->handle_deltas($orderbook['asks'], $asks, $market);
@@ -1035,7 +1033,7 @@ class phemex extends \ccxt\async\phemex {
             return $this->handle_trades($client, $message);
         } elseif (is_array($message) && array_key_exists('kline', $message)) {
             return $this->handle_ohlcv($client, $message);
-        } elseif (is_array($message) && array_key_exists('book', $message)) {
+        } elseif (is_array($message || 'orderbook_p' in $message) && array_key_exists('book', $message || 'orderbook_p' in $message)) {
             return $this->handle_order_book($client, $message);
         }
         if (is_array($message) && array_key_exists('orders', $message)) {

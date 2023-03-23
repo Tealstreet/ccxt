@@ -4016,6 +4016,22 @@ export default class Exchange {
         const market = this.market (firstMarket);
         return market;
     }
+
+    rejectAllClients () {
+        const clientMap = this.clients || {};
+        const clients = Object.values (clientMap);
+        for (let i = 0; i < clients.length; i++) {
+            const client = clients[i] as any;
+            try {
+                (client as any).reject ();
+            } catch (e) {
+                if (this.verbose) {
+                    console.error (e);
+                }
+            }
+            client.reject ();
+        }
+    }
 }
 
 export {

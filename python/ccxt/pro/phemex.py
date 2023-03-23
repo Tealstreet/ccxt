@@ -371,13 +371,11 @@ class phemex(ccxt.async_support.phemex):
         :returns dict: A dictionary of `order book structures <https://docs.ccxt.com/#/?id=order-book-structure>` indexed by market symbols
         """
         await self.load_markets()
-        print(symbol)
-        print(self.markets)
         market = self.market(symbol)
         symbol = market['symbol']
         url = self.urls['api']['ws']
         requestId = self.request_id()
-        name = 'orderbook'
+        name = 'orderbook_p'
         messageHash = name + ':' + symbol
         method = name + '.subscribe'
         subscribe = {
@@ -458,12 +456,12 @@ class phemex(ccxt.async_support.phemex):
         symbol = market['symbol']
         type = self.safe_string(message, 'type')
         depth = self.safe_integer(message, 'depth')
-        name = 'orderbook'
+        name = 'orderbook_p'
         messageHash = name + ':' + symbol
         nonce = self.safe_integer(message, 'sequence')
         timestamp = self.safe_integer_product(message, 'timestamp', 0.000001)
         if type == 'snapshot':
-            book = self.safe_value(message, 'book', {})
+            book = self.safe_value_2(message, 'book', 'orderbook_p', {})
             snapshot = self.customParseOrderBook(book, symbol, timestamp, 'bids', 'asks', 0, 1, market)
             snapshot['nonce'] = nonce
             orderbook = self.order_book(snapshot, depth)
@@ -472,7 +470,7 @@ class phemex(ccxt.async_support.phemex):
         else:
             orderbook = self.safe_value(self.orderbooks, symbol)
             if orderbook is not None:
-                changes = self.safe_value(message, 'book', {})
+                changes = self.safe_value_2(message, 'book', 'orderbook_p', {})
                 asks = self.safe_value(changes, 'asks', [])
                 bids = self.safe_value(changes, 'bids', [])
                 self.handle_deltas(orderbook['asks'], asks, market)
@@ -952,7 +950,7 @@ class phemex(ccxt.async_support.phemex):
             return self.handle_trades(client, message)
         elif 'kline' in message:
             return self.handle_ohlcv(client, message)
-        elif 'book' in message:
+        elif 'book' in message or 'orderbook_p' in message:
             return self.handle_order_book(client, message)
         if 'orders' in message:
             orders = self.safe_value(message, 'orders', {})

@@ -1087,22 +1087,23 @@ class phemex extends Exchange["default"] {
             limit = 100; // set default, as exchange doesn't have any defaults and needs something to be set
         }
         limit = Math.min(limit, maxLimit);
+        let method = 'publicGetMdKline';
         if (since !== undefined) { // phemex also provides kline query with from/to, however, this interface is NOT recommended.
             since = this.parseToInt(since / 1000);
             request['from'] = since;
             // time ranges ending in the future are not accepted
             // https://github.com/ccxt/ccxt/issues/8050
             request['to'] = Math.min(now, this.sum(since, duration * limit));
+            method = 'publicGetMdV2KlineList';
         }
         else {
             if (!this.inArray(limit, possibleLimitValues)) {
                 limit = 100;
             }
             request['limit'] = limit;
-        }
-        let method = 'publicGetMdKline';
-        if (market['linear'] || market['settle'] === 'USDT') {
-            method = 'publicGetMdV2KlineLast';
+            if (market['linear'] || market['settle'] === 'USDT') {
+                method = 'publicGetMdV2KlineLast';
+            }
         }
         const response = await this[method](this.extend(request, params));
         //

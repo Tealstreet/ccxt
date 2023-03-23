@@ -756,6 +756,7 @@ class Exchange {
         'parseIncome' => 'parse_income',
         'parseIncomes' => 'parse_incomes',
         'getMarketFromSymbols' => 'get_market_from_symbols',
+        'rejectAllClients' => 'reject_all_clients',
     );
 
     public static function split($string, $delimiters = array(' ')) {
@@ -4509,6 +4510,8 @@ class Exchange {
         if ($foundMarket) {
             return $foundMarket;
         }
+        var_dump ($symbol);
+        var_dump ($this->markets);
         throw new BadSymbol($this->id . ' does not have market $symbol ' . $symbol);
     }
 
@@ -5162,5 +5165,21 @@ class Exchange {
         $firstMarket = $this->safe_string($symbols, 0);
         $market = $this->market ($firstMarket);
         return $market;
+    }
+
+    public function reject_all_clients() {
+        $clientMap = $this->clients || array();
+        $clients = is_array($clientMap) ? array_values($clientMap) : array();
+        for ($i = 0; $i < count($clients); $i++) {
+            $client = $clients[$i];
+            try {
+                $client->reject ();
+            } catch (Exception $e) {
+                if ($this->verbose) {
+                    console.error ($e);
+                }
+            }
+            $client->reject ();
+        }
     }
 }

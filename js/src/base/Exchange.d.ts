@@ -703,5 +703,6 @@ export default class Exchange {
     parseIncome(info: any, market?: any): void;
     parseIncomes(incomes: any, market?: any, since?: any, limit?: any): any;
     getMarketFromSymbols(symbols?: string[]): any;
+    rejectAllClients(): void;
 }
 export { Exchange, };

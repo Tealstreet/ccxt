@@ -2054,6 +2054,8 @@ class Exchange(BaseExchange):
         foundMarket = self.marketHelper(symbol) or self.marketHelper(symbol + ':USDT') or self.marketHelper(symbol + ':BTC')
         if foundMarket:
             return foundMarket
+        print(symbol)
+        print(self.markets)
         raise BadSymbol(self.id + ' does not have market symbol ' + symbol)
 
     def handle_withdraw_tag_and_params(self, tag, params):
@@ -2596,3 +2598,15 @@ class Exchange(BaseExchange):
         firstMarket = self.safe_string(symbols, 0)
         market = self.market(firstMarket)
         return market
+
+    def reject_all_clients(self):
+        clientMap = self.clients or {}
+        clients = list(clientMap.values())
+        for i in range(0, len(clients)):
+            client = clients[i]
+            try:
+                client.reject()
+            except Exception as e:
+                if self.verbose:
+                    console.error(e)
+            client.reject()

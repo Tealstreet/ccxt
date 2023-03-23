@@ -1074,19 +1074,20 @@ class phemex(Exchange):
         if limit is None:
             limit = 100  # set default, doesn't have any defaults and needs something to be set
         limit = min(limit, maxLimit)
+        method = 'publicGetMdKline'
         if since is not None:  # phemex also provides kline query with from/to, however, self interface is NOT recommended.
             since = self.parse_to_int(since / 1000)
             request['from'] = since
             # time ranges ending in the future are not accepted
             # https://github.com/ccxt/ccxt/issues/8050
             request['to'] = min(now, self.sum(since, duration * limit))
+            method = 'publicGetMdV2KlineList'
         else:
             if not self.in_array(limit, possibleLimitValues):
                 limit = 100
             request['limit'] = limit
-        method = 'publicGetMdKline'
-        if market['linear'] or market['settle'] == 'USDT':
-            method = 'publicGetMdV2KlineLast'
+            if market['linear'] or market['settle'] == 'USDT':
+                method = 'publicGetMdV2KlineLast'
         response = await getattr(self, method)(self.extend(request, params))
         #
         #     {

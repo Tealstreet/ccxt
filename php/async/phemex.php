@@ -1109,21 +1109,22 @@ class phemex extends Exchange {
                 $limit = 100; // set default, doesn't have any defaults and needs something to be set
             }
             $limit = min ($limit, $maxLimit);
+            $method = 'publicGetMdKline';
             if ($since !== null) { // phemex also provides kline query with from/to, however, this interface is NOT recommended.
                 $since = $this->parse_to_int($since / 1000);
                 $request['from'] = $since;
                 // time ranges ending in the future are not accepted
                 // https://github.com/ccxt/ccxt/issues/8050
                 $request['to'] = min ($now, $this->sum($since, $duration * $limit));
+                $method = 'publicGetMdV2KlineList';
             } else {
                 if (!$this->in_array($limit, $possibleLimitValues)) {
                     $limit = 100;
                 }
                 $request['limit'] = $limit;
-            }
-            $method = 'publicGetMdKline';
-            if ($market['linear'] || $market['settle'] === 'USDT') {
-                $method = 'publicGetMdV2KlineLast';
+                if ($market['linear'] || $market['settle'] === 'USDT') {
+                    $method = 'publicGetMdV2KlineLast';
+                }
             }
             $response = Async\await($this->$method (array_merge($request, $params)));
             //
