@@ -3344,6 +3344,8 @@ export default class Exchange {
         if (foundMarket) {
             return foundMarket;
         }
+        console.log (symbol);
+        console.log (this.markets);
         throw new BadSymbol (this.id + ' does not have market symbol ' + symbol);
     }
 
