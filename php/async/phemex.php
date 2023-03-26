@@ -2092,7 +2092,7 @@ class phemex extends Exchange {
         $symbol = $this->safe_symbol($marketId, $market);
         $status = $this->parse_order_status($this->safe_string($order, 'ordStatus'));
         $side = $this->parse_order_side($this->safe_string_lower($order, 'side'));
-        $type = $this->parse_order_type($this->safe_string($order, 'orderType'));
+        $type = $this->parse_order_type($this->safe_string_2($order, 'orderType', 'ordType'));
         $price = $this->safe_string($order, 'priceRp');
         if ($price === null) {
             $price = $this->from_ep($this->safe_string($order, 'priceEp'), $market);
@@ -2110,7 +2110,7 @@ class phemex extends Exchange {
             $lastTradeTimestamp = null;
         }
         $timeInForce = $this->parse_time_in_force($this->safe_string($order, 'timeInForce'));
-        $stopPrice = $this->safe_number_2($order, 'stopPx', 'stopPxRp');
+        $stopPrice = $this->safe_number_2($order, 'stopPx', 'stopPxRp') || null;
         $postOnly = ($timeInForce === 'PO');
         $reduceOnly = $this->safe_value($order, 'reduceOnly');
         $execInst = $this->safe_string($order, 'execInst');

@@ -2011,7 +2011,7 @@ class phemex(Exchange):
         symbol = self.safe_symbol(marketId, market)
         status = self.parse_order_status(self.safe_string(order, 'ordStatus'))
         side = self.parse_order_side(self.safe_string_lower(order, 'side'))
-        type = self.parse_order_type(self.safe_string(order, 'orderType'))
+        type = self.parse_order_type(self.safe_string_2(order, 'orderType', 'ordType'))
         price = self.safe_string(order, 'priceRp')
         if price is None:
             price = self.from_ep(self.safe_string(order, 'priceEp'), market)
@@ -2026,7 +2026,7 @@ class phemex(Exchange):
         if lastTradeTimestamp == 0:
             lastTradeTimestamp = None
         timeInForce = self.parse_time_in_force(self.safe_string(order, 'timeInForce'))
-        stopPrice = self.safe_number_2(order, 'stopPx', 'stopPxRp')
+        stopPrice = self.safe_number_2(order, 'stopPx', 'stopPxRp') or None
         postOnly = (timeInForce == 'PO')
         reduceOnly = self.safe_value(order, 'reduceOnly')
         execInst = self.safe_string(order, 'execInst')

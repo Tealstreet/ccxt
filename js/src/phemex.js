@@ -2068,7 +2068,7 @@ export default class phemex extends Exchange {
         const symbol = this.safeSymbol(marketId, market);
         const status = this.parseOrderStatus(this.safeString(order, 'ordStatus'));
         const side = this.parseOrderSide(this.safeStringLower(order, 'side'));
-        const type = this.parseOrderType(this.safeString(order, 'orderType'));
+        const type = this.parseOrderType(this.safeString2(order, 'orderType', 'ordType'));
         let price = this.safeString(order, 'priceRp');
         if (price === undefined) {
             price = this.fromEp(this.safeString(order, 'priceEp'), market);
@@ -2086,7 +2086,7 @@ export default class phemex extends Exchange {
             lastTradeTimestamp = undefined;
         }
         const timeInForce = this.parseTimeInForce(this.safeString(order, 'timeInForce'));
-        const stopPrice = this.safeNumber2(order, 'stopPx', 'stopPxRp');
+        const stopPrice = this.safeNumber2(order, 'stopPx', 'stopPxRp') || null;
         const postOnly = (timeInForce === 'PO');
         let reduceOnly = this.safeValue(order, 'reduceOnly');
         const execInst = this.safeString(order, 'execInst');
