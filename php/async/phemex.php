@@ -2199,6 +2199,15 @@ class phemex extends Exchange {
                 // 'text' => 'comment',
                 // 'posSide' => Position direction - "Merged" for oneway mode , "Long" / "Short" for hedge mode
             );
+            $timeInForce = $this->safe_string($params, 'timeInForce');
+            if ($timeInForce !== null) {
+                if ($timeInForce === 'GTC') {
+                    $timeInForce = 'GoodTillCancel';
+                } elseif (strtoupper($timeInForce) === 'fok') {
+                    $timeInForce = 'FillOrKill';
+                }
+                $request['timeInForce'] = $timeInForce;
+            }
             $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
             if ($clientOrderId === null) {
                 $brokerId = $this->safe_string($this->options, 'brokerId');
@@ -2298,7 +2307,7 @@ class phemex extends Exchange {
             } elseif ($market['contract']) {
                 $method = 'privatePostOrders';
             }
-            $params = $this->omit($params, 'reduceOnly');
+            $params = $this->omit($params, 'reduceOnly', 'timeInForce');
             $response = Async\await($this->$method (array_merge($request, $params)));
             //
             // spot
@@ -3320,12 +3329,18 @@ class phemex extends Exchange {
         $contractSize = $this->safe_value($market, 'contractSize');
         $contractSizeString = $this->number_to_string($contractSize);
         $leverage = $this->safe_number_2($position, 'leverage', 'leverageRr');
+        $marginMode = 'isolated';
+        if ($leverage < 0) {
+            $marginMode = 'cross';
+            $leverage = -1 * $leverage;
+        }
         $entryPriceString = $this->safe_string_2($position, 'avgEntryPrice', 'avgEntryPriceRp');
         $rawSide = $this->safe_string($position, 'side');
         $side = null;
         if ($rawSide !== null) {
             $side = ($rawSide === 'Buy') ? 'long' : 'short';
         }
+        $id = $symbol . ':' . $side;
         $priceDiff = null;
         $currency = $this->safe_string($position, 'currency');
         if ($currency === 'USD') {
@@ -3347,7 +3362,7 @@ class phemex extends Exchange {
         $marginRatio = Precise::string_div($maintenanceMarginString, $collateral);
         return array(
             'info' => $position,
-            'id' => null,
+            'id' => $id,
             'symbol' => $symbol,
             'contracts' => $this->parse_number($contracts),
             'contractSize' => $contractSize,
@@ -3365,7 +3380,7 @@ class phemex extends Exchange {
             'maintenanceMarginPercentage' => $this->parse_number($maintenanceMarginPercentageString),
             'marginRatio' => $this->parse_number($marginRatio),
             'datetime' => null,
-            'marginMode' => null,
+            'marginMode' => $marginMode,
             'side' => $side,
             'hedged' => false,
             'percentage' => $this->parse_number($percentage),

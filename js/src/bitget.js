@@ -3777,12 +3777,18 @@ export default class bitget extends Exchange {
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @returns {object} response from the exchange
          */
+        marginMode = marginMode.toLowerCase();
+        if (marginMode === 'isolated') {
+            marginMode = 'fixed';
+        }
+        else if (marginMode === 'cross') {
+            marginMode = 'crossed';
+        }
         if (symbol === undefined) {
             throw new ArgumentsRequired(this.id + ' setMarginMode() requires a symbol argument');
         }
-        marginMode = marginMode.toLowerCase();
         if ((marginMode !== 'fixed') && (marginMode !== 'crossed')) {
-            throw new ArgumentsRequired(this.id + ' setMarginMode() marginMode must be "fixed" or "crossed"');
+            throw new ArgumentsRequired(this.id + ' setMarginMode() marginMode must be "fixed" or "crossed" (or "isolated" or "cross")');
         }
         await this.loadMarkets();
         const market = this.market(symbol);

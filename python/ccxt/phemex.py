@@ -2110,6 +2110,13 @@ class phemex(Exchange):
             # 'text': 'comment',
             # 'posSide': Position direction - "Merged" for oneway mode , "Long" / "Short" for hedge mode
         }
+        timeInForce = self.safe_string(params, 'timeInForce')
+        if timeInForce is not None:
+            if timeInForce == 'GTC':
+                timeInForce = 'GoodTillCancel'
+            elif timeInForce.upper() == 'fok':
+                timeInForce = 'FillOrKill'
+            request['timeInForce'] = timeInForce
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is None:
             brokerId = self.safe_string(self.options, 'brokerId')
@@ -2188,7 +2195,7 @@ class phemex(Exchange):
             method = 'privatePostGOrders'
         elif market['contract']:
             method = 'privatePostOrders'
-        params = self.omit(params, 'reduceOnly')
+        params = self.omit(params, 'reduceOnly', 'timeInForce')
         response = getattr(self, method)(self.extend(request, params))
         #
         # spot
@@ -3119,11 +3126,16 @@ class phemex(Exchange):
         contractSize = self.safe_value(market, 'contractSize')
         contractSizeString = self.number_to_string(contractSize)
         leverage = self.safe_number_2(position, 'leverage', 'leverageRr')
+        marginMode = 'isolated'
+        if leverage < 0:
+            marginMode = 'cross'
+            leverage = -1 * leverage
         entryPriceString = self.safe_string_2(position, 'avgEntryPrice', 'avgEntryPriceRp')
         rawSide = self.safe_string(position, 'side')
         side = None
         if rawSide is not None:
             side = 'long' if (rawSide == 'Buy') else 'short'
+        id = symbol + ':' + side
         priceDiff = None
         currency = self.safe_string(position, 'currency')
         if currency == 'USD':
@@ -3142,7 +3154,7 @@ class phemex(Exchange):
         marginRatio = Precise.string_div(maintenanceMarginString, collateral)
         return {
             'info': position,
-            'id': None,
+            'id': id,
             'symbol': symbol,
             'contracts': self.parse_number(contracts),
             'contractSize': contractSize,
@@ -3160,7 +3172,7 @@ class phemex(Exchange):
             'maintenanceMarginPercentage': self.parse_number(maintenanceMarginPercentageString),
             'marginRatio': self.parse_number(marginRatio),
             'datetime': None,
-            'marginMode': None,
+            'marginMode': marginMode,
             'side': side,
             'hedged': False,
             'percentage': self.parse_number(percentage),

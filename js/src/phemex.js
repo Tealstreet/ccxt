@@ -2174,6 +2174,16 @@ export default class phemex extends Exchange {
             // 'text': 'comment',
             // 'posSide': Position direction - "Merged" for oneway mode , "Long" / "Short" for hedge mode
         };
+        let timeInForce = this.safeString(params, 'timeInForce');
+        if (timeInForce !== undefined) {
+            if (timeInForce === 'GTC') {
+                timeInForce = 'GoodTillCancel';
+            }
+            else if (timeInForce.toUpperCase() === 'fok') {
+                timeInForce = 'FillOrKill';
+            }
+            request['timeInForce'] = timeInForce;
+        }
         const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
         if (clientOrderId === undefined) {
             const brokerId = this.safeString(this.options, 'brokerId');
@@ -2283,7 +2293,7 @@ export default class phemex extends Exchange {
         else if (market['contract']) {
             method = 'privatePostOrders';
         }
-        params = this.omit(params, 'reduceOnly');
+        params = this.omit(params, 'reduceOnly', 'timeInForce');
         const response = await this[method](this.extend(request, params));
         //
         // spot
@@ -3310,13 +3320,19 @@ export default class phemex extends Exchange {
         const contracts = this.safeString(position, 'size');
         const contractSize = this.safeValue(market, 'contractSize');
         const contractSizeString = this.numberToString(contractSize);
-        const leverage = this.safeNumber2(position, 'leverage', 'leverageRr');
+        let leverage = this.safeNumber2(position, 'leverage', 'leverageRr');
+        let marginMode = 'isolated';
+        if (leverage < 0) {
+            marginMode = 'cross';
+            leverage = -1 * leverage;
+        }
         const entryPriceString = this.safeString2(position, 'avgEntryPrice', 'avgEntryPriceRp');
         const rawSide = this.safeString(position, 'side');
         let side = undefined;
         if (rawSide !== undefined) {
             side = (rawSide === 'Buy') ? 'long' : 'short';
         }
+        const id = symbol + ':' + side;
         let priceDiff = undefined;
         const currency = this.safeString(position, 'currency');
         if (currency === 'USD') {
@@ -3341,7 +3357,7 @@ export default class phemex extends Exchange {
         const marginRatio = Precise.stringDiv(maintenanceMarginString, collateral);
         return {
             'info': position,
-            'id': undefined,
+            'id': id,
             'symbol': symbol,
             'contracts': this.parseNumber(contracts),
             'contractSize': contractSize,
@@ -3359,7 +3375,7 @@ export default class phemex extends Exchange {
             'maintenanceMarginPercentage': this.parseNumber(maintenanceMarginPercentageString),
             'marginRatio': this.parseNumber(marginRatio),
             'datetime': undefined,
-            'marginMode': undefined,
+            'marginMode': marginMode,
             'side': side,
             'hedged': false,
             'percentage': this.parseNumber(percentage),

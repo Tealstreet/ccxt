@@ -2610,3 +2610,15 @@ class Exchange(BaseExchange):
                 if self.verbose:
                     console.error(e)
             client.reject()
+
+    async def set_leverage(self, symbol, buyLeverage, sellLeverage, params={}):
+        raise NotSupported(self.id + ' setLeverage() is not supported yet')
+
+    async def set_position_mode(self, hedged, symbol=None, params={}):
+        raise NotSupported(self.id + ' setPositionMode() is not supported yet')
+
+    async def set_margin_mode(self, marginMode, symbol=None, params={}):
+        raise NotSupported(self.id + ' setMarginMode() is not supported yet')
+
+    async def fetch_account_configuration(self, symbol, params={}):
+        return {}

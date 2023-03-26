@@ -3815,12 +3815,17 @@ class bitget extends Exchange {
              * @param {array} $params extra parameters specific to the bitget api endpoint
              * @return {array} response from the exchange
              */
+            $marginMode = strtolower($marginMode);
+            if ($marginMode === 'isolated') {
+                $marginMode = 'fixed';
+            } elseif ($marginMode === 'cross') {
+                $marginMode = 'crossed';
+            }
             if ($symbol === null) {
                 throw new ArgumentsRequired($this->id . ' setMarginMode() requires a $symbol argument');
             }
-            $marginMode = strtolower($marginMode);
             if (($marginMode !== 'fixed') && ($marginMode !== 'crossed')) {
-                throw new ArgumentsRequired($this->id . ' setMarginMode() $marginMode must be "fixed" or "crossed"');
+                throw new ArgumentsRequired($this->id . ' setMarginMode() $marginMode must be "fixed" or "crossed" (or "isolated" or "cross")');
             }
             Async\await($this->load_markets());
             $market = $this->market($symbol);

@@ -3651,6 +3651,18 @@ class Exchange {
             client.reject();
         }
     }
+    async setLeverage(symbol, buyLeverage, sellLeverage, params = {}) {
+        throw new errors.NotSupported(this.id + ' setLeverage() is not supported yet');
+    }
+    async setPositionMode(hedged, symbol = undefined, params = {}) {
+        throw new errors.NotSupported(this.id + ' setPositionMode() is not supported yet');
+    }
+    async setMarginMode(marginMode, symbol = undefined, params = {}) {
+        throw new errors.NotSupported(this.id + ' setMarginMode() is not supported yet');
+    }
+    async fetchAccountConfiguration(symbol, params = {}) {
+        return {};
+    }
 }
 
 exports.Exchange = Exchange;

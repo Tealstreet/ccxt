@@ -183,7 +183,7 @@ export default class phemex extends Exchange {
     fetchPositions(symbols?: string[], params?: {}): Promise<any>;
     parsePosition(position: any, market?: any): {
         info: any;
-        id: any;
+        id: string;
         symbol: any;
         contracts: number;
         contractSize: any;
@@ -201,7 +201,7 @@ export default class phemex extends Exchange {
         maintenanceMarginPercentage: number;
         marginRatio: number;
         datetime: any;
-        marginMode: any;
+        marginMode: string;
         side: any;
         hedged: boolean;
         percentage: number;

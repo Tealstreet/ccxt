@@ -2959,4 +2959,20 @@ class Exchange extends \ccxt\Exchange {
             $client->reject ();
         }
     }
+
+    public function set_leverage($symbol, $buyLeverage, $sellLeverage, $params = array ()) {
+        throw new NotSupported($this->id . ' setLeverage() is not supported yet');
+    }
+
+    public function set_position_mode($hedged, $symbol = null, $params = array ()) {
+        throw new NotSupported($this->id . ' setPositionMode() is not supported yet');
+    }
+
+    public function set_margin_mode($marginMode, $symbol = null, $params = array ()) {
+        throw new NotSupported($this->id . ' setMarginMode() is not supported yet');
+    }
+
+    public function fetch_account_configuration($symbol, $params = array ()) {
+        return array();
+    }
 }
