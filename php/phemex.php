@@ -3886,11 +3886,12 @@ class phemex extends Exchange {
         );
         $method = 'privatePutPositionsLeverage';
         $buyLeverage = $this->safe_float($params, 'buyLeverage', $leverage);
+        $sellLeverage = $this->safe_float($params, 'sellLeverage', $leverage);
+        $leverage = $buyLeverage || $leverage;
         if ($market['settle'] === 'USDT') {
             $method = 'privatePutGPositionsLeverage';
             $positionMode = $this->safe_string($params, 'positionMode');
             if ($positionMode === 'hedged' || $positionMode === 'Hedge') {
-                $sellLeverage = $this->safe_float($params, 'sellLeverage', $leverage);
                 if ($buyLeverage === null || $sellLeverage === null) {
                     throw new ArgumentsRequired($this->id . ' setLeverage(is_array(hedge mode requires both $buyLeverage and $sellLeverage arguments') && array_key_exists(), hedge mode requires both $buyLeverage and $sellLeverage arguments'));
                 }

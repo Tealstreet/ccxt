@@ -3688,11 +3688,12 @@ class phemex(Exchange):
         }
         method = 'privatePutPositionsLeverage'
         buyLeverage = self.safe_float(params, 'buyLeverage', leverage)
+        sellLeverage = self.safe_float(params, 'sellLeverage', leverage)
+        leverage = buyLeverage or leverage
         if market['settle'] == 'USDT':
             method = 'privatePutGPositionsLeverage'
             positionMode = self.safe_string(params, 'positionMode')
             if positionMode == 'hedged' or positionMode == 'Hedge':
-                sellLeverage = self.safe_float(params, 'sellLeverage', leverage)
                 if buyLeverage is None or sellLeverage is None:
                     raise ArgumentsRequired(self.id + ' setLeverage() in hedge mode requires both buyLeverage and sellLeverage arguments')
                 if (buyLeverage < 1) or (buyLeverage > 100):

@@ -3937,11 +3937,12 @@ class phemex extends Exchange["default"] {
         };
         let method = 'privatePutPositionsLeverage';
         const buyLeverage = this.safeFloat(params, 'buyLeverage', leverage);
+        const sellLeverage = this.safeFloat(params, 'sellLeverage', leverage);
+        leverage = buyLeverage || leverage;
         if (market['settle'] === 'USDT') {
             method = 'privatePutGPositionsLeverage';
             const positionMode = this.safeString(params, 'positionMode');
             if (positionMode === 'hedged' || positionMode === 'Hedge') {
-                const sellLeverage = this.safeFloat(params, 'sellLeverage', leverage);
                 if (buyLeverage === undefined || sellLeverage === undefined) {
                     throw new errors.ArgumentsRequired(this.id + ' setLeverage() in hedge mode requires both buyLeverage and sellLeverage arguments');
                 }

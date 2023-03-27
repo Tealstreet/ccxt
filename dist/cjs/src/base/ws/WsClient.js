@@ -21,11 +21,12 @@ class WsClient extends Client {
         }
         this.connectionStarted = time.milliseconds();
         this.setConnectionTimeout();
+        const url = `${this.url}${this.url.includes('?') ? '&' : '?'}${+new Date()}`;
         if (platform.isNode) {
-            this.connection = new WebSocketPlatform(this.url, this.protocols, this.options);
+            this.connection = new WebSocketPlatform(url, this.protocols, this.options);
         }
         else {
-            this.connection = new WebSocketPlatform(this.url, this.protocols);
+            this.connection = new WebSocketPlatform(url, this.protocols);
         }
         this.connection.onopen = this.onOpen.bind(this);
         this.connection.onmessage = this.onMessage.bind(this);
