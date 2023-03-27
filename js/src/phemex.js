@@ -531,6 +531,30 @@ export default class phemex extends Exchange {
             // "1.0"
             contractSize = this.parseNumber(contractSizeString);
         }
+        const riskLimits = this.safeValue(market, 'riskLimits', []);
+        let maxLeverage = this.safeNumber(market, 'maxLeverage');
+        const maxAmount = undefined;
+        if (riskLimits.length > 0) {
+            // assume lowest risk limit for now
+            const baseRiskLimit = riskLimits[0];
+            // {'limit': '1000000', 'initialMarginRr': '0.01', 'maintenanceMarginRr': '0.005'}
+            // {'limit': '100', 'initialMargin': '1.0%', 'initialMarginEr': '1000000', 'maintenanceMargin': '0.5%', 'maintenanceMarginEr': '500000'}
+            if (!maxLeverage) {
+                if (settle === 'USDT') {
+                    const initialMarginRr = this.safeString(baseRiskLimit, 'initialMarginRr', '0.01');
+                    const maxLeverageString = Precise.stringDiv('1', initialMarginRr);
+                    maxLeverage = this.parseSafeNumber(maxLeverageString);
+                }
+                else {
+                    const initialMarginEr = this.safeString(baseRiskLimit, 'initialMarginEr');
+                    const initialMargin = this.fromEn(initialMarginEr, ratioScale);
+                    const maxLeverageString = Precise.stringDiv('1', initialMargin);
+                    maxLeverage = this.parseNumber(maxLeverageString);
+                }
+            }
+            // this is in the quote currency -- would need to somehow convert to base to make this useful
+            // maxAmount = this.safeNumber (baseRiskLimit, 'limit');
+        }
         return {
             'id': id,
             'symbol': base + '/' + quote + ':' + settle,
@@ -567,11 +591,11 @@ export default class phemex extends Exchange {
             'limits': {
                 'leverage': {
                     'min': this.parseNumber('1'),
-                    'max': this.safeNumber(market, 'maxLeverage'),
+                    'max': maxLeverage,
                 },
                 'amount': {
                     'min': undefined,
-                    'max': undefined,
+                    'max': maxAmount,
                 },
                 'price': {
                     'min': this.parseNumber(this.fromEn(minPriceEp, priceScale)),
@@ -763,8 +787,6 @@ export default class phemex extends Exchange {
         //         }
         //     }
         //
-        const v1Products = await this.v1GetExchangePublicProducts(params);
-        const v1ProductsData = this.safeValue(v1Products, 'data', []);
         //
         //     {
         //         "code":0,
@@ -802,19 +824,29 @@ export default class phemex extends Exchange {
         //
         const v2ProductsData = this.safeValue(v2Products, 'data', {});
         const products = this.safeValue(v2ProductsData, 'products', []);
-        const riskLimits = this.safeValue(v2ProductsData, 'riskLimits', []);
-        const riskLimitsById = this.indexBy(riskLimits, 'symbol');
-        const v1ProductsById = this.indexBy(v1ProductsData, 'symbol');
+        const v1RiskLimits = this.safeValue(v2ProductsData, 'riskLimits', []);
+        const v1RiskLimitsById = this.indexBy(v1RiskLimits, 'symbol');
+        const v2RiskLimits = this.safeValue(v2ProductsData, 'riskLimitsV2', []);
+        const v2RiskLimitsById = this.indexBy(v2RiskLimits, 'symbol');
+        const productsById = this.indexBy(products, 'symbol');
         const result = [];
         for (let i = 0; i < products.length; i++) {
             let market = products[i];
             const type = this.safeStringLower(market, 'type');
-            if ((type === 'perpetual') || (type === 'perpetualv2')) {
+            if (type === 'perpetual') {
                 const id = this.safeString(market, 'symbol');
-                const riskLimitValues = this.safeValue(riskLimitsById, id, {});
+                const riskLimitValues = this.safeValue(v1RiskLimitsById, id, {});
                 market = this.extend(market, riskLimitValues);
-                const v1ProductsValues = this.safeValue(v1ProductsById, id, {});
-                market = this.extend(market, v1ProductsValues);
+                const productValues = this.safeValue(productsById, id, {});
+                market = this.extend(market, productValues);
+                market = this.parseSwapMarket(market);
+            }
+            else if (type === 'perpetualv2') {
+                const id = this.safeString(market, 'symbol');
+                const riskLimitValues = this.safeValue(v2RiskLimitsById, id, {});
+                market = this.extend(market, riskLimitValues);
+                const productValues = this.safeValue(productsById, id, {});
+                market = this.extend(market, productValues);
                 market = this.parseSwapMarket(market);
             }
             else {
@@ -3328,11 +3360,29 @@ export default class phemex extends Exchange {
         }
         const entryPriceString = this.safeString2(position, 'avgEntryPrice', 'avgEntryPriceRp');
         const rawSide = this.safeString(position, 'side');
+        const rawPosSide = this.safeString(position, 'posSide');
         let side = undefined;
-        if (rawSide !== undefined) {
+        if (rawPosSide === 'Long') {
+            side = 'long';
+        }
+        else if (rawPosSide === 'Short') {
+            side = 'short';
+        }
+        else if (rawSide !== undefined) {
             side = (rawSide === 'Buy') ? 'long' : 'short';
         }
-        const id = symbol + ':' + side;
+        const rawPosMode = this.safeString(position, 'posMode');
+        let positionMode = 'oneway';
+        let hedged = false;
+        let id = undefined;
+        if (rawPosMode === 'Hedged') {
+            hedged = true;
+            positionMode = 'hedged';
+            id = symbol + ':' + side;
+        }
+        else {
+            id = symbol;
+        }
         let priceDiff = undefined;
         const currency = this.safeString(position, 'currency');
         if (currency === 'USD') {
@@ -3377,7 +3427,8 @@ export default class phemex extends Exchange {
             'datetime': undefined,
             'marginMode': marginMode,
             'side': side,
-            'hedged': false,
+            'hedged': hedged,
+            'positionMode': positionMode,
             'percentage': this.parseNumber(percentage),
         };
     }
@@ -3634,8 +3685,8 @@ export default class phemex extends Exchange {
         this.checkRequiredSymbol('setMarginMode', symbol);
         await this.loadMarkets();
         const market = this.market(symbol);
-        if (!market['swap'] || market['settle'] === 'USDT') {
-            throw new BadSymbol(this.id + ' setMarginMode() supports swap (non USDT based) contracts only');
+        if (!market['swap']) {
+            throw new BadSymbol(this.id + ' setMarginMode() supports swap contracts only');
         }
         marginMode = marginMode.toLowerCase();
         if (marginMode !== 'isolated' && marginMode !== 'cross') {
@@ -3646,13 +3697,36 @@ export default class phemex extends Exchange {
             leverage = 0;
         }
         if (leverage === undefined) {
-            throw new ArgumentsRequired(this.id + ' setMarginMode() requires a leverage parameter');
+            const limits = this.safeValue(market, 'limits', {});
+            const leverageLimits = this.safeValue(limits, 'leverage', {});
+            leverage = this.safeInteger(leverageLimits, 'max');
         }
+        let method = 'privatePutPositionsLeverage';
         const request = {
             'symbol': market['id'],
-            'leverage': leverage,
         };
-        return await this.privatePutPositionsLeverage(this.extend(request, params));
+        if (market['settle'] === 'USDT') {
+            const positionMode = this.safeString(params, 'positionMode');
+            if (positionMode === 'hedged' || positionMode === 'Hedge') {
+                let buyLeverage = this.safeInteger(params, 'buyLeverage', leverage);
+                let sellLeverage = this.safeInteger(params, 'sellLeverage', leverage);
+                if (marginMode === 'cross') {
+                    buyLeverage = 0;
+                    sellLeverage = 0;
+                }
+                request['longLeverageRr'] = buyLeverage;
+                request['shortLeverageRr'] = sellLeverage;
+            }
+            else {
+                request['leverageRr'] = leverage;
+            }
+            method = 'privatePutGPositionsLeverage';
+        }
+        else {
+            request['leverage'] = leverage;
+        }
+        params = this.omit(params, ['leverage', 'buyLeverage', 'sellLeverage', 'positionMode']);
+        return await this[method](this.extend(request, params));
     }
     async setPositionMode(hedged, symbol = undefined, params = {}) {
         /**
@@ -3859,22 +3933,45 @@ export default class phemex extends Exchange {
         if (symbol === undefined) {
             throw new ArgumentsRequired(this.id + ' setLeverage() requires a symbol argument');
         }
-        if ((leverage < 1) || (leverage > 100)) {
-            throw new BadRequest(this.id + ' setLeverage() leverage should be between 1 and 100');
-        }
         await this.loadMarkets();
         const market = this.market(symbol);
         const request = {
             'symbol': market['id'],
         };
         let method = 'privatePutPositionsLeverage';
+        const buyLeverage = this.safeFloat(params, 'buyLeverage', leverage);
         if (market['settle'] === 'USDT') {
             method = 'privatePutGPositionsLeverage';
-            request['leverageRr'] = leverage;
+            const positionMode = this.safeString(params, 'positionMode');
+            if (positionMode === 'hedged' || positionMode === 'Hedge') {
+                const sellLeverage = this.safeFloat(params, 'sellLeverage', leverage);
+                if (buyLeverage === undefined || sellLeverage === undefined) {
+                    throw new ArgumentsRequired(this.id + ' setLeverage() in hedge mode requires both buyLeverage and sellLeverage arguments');
+                }
+                if ((buyLeverage < 1) || (buyLeverage > 100)) {
+                    throw new BadRequest(this.id + ' setLeverage() buyLeverage should be between 1 and 100');
+                }
+                if ((sellLeverage < 1) || (sellLeverage > 100)) {
+                    throw new BadRequest(this.id + ' setLeverage() sellLeverage should be between 1 and 100');
+                }
+                request['longLeverageRr'] = buyLeverage;
+                request['shortLeverageRr'] = sellLeverage;
+            }
+            else {
+                if ((leverage < 1) || (leverage > 100)) {
+                    throw new BadRequest(this.id + ' setLeverage() leverage should be between 1 and 100');
+                }
+                request['leverageRr'] = leverage;
+            }
         }
         else {
-            request['leverage'] = leverage;
+            const effectiveLeverage = leverage || buyLeverage;
+            if ((effectiveLeverage < 1) || (effectiveLeverage > 100)) {
+                throw new BadRequest(this.id + ' setLeverage() leverage should be between 1 and 100');
+            }
+            request['leverage'] = effectiveLeverage;
         }
+        params = this.omit(params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode');
         return await this[method](this.extend(request, params));
     }
     async transfer(code, amount, fromAccount, toAccount, params = {}) {

@@ -3392,7 +3392,9 @@ class Exchange(object):
         foundMarket = self.marketHelper(symbol) or self.marketHelper(symbol + ':USDT') or self.marketHelper(symbol + ':BTC')
         if foundMarket:
             return foundMarket
+        # eslint-disable-next-line no-console
         print(symbol)
+        # eslint-disable-next-line no-console
         print(self.markets)
         raise BadSymbol(self.id + ' does not have market symbol ' + symbol)
 
@@ -3946,7 +3948,8 @@ class Exchange(object):
                 client.reject()
             except Exception as e:
                 if self.verbose:
-                    console.error(e)
+                    # eslint-disable-next-line no-console
+                    print(e)
             client.reject()
 
     def set_leverage(self, symbol, buyLeverage, sellLeverage, params={}):

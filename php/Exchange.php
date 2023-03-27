@@ -4514,7 +4514,9 @@ class Exchange {
         if ($foundMarket) {
             return $foundMarket;
         }
+        // eslint-disable-next-line no-console
         var_dump ($symbol);
+        // eslint-disable-next-line no-console
         var_dump ($this->markets);
         throw new BadSymbol($this->id . ' does not have market $symbol ' . $symbol);
     }
@@ -5180,7 +5182,8 @@ class Exchange {
                 $client->reject ();
             } catch (Exception $e) {
                 if ($this->verbose) {
-                    console.error ($e);
+                    // eslint-disable-next-line no-console
+                    var_dump ($e);
                 }
             }
             $client->reject ();

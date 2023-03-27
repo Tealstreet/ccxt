@@ -542,6 +542,26 @@ class phemex(Exchange):
         else:
             # "1.0"
             contractSize = self.parse_number(contractSizeString)
+        riskLimits = self.safe_value(market, 'riskLimits', [])
+        maxLeverage = self.safe_number(market, 'maxLeverage')
+        maxAmount = None
+        if len(riskLimits) > 0:
+            # assume lowest risk limit for now
+            baseRiskLimit = riskLimits[0]
+            # {'limit': '1000000', 'initialMarginRr': '0.01', 'maintenanceMarginRr': '0.005'}
+            # {'limit': '100', 'initialMargin': '1.0%', 'initialMarginEr': '1000000', 'maintenanceMargin': '0.5%', 'maintenanceMarginEr': '500000'}
+            if not maxLeverage:
+                if settle == 'USDT':
+                    initialMarginRr = self.safe_string(baseRiskLimit, 'initialMarginRr', '0.01')
+                    maxLeverageString = Precise.string_div('1', initialMarginRr)
+                    maxLeverage = self.parse_safe_number(maxLeverageString)
+                else:
+                    initialMarginEr = self.safe_string(baseRiskLimit, 'initialMarginEr')
+                    initialMargin = self.from_en(initialMarginEr, ratioScale)
+                    maxLeverageString = Precise.string_div('1', initialMargin)
+                    maxLeverage = self.parse_number(maxLeverageString)
+            # self is in the quote currency -- would need to somehow convert to base to make self useful
+            # maxAmount = self.safe_number(baseRiskLimit, 'limit')
         return {
             'id': id,
             'symbol': base + '/' + quote + ':' + settle,
@@ -578,11 +598,11 @@ class phemex(Exchange):
             'limits': {
                 'leverage': {
                     'min': self.parse_number('1'),
-                    'max': self.safe_number(market, 'maxLeverage'),
+                    'max': maxLeverage,
                 },
                 'amount': {
                     'min': None,
-                    'max': None,
+                    'max': maxAmount,
                 },
                 'price': {
                     'min': self.parse_number(self.from_en(minPriceEp, priceScale)),
@@ -772,8 +792,6 @@ class phemex(Exchange):
         #         }
         #     }
         #
-        v1Products = await self.v1GetExchangePublicProducts(params)
-        v1ProductsData = self.safe_value(v1Products, 'data', [])
         #
         #     {
         #         "code":0,
@@ -811,19 +829,28 @@ class phemex(Exchange):
         #
         v2ProductsData = self.safe_value(v2Products, 'data', {})
         products = self.safe_value(v2ProductsData, 'products', [])
-        riskLimits = self.safe_value(v2ProductsData, 'riskLimits', [])
-        riskLimitsById = self.index_by(riskLimits, 'symbol')
-        v1ProductsById = self.index_by(v1ProductsData, 'symbol')
+        v1RiskLimits = self.safe_value(v2ProductsData, 'riskLimits', [])
+        v1RiskLimitsById = self.index_by(v1RiskLimits, 'symbol')
+        v2RiskLimits = self.safe_value(v2ProductsData, 'riskLimitsV2', [])
+        v2RiskLimitsById = self.index_by(v2RiskLimits, 'symbol')
+        productsById = self.index_by(products, 'symbol')
         result = []
         for i in range(0, len(products)):
             market = products[i]
             type = self.safe_string_lower(market, 'type')
-            if (type == 'perpetual') or (type == 'perpetualv2'):
+            if type == 'perpetual':
                 id = self.safe_string(market, 'symbol')
-                riskLimitValues = self.safe_value(riskLimitsById, id, {})
+                riskLimitValues = self.safe_value(v1RiskLimitsById, id, {})
                 market = self.extend(market, riskLimitValues)
-                v1ProductsValues = self.safe_value(v1ProductsById, id, {})
-                market = self.extend(market, v1ProductsValues)
+                productValues = self.safe_value(productsById, id, {})
+                market = self.extend(market, productValues)
+                market = self.parse_swap_market(market)
+            elif type == 'perpetualv2':
+                id = self.safe_string(market, 'symbol')
+                riskLimitValues = self.safe_value(v2RiskLimitsById, id, {})
+                market = self.extend(market, riskLimitValues)
+                productValues = self.safe_value(productsById, id, {})
+                market = self.extend(market, productValues)
                 market = self.parse_swap_market(market)
             else:
                 market = self.parse_spot_market(market)
@@ -3132,10 +3159,24 @@ class phemex(Exchange):
             leverage = -1 * leverage
         entryPriceString = self.safe_string_2(position, 'avgEntryPrice', 'avgEntryPriceRp')
         rawSide = self.safe_string(position, 'side')
+        rawPosSide = self.safe_string(position, 'posSide')
         side = None
-        if rawSide is not None:
+        if rawPosSide == 'Long':
+            side = 'long'
+        elif rawPosSide == 'Short':
+            side = 'short'
+        elif rawSide is not None:
             side = 'long' if (rawSide == 'Buy') else 'short'
-        id = symbol + ':' + side
+        rawPosMode = self.safe_string(position, 'posMode')
+        positionMode = 'oneway'
+        hedged = False
+        id = None
+        if rawPosMode == 'Hedged':
+            hedged = True
+            positionMode = 'hedged'
+            id = symbol + ':' + side
+        else:
+            id = symbol
         priceDiff = None
         currency = self.safe_string(position, 'currency')
         if currency == 'USD':
@@ -3174,7 +3215,8 @@ class phemex(Exchange):
             'datetime': None,
             'marginMode': marginMode,
             'side': side,
-            'hedged': False,
+            'hedged': hedged,
+            'positionMode': positionMode,
             'percentage': self.parse_number(percentage),
         }
 
@@ -3415,8 +3457,8 @@ class phemex(Exchange):
         self.check_required_symbol('setMarginMode', symbol)
         await self.load_markets()
         market = self.market(symbol)
-        if not market['swap'] or market['settle'] == 'USDT':
-            raise BadSymbol(self.id + ' setMarginMode() supports swap(non USDT based) contracts only')
+        if not market['swap']:
+            raise BadSymbol(self.id + ' setMarginMode() supports swap contracts only')
         marginMode = marginMode.lower()
         if marginMode != 'isolated' and marginMode != 'cross':
             raise BadRequest(self.id + ' setMarginMode() marginMode argument should be isolated or cross')
@@ -3424,12 +3466,30 @@ class phemex(Exchange):
         if marginMode == 'cross':
             leverage = 0
         if leverage is None:
-            raise ArgumentsRequired(self.id + ' setMarginMode() requires a leverage parameter')
+            limits = self.safe_value(market, 'limits', {})
+            leverageLimits = self.safe_value(limits, 'leverage', {})
+            leverage = self.safe_integer(leverageLimits, 'max')
+        method = 'privatePutPositionsLeverage'
         request = {
             'symbol': market['id'],
-            'leverage': leverage,
         }
-        return await self.privatePutPositionsLeverage(self.extend(request, params))
+        if market['settle'] == 'USDT':
+            positionMode = self.safe_string(params, 'positionMode')
+            if positionMode == 'hedged' or positionMode == 'Hedge':
+                buyLeverage = self.safe_integer(params, 'buyLeverage', leverage)
+                sellLeverage = self.safe_integer(params, 'sellLeverage', leverage)
+                if marginMode == 'cross':
+                    buyLeverage = 0
+                    sellLeverage = 0
+                request['longLeverageRr'] = buyLeverage
+                request['shortLeverageRr'] = sellLeverage
+            else:
+                request['leverageRr'] = leverage
+            method = 'privatePutGPositionsLeverage'
+        else:
+            request['leverage'] = leverage
+        params = self.omit(params, ['leverage', 'buyLeverage', 'sellLeverage', 'positionMode'])
+        return await getattr(self, method)(self.extend(request, params))
 
     async def set_position_mode(self, hedged, symbol=None, params={}):
         """
@@ -3621,19 +3681,36 @@ class phemex(Exchange):
         # AND DECREASE LIQUIDATION PRICE FOR OPEN ISOLATED SHORT POSITIONS
         if symbol is None:
             raise ArgumentsRequired(self.id + ' setLeverage() requires a symbol argument')
-        if (leverage < 1) or (leverage > 100):
-            raise BadRequest(self.id + ' setLeverage() leverage should be between 1 and 100')
         await self.load_markets()
         market = self.market(symbol)
         request = {
             'symbol': market['id'],
         }
         method = 'privatePutPositionsLeverage'
+        buyLeverage = self.safe_float(params, 'buyLeverage', leverage)
         if market['settle'] == 'USDT':
             method = 'privatePutGPositionsLeverage'
-            request['leverageRr'] = leverage
+            positionMode = self.safe_string(params, 'positionMode')
+            if positionMode == 'hedged' or positionMode == 'Hedge':
+                sellLeverage = self.safe_float(params, 'sellLeverage', leverage)
+                if buyLeverage is None or sellLeverage is None:
+                    raise ArgumentsRequired(self.id + ' setLeverage() in hedge mode requires both buyLeverage and sellLeverage arguments')
+                if (buyLeverage < 1) or (buyLeverage > 100):
+                    raise BadRequest(self.id + ' setLeverage() buyLeverage should be between 1 and 100')
+                if (sellLeverage < 1) or (sellLeverage > 100):
+                    raise BadRequest(self.id + ' setLeverage() sellLeverage should be between 1 and 100')
+                request['longLeverageRr'] = buyLeverage
+                request['shortLeverageRr'] = sellLeverage
+            else:
+                if (leverage < 1) or (leverage > 100):
+                    raise BadRequest(self.id + ' setLeverage() leverage should be between 1 and 100')
+                request['leverageRr'] = leverage
         else:
-            request['leverage'] = leverage
+            effectiveLeverage = leverage or buyLeverage
+            if (effectiveLeverage < 1) or (effectiveLeverage > 100):
+                raise BadRequest(self.id + ' setLeverage() leverage should be between 1 and 100')
+            request['leverage'] = effectiveLeverage
+        params = self.omit(params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode')
         return await getattr(self, method)(self.extend(request, params))
 
     async def transfer(self, code, amount, fromAccount, toAccount, params={}):

@@ -279,20 +279,20 @@ export default class bitget extends Exchange {
     reduceMargin(symbol: any, amount: any, params?: {}): Promise<any>;
     addMargin(symbol: any, amount: any, params?: {}): Promise<any>;
     fetchLeverage(symbol: any, params?: {}): Promise<any>;
-    setLeverage(symbol: any, buyLeverage: any, sellLeverage: any, params?: {}): Promise<any>;
+    setLeverage(leverage: any, symbol?: string, params?: {}): Promise<any>;
     switchIsolated(symbol: any, isIsolated: any, buyLeverage: any, sellLeverage: any, params?: {}): Promise<void>;
     setMarginMode(marginMode: any, symbol?: any, params?: {}): Promise<any>;
     fetchAccountConfiguration(symbol: any, params?: {}): Promise<{
         info: any;
         markets: {};
         tradeMode: string;
-        marginType: string;
+        marginMode: string;
     }>;
     parseAccountConfiguration(data: any, market: any): {
         info: any;
         markets: {};
         tradeMode: string;
-        marginType: string;
+        marginMode: string;
     };
     fetchOpenInterest(symbol: any, params?: {}): Promise<{
         symbol: any;

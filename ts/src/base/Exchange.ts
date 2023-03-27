@@ -4029,7 +4029,7 @@ export default class Exchange {
             } catch (e) {
                 if (this.verbose) {
                     // eslint-disable-next-line no-console
-                    console.error (e);
+                    console.log (e);
                 }
             }
             client.reject ();
