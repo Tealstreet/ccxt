@@ -28,10 +28,11 @@ export default class WsClient extends Client {
         }
         this.connectionStarted = milliseconds ()
         this.setConnectionTimeout ()
+        const url = this.url.includes('?') ? `${this.url}&${+new Date()}` : `${this.url}?${+new Date()}`;
         if (isNode) {
-            this.connection = new WebSocketPlatform (this.url, this.protocols, this.options)
+            this.connection = new WebSocketPlatform (url, this.protocols, this.options)
         } else {
-            this.connection = new WebSocketPlatform (this.url, this.protocols)
+            this.connection = new WebSocketPlatform (url, this.protocols)
         }
 
         this.connection.onopen = this.onOpen.bind (this)
