@@ -68,6 +68,42 @@ class phemex(ccxt.async_support.phemex):
         self.options['requestId'] = requestId
         return requestId
 
+    def parse_usdt_ticker(self, ticker, market=None):
+        marketId = self.safe_string(ticker, 0)
+        market = self.safe_market(marketId, market)
+        symbol = market['symbol']
+        timestamp = self.milliseconds()
+        last = self.safe_number(ticker, 1)
+        open = self.safe_number(ticker, 2)
+        change = self.safe_number(ticker, 3)
+        percentage = self.safe_number(ticker, 4)
+        average = self.sum(open, last) / 2
+        baseVolume = self.safe_number(ticker, 5)
+        quoteVolume = self.safe_number(ticker, 6)
+        result = {
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'high': None,
+            'low': None,
+            'bid': None,
+            'bidVolume': None,
+            'ask': None,
+            'askVolume': None,
+            'vwap': None,
+            'open': open,
+            'close': last,
+            'last': last,
+            'previousClose': None,  # previous day close
+            'change': change,
+            'percentage': percentage,
+            'average': average,
+            'baseVolume': baseVolume,
+            'quoteVolume': quoteVolume,
+            'info': ticker,
+        }
+        return result
+
     def parse_swap_ticker(self, ticker, market=None):
         #
         #     {
@@ -126,6 +162,26 @@ class phemex(ccxt.async_support.phemex):
         }
         return result
 
+    def handle_packed_tickers(self, client, message):
+        # {
+        #     data: [
+        #         ['ARBUSDT', '1.2836', '1.2853', '1.1097', '1.1336', '67516998', '80802821.8848', '927730', '1.13333999', '1.133479632', '0.0001', '0.0001'],
+        #         ['VGXUSDT', '0.347', '0.351', '0.319', '0.319', '3993395', '1341385.4816', '331386', '0.32088837', '0.320870637', '0.0001', '0.0001'],
+        #         ...
+        #     ]
+        # }
+        tickers = self.safe_value(message, 'data', [])
+        for i in range(0, len(tickers)):
+            ticker = tickers[i]
+            result = self.parse_usdt_ticker(ticker)
+            symbol = result['symbol']
+            messageHash = 'perp_market24h_pack_p' + ':' + symbol
+            timestamp = self.safe_integer_product(message, 'timestamp', 0.000001)
+            result['timestamp'] = timestamp
+            result['datetime'] = self.iso8601(timestamp)
+            self.tickers[symbol] = result
+            client.resolve(result, messageHash)
+
     def handle_ticker(self, client, message):
         #
         #     {
@@ -163,15 +219,15 @@ class phemex(ccxt.async_support.phemex):
         #         timestamp: 1592845585373374500
         #     }
         #
-        name = 'market24h'
+        name = 'spot_market24h'
         ticker = self.safe_value(message, name)
         result = None
         if ticker is None:
-            name = 'spot_market24h'
+            name = 'market24h'
             ticker = self.safe_value(message, name)
-            result = self.parse_ticker(ticker)
-        else:
             result = self.parse_swap_ticker(ticker)
+        else:
+            result = self.parse_ticker(ticker)
         symbol = result['symbol']
         messageHash = name + ':' + symbol
         timestamp = self.safe_integer_product(message, 'timestamp', 0.000001)
@@ -319,7 +375,13 @@ class phemex(ccxt.async_support.phemex):
         await self.load_markets()
         market = self.market(symbol)
         symbol = market['symbol']
-        name = 'spot_market24h' if market['spot'] else 'market24h'
+        name = None
+        if market['spot']:
+            name = 'spot_market24h'
+        elif market['settle'] == 'USDT':
+            name = 'perp_market24h_pack_p'
+        else:
+            name = 'market24h'
         url = self.urls['api']['ws']
         requestId = self.request_id()
         subscriptionHash = name + '.subscribe'
@@ -375,7 +437,9 @@ class phemex(ccxt.async_support.phemex):
         symbol = market['symbol']
         url = self.urls['api']['ws']
         requestId = self.request_id()
-        name = 'orderbook_p'
+        name = 'book'
+        if market['settle'] == 'USDT':
+            name = 'orderbook_p'
         messageHash = name + ':' + symbol
         method = name + '.subscribe'
         subscribe = {
@@ -456,7 +520,9 @@ class phemex(ccxt.async_support.phemex):
         symbol = market['symbol']
         type = self.safe_string(message, 'type')
         depth = self.safe_integer(message, 'depth')
-        name = 'orderbook_p'
+        name = 'book'
+        if market['settle'] == 'USDT':
+            name = 'orderbook_p'
         messageHash = name + ':' + symbol
         nonce = self.safe_integer(message, 'sequence')
         timestamp = self.safe_integer_product(message, 'timestamp', 0.000001)
@@ -944,8 +1010,10 @@ class phemex(ccxt.async_support.phemex):
                         if method is not None:
                             method(client, message)
                             return
-        if ('market24h' in message) or ('spot_market24h' in message):
+        if ('spot_market24h' in message) or ('market24h' in message):
             return self.handle_ticker(client, message)
+        elif 'perp_market24h_pack_p' in message:
+            return self.handle_packed_tickers(client, message)
         elif 'trades' in message:
             return self.handle_trades(client, message)
         elif 'kline' in message:
