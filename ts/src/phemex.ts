@@ -1884,6 +1884,16 @@ export default class phemex extends Exchange {
         return this.safeString (timeInForces, timeInForce, timeInForce);
     }
 
+    formatTimeInForce (timeInForce) {
+        const timeInForces = {
+            'GTC': 'GoodTillCancel',
+            'PO': 'PostOnly',
+            'IOC': 'ImmediateOrCancel',
+            'FOK': 'FillOrKill',
+        };
+        return this.safeString (timeInForces, timeInForce.toUpperCase (), timeInForce);
+    }
+
     parseSpotOrder (order, market = undefined) {
         //
         // spot
@@ -2137,10 +2147,10 @@ export default class phemex extends Exchange {
         let reduceOnly = this.safeValue (order, 'reduceOnly');
         let close = this.safeValue (order, 'closeOnTrigger');
         const execInst = this.safeString (order, 'execInst', '');
-        if (execInst.includes ('ReduceOnly')) {
+        if (execInst.indexOf ('ReduceOnly') >= 0) {
             reduceOnly = true;
         }
-        if (execInst.includes ('CloseOnTrigger')) {
+        if (execInst.indexOf ('CloseOnTrigger') > 0) {
             close = true;
         }
         const trigger = this.safeStringN (order, [ 'trigger', 'slTrigger', 'tpTrigger' ]);
@@ -2170,7 +2180,6 @@ export default class phemex extends Exchange {
             'postOnly': postOnly,
             'close': close,
             'trigger': trigger,
-
         });
     }
 
@@ -2230,18 +2239,14 @@ export default class phemex extends Exchange {
             // 'text': 'comment',
             // 'posSide': Position direction - "Merged" for oneway mode , "Long" / "Short" for hedge mode
         };
-        let timeInForce = this.safeString (params, 'timeInForce');
+        const timeInForce = this.formatTimeInForce (this.safeString (params, 'timeInForce'));
         if (timeInForce !== undefined) {
-            if (timeInForce === 'GTC') {
-                timeInForce = 'GoodTillCancel';
-            } else if (timeInForce.toUpperCase () === 'fok') {
-                timeInForce = 'FillOrKill';
-            }
             request['timeInForce'] = timeInForce;
         }
         const clientOrderId = this.safeString2 (params, 'clOrdID', 'clientOrderId');
         if (clientOrderId === undefined) {
             const brokerId = this.safeString (this.options, 'brokerId');
+            console.log (brokerId);
             if (brokerId !== undefined) {
                 request['clOrdID'] = brokerId + this.uuid16 ();
             }
@@ -2304,6 +2309,10 @@ export default class phemex extends Exchange {
             if (stopPrice !== undefined) {
                 const triggerType = this.safeString (params, 'triggerType', 'ByMarkPrice');
                 request['triggerType'] = triggerType;
+                const closeOnTrigger = this.safeValue2 (params, 'close', 'closeOnTrigger');
+                if (closeOnTrigger !== undefined) {
+                    request['closeOnTrigger'] = closeOnTrigger;
+                }
             }
         }
         if ((type === 'Limit') || (type === 'StopLimit') || (type === 'LimitIfTouched')) {
@@ -2338,7 +2347,7 @@ export default class phemex extends Exchange {
         } else if (market['contract']) {
             method = 'privatePostOrders';
         }
-        params = this.omit (params, 'reduceOnly', 'timeInForce');
+        params = this.omit (params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close');
         const response = await this[method] (this.extend (request, params));
         //
         // spot
@@ -2464,7 +2473,8 @@ export default class phemex extends Exchange {
         params = this.omit (params, [ 'baseQtyEv' ]);
         if (finalQty !== undefined) {
             request['baseQtyEV'] = finalQty;
-        } else if (amount !== undefined) {
+        // support 0 amount for full close stops
+        } else if (amount !== undefined && amount > 0) {
             if (isUSDTSettled) {
                 request['baseQtyEV'] = this.amountToPrecision (market['symbol'], amount);
             } else {
@@ -2475,6 +2485,10 @@ export default class phemex extends Exchange {
         if (stopPrice !== undefined) {
             if (isUSDTSettled) {
                 request['stopPxRp'] = this.priceToPrecision (symbol, stopPrice);
+                const basePrice = this.safeNumber (params, 'basePrice');
+                if (basePrice !== undefined) {
+                    request['priceRp'] = this.priceToPrecision (symbol, basePrice);
+                }
             } else {
                 request['stopPxEp'] = this.toEp (stopPrice, market);
             }
@@ -2490,6 +2504,7 @@ export default class phemex extends Exchange {
                 request['posSide'] = 'Merged';
             }
         }
+        params = this.omit (params, [ 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice' ]);
         const response = await this[method] (this.extend (request, params));
         const data = this.safeValue (response, 'data', {});
         return this.parseOrder (data, market);

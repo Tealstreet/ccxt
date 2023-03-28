@@ -1892,6 +1892,16 @@ class phemex extends Exchange {
         return $this->safe_string($timeInForces, $timeInForce, $timeInForce);
     }
 
+    public function format_time_in_force($timeInForce) {
+        $timeInForces = array(
+            'GTC' => 'GoodTillCancel',
+            'PO' => 'PostOnly',
+            'IOC' => 'ImmediateOrCancel',
+            'FOK' => 'FillOrKill',
+        );
+        return $this->safe_string($timeInForces, strtoupper($timeInForce), $timeInForce);
+    }
+
     public function parse_spot_order($order, $market = null) {
         //
         // spot
@@ -2143,10 +2153,15 @@ class phemex extends Exchange {
         $stopPrice = $this->safe_number_2($order, 'stopPx', 'stopPxRp') || null;
         $postOnly = ($timeInForce === 'PO');
         $reduceOnly = $this->safe_value($order, 'reduceOnly');
-        $execInst = $this->safe_string($order, 'execInst');
-        if ($execInst === 'ReduceOnly') {
+        $close = $this->safe_value($order, 'closeOnTrigger');
+        $execInst = $this->safe_string($order, 'execInst', '');
+        if (mb_strpos($execInst, 'ReduceOnly') !== false) {
             $reduceOnly = true;
         }
+        if (mb_strpos($execInst, 'CloseOnTrigger') > 0) {
+            $close = true;
+        }
+        $trigger = $this->safe_string_n($order, array( 'trigger', 'slTrigger', 'tpTrigger' ));
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,
@@ -2157,8 +2172,6 @@ class phemex extends Exchange {
             'symbol' => $symbol,
             'type' => $type,
             'timeInForce' => $timeInForce,
-            'postOnly' => $postOnly,
-            'reduceOnly' => $reduceOnly,
             'side' => $side,
             'price' => $price,
             'stopPrice' => $stopPrice,
@@ -2171,6 +2184,10 @@ class phemex extends Exchange {
             'status' => $status,
             'fee' => null,
             'trades' => null,
+            'reduceOnly' => $reduceOnly,
+            'postOnly' => $postOnly,
+            'close' => $close,
+            'trigger' => $trigger,
         ));
     }
 
@@ -2229,18 +2246,14 @@ class phemex extends Exchange {
                 // 'text' => 'comment',
                 // 'posSide' => Position direction - "Merged" for oneway mode , "Long" / "Short" for hedge mode
             );
-            $timeInForce = $this->safe_string($params, 'timeInForce');
+            $timeInForce = $this->format_time_in_force($this->safe_string($params, 'timeInForce'));
             if ($timeInForce !== null) {
-                if ($timeInForce === 'GTC') {
-                    $timeInForce = 'GoodTillCancel';
-                } elseif (strtoupper($timeInForce) === 'fok') {
-                    $timeInForce = 'FillOrKill';
-                }
                 $request['timeInForce'] = $timeInForce;
             }
             $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
             if ($clientOrderId === null) {
                 $brokerId = $this->safe_string($this->options, 'brokerId');
+                var_dump ($brokerId);
                 if ($brokerId !== null) {
                     $request['clOrdID'] = $brokerId . $this->uuid16();
                 }
@@ -2303,6 +2316,10 @@ class phemex extends Exchange {
                 if ($stopPrice !== null) {
                     $triggerType = $this->safe_string($params, 'triggerType', 'ByMarkPrice');
                     $request['triggerType'] = $triggerType;
+                    $closeOnTrigger = $this->safe_value_2($params, 'close', 'closeOnTrigger');
+                    if ($closeOnTrigger !== null) {
+                        $request['closeOnTrigger'] = $closeOnTrigger;
+                    }
                 }
             }
             if (($type === 'Limit') || ($type === 'StopLimit') || ($type === 'LimitIfTouched')) {
@@ -2337,7 +2354,7 @@ class phemex extends Exchange {
             } elseif ($market['contract']) {
                 $method = 'privatePostOrders';
             }
-            $params = $this->omit($params, 'reduceOnly', 'timeInForce');
+            $params = $this->omit($params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close');
             $response = Async\await($this->$method (array_merge($request, $params)));
             //
             // spot
@@ -2463,7 +2480,8 @@ class phemex extends Exchange {
             $params = $this->omit($params, array( 'baseQtyEv' ));
             if ($finalQty !== null) {
                 $request['baseQtyEV'] = $finalQty;
-            } elseif ($amount !== null) {
+            // support 0 $amount for full close stops
+            } elseif ($amount !== null && $amount > 0) {
                 if ($isUSDTSettled) {
                     $request['baseQtyEV'] = $this->amount_to_precision($market['symbol'], $amount);
                 } else {
@@ -2474,6 +2492,10 @@ class phemex extends Exchange {
             if ($stopPrice !== null) {
                 if ($isUSDTSettled) {
                     $request['stopPxRp'] = $this->price_to_precision($symbol, $stopPrice);
+                    $basePrice = $this->safe_number($params, 'basePrice');
+                    if ($basePrice !== null) {
+                        $request['priceRp'] = $this->price_to_precision($symbol, $basePrice);
+                    }
                 } else {
                     $request['stopPxEp'] = $this->to_ep($stopPrice, $market);
                 }
@@ -2489,6 +2511,7 @@ class phemex extends Exchange {
                     $request['posSide'] = 'Merged';
                 }
             }
+            $params = $this->omit($params, array( 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice' ));
             $response = Async\await($this->$method (array_merge($request, $params)));
             $data = $this->safe_value($response, 'data', array());
             return $this->parse_order($data, $market);

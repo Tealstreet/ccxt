@@ -372,6 +372,9 @@ class phemex extends \ccxt\async\phemex {
         $name = 'kline';
         $marketId = $this->safe_string($message, 'symbol');
         $market = $this->safe_market($marketId);
+        if ($market['settle'] === 'USDT') {
+            $name = 'kline_p';
+        }
         $symbol = $market['symbol'];
         $candles = $this->safe_value($message, $name, array());
         $first = $this->safe_value($candles, 0, array());
@@ -512,6 +515,9 @@ class phemex extends \ccxt\async\phemex {
             $url = $this->urls['api']['ws'];
             $requestId = $this->request_id();
             $name = 'kline';
+            if ($market['settle'] === 'USDT') {
+                $name = 'kline_p';
+            }
             $messageHash = $name . ':' . $timeframe . ':' . $symbol;
             $method = $name . '.subscribe';
             $subscribe = array(
@@ -1104,11 +1110,11 @@ class phemex extends \ccxt\async\phemex {
             $this->handle_pong($client, $message);
         } elseif ((is_array($message) && array_key_exists('spot_market24h', $message)) || (is_array($message) && array_key_exists('market24h', $message))) {
             return $this->handle_ticker($client, $message);
-        } elseif ($method->includes ('perp_market24h_pack_p')) {
+        } elseif (mb_strpos($method, 'perp_market24h_pack_p') !== false) {
             return $this->handle_packed_tickers($client, $message);
         } elseif (is_array($message) && array_key_exists('trades', $message)) {
             return $this->handle_trades($client, $message);
-        } elseif (is_array($message) && array_key_exists('kline', $message)) {
+        } elseif (is_array($message || 'kline_p' in $message) && array_key_exists('kline', $message || 'kline_p' in $message)) {
             return $this->handle_ohlcv($client, $message);
         } elseif (is_array($message || 'orderbook_p' in $message) && array_key_exists('book', $message || 'orderbook_p' in $message)) {
             return $this->handle_order_book($client, $message);

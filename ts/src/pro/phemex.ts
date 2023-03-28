@@ -365,9 +365,12 @@ export default class phemex extends phemexRest {
         //         type: 'snapshot'
         //     }
         //
-        const name = 'kline';
+        let name = 'kline';
         const marketId = this.safeString (message, 'symbol');
         const market = this.safeMarket (marketId);
+        if (market['settle'] === 'USDT') {
+            name = 'kline_p';
+        }
         const symbol = market['symbol'];
         const candles = this.safeValue (message, name, []);
         const first = this.safeValue (candles, 0, []);
@@ -508,7 +511,10 @@ export default class phemex extends phemexRest {
         symbol = market['symbol'];
         const url = this.urls['api']['ws'];
         const requestId = this.requestId ();
-        const name = 'kline';
+        let name = 'kline';
+        if (market['settle'] === 'USDT') {
+            name = 'kline_p';
+        }
         const messageHash = name + ':' + timeframe + ':' + symbol;
         const method = name + '.subscribe';
         const subscribe = {
@@ -1100,11 +1106,11 @@ export default class phemex extends phemexRest {
             this.handlePong (client, message);
         } else if (('spot_market24h' in message) || ('market24h' in message)) {
             return this.handleTicker (client, message);
-        } else if (method.includes ('perp_market24h_pack_p')) {
+        } else if (method.indexOf ('perp_market24h_pack_p') >= 0) {
             return this.handlePackedTickers (client, message);
         } else if ('trades' in message) {
             return this.handleTrades (client, message);
-        } else if ('kline' in message) {
+        } else if ('kline' in message || 'kline_p' in message) {
             return this.handleOHLCV (client, message);
         } else if ('book' in message || 'orderbook_p' in message) {
             return this.handleOrderBook (client, message);

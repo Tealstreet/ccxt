@@ -346,6 +346,8 @@ class phemex(ccxt.async_support.phemex):
         name = 'kline'
         marketId = self.safe_string(message, 'symbol')
         market = self.safe_market(marketId)
+        if market['settle'] == 'USDT':
+            name = 'kline_p'
         symbol = market['symbol']
         candles = self.safe_value(message, name, [])
         first = self.safe_value(candles, 0, [])
@@ -469,6 +471,8 @@ class phemex(ccxt.async_support.phemex):
         url = self.urls['api']['ws']
         requestId = self.request_id()
         name = 'kline'
+        if market['settle'] == 'USDT':
+            name = 'kline_p'
         messageHash = name + ':' + timeframe + ':' + symbol
         method = name + '.subscribe'
         subscribe = {
@@ -1015,11 +1019,11 @@ class phemex(ccxt.async_support.phemex):
             self.handle_pong(client, message)
         elif ('spot_market24h' in message) or ('market24h' in message):
             return self.handle_ticker(client, message)
-        elif method.includes('perp_market24h_pack_p'):
+        elif method.find('perp_market24h_pack_p') >= 0:
             return self.handle_packed_tickers(client, message)
         elif 'trades' in message:
             return self.handle_trades(client, message)
-        elif 'kline' in message:
+        elif 'kline' in message or 'kline_p' in message:
             return self.handle_ohlcv(client, message)
         elif 'book' in message or 'orderbook_p' in message:
             return self.handle_order_book(client, message)

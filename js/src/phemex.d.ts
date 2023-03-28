@@ -137,6 +137,7 @@ export default class phemex extends Exchange {
     parseOrderStatus(status: any): string;
     parseOrderType(type: any): string;
     parseTimeInForce(timeInForce: any): string;
+    formatTimeInForce(timeInForce: any): string;
     parseSpotOrder(order: any, market?: any): any;
     parseOrderSide(side: any): string;
     parseSwapOrder(order: any, market?: any): any;

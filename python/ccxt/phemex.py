@@ -1813,6 +1813,15 @@ class phemex(Exchange):
         }
         return self.safe_string(timeInForces, timeInForce, timeInForce)
 
+    def format_time_in_force(self, timeInForce):
+        timeInForces = {
+            'GTC': 'GoodTillCancel',
+            'PO': 'PostOnly',
+            'IOC': 'ImmediateOrCancel',
+            'FOK': 'FillOrKill',
+        }
+        return self.safe_string(timeInForces, timeInForce.upper(), timeInForce)
+
     def parse_spot_order(self, order, market=None):
         #
         # spot
@@ -2056,9 +2065,13 @@ class phemex(Exchange):
         stopPrice = self.safe_number_2(order, 'stopPx', 'stopPxRp') or None
         postOnly = (timeInForce == 'PO')
         reduceOnly = self.safe_value(order, 'reduceOnly')
-        execInst = self.safe_string(order, 'execInst')
-        if execInst == 'ReduceOnly':
+        close = self.safe_value(order, 'closeOnTrigger')
+        execInst = self.safe_string(order, 'execInst', '')
+        if execInst.find('ReduceOnly') >= 0:
             reduceOnly = True
+        if execInst.find('CloseOnTrigger') > 0:
+            close = True
+        trigger = self.safe_string_n(order, ['trigger', 'slTrigger', 'tpTrigger'])
         return self.safe_order({
             'info': order,
             'id': id,
@@ -2069,8 +2082,6 @@ class phemex(Exchange):
             'symbol': symbol,
             'type': type,
             'timeInForce': timeInForce,
-            'postOnly': postOnly,
-            'reduceOnly': reduceOnly,
             'side': side,
             'price': price,
             'stopPrice': stopPrice,
@@ -2083,6 +2094,10 @@ class phemex(Exchange):
             'status': status,
             'fee': None,
             'trades': None,
+            'reduceOnly': reduceOnly,
+            'postOnly': postOnly,
+            'close': close,
+            'trigger': trigger,
         })
 
     def parse_order(self, order, market=None):
@@ -2137,16 +2152,13 @@ class phemex(Exchange):
             # 'text': 'comment',
             # 'posSide': Position direction - "Merged" for oneway mode , "Long" / "Short" for hedge mode
         }
-        timeInForce = self.safe_string(params, 'timeInForce')
+        timeInForce = self.format_time_in_force(self.safe_string(params, 'timeInForce'))
         if timeInForce is not None:
-            if timeInForce == 'GTC':
-                timeInForce = 'GoodTillCancel'
-            elif timeInForce.upper() == 'fok':
-                timeInForce = 'FillOrKill'
             request['timeInForce'] = timeInForce
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is None:
             brokerId = self.safe_string(self.options, 'brokerId')
+            print(brokerId)
             if brokerId is not None:
                 request['clOrdID'] = brokerId + self.uuid16()
         else:
@@ -2197,6 +2209,9 @@ class phemex(Exchange):
             if stopPrice is not None:
                 triggerType = self.safe_string(params, 'triggerType', 'ByMarkPrice')
                 request['triggerType'] = triggerType
+                closeOnTrigger = self.safe_value_2(params, 'close', 'closeOnTrigger')
+                if closeOnTrigger is not None:
+                    request['closeOnTrigger'] = closeOnTrigger
         if (type == 'Limit') or (type == 'StopLimit') or (type == 'LimitIfTouched'):
             if market['settle'] == 'USDT':
                 request['priceRp'] = self.price_to_precision(symbol, price)
@@ -2222,7 +2237,7 @@ class phemex(Exchange):
             method = 'privatePostGOrders'
         elif market['contract']:
             method = 'privatePostOrders'
-        params = self.omit(params, 'reduceOnly', 'timeInForce')
+        params = self.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close')
         response = getattr(self, method)(self.extend(request, params))
         #
         # spot
@@ -2341,7 +2356,8 @@ class phemex(Exchange):
         params = self.omit(params, ['baseQtyEv'])
         if finalQty is not None:
             request['baseQtyEV'] = finalQty
-        elif amount is not None:
+        # support 0 amount for full close stops
+        elif amount is not None and amount > 0:
             if isUSDTSettled:
                 request['baseQtyEV'] = self.amount_to_precision(market['symbol'], amount)
             else:
@@ -2350,6 +2366,9 @@ class phemex(Exchange):
         if stopPrice is not None:
             if isUSDTSettled:
                 request['stopPxRp'] = self.price_to_precision(symbol, stopPrice)
+                basePrice = self.safe_number(params, 'basePrice')
+                if basePrice is not None:
+                    request['priceRp'] = self.price_to_precision(symbol, basePrice)
             else:
                 request['stopPxEp'] = self.to_ep(stopPrice, market)
         params = self.omit(params, ['stopPx', 'stopPrice'])
@@ -2361,6 +2380,7 @@ class phemex(Exchange):
             posSide = self.safe_string(params, 'posSide')
             if posSide is None:
                 request['posSide'] = 'Merged'
+        params = self.omit(params, ['reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice'])
         response = getattr(self, method)(self.extend(request, params))
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
