@@ -3018,6 +3018,10 @@ export default class Exchange {
         if (foundMarket) {
             return foundMarket;
         }
+        // eslint-disable-next-line no-console
+        console.log(symbol);
+        // eslint-disable-next-line no-console
+        console.log(this.markets);
         throw new BadSymbol(this.id + ' does not have market symbol ' + symbol);
     }
     handleWithdrawTagAndParams(tag, params) {
@@ -3645,6 +3649,35 @@ export default class Exchange {
         const firstMarket = this.safeString(symbols, 0);
         const market = this.market(firstMarket);
         return market;
+    }
+    rejectAllClients() {
+        const clientMap = this.clients || {};
+        const clients = Object.values(clientMap);
+        for (let i = 0; i < clients.length; i++) {
+            const client = clients[i];
+            try {
+                client.reject();
+            }
+            catch (e) {
+                if (this.verbose) {
+                    // eslint-disable-next-line no-console
+                    console.log(e);
+                }
+            }
+            client.reject();
+        }
+    }
+    async setLeverage(symbol, buyLeverage, sellLeverage, params = {}) {
+        throw new NotSupported(this.id + ' setLeverage() is not supported yet');
+    }
+    async setPositionMode(hedged, symbol = undefined, params = {}) {
+        throw new NotSupported(this.id + ' setPositionMode() is not supported yet');
+    }
+    async setMarginMode(marginMode, symbol = undefined, params = {}) {
+        throw new NotSupported(this.id + ' setMarginMode() is not supported yet');
+    }
+    async fetchAccountConfiguration(symbol, params = {}) {
+        return {};
     }
 }
 export { Exchange, };

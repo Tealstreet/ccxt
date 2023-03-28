@@ -362,6 +362,11 @@ function fixResponseChunkedTransferBadEnding(request, errorCallback) {
         });
     });
 }
+//
+// // TEALSTREET
+// export default async function fetch(url, options_) {
+//   return null;
+// }
 
 exports.Response = response;
 exports.Headers = headers["default"];

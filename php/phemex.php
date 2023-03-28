@@ -530,6 +530,29 @@ class phemex extends Exchange {
             // "1.0"
             $contractSize = $this->parse_number($contractSizeString);
         }
+        $riskLimits = $this->safe_value($market, 'riskLimits', array());
+        $maxLeverage = $this->safe_number($market, 'maxLeverage');
+        $maxAmount = null;
+        if (strlen($riskLimits) > 0) {
+            // assume lowest risk limit for now
+            $baseRiskLimit = $riskLimits[0];
+            // array('limit' => '1000000', 'initialMarginRr' => '0.01', 'maintenanceMarginRr' => '0.005')
+            // array('limit' => '100', 'initialMargin' => '1.0%', 'initialMarginEr' => '1000000', 'maintenanceMargin' => '0.5%', 'maintenanceMarginEr' => '500000')
+            if (!$maxLeverage) {
+                if ($settle === 'USDT') {
+                    $initialMarginRr = $this->safe_string($baseRiskLimit, 'initialMarginRr', '0.01');
+                    $maxLeverageString = Precise::string_div('1', $initialMarginRr);
+                    $maxLeverage = $this->parse_safe_number($maxLeverageString);
+                } else {
+                    $initialMarginEr = $this->safe_string($baseRiskLimit, 'initialMarginEr');
+                    $initialMargin = $this->from_en($initialMarginEr, $ratioScale);
+                    $maxLeverageString = Precise::string_div('1', $initialMargin);
+                    $maxLeverage = $this->parse_number($maxLeverageString);
+                }
+            }
+            // this is in the $quote currency -- would need to somehow convert to $base to make this useful
+            // $maxAmount = $this->safe_number($baseRiskLimit, 'limit');
+        }
         return array(
             'id' => $id,
             'symbol' => $base . '/' . $quote . ':' . $settle,
@@ -566,11 +589,11 @@ class phemex extends Exchange {
             'limits' => array(
                 'leverage' => array(
                     'min' => $this->parse_number('1'),
-                    'max' => $this->safe_number($market, 'maxLeverage'),
+                    'max' => $maxLeverage,
                 ),
                 'amount' => array(
                     'min' => null,
-                    'max' => null,
+                    'max' => $maxAmount,
                 ),
                 'price' => array(
                     'min' => $this->parse_number($this->from_en($minPriceEp, $priceScale)),
@@ -762,8 +785,6 @@ class phemex extends Exchange {
         //         }
         //     }
         //
-        $v1Products = $this->v1GetExchangePublicProducts ($params);
-        $v1ProductsData = $this->safe_value($v1Products, 'data', array());
         //
         //     {
         //         "code":0,
@@ -801,19 +822,28 @@ class phemex extends Exchange {
         //
         $v2ProductsData = $this->safe_value($v2Products, 'data', array());
         $products = $this->safe_value($v2ProductsData, 'products', array());
-        $riskLimits = $this->safe_value($v2ProductsData, 'riskLimits', array());
-        $riskLimitsById = $this->index_by($riskLimits, 'symbol');
-        $v1ProductsById = $this->index_by($v1ProductsData, 'symbol');
+        $v1RiskLimits = $this->safe_value($v2ProductsData, 'riskLimits', array());
+        $v1RiskLimitsById = $this->index_by($v1RiskLimits, 'symbol');
+        $v2RiskLimits = $this->safe_value($v2ProductsData, 'riskLimitsV2', array());
+        $v2RiskLimitsById = $this->index_by($v2RiskLimits, 'symbol');
+        $productsById = $this->index_by($products, 'symbol');
         $result = array();
         for ($i = 0; $i < count($products); $i++) {
             $market = $products[$i];
             $type = $this->safe_string_lower($market, 'type');
-            if (($type === 'perpetual') || ($type === 'perpetualv2')) {
+            if ($type === 'perpetual') {
                 $id = $this->safe_string($market, 'symbol');
-                $riskLimitValues = $this->safe_value($riskLimitsById, $id, array());
+                $riskLimitValues = $this->safe_value($v1RiskLimitsById, $id, array());
                 $market = array_merge($market, $riskLimitValues);
-                $v1ProductsValues = $this->safe_value($v1ProductsById, $id, array());
-                $market = array_merge($market, $v1ProductsValues);
+                $productValues = $this->safe_value($productsById, $id, array());
+                $market = array_merge($market, $productValues);
+                $market = $this->parse_swap_market($market);
+            } elseif ($type === 'perpetualv2') {
+                $id = $this->safe_string($market, 'symbol');
+                $riskLimitValues = $this->safe_value($v2RiskLimitsById, $id, array());
+                $market = array_merge($market, $riskLimitValues);
+                $productValues = $this->safe_value($productsById, $id, array());
+                $market = array_merge($market, $productValues);
                 $market = $this->parse_swap_market($market);
             } else {
                 $market = $this->parse_spot_market($market);
@@ -1094,21 +1124,22 @@ class phemex extends Exchange {
             $limit = 100; // set default, doesn't have any defaults and needs something to be set
         }
         $limit = min ($limit, $maxLimit);
+        $method = 'publicGetMdKline';
         if ($since !== null) { // phemex also provides kline query with from/to, however, this interface is NOT recommended.
             $since = $this->parse_to_int($since / 1000);
             $request['from'] = $since;
             // time ranges ending in the future are not accepted
             // https://github.com/ccxt/ccxt/issues/8050
             $request['to'] = min ($now, $this->sum($since, $duration * $limit));
+            $method = 'publicGetMdV2KlineList';
         } else {
             if (!$this->in_array($limit, $possibleLimitValues)) {
                 $limit = 100;
             }
             $request['limit'] = $limit;
-        }
-        $method = 'publicGetMdKline';
-        if ($market['linear'] || $market['settle'] === 'USDT') {
-            $method = 'publicGetMdV2KlineLast';
+            if ($market['linear'] || $market['settle'] === 'USDT') {
+                $method = 'publicGetMdV2KlineLast';
+            }
         }
         $response = $this->$method (array_merge($request, $params));
         //
@@ -2069,7 +2100,7 @@ class phemex extends Exchange {
         $symbol = $this->safe_symbol($marketId, $market);
         $status = $this->parse_order_status($this->safe_string($order, 'ordStatus'));
         $side = $this->parse_order_side($this->safe_string_lower($order, 'side'));
-        $type = $this->parse_order_type($this->safe_string($order, 'orderType'));
+        $type = $this->parse_order_type($this->safe_string_2($order, 'orderType', 'ordType'));
         $price = $this->safe_string($order, 'priceRp');
         if ($price === null) {
             $price = $this->from_ep($this->safe_string($order, 'priceEp'), $market);
@@ -2087,7 +2118,7 @@ class phemex extends Exchange {
             $lastTradeTimestamp = null;
         }
         $timeInForce = $this->parse_time_in_force($this->safe_string($order, 'timeInForce'));
-        $stopPrice = $this->safe_number_2($order, 'stopPx', 'stopPxRp');
+        $stopPrice = $this->safe_number_2($order, 'stopPx', 'stopPxRp') || null;
         $postOnly = ($timeInForce === 'PO');
         $reduceOnly = $this->safe_value($order, 'reduceOnly');
         $execInst = $this->safe_string($order, 'execInst');
@@ -2175,6 +2206,15 @@ class phemex extends Exchange {
             // 'text' => 'comment',
             // 'posSide' => Position direction - "Merged" for oneway mode , "Long" / "Short" for hedge mode
         );
+        $timeInForce = $this->safe_string($params, 'timeInForce');
+        if ($timeInForce !== null) {
+            if ($timeInForce === 'GTC') {
+                $timeInForce = 'GoodTillCancel';
+            } elseif (strtoupper($timeInForce) === 'fok') {
+                $timeInForce = 'FillOrKill';
+            }
+            $request['timeInForce'] = $timeInForce;
+        }
         $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
         if ($clientOrderId === null) {
             $brokerId = $this->safe_string($this->options, 'brokerId');
@@ -2274,7 +2314,7 @@ class phemex extends Exchange {
         } elseif ($market['contract']) {
             $method = 'privatePostOrders';
         }
-        $params = $this->omit($params, 'reduceOnly');
+        $params = $this->omit($params, 'reduceOnly', 'timeInForce');
         $response = $this->$method (array_merge($request, $params));
         //
         // spot
@@ -3271,11 +3311,32 @@ class phemex extends Exchange {
         $contractSize = $this->safe_value($market, 'contractSize');
         $contractSizeString = $this->number_to_string($contractSize);
         $leverage = $this->safe_number_2($position, 'leverage', 'leverageRr');
+        $marginMode = 'isolated';
+        if ($leverage < 0) {
+            $marginMode = 'cross';
+            $leverage = -1 * $leverage;
+        }
         $entryPriceString = $this->safe_string_2($position, 'avgEntryPrice', 'avgEntryPriceRp');
         $rawSide = $this->safe_string($position, 'side');
+        $rawPosSide = $this->safe_string($position, 'posSide');
         $side = null;
-        if ($rawSide !== null) {
+        if ($rawPosSide === 'Long') {
+            $side = 'long';
+        } elseif ($rawPosSide === 'Short') {
+            $side = 'short';
+        } elseif ($rawSide !== null) {
             $side = ($rawSide === 'Buy') ? 'long' : 'short';
+        }
+        $rawPosMode = $this->safe_string($position, 'posMode');
+        $positionMode = 'oneway';
+        $hedged = false;
+        $id = null;
+        if ($rawPosMode === 'Hedged') {
+            $hedged = true;
+            $positionMode = 'hedged';
+            $id = $symbol . ':' . $side;
+        } else {
+            $id = $symbol;
         }
         $priceDiff = null;
         $currency = $this->safe_string($position, 'currency');
@@ -3298,7 +3359,7 @@ class phemex extends Exchange {
         $marginRatio = Precise::string_div($maintenanceMarginString, $collateral);
         return array(
             'info' => $position,
-            'id' => null,
+            'id' => $id,
             'symbol' => $symbol,
             'contracts' => $this->parse_number($contracts),
             'contractSize' => $contractSize,
@@ -3316,9 +3377,10 @@ class phemex extends Exchange {
             'maintenanceMarginPercentage' => $this->parse_number($maintenanceMarginPercentageString),
             'marginRatio' => $this->parse_number($marginRatio),
             'datetime' => null,
-            'marginMode' => null,
+            'marginMode' => $marginMode,
             'side' => $side,
-            'hedged' => false,
+            'hedged' => $hedged,
+            'positionMode' => $positionMode,
             'percentage' => $this->parse_number($percentage),
         );
     }
@@ -3573,8 +3635,8 @@ class phemex extends Exchange {
         $this->check_required_symbol('setMarginMode', $symbol);
         $this->load_markets();
         $market = $this->market($symbol);
-        if (!$market['swap'] || $market['settle'] === 'USDT') {
-            throw new BadSymbol($this->id . ' setMarginMode() supports swap (non USDT based) contracts only');
+        if (!$market['swap']) {
+            throw new BadSymbol($this->id . ' setMarginMode() supports swap contracts only');
         }
         $marginMode = strtolower($marginMode);
         if ($marginMode !== 'isolated' && $marginMode !== 'cross') {
@@ -3585,13 +3647,34 @@ class phemex extends Exchange {
             $leverage = 0;
         }
         if ($leverage === null) {
-            throw new ArgumentsRequired($this->id . ' setMarginMode() requires a $leverage parameter');
+            $limits = $this->safe_value($market, 'limits', array());
+            $leverageLimits = $this->safe_value($limits, 'leverage', array());
+            $leverage = $this->safe_integer($leverageLimits, 'max');
         }
+        $method = 'privatePutPositionsLeverage';
         $request = array(
             'symbol' => $market['id'],
-            'leverage' => $leverage,
         );
-        return $this->privatePutPositionsLeverage (array_merge($request, $params));
+        if ($market['settle'] === 'USDT') {
+            $positionMode = $this->safe_string($params, 'positionMode');
+            if ($positionMode === 'hedged' || $positionMode === 'Hedge') {
+                $buyLeverage = $this->safe_integer($params, 'buyLeverage', $leverage);
+                $sellLeverage = $this->safe_integer($params, 'sellLeverage', $leverage);
+                if ($marginMode === 'cross') {
+                    $buyLeverage = 0;
+                    $sellLeverage = 0;
+                }
+                $request['longLeverageRr'] = $buyLeverage;
+                $request['shortLeverageRr'] = $sellLeverage;
+            } else {
+                $request['leverageRr'] = $leverage;
+            }
+            $method = 'privatePutGPositionsLeverage';
+        } else {
+            $request['leverage'] = $leverage;
+        }
+        $params = $this->omit($params, array( 'leverage', 'buyLeverage', 'sellLeverage', 'positionMode' ));
+        return $this->$method (array_merge($request, $params));
     }
 
     public function set_position_mode($hedged, $symbol = null, $params = array ()) {
@@ -3796,21 +3879,44 @@ class phemex extends Exchange {
         if ($symbol === null) {
             throw new ArgumentsRequired($this->id . ' setLeverage() requires a $symbol argument');
         }
-        if (($leverage < 1) || ($leverage > 100)) {
-            throw new BadRequest($this->id . ' setLeverage() $leverage should be between 1 and 100');
-        }
         $this->load_markets();
         $market = $this->market($symbol);
         $request = array(
             'symbol' => $market['id'],
         );
         $method = 'privatePutPositionsLeverage';
+        $buyLeverage = $this->safe_float($params, 'buyLeverage', $leverage);
+        $sellLeverage = $this->safe_float($params, 'sellLeverage', $leverage);
+        $leverage = $buyLeverage || $leverage;
         if ($market['settle'] === 'USDT') {
             $method = 'privatePutGPositionsLeverage';
-            $request['leverageRr'] = $leverage;
+            $positionMode = $this->safe_string($params, 'positionMode');
+            if ($positionMode === 'hedged' || $positionMode === 'Hedge') {
+                if ($buyLeverage === null || $sellLeverage === null) {
+                    throw new ArgumentsRequired($this->id . ' setLeverage(is_array(hedge mode requires both $buyLeverage and $sellLeverage arguments') && array_key_exists(), hedge mode requires both $buyLeverage and $sellLeverage arguments'));
+                }
+                if (($buyLeverage < 1) || ($buyLeverage > 100)) {
+                    throw new BadRequest($this->id . ' setLeverage() $buyLeverage should be between 1 and 100');
+                }
+                if (($sellLeverage < 1) || ($sellLeverage > 100)) {
+                    throw new BadRequest($this->id . ' setLeverage() $sellLeverage should be between 1 and 100');
+                }
+                $request['longLeverageRr'] = $buyLeverage;
+                $request['shortLeverageRr'] = $sellLeverage;
+            } else {
+                if (($leverage < 1) || ($leverage > 100)) {
+                    throw new BadRequest($this->id . ' setLeverage() $leverage should be between 1 and 100');
+                }
+                $request['leverageRr'] = $leverage;
+            }
         } else {
-            $request['leverage'] = $leverage;
+            $effectiveLeverage = $leverage || $buyLeverage;
+            if (($effectiveLeverage < 1) || ($effectiveLeverage > 100)) {
+                throw new BadRequest($this->id . ' setLeverage() $leverage should be between 1 and 100');
+            }
+            $request['leverage'] = $effectiveLeverage;
         }
+        $params = $this->omit($params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode');
         return $this->$method (array_merge($request, $params));
     }
 

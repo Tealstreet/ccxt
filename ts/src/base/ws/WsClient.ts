@@ -1,3 +1,4 @@
+
 import Client from './Client.js';
 
 import {
@@ -5,15 +6,7 @@ import {
     isNode,
     milliseconds,
 } from '../../base/functions.js';
-
-// TEALSTREET
-let WebSocket = null
-try {
-    WebSocket = window.WebSocket
-} catch (e) {
-    // @eslint-disable-next-line
-    // WebSocket = require ('ws')
-}
+import WebSocket from 'ws';
 
 const WebSocketPlatform = isNode ? WebSocket : self.WebSocket;
 

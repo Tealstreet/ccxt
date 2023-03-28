@@ -703,5 +703,10 @@ export default class Exchange {
     parseIncome(info: any, market?: any): void;
     parseIncomes(incomes: any, market?: any, since?: any, limit?: any): any;
     getMarketFromSymbols(symbols?: string[]): any;
+    rejectAllClients(): void;
+    setLeverage(symbol: any, buyLeverage: any, sellLeverage: any, params?: {}): Promise<void>;
+    setPositionMode(hedged: any, symbol?: any, params?: {}): Promise<void>;
+    setMarginMode(marginMode: any, symbol?: any, params?: {}): Promise<void>;
+    fetchAccountConfiguration(symbol: any, params?: {}): Promise<object>;
 }
 export { Exchange, };

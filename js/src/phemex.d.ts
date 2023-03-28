@@ -201,9 +201,10 @@ export default class phemex extends Exchange {
         maintenanceMarginPercentage: number;
         marginRatio: number;
         datetime: any;
-        marginMode: any;
+        marginMode: string;
         side: any;
         hedged: boolean;
+        positionMode: string;
         percentage: number;
     };
     fetchFundingHistory(symbol?: string, since?: any, limit?: any, params?: {}): Promise<any[]>;

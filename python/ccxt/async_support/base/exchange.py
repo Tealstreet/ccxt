@@ -2054,6 +2054,10 @@ class Exchange(BaseExchange):
         foundMarket = self.marketHelper(symbol) or self.marketHelper(symbol + ':USDT') or self.marketHelper(symbol + ':BTC')
         if foundMarket:
             return foundMarket
+        # eslint-disable-next-line no-console
+        print(symbol)
+        # eslint-disable-next-line no-console
+        print(self.markets)
         raise BadSymbol(self.id + ' does not have market symbol ' + symbol)
 
     def handle_withdraw_tag_and_params(self, tag, params):
@@ -2596,3 +2600,28 @@ class Exchange(BaseExchange):
         firstMarket = self.safe_string(symbols, 0)
         market = self.market(firstMarket)
         return market
+
+    def reject_all_clients(self):
+        clientMap = self.clients or {}
+        clients = list(clientMap.values())
+        for i in range(0, len(clients)):
+            client = clients[i]
+            try:
+                client.reject()
+            except Exception as e:
+                if self.verbose:
+                    # eslint-disable-next-line no-console
+                    print(e)
+            client.reject()
+
+    async def set_leverage(self, symbol, buyLeverage, sellLeverage, params={}):
+        raise NotSupported(self.id + ' setLeverage() is not supported yet')
+
+    async def set_position_mode(self, hedged, symbol=None, params={}):
+        raise NotSupported(self.id + ' setPositionMode() is not supported yet')
+
+    async def set_margin_mode(self, marginMode, symbol=None, params={}):
+        raise NotSupported(self.id + ' setMarginMode() is not supported yet')
+
+    async def fetch_account_configuration(self, symbol, params={}):
+        return {}

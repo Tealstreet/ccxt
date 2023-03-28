@@ -2607,7 +2607,7 @@ export default class bitget extends Exchange {
             }
             request['marginCoin'] = market['settleId'];
         }
-        const omitted = this.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginType', 'reduceOnly', 'close']);
+        const omitted = this.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginMode', 'reduceOnly', 'close']);
         const response = await this[method](this.extend(request, omitted));
         //
         //     {
@@ -3708,7 +3708,7 @@ export default class bitget extends Exchange {
         //
         return response;
     }
-    async setLeverage(symbol, buyLeverage, sellLeverage, params = {}) {
+    async setLeverage(leverage, symbol = undefined, params = {}) {
         /**
          * @method
          * @name bitget#setLeverage
@@ -3721,10 +3721,12 @@ export default class bitget extends Exchange {
         if (symbol === undefined) {
             throw new ArgumentsRequired(this.id + ' setLeverage() requires a symbol argument');
         }
+        const buyLeverage = this.safeNumber(params, 'buyLeverage', leverage);
+        const sellLeverage = this.safeNumber(params, 'sellLeverage', leverage);
         await this.loadMarkets();
         const market = this.market(symbol);
-        const marginMode = this.safeString2(params, 'marginType', 'marginMode');
-        params = this.omit(params, ['marginType', 'marginMode', 'tradeMode']);
+        const marginMode = this.safeString(params, 'marginMode');
+        params = this.omit(params, ['marginMode', 'tradeMode']);
         if (marginMode === 'isolated') {
             let promises = [];
             const request = {
@@ -3777,12 +3779,18 @@ export default class bitget extends Exchange {
          * @param {object} params extra parameters specific to the bitget api endpoint
          * @returns {object} response from the exchange
          */
+        marginMode = marginMode.toLowerCase();
+        if (marginMode === 'isolated') {
+            marginMode = 'fixed';
+        }
+        else if (marginMode === 'cross') {
+            marginMode = 'crossed';
+        }
         if (symbol === undefined) {
             throw new ArgumentsRequired(this.id + ' setMarginMode() requires a symbol argument');
         }
-        marginMode = marginMode.toLowerCase();
         if ((marginMode !== 'fixed') && (marginMode !== 'crossed')) {
-            throw new ArgumentsRequired(this.id + ' setMarginMode() marginMode must be "fixed" or "crossed"');
+            throw new ArgumentsRequired(this.id + ' setMarginMode() marginMode must be "fixed" or "crossed" (or "isolated" or "cross")');
         }
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -3791,6 +3799,7 @@ export default class bitget extends Exchange {
             'marginCoin': market['settleId'],
             'marginMode': marginMode,
         };
+        params = this.omit(params, ['leverage', 'buyLeverage', 'sellLeverage']);
         try {
             return await this.privateMixPostAccountSetMarginMode(this.extend(request, params));
         }
@@ -3851,11 +3860,11 @@ export default class bitget extends Exchange {
             'info': data,
             'markets': {},
             'tradeMode': tradeMode,
-            'marginType': isIsolated ? 'isolated' : 'cross',
+            'marginMode': isIsolated ? 'isolated' : 'cross',
         };
         const leverageConfigs = accountConfig['markets'];
         leverageConfigs[market['symbol']] = {
-            'marginType': isIsolated ? 'isolated' : 'cross',
+            'marginMode': isIsolated ? 'isolated' : 'cross',
             'isIsolated': isIsolated,
             'leverage': leverage,
             'buyLeverage': buyLeverage,

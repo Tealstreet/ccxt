@@ -756,6 +756,11 @@ class Exchange {
         'parseIncome' => 'parse_income',
         'parseIncomes' => 'parse_incomes',
         'getMarketFromSymbols' => 'get_market_from_symbols',
+        'rejectAllClients' => 'reject_all_clients',
+        'setLeverage' => 'set_leverage',
+        'setPositionMode' => 'set_position_mode',
+        'setMarginMode' => 'set_margin_mode',
+        'fetchAccountConfiguration' => 'fetch_account_configuration',
     );
 
     public static function split($string, $delimiters = array(' ')) {
@@ -4509,6 +4514,10 @@ class Exchange {
         if ($foundMarket) {
             return $foundMarket;
         }
+        // eslint-disable-next-line no-console
+        var_dump ($symbol);
+        // eslint-disable-next-line no-console
+        var_dump ($this->markets);
         throw new BadSymbol($this->id . ' does not have market $symbol ' . $symbol);
     }
 
@@ -5162,5 +5171,38 @@ class Exchange {
         $firstMarket = $this->safe_string($symbols, 0);
         $market = $this->market ($firstMarket);
         return $market;
+    }
+
+    public function reject_all_clients() {
+        $clientMap = $this->clients || array();
+        $clients = is_array($clientMap) ? array_values($clientMap) : array();
+        for ($i = 0; $i < count($clients); $i++) {
+            $client = $clients[$i];
+            try {
+                $client->reject ();
+            } catch (Exception $e) {
+                if ($this->verbose) {
+                    // eslint-disable-next-line no-console
+                    var_dump ($e);
+                }
+            }
+            $client->reject ();
+        }
+    }
+
+    public function set_leverage($symbol, $buyLeverage, $sellLeverage, $params = array ()) {
+        throw new NotSupported($this->id . ' setLeverage() is not supported yet');
+    }
+
+    public function set_position_mode($hedged, $symbol = null, $params = array ()) {
+        throw new NotSupported($this->id . ' setPositionMode() is not supported yet');
+    }
+
+    public function set_margin_mode($marginMode, $symbol = null, $params = array ()) {
+        throw new NotSupported($this->id . ' setMarginMode() is not supported yet');
+    }
+
+    public function fetch_account_configuration($symbol, $params = array ()) {
+        return array();
     }
 }

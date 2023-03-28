@@ -2474,7 +2474,7 @@ class bitget(Exchange):
                 if reduceOnly:
                     request['cancelOrder'] = True
             request['marginCoin'] = market['settleId']
-        omitted = self.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginType', 'reduceOnly', 'close'])
+        omitted = self.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginMode', 'reduceOnly', 'close'])
         response = getattr(self, method)(self.extend(request, omitted))
         #
         #     {
@@ -3500,7 +3500,7 @@ class bitget(Exchange):
         #
         return response
 
-    def set_leverage(self, symbol, buyLeverage, sellLeverage, params={}):
+    def set_leverage(self, leverage, symbol=None, params={}):
         """
         set the level of leverage for a market
         :param float leverage: the rate of leverage
@@ -3510,10 +3510,12 @@ class bitget(Exchange):
         """
         if symbol is None:
             raise ArgumentsRequired(self.id + ' setLeverage() requires a symbol argument')
+        buyLeverage = self.safe_number(params, 'buyLeverage', leverage)
+        sellLeverage = self.safe_number(params, 'sellLeverage', leverage)
         self.load_markets()
         market = self.market(symbol)
-        marginMode = self.safe_string_2(params, 'marginType', 'marginMode')
-        params = self.omit(params, ['marginType', 'marginMode', 'tradeMode'])
+        marginMode = self.safe_string(params, 'marginMode')
+        params = self.omit(params, ['marginMode', 'tradeMode'])
         if marginMode == 'isolated':
             promises = []
             request = {
@@ -3556,11 +3558,15 @@ class bitget(Exchange):
         :param dict params: extra parameters specific to the bitget api endpoint
         :returns dict: response from the exchange
         """
+        marginMode = marginMode.lower()
+        if marginMode == 'isolated':
+            marginMode = 'fixed'
+        elif marginMode == 'cross':
+            marginMode = 'crossed'
         if symbol is None:
             raise ArgumentsRequired(self.id + ' setMarginMode() requires a symbol argument')
-        marginMode = marginMode.lower()
         if (marginMode != 'fixed') and (marginMode != 'crossed'):
-            raise ArgumentsRequired(self.id + ' setMarginMode() marginMode must be "fixed" or "crossed"')
+            raise ArgumentsRequired(self.id + ' setMarginMode() marginMode must be "fixed" or "crossed"(or "isolated" or "cross")')
         self.load_markets()
         market = self.market(symbol)
         request = {
@@ -3568,6 +3574,7 @@ class bitget(Exchange):
             'marginCoin': market['settleId'],
             'marginMode': marginMode,
         }
+        params = self.omit(params, ['leverage', 'buyLeverage', 'sellLeverage'])
         try:
             return self.privateMixPostAccountSetMarginMode(self.extend(request, params))
         except Exception as e:
@@ -3622,11 +3629,11 @@ class bitget(Exchange):
             'info': data,
             'markets': {},
             'tradeMode': tradeMode,
-            'marginType': 'isolated' if isIsolated else 'cross',
+            'marginMode': 'isolated' if isIsolated else 'cross',
         }
         leverageConfigs = accountConfig['markets']
         leverageConfigs[market['symbol']] = {
-            'marginType': 'isolated' if isIsolated else 'cross',
+            'marginMode': 'isolated' if isIsolated else 'cross',
             'isIsolated': isIsolated,
             'leverage': leverage,
             'buyLeverage': buyLeverage,

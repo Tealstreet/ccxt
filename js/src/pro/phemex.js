@@ -397,7 +397,7 @@ export default class phemex extends phemexRest {
         symbol = market['symbol'];
         const url = this.urls['api']['ws'];
         const requestId = this.requestId();
-        const name = 'orderbook';
+        const name = 'orderbook_p';
         const messageHash = name + ':' + symbol;
         const method = name + '.subscribe';
         const subscribe = {
@@ -482,12 +482,12 @@ export default class phemex extends phemexRest {
         const symbol = market['symbol'];
         const type = this.safeString(message, 'type');
         const depth = this.safeInteger(message, 'depth');
-        const name = 'orderbook';
+        const name = 'orderbook_p';
         const messageHash = name + ':' + symbol;
         const nonce = this.safeInteger(message, 'sequence');
         const timestamp = this.safeIntegerProduct(message, 'timestamp', 0.000001);
         if (type === 'snapshot') {
-            const book = this.safeValue(message, 'book', {});
+            const book = this.safeValue2(message, 'book', 'orderbook_p', {});
             const snapshot = this.customParseOrderBook(book, symbol, timestamp, 'bids', 'asks', 0, 1, market);
             snapshot['nonce'] = nonce;
             const orderbook = this.orderBook(snapshot, depth);
@@ -497,7 +497,7 @@ export default class phemex extends phemexRest {
         else {
             const orderbook = this.safeValue(this.orderbooks, symbol);
             if (orderbook !== undefined) {
-                const changes = this.safeValue(message, 'book', {});
+                const changes = this.safeValue2(message, 'book', 'orderbook_p', {});
                 const asks = this.safeValue(changes, 'asks', []);
                 const bids = this.safeValue(changes, 'bids', []);
                 this.handleDeltas(orderbook['asks'], asks, market);
@@ -1014,7 +1014,7 @@ export default class phemex extends phemexRest {
         else if ('kline' in message) {
             return this.handleOHLCV(client, message);
         }
-        else if ('book' in message) {
+        else if ('book' in message || 'orderbook_p' in message) {
             return this.handleOrderBook(client, message);
         }
         if ('orders' in message) {

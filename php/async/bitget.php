@@ -2622,7 +2622,7 @@ class bitget extends Exchange {
                 }
                 $request['marginCoin'] = $market['settleId'];
             }
-            $omitted = $this->omit($query, array( 'stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginType', 'reduceOnly', 'close' ));
+            $omitted = $this->omit($query, array( 'stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginMode', 'reduceOnly', 'close' ));
             $response = Async\await($this->$method (array_merge($request, $omitted)));
             //
             //     {
@@ -3746,11 +3746,11 @@ class bitget extends Exchange {
         }) ();
     }
 
-    public function set_leverage($symbol, $buyLeverage, $sellLeverage, $params = array ()) {
-        return Async\async(function () use ($symbol, $buyLeverage, $sellLeverage, $params) {
+    public function set_leverage($leverage, $symbol = null, $params = array ()) {
+        return Async\async(function () use ($leverage, $symbol, $params) {
             /**
-             * set the level of leverage for a $market
-             * @param {float} leverage the rate of leverage
+             * set the level of $leverage for a $market
+             * @param {float} $leverage the rate of $leverage
              * @param {string} $symbol unified $market $symbol
              * @param {array} $params extra parameters specific to the bitget api endpoint
              * @return {array} response from the exchange
@@ -3758,10 +3758,12 @@ class bitget extends Exchange {
             if ($symbol === null) {
                 throw new ArgumentsRequired($this->id . ' setLeverage() requires a $symbol argument');
             }
+            $buyLeverage = $this->safe_number($params, 'buyLeverage', $leverage);
+            $sellLeverage = $this->safe_number($params, 'sellLeverage', $leverage);
             Async\await($this->load_markets());
             $market = $this->market($symbol);
-            $marginMode = $this->safe_string_2($params, 'marginType', 'marginMode');
-            $params = $this->omit($params, array( 'marginType', 'marginMode', 'tradeMode' ));
+            $marginMode = $this->safe_string($params, 'marginMode');
+            $params = $this->omit($params, array( 'marginMode', 'tradeMode' ));
             if ($marginMode === 'isolated') {
                 $promises = array();
                 $request = array(
@@ -3815,12 +3817,17 @@ class bitget extends Exchange {
              * @param {array} $params extra parameters specific to the bitget api endpoint
              * @return {array} response from the exchange
              */
+            $marginMode = strtolower($marginMode);
+            if ($marginMode === 'isolated') {
+                $marginMode = 'fixed';
+            } elseif ($marginMode === 'cross') {
+                $marginMode = 'crossed';
+            }
             if ($symbol === null) {
                 throw new ArgumentsRequired($this->id . ' setMarginMode() requires a $symbol argument');
             }
-            $marginMode = strtolower($marginMode);
             if (($marginMode !== 'fixed') && ($marginMode !== 'crossed')) {
-                throw new ArgumentsRequired($this->id . ' setMarginMode() $marginMode must be "fixed" or "crossed"');
+                throw new ArgumentsRequired($this->id . ' setMarginMode() $marginMode must be "fixed" or "crossed" (or "isolated" or "cross")');
             }
             Async\await($this->load_markets());
             $market = $this->market($symbol);
@@ -3829,6 +3836,7 @@ class bitget extends Exchange {
                 'marginCoin' => $market['settleId'],
                 'marginMode' => $marginMode,
             );
+            $params = $this->omit($params, array( 'leverage', 'buyLeverage', 'sellLeverage' ));
             try {
                 return Async\await($this->privateMixPostAccountSetMarginMode (array_merge($request, $params)));
             } catch (Exception $e) {
@@ -3893,11 +3901,11 @@ class bitget extends Exchange {
             'info' => $data,
             'markets' => array(),
             'tradeMode' => $tradeMode,
-            'marginType' => $isIsolated ? 'isolated' : 'cross',
+            'marginMode' => $isIsolated ? 'isolated' : 'cross',
         );
         $leverageConfigs = $accountConfig['markets'];
         $leverageConfigs[$market['symbol']] = array(
-            'marginType' => $isIsolated ? 'isolated' : 'cross',
+            'marginMode' => $isIsolated ? 'isolated' : 'cross',
             'isIsolated' => $isIsolated,
             'leverage' => $leverage,
             'buyLeverage' => $buyLeverage,

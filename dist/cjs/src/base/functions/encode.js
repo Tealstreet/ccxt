@@ -13,10 +13,27 @@ const base58Alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwx
 let base58Decoder = null;
 let base58Encoder = null;
 /*  ------------------------------------------------------------------------ */
+// TEALSTREET browser safe to yarn link
+const urlencodesafe = (object) => {
+    try {
+        return index.stringify(object);
+    }
+    catch (e) {
+        return new URLSearchParams(object).toString();
+    }
+};
+const urlencodeWithArrayRepeatSafe = (object) => {
+    try {
+        return index.stringify(object, { arrayFormat: 'repeat' });
+    }
+    catch (e) {
+        return new URLSearchParams(object).toString();
+    }
+};
 const json = (data, params = undefined) => JSON.stringify(data), isJsonEncodedObject = object => ((typeof object === 'string') &&
     (object.length >= 2) &&
-    ((object[0] === '{') || (object[0] === '['))), stringToBinary = string => cryptoJs.enc.Latin1.parse(string), stringToBase64 = string => cryptoJs.enc.Latin1.parse(string).toString(cryptoJs.enc.Base64), base64ToBinary = string => cryptoJs.enc.Base64.parse(string), base64ToString = string => cryptoJs.enc.Base64.parse(string).toString(cryptoJs.enc.Utf8), binaryToBase64 = binary => binary.toString(cryptoJs.enc.Base64), base16ToBinary = string => cryptoJs.enc.Hex.parse(string), binaryToBase16 = binary => binary.toString(cryptoJs.enc.Hex), binaryConcat = (...args) => args.reduce((a, b) => a.concat(b)), binaryConcatArray = (arr) => arr.reduce((a, b) => a.concat(b)), urlencode = object => index.stringify(object), urlencodeNested = object => index.stringify(object) // implemented only in python
-, urlencodeWithArrayRepeat = object => index.stringify(object, { arrayFormat: 'repeat' }), rawencode = object => index.stringify(object, { encode: false }), encode = x => x, decode = x => x
+    ((object[0] === '{') || (object[0] === '['))), stringToBinary = string => cryptoJs.enc.Latin1.parse(string), stringToBase64 = string => cryptoJs.enc.Latin1.parse(string).toString(cryptoJs.enc.Base64), base64ToBinary = string => cryptoJs.enc.Base64.parse(string), base64ToString = string => cryptoJs.enc.Base64.parse(string).toString(cryptoJs.enc.Utf8), binaryToBase64 = binary => binary.toString(cryptoJs.enc.Base64), base16ToBinary = string => cryptoJs.enc.Hex.parse(string), binaryToBase16 = binary => binary.toString(cryptoJs.enc.Hex), binaryConcat = (...args) => args.reduce((a, b) => a.concat(b)), binaryConcatArray = (arr) => arr.reduce((a, b) => a.concat(b)), urlencode = object => urlencodesafe(object), urlencodeNested = object => index.stringify(object) // implemented only in python
+, urlencodeWithArrayRepeat = urlencodeWithArrayRepeatSafe, rawencode = object => index.stringify(object, { encode: false }), encode = x => x, decode = x => x
 // Url-safe-base64 without equals signs, with + replaced by - and slashes replaced by underscores
 , urlencodeBase64 = base64string => base64string.replace(/[=]+$/, '')
     .replace(/\+/g, '-')

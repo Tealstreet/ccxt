@@ -205,7 +205,13 @@ class Client {
         }
         if (!this.error) {
             // todo: exception types for server-side disconnects
-            this.reset(new errors.NetworkError('connection closed by remote server, closing code ' + String(event.code)));
+            // TEALSTREET
+            if (errors.NetworkError) {
+                this.reset(new errors.NetworkError('connection closed by remote server, closing code ' + String(event.code)));
+            }
+            else {
+                this.reset(new Error('connection closed by remote server, closing code ' + String(event.code)));
+            }
         }
         this.onCloseCallback(this, event);
     }

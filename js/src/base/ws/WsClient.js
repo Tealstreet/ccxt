@@ -6,15 +6,7 @@
 
 import Client from './Client.js';
 import { sleep, isNode, milliseconds, } from '../../base/functions.js';
-// TEALSTREET
-let WebSocket = null;
-try {
-    WebSocket = window.WebSocket;
-}
-catch (e) {
-    // @eslint-disable-next-line
-    // WebSocket = require ('ws')
-}
+import WebSocket from 'ws';
 const WebSocketPlatform = isNode ? WebSocket : self.WebSocket;
 export default class WsClient extends Client {
     createConnection() {
@@ -23,11 +15,12 @@ export default class WsClient extends Client {
         }
         this.connectionStarted = milliseconds();
         this.setConnectionTimeout();
+        const url = `${this.url}${this.url.includes('?') ? '&' : '?'}${+new Date()}`;
         if (isNode) {
-            this.connection = new WebSocketPlatform(this.url, this.protocols, this.options);
+            this.connection = new WebSocketPlatform(url, this.protocols, this.options);
         }
         else {
-            this.connection = new WebSocketPlatform(this.url, this.protocols);
+            this.connection = new WebSocketPlatform(url, this.protocols);
         }
         this.connection.onopen = this.onOpen.bind(this);
         this.connection.onmessage = this.onMessage.bind(this);
