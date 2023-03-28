@@ -4051,6 +4051,28 @@ export default class Exchange {
     async fetchAccountConfiguration (symbol, params = {}): Promise<object> {
         return {};
     }
+
+    getUrl () {
+        return this.urls['api']['ws'];
+    }
+
+    createClientFuture (url, messageHash) {
+        url = url || this.getUrl ();
+        const client = this.client (url);
+        return client.future (messageHash);
+    }
+
+    async watchHeartbeat () {
+        const messageHash = 'ping';
+        const url = this.getUrl ();
+        return await this.createClientFuture (url, messageHash);
+    }
+
+    handlePong (client, message) {
+        client.lastPong = this.milliseconds ();
+        client.resolve ('pong', 'ping');
+        return message;
+    }
 }
 
 export {

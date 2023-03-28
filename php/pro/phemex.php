@@ -1099,9 +1099,12 @@ class phemex extends \ccxt\async\phemex {
                 }
             }
         }
-        if ((is_array($message) && array_key_exists('spot_market24h', $message)) || (is_array($message) && array_key_exists('market24h', $message))) {
+        $method = $this->safe_value($message, 'method', '');
+        if ($method === 'server.ping' || $this->safe_string($message, 'result') === 'pong') {
+            $this->handle_pong($client, $message);
+        } elseif ((is_array($message) && array_key_exists('spot_market24h', $message)) || (is_array($message) && array_key_exists('market24h', $message))) {
             return $this->handle_ticker($client, $message);
-        } elseif (is_array($message) && array_key_exists('perp_market24h_pack_p', $message)) {
+        } elseif ($method->includes ('perp_market24h_pack_p')) {
             return $this->handle_packed_tickers($client, $message);
         } elseif (is_array($message) && array_key_exists('trades', $message)) {
             return $this->handle_trades($client, $message);
@@ -1184,5 +1187,15 @@ class phemex extends \ccxt\async\phemex {
             }
             return Async\await($future);
         }) ();
+    }
+
+    public function ping($client) {
+        $requestId = $this->request_id();
+        $subscriptionHash = 'server.ping';
+        return array(
+            'method' => $subscriptionHash,
+            'id' => $requestId,
+            'params' => array(),
+        );
     }
 }

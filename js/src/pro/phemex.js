@@ -1067,7 +1067,6 @@ export default class phemex extends phemexRest {
                 const subscription = values[i];
                 if (subscription !== true) {
                     const subId = this.safeInteger(subscription, 'id');
-                    console.log(subscription)
                     if ((subId !== undefined) && (subId === id)) {
                         const method = this.safeValue(subscription, 'method');
                         if (method !== undefined) {
@@ -1079,7 +1078,10 @@ export default class phemex extends phemexRest {
             }
         }
         const method = this.safeValue(message, 'method', '');
-        if (('spot_market24h' in message) || ('market24h' in message)) {
+        if (method === 'server.ping' || this.safeString(message, 'result') === 'pong') {
+            this.handlePong(client, message);
+        }
+        else if (('spot_market24h' in message) || ('market24h' in message)) {
             return this.handleTicker(client, message);
         }
         else if (method.includes('perp_market24h_pack_p')) {
@@ -1161,5 +1163,14 @@ export default class phemex extends phemexRest {
             this.spawn(this.watch, url, messageHash, request, messageHash, subscription);
         }
         return await future;
+    }
+    ping(client) {
+        const requestId = this.requestId();
+        const subscriptionHash = 'server.ping';
+        return {
+            'method': subscriptionHash,
+            'id': requestId,
+            'params': [],
+        };
     }
 }

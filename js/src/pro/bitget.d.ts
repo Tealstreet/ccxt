@@ -32,6 +32,5 @@ export default class bitget extends bitgetRest {
     handleErrorMessage(client: any, message: any): boolean;
     handleMessage(client: any, message: any): void;
     ping(client: any): string;
-    handlePong(client: any, message: any): any;
     handleSubscriptionStatus(client: any, message: any): any;
 }

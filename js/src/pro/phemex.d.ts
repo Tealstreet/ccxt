@@ -72,4 +72,9 @@ export default class phemex extends phemexRest {
     handleAuthenticate(client: any, message: any): any;
     subscribePrivate(type: any, messageHash: any, params?: {}): Promise<any>;
     authenticate(params?: {}): Promise<any>;
+    ping(client: any): {
+        method: string;
+        id: any;
+        params: any[];
+    };
 }

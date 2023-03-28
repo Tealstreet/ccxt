@@ -1010,9 +1010,12 @@ class phemex(ccxt.async_support.phemex):
                         if method is not None:
                             method(client, message)
                             return
-        if ('spot_market24h' in message) or ('market24h' in message):
+        method = self.safe_value(message, 'method', '')
+        if method == 'server.ping' or self.safe_string(message, 'result') == 'pong':
+            self.handle_pong(client, message)
+        elif ('spot_market24h' in message) or ('market24h' in message):
             return self.handle_ticker(client, message)
-        elif 'perp_market24h_pack_p' in message:
+        elif method.includes('perp_market24h_pack_p'):
             return self.handle_packed_tickers(client, message)
         elif 'trades' in message:
             return self.handle_trades(client, message)
@@ -1084,3 +1087,12 @@ class phemex(ccxt.async_support.phemex):
             }
             self.spawn(self.watch, url, messageHash, request, messageHash, subscription)
         return await future
+
+    def ping(self, client):
+        requestId = self.request_id()
+        subscriptionHash = 'server.ping'
+        return {
+            'method': subscriptionHash,
+            'id': requestId,
+            'params': [],
+        }
