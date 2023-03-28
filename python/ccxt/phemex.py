@@ -1822,6 +1822,20 @@ class phemex(Exchange):
         }
         return self.safe_string(timeInForces, timeInForce.upper(), timeInForce)
 
+    def parse_trigger_type(self, triggerType):
+        triggerTypes = {
+            'ByMarkPrice': 'mark',
+            'ByLastPrice': 'last',
+        }
+        return self.safe_string(triggerTypes, triggerType, triggerType)
+
+    def format_trigger_type(self, triggerType):
+        triggerTypes = {
+            'mark': 'ByMarkPrice',
+            'last': 'ByLastPrice',
+        }
+        return self.safe_string(triggerTypes, triggerType.lower(), triggerType)
+
     def parse_spot_order(self, order, market=None):
         #
         # spot
@@ -2069,9 +2083,9 @@ class phemex(Exchange):
         execInst = self.safe_string(order, 'execInst', '')
         if execInst.find('ReduceOnly') >= 0:
             reduceOnly = True
-        if execInst.find('CloseOnTrigger') > 0:
+        if execInst.find('CloseOnTrigger') >= 0:
             close = True
-        trigger = self.safe_string_n(order, ['trigger', 'slTrigger', 'tpTrigger'])
+        trigger = self.parse_trigger_type(self.safe_string_n(order, ['trigger', 'slTrigger', 'tpTrigger']))
         return self.safe_order({
             'info': order,
             'id': id,
@@ -2158,9 +2172,8 @@ class phemex(Exchange):
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is None:
             brokerId = self.safe_string(self.options, 'brokerId')
-            print(brokerId)
             if brokerId is not None:
-                request['clOrdID'] = brokerId + self.uuid16()
+                request['clOrdID'] = brokerId + '_' + self.uuid16()
         else:
             request['clOrdID'] = clientOrderId
             params = self.omit(params, ['clOrdID', 'clientOrderId'])
@@ -2207,7 +2220,7 @@ class phemex(Exchange):
             else:
                 request['orderQty'] = int(amount)
             if stopPrice is not None:
-                triggerType = self.safe_string(params, 'triggerType', 'ByMarkPrice')
+                triggerType = self.format_trigger_type(self.safe_string_2(params, 'trigger', 'triggerType', 'ByMarkPrice'))
                 request['triggerType'] = triggerType
                 closeOnTrigger = self.safe_value_2(params, 'close', 'closeOnTrigger')
                 if closeOnTrigger is not None:
@@ -2237,7 +2250,7 @@ class phemex(Exchange):
             method = 'privatePostGOrders'
         elif market['contract']:
             method = 'privatePostOrders'
-        params = self.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close')
+        params = self.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice')
         response = getattr(self, method)(self.extend(request, params))
         #
         # spot
@@ -2366,9 +2379,6 @@ class phemex(Exchange):
         if stopPrice is not None:
             if isUSDTSettled:
                 request['stopPxRp'] = self.price_to_precision(symbol, stopPrice)
-                basePrice = self.safe_number(params, 'basePrice')
-                if basePrice is not None:
-                    request['priceRp'] = self.price_to_precision(symbol, basePrice)
             else:
                 request['stopPxEp'] = self.to_ep(stopPrice, market)
         params = self.omit(params, ['stopPx', 'stopPrice'])

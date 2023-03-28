@@ -1880,6 +1880,22 @@ class phemex extends Exchange {
         return $this->safe_string($timeInForces, strtoupper($timeInForce), $timeInForce);
     }
 
+    public function parse_trigger_type($triggerType) {
+        $triggerTypes = array(
+            'ByMarkPrice' => 'mark',
+            'ByLastPrice' => 'last',
+        );
+        return $this->safe_string($triggerTypes, $triggerType, $triggerType);
+    }
+
+    public function format_trigger_type($triggerType) {
+        $triggerTypes = array(
+            'mark' => 'ByMarkPrice',
+            'last' => 'ByLastPrice',
+        );
+        return $this->safe_string($triggerTypes, strtolower($triggerType), $triggerType);
+    }
+
     public function parse_spot_order($order, $market = null) {
         //
         // spot
@@ -2136,10 +2152,10 @@ class phemex extends Exchange {
         if (mb_strpos($execInst, 'ReduceOnly') !== false) {
             $reduceOnly = true;
         }
-        if (mb_strpos($execInst, 'CloseOnTrigger') > 0) {
+        if (mb_strpos($execInst, 'CloseOnTrigger') !== false) {
             $close = true;
         }
-        $trigger = $this->safe_string_n($order, array( 'trigger', 'slTrigger', 'tpTrigger' ));
+        $trigger = $this->parse_trigger_type($this->safe_string_n($order, array( 'trigger', 'slTrigger', 'tpTrigger' )));
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,
@@ -2230,9 +2246,8 @@ class phemex extends Exchange {
         $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
         if ($clientOrderId === null) {
             $brokerId = $this->safe_string($this->options, 'brokerId');
-            var_dump ($brokerId);
             if ($brokerId !== null) {
-                $request['clOrdID'] = $brokerId . $this->uuid16();
+                $request['clOrdID'] = $brokerId . '_' . $this->uuid16();
             }
         } else {
             $request['clOrdID'] = $clientOrderId;
@@ -2291,7 +2306,7 @@ class phemex extends Exchange {
                 $request['orderQty'] = intval($amount);
             }
             if ($stopPrice !== null) {
-                $triggerType = $this->safe_string($params, 'triggerType', 'ByMarkPrice');
+                $triggerType = $this->format_trigger_type($this->safe_string_2($params, 'trigger', 'triggerType', 'ByMarkPrice'));
                 $request['triggerType'] = $triggerType;
                 $closeOnTrigger = $this->safe_value_2($params, 'close', 'closeOnTrigger');
                 if ($closeOnTrigger !== null) {
@@ -2331,7 +2346,7 @@ class phemex extends Exchange {
         } elseif ($market['contract']) {
             $method = 'privatePostOrders';
         }
-        $params = $this->omit($params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close');
+        $params = $this->omit($params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice');
         $response = $this->$method (array_merge($request, $params));
         //
         // spot
@@ -2467,10 +2482,6 @@ class phemex extends Exchange {
         if ($stopPrice !== null) {
             if ($isUSDTSettled) {
                 $request['stopPxRp'] = $this->price_to_precision($symbol, $stopPrice);
-                $basePrice = $this->safe_number($params, 'basePrice');
-                if ($basePrice !== null) {
-                    $request['priceRp'] = $this->price_to_precision($symbol, $basePrice);
-                }
             } else {
                 $request['stopPxEp'] = $this->to_ep($stopPrice, $market);
             }
