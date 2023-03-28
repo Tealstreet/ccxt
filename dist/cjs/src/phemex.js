@@ -2118,10 +2118,15 @@ class phemex extends Exchange["default"] {
         const stopPrice = this.safeNumber2(order, 'stopPx', 'stopPxRp') || null;
         const postOnly = (timeInForce === 'PO');
         let reduceOnly = this.safeValue(order, 'reduceOnly');
-        const execInst = this.safeString(order, 'execInst');
-        if (execInst === 'ReduceOnly') {
+        let close = this.safeValue(order, 'closeOnTrigger');
+        const execInst = this.safeString(order, 'execInst', '');
+        if (execInst.includes('ReduceOnly')) {
             reduceOnly = true;
         }
+        if (execInst.includes('CloseOnTrigger')) {
+            close = true;
+        }
+        const trigger = this.safeStringN(order, ['trigger', 'slTrigger', 'tpTrigger']);
         return this.safeOrder({
             'info': order,
             'id': id,
@@ -2132,8 +2137,6 @@ class phemex extends Exchange["default"] {
             'symbol': symbol,
             'type': type,
             'timeInForce': timeInForce,
-            'postOnly': postOnly,
-            'reduceOnly': reduceOnly,
             'side': side,
             'price': price,
             'stopPrice': stopPrice,
@@ -2146,6 +2149,10 @@ class phemex extends Exchange["default"] {
             'status': status,
             'fee': undefined,
             'trades': undefined,
+            'reduceOnly': reduceOnly,
+            'postOnly': postOnly,
+            'close': close,
+            'trigger': trigger,
         });
     }
     parseOrder(order, market = undefined) {
