@@ -6,6 +6,28 @@ export default class phemex extends phemexRest {
     fromEv(ev: any, market?: any): any;
     fromEr(er: any, market?: any): any;
     requestId(): any;
+    parseUsdtTicker(ticker: any, market?: any): {
+        symbol: any;
+        timestamp: number;
+        datetime: string;
+        high: any;
+        low: any;
+        bid: any;
+        bidVolume: any;
+        ask: any;
+        askVolume: any;
+        vwap: any;
+        open: number;
+        close: number;
+        last: number;
+        previousClose: any;
+        change: number;
+        percentage: number;
+        average: number;
+        baseVolume: number;
+        quoteVolume: number;
+        info: any;
+    };
     parseSwapTicker(ticker: any, market?: any): {
         symbol: any;
         timestamp: number;
@@ -28,6 +50,7 @@ export default class phemex extends phemexRest {
         quoteVolume: number;
         info: any;
     };
+    handlePackedTickers(client: any, message: any): void;
     handleTicker(client: any, message: any): void;
     watchBalance(params?: {}): Promise<any>;
     handleBalance(type: any, client: any, message: any): void;
@@ -49,4 +72,9 @@ export default class phemex extends phemexRest {
     handleAuthenticate(client: any, message: any): any;
     subscribePrivate(type: any, messageHash: any, params?: {}): Promise<any>;
     authenticate(params?: {}): Promise<any>;
+    ping(client: any): {
+        method: string;
+        id: any;
+        params: any[];
+    };
 }

@@ -3,86 +3,103 @@
 var _commonjsHelpers = require('./_commonjsHelpers.js');
 
 const commonjsRegister = _commonjsHelpers.commonjsRegister;
-commonjsRegister("/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa/key.cjs", function (module, exports) {
-var utils = _commonjsHelpers.commonjsRequire("../utils.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa");
+commonjsRegister("/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec/key.cjs", function (module, exports) {
+var BN = _commonjsHelpers.commonjsRequire("../../../../BN/bn.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec");
+var elliptic = _commonjsHelpers.commonjsRequire("../../elliptic.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec");
+var utils = elliptic.utils;
 var assert = utils.assert;
-var parseBytes = utils.parseBytes;
-var cachedProperty = utils.cachedProperty;
-/**
-* @param {EDDSA} eddsa - instance
-* @param {Object} params - public/private key parameters
-*
-* @param {Array<Byte>} [params.secret] - secret seed bytes
-* @param {Point} [params.pub] - public key point (aka `A` in eddsa terms)
-* @param {Array<Byte>} [params.pub] - public key point encoded as bytes
-*
-*/
-function KeyPair(eddsa, params) {
-    this.eddsa = eddsa;
-    this._secret = parseBytes(params.secret);
-    if (eddsa.isPoint(params.pub))
-        this._pub = params.pub;
-    else
-        this._pubBytes = parseBytes(params.pub);
+function KeyPair(ec, options) {
+    this.ec = ec;
+    this.priv = null;
+    this.pub = null;
+    // KeyPair(ec, { priv: ..., pub: ... })
+    if (options.priv)
+        this._importPrivate(options.priv, options.privEnc);
+    if (options.pub)
+        this._importPublic(options.pub, options.pubEnc);
 }
-KeyPair.fromPublic = function fromPublic(eddsa, pub) {
+module.exports = KeyPair;
+KeyPair.fromPublic = function fromPublic(ec, pub, enc) {
     if (pub instanceof KeyPair)
         return pub;
-    return new KeyPair(eddsa, { pub: pub });
+    return new KeyPair(ec, {
+        pub: pub,
+        pubEnc: enc
+    });
 };
-KeyPair.fromSecret = function fromSecret(eddsa, secret) {
-    if (secret instanceof KeyPair)
-        return secret;
-    return new KeyPair(eddsa, { secret: secret });
+KeyPair.fromPrivate = function fromPrivate(ec, priv, enc) {
+    if (priv instanceof KeyPair)
+        return priv;
+    return new KeyPair(ec, {
+        priv: priv,
+        privEnc: enc
+    });
 };
-KeyPair.prototype.secret = function secret() {
-    return this._secret;
+KeyPair.prototype.validate = function validate() {
+    var pub = this.getPublic();
+    if (pub.isInfinity())
+        return { result: false, reason: 'Invalid public key' };
+    if (!pub.validate())
+        return { result: false, reason: 'Public key is not a point' };
+    if (!pub.mul(this.ec.curve.n).isInfinity())
+        return { result: false, reason: 'Public key * N != O' };
+    return { result: true, reason: null };
 };
-cachedProperty(KeyPair, 'pubBytes', function pubBytes() {
-    return this.eddsa.encodePoint(this.pub());
-});
-cachedProperty(KeyPair, 'pub', function pub() {
-    if (this._pubBytes)
-        return this.eddsa.decodePoint(this._pubBytes);
-    return this.eddsa.g.mul(this.priv());
-});
-cachedProperty(KeyPair, 'privBytes', function privBytes() {
-    var eddsa = this.eddsa;
-    var hash = this.hash();
-    var lastIx = eddsa.encodingLength - 1;
-    var a = hash.slice(0, eddsa.encodingLength);
-    a[0] &= 248;
-    a[lastIx] &= 127;
-    a[lastIx] |= 64;
-    return a;
-});
-cachedProperty(KeyPair, 'priv', function priv() {
-    return this.eddsa.decodeInt(this.privBytes());
-});
-cachedProperty(KeyPair, 'hash', function hash() {
-    return this.eddsa.hash().update(this.secret()).digest();
-});
-cachedProperty(KeyPair, 'messagePrefix', function messagePrefix() {
-    return this.hash().slice(this.eddsa.encodingLength);
-});
-KeyPair.prototype.sign = function sign(message) {
-    assert(this._secret, 'KeyPair can only verify');
-    return this.eddsa.sign(message, this);
+KeyPair.prototype.getPublic = function getPublic(compact, enc) {
+    // compact is optional argument
+    if (typeof compact === 'string') {
+        enc = compact;
+        compact = null;
+    }
+    if (!this.pub)
+        this.pub = this.ec.g.mul(this.priv);
+    if (!enc)
+        return this.pub;
+    return this.pub.encode(enc, compact);
 };
-KeyPair.prototype.signModified = function sign(message) {
-    assert(this._secret, 'KeyPair can only verify');
-    return this.eddsa.signModified(message, this);
+KeyPair.prototype.getPrivate = function getPrivate(enc) {
+    if (enc === 'hex')
+        return this.priv.toString(16, 2);
+    else
+        return this.priv;
 };
-KeyPair.prototype.verify = function verify(message, sig) {
-    return this.eddsa.verify(message, sig, this);
+KeyPair.prototype._importPrivate = function _importPrivate(key, enc) {
+    this.priv = new BN(key, enc || 16);
+    // Ensure that the priv won't be bigger than n, otherwise we may fail
+    // in fixed multiplication method
+    this.priv = this.priv.umod(this.ec.curve.n);
 };
-KeyPair.prototype.getSecret = function getSecret(enc) {
-    assert(this._secret, 'KeyPair is public only');
-    return utils.encode(this.secret(), enc);
+KeyPair.prototype._importPublic = function _importPublic(key, enc) {
+    if (key.x || key.y) {
+        // Montgomery points only have an `x` coordinate.
+        // Weierstrass/Edwards points on the other hand have both `x` and
+        // `y` coordinates.
+        if (this.ec.curve.type === 'mont') {
+            assert(key.x, 'Need x coordinate');
+        }
+        else if (this.ec.curve.type === 'short' ||
+            this.ec.curve.type === 'edwards') {
+            assert(key.x && key.y, 'Need both x and y coordinate');
+        }
+        this.pub = this.ec.curve.point(key.x, key.y);
+        return;
+    }
+    this.pub = this.ec.curve.decodePoint(key, enc);
 };
-KeyPair.prototype.getPublic = function getPublic(enc) {
-    return utils.encode(this.pubBytes(), enc);
+// ECDH
+KeyPair.prototype.derive = function derive(pub) {
+    return pub.mul(this.priv).getX();
 };
-module.exports = KeyPair;
+// ECDSA
+KeyPair.prototype.sign = function sign(msg, enc, options) {
+    return this.ec.sign(msg, this, enc, options);
+};
+KeyPair.prototype.verify = function verify(msg, signature) {
+    return this.ec.verify(msg, signature, this);
+};
+KeyPair.prototype.inspect = function inspect() {
+    return '<Key priv: ' + (this.priv && this.priv.toString(16, 2)) +
+        ' pub: ' + (this.pub && this.pub.inspect()) + ' >';
+};
 
 });

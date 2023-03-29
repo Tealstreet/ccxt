@@ -78,6 +78,43 @@ class phemex extends \ccxt\async\phemex {
         return $requestId;
     }
 
+    public function parse_usdt_ticker($ticker, $market = null) {
+        $marketId = $this->safe_string($ticker, 0);
+        $market = $this->safe_market($marketId, $market);
+        $symbol = $market['symbol'];
+        $timestamp = $this->milliseconds();
+        $last = $this->safe_number($ticker, 1);
+        $open = $this->safe_number($ticker, 2);
+        $change = $this->safe_number($ticker, 3);
+        $percentage = $this->safe_number($ticker, 4);
+        $average = $this->sum($open, $last) / 2;
+        $baseVolume = $this->safe_number($ticker, 5);
+        $quoteVolume = $this->safe_number($ticker, 6);
+        $result = array(
+            'symbol' => $symbol,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'high' => null,
+            'low' => null,
+            'bid' => null,
+            'bidVolume' => null,
+            'ask' => null,
+            'askVolume' => null,
+            'vwap' => null,
+            'open' => $open,
+            'close' => $last,
+            'last' => $last,
+            'previousClose' => null, // previous day close
+            'change' => $change,
+            'percentage' => $percentage,
+            'average' => $average,
+            'baseVolume' => $baseVolume,
+            'quoteVolume' => $quoteVolume,
+            'info' => $ticker,
+        );
+        return $result;
+    }
+
     public function parse_swap_ticker($ticker, $market = null) {
         //
         //     {
@@ -138,6 +175,28 @@ class phemex extends \ccxt\async\phemex {
         return $result;
     }
 
+    public function handle_packed_tickers($client, $message) {
+        // {
+        //     data => array(
+        //         array( 'ARBUSDT', '1.2836', '1.2853', '1.1097', '1.1336', '67516998', '80802821.8848', '927730', '1.13333999', '1.133479632', '0.0001', '0.0001' ),
+        //         array( 'VGXUSDT', '0.347', '0.351', '0.319', '0.319', '3993395', '1341385.4816', '331386', '0.32088837', '0.320870637', '0.0001', '0.0001' ),
+        //         ...
+        //     );
+        // }
+        $tickers = $this->safe_value($message, 'data', array());
+        for ($i = 0; $i < count($tickers); $i++) {
+            $ticker = $tickers[$i];
+            $result = $this->parse_usdt_ticker($ticker);
+            $symbol = $result['symbol'];
+            $messageHash = 'perp_market24h_pack_p' . ':' . $symbol;
+            $timestamp = $this->safe_integer_product($message, 'timestamp', 0.000001);
+            $result['timestamp'] = $timestamp;
+            $result['datetime'] = $this->iso8601($timestamp);
+            $this->tickers[$symbol] = $result;
+            $client->resolve ($result, $messageHash);
+        }
+    }
+
     public function handle_ticker($client, $message) {
         //
         //     {
@@ -175,15 +234,15 @@ class phemex extends \ccxt\async\phemex {
         //         $timestamp => 1592845585373374500
         //     }
         //
-        $name = 'market24h';
+        $name = 'spot_market24h';
         $ticker = $this->safe_value($message, $name);
         $result = null;
         if ($ticker === null) {
-            $name = 'spot_market24h';
+            $name = 'market24h';
             $ticker = $this->safe_value($message, $name);
-            $result = $this->parse_ticker($ticker);
-        } else {
             $result = $this->parse_swap_ticker($ticker);
+        } else {
+            $result = $this->parse_ticker($ticker);
         }
         $symbol = $result['symbol'];
         $messageHash = $name . ':' . $symbol;
@@ -313,6 +372,9 @@ class phemex extends \ccxt\async\phemex {
         $name = 'kline';
         $marketId = $this->safe_string($message, 'symbol');
         $market = $this->safe_market($marketId);
+        if ($market['settle'] === 'USDT') {
+            $name = 'kline_p';
+        }
         $symbol = $market['symbol'];
         $candles = $this->safe_value($message, $name, array());
         $first = $this->safe_value($candles, 0, array());
@@ -347,7 +409,14 @@ class phemex extends \ccxt\async\phemex {
             Async\await($this->load_markets());
             $market = $this->market($symbol);
             $symbol = $market['symbol'];
-            $name = $market['spot'] ? 'spot_market24h' : 'market24h';
+            $name = null;
+            if ($market['spot']) {
+                $name = 'spot_market24h';
+            } elseif ($market['settle'] === 'USDT') {
+                $name = 'perp_market24h_pack_p';
+            } else {
+                $name = 'market24h';
+            }
             $url = $this->urls['api']['ws'];
             $requestId = $this->request_id();
             $subscriptionHash = $name . '.subscribe';
@@ -410,7 +479,10 @@ class phemex extends \ccxt\async\phemex {
             $symbol = $market['symbol'];
             $url = $this->urls['api']['ws'];
             $requestId = $this->request_id();
-            $name = 'orderbook_p';
+            $name = 'book';
+            if ($market['settle'] === 'USDT') {
+                $name = 'orderbook_p';
+            }
             $messageHash = $name . ':' . $symbol;
             $method = $name . '.subscribe';
             $subscribe = array(
@@ -443,6 +515,9 @@ class phemex extends \ccxt\async\phemex {
             $url = $this->urls['api']['ws'];
             $requestId = $this->request_id();
             $name = 'kline';
+            if ($market['settle'] === 'USDT') {
+                $name = 'kline_p';
+            }
             $messageHash = $name . ':' . $timeframe . ':' . $symbol;
             $method = $name . '.subscribe';
             $subscribe = array(
@@ -500,7 +575,10 @@ class phemex extends \ccxt\async\phemex {
         $symbol = $market['symbol'];
         $type = $this->safe_string($message, 'type');
         $depth = $this->safe_integer($message, 'depth');
-        $name = 'orderbook_p';
+        $name = 'book';
+        if ($market['settle'] === 'USDT') {
+            $name = 'orderbook_p';
+        }
         $messageHash = $name . ':' . $symbol;
         $nonce = $this->safe_integer($message, 'sequence');
         $timestamp = $this->safe_integer_product($message, 'timestamp', 0.000001);
@@ -1027,11 +1105,16 @@ class phemex extends \ccxt\async\phemex {
                 }
             }
         }
-        if ((is_array($message) && array_key_exists('market24h', $message)) || (is_array($message) && array_key_exists('spot_market24h', $message))) {
+        $method = $this->safe_value($message, 'method', '');
+        if ($method === 'server.ping' || $this->safe_string($message, 'result') === 'pong') {
+            $this->handle_pong($client, $message);
+        } elseif ((is_array($message) && array_key_exists('spot_market24h', $message)) || (is_array($message) && array_key_exists('market24h', $message))) {
             return $this->handle_ticker($client, $message);
+        } elseif (mb_strpos($method, 'perp_market24h_pack_p') !== false) {
+            return $this->handle_packed_tickers($client, $message);
         } elseif (is_array($message) && array_key_exists('trades', $message)) {
             return $this->handle_trades($client, $message);
-        } elseif (is_array($message) && array_key_exists('kline', $message)) {
+        } elseif (is_array($message || 'kline_p' in $message) && array_key_exists('kline', $message || 'kline_p' in $message)) {
             return $this->handle_ohlcv($client, $message);
         } elseif (is_array($message || 'orderbook_p' in $message) && array_key_exists('book', $message || 'orderbook_p' in $message)) {
             return $this->handle_order_book($client, $message);
@@ -1110,5 +1193,15 @@ class phemex extends \ccxt\async\phemex {
             }
             return Async\await($future);
         }) ();
+    }
+
+    public function ping($client) {
+        $requestId = $this->request_id();
+        $subscriptionHash = 'server.ping';
+        return array(
+            'method' => $subscriptionHash,
+            'id' => $requestId,
+            'params' => array(),
+        );
     }
 }

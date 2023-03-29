@@ -1226,11 +1226,6 @@ class bitget extends \ccxt\async\bitget {
         return 'ping';
     }
 
-    public function handle_pong($client, $message) {
-        $client->lastPong = $this->milliseconds();
-        return $message;
-    }
-
     public function handle_subscription_status($client, $message) {
         //
         //    {

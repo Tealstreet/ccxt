@@ -3963,3 +3963,21 @@ class Exchange(object):
 
     def fetch_account_configuration(self, symbol, params={}):
         return {}
+
+    def get_url(self):
+        return self.urls['api']['ws']
+
+    def create_client_future(self, url, messageHash):
+        url = url or self.getUrl()
+        client = self.client(url)
+        return client.future(messageHash)
+
+    def watch_heartbeat(self):
+        messageHash = 'ping'
+        url = self.getUrl()
+        return self.createClientFuture(url, messageHash)
+
+    def handle_pong(self, client, message):
+        client.lastPong = self.milliseconds()
+        client.resolve('pong', 'ping')
+        return message

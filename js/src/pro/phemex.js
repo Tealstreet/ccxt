@@ -71,6 +71,42 @@ export default class phemex extends phemexRest {
         this.options['requestId'] = requestId;
         return requestId;
     }
+    parseUsdtTicker(ticker, market = undefined) {
+        const marketId = this.safeString(ticker, 0);
+        market = this.safeMarket(marketId, market);
+        const symbol = market['symbol'];
+        const timestamp = this.milliseconds();
+        const last = this.safeNumber(ticker, 1);
+        const open = this.safeNumber(ticker, 2);
+        const change = this.safeNumber(ticker, 3);
+        const percentage = this.safeNumber(ticker, 4);
+        const average = this.sum(open, last) / 2;
+        const baseVolume = this.safeNumber(ticker, 5);
+        const quoteVolume = this.safeNumber(ticker, 6);
+        const result = {
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': this.iso8601(timestamp),
+            'high': undefined,
+            'low': undefined,
+            'bid': undefined,
+            'bidVolume': undefined,
+            'ask': undefined,
+            'askVolume': undefined,
+            'vwap': undefined,
+            'open': open,
+            'close': last,
+            'last': last,
+            'previousClose': undefined,
+            'change': change,
+            'percentage': percentage,
+            'average': average,
+            'baseVolume': baseVolume,
+            'quoteVolume': quoteVolume,
+            'info': ticker,
+        };
+        return result;
+    }
     parseSwapTicker(ticker, market = undefined) {
         //
         //     {
@@ -130,6 +166,27 @@ export default class phemex extends phemexRest {
         };
         return result;
     }
+    handlePackedTickers(client, message) {
+        // {
+        //     data: [
+        //         [ 'ARBUSDT', '1.2836', '1.2853', '1.1097', '1.1336', '67516998', '80802821.8848', '927730', '1.13333999', '1.133479632', '0.0001', '0.0001' ],
+        //         [ 'VGXUSDT', '0.347', '0.351', '0.319', '0.319', '3993395', '1341385.4816', '331386', '0.32088837', '0.320870637', '0.0001', '0.0001' ],
+        //         ...
+        //     ];
+        // }
+        const tickers = this.safeValue(message, 'data', []);
+        for (let i = 0; i < tickers.length; i++) {
+            const ticker = tickers[i];
+            const result = this.parseUsdtTicker(ticker);
+            const symbol = result['symbol'];
+            const messageHash = 'perp_market24h_pack_p' + ':' + symbol;
+            const timestamp = this.safeIntegerProduct(message, 'timestamp', 0.000001);
+            result['timestamp'] = timestamp;
+            result['datetime'] = this.iso8601(timestamp);
+            this.tickers[symbol] = result;
+            client.resolve(result, messageHash);
+        }
+    }
     handleTicker(client, message) {
         //
         //     {
@@ -167,16 +224,16 @@ export default class phemex extends phemexRest {
         //         timestamp: 1592845585373374500
         //     }
         //
-        let name = 'market24h';
+        let name = 'spot_market24h';
         let ticker = this.safeValue(message, name);
         let result = undefined;
         if (ticker === undefined) {
-            name = 'spot_market24h';
+            name = 'market24h';
             ticker = this.safeValue(message, name);
-            result = this.parseTicker(ticker);
+            result = this.parseSwapTicker(ticker);
         }
         else {
-            result = this.parseSwapTicker(ticker);
+            result = this.parseTicker(ticker);
         }
         const symbol = result['symbol'];
         const messageHash = name + ':' + symbol;
@@ -299,9 +356,12 @@ export default class phemex extends phemexRest {
         //         type: 'snapshot'
         //     }
         //
-        const name = 'kline';
+        let name = 'kline';
         const marketId = this.safeString(message, 'symbol');
         const market = this.safeMarket(marketId);
+        if (market['settle'] === 'USDT') {
+            name = 'kline_p';
+        }
         const symbol = market['symbol'];
         const candles = this.safeValue(message, name, []);
         const first = this.safeValue(candles, 0, []);
@@ -336,7 +396,16 @@ export default class phemex extends phemexRest {
         await this.loadMarkets();
         const market = this.market(symbol);
         symbol = market['symbol'];
-        const name = market['spot'] ? 'spot_market24h' : 'market24h';
+        let name = undefined;
+        if (market['spot']) {
+            name = 'spot_market24h';
+        }
+        else if (market['settle'] === 'USDT') {
+            name = 'perp_market24h_pack_p';
+        }
+        else {
+            name = 'market24h';
+        }
         const url = this.urls['api']['ws'];
         const requestId = this.requestId();
         const subscriptionHash = name + '.subscribe';
@@ -397,7 +466,10 @@ export default class phemex extends phemexRest {
         symbol = market['symbol'];
         const url = this.urls['api']['ws'];
         const requestId = this.requestId();
-        const name = 'orderbook_p';
+        let name = 'book';
+        if (market['settle'] === 'USDT') {
+            name = 'orderbook_p';
+        }
         const messageHash = name + ':' + symbol;
         const method = name + '.subscribe';
         const subscribe = {
@@ -428,7 +500,10 @@ export default class phemex extends phemexRest {
         symbol = market['symbol'];
         const url = this.urls['api']['ws'];
         const requestId = this.requestId();
-        const name = 'kline';
+        let name = 'kline';
+        if (market['settle'] === 'USDT') {
+            name = 'kline_p';
+        }
         const messageHash = name + ':' + timeframe + ':' + symbol;
         const method = name + '.subscribe';
         const subscribe = {
@@ -482,7 +557,10 @@ export default class phemex extends phemexRest {
         const symbol = market['symbol'];
         const type = this.safeString(message, 'type');
         const depth = this.safeInteger(message, 'depth');
-        const name = 'orderbook_p';
+        let name = 'book';
+        if (market['settle'] === 'USDT') {
+            name = 'orderbook_p';
+        }
         const messageHash = name + ':' + symbol;
         const nonce = this.safeInteger(message, 'sequence');
         const timestamp = this.safeIntegerProduct(message, 'timestamp', 0.000001);
@@ -1005,13 +1083,20 @@ export default class phemex extends phemexRest {
                 }
             }
         }
-        if (('market24h' in message) || ('spot_market24h' in message)) {
+        const method = this.safeValue(message, 'method', '');
+        if (method === 'server.ping' || this.safeString(message, 'result') === 'pong') {
+            this.handlePong(client, message);
+        }
+        else if (('spot_market24h' in message) || ('market24h' in message)) {
             return this.handleTicker(client, message);
+        }
+        else if (method.indexOf('perp_market24h_pack_p') >= 0) {
+            return this.handlePackedTickers(client, message);
         }
         else if ('trades' in message) {
             return this.handleTrades(client, message);
         }
-        else if ('kline' in message) {
+        else if ('kline' in message || 'kline_p' in message) {
             return this.handleOHLCV(client, message);
         }
         else if ('book' in message || 'orderbook_p' in message) {
@@ -1084,5 +1169,14 @@ export default class phemex extends phemexRest {
             this.spawn(this.watch, url, messageHash, request, messageHash, subscription);
         }
         return await future;
+    }
+    ping(client) {
+        const requestId = this.requestId();
+        const subscriptionHash = 'server.ping';
+        return {
+            'method': subscriptionHash,
+            'id': requestId,
+            'params': [],
+        };
     }
 }

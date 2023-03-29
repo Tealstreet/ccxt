@@ -708,5 +708,9 @@ export default class Exchange {
     setPositionMode(hedged: any, symbol?: any, params?: {}): Promise<void>;
     setMarginMode(marginMode: any, symbol?: any, params?: {}): Promise<void>;
     fetchAccountConfiguration(symbol: any, params?: {}): Promise<object>;
+    getUrl(): any;
+    createClientFuture(url: any, messageHash: any): any;
+    watchHeartbeat(): Promise<any>;
+    handlePong(client: any, message: any): any;
 }
 export { Exchange, };

@@ -1193,10 +1193,6 @@ class bitget extends bitget$1 {
     ping(client) {
         return 'ping';
     }
-    handlePong(client, message) {
-        client.lastPong = this.milliseconds();
-        return message;
-    }
     handleSubscriptionStatus(client, message) {
         //
         //    {

@@ -761,6 +761,10 @@ class Exchange {
         'setPositionMode' => 'set_position_mode',
         'setMarginMode' => 'set_margin_mode',
         'fetchAccountConfiguration' => 'fetch_account_configuration',
+        'getUrl' => 'get_url',
+        'createClientFuture' => 'create_client_future',
+        'watchHeartbeat' => 'watch_heartbeat',
+        'handlePong' => 'handle_pong',
     );
 
     public static function split($string, $delimiters = array(' ')) {
@@ -5204,5 +5208,27 @@ class Exchange {
 
     public function fetch_account_configuration($symbol, $params = array ()) {
         return array();
+    }
+
+    public function get_url() {
+        return $this->urls['api']['ws'];
+    }
+
+    public function create_client_future($url, $messageHash) {
+        $url = $url || $this->getUrl ();
+        $client = $this->client ($url);
+        return $client->future ($messageHash);
+    }
+
+    public function watch_heartbeat() {
+        $messageHash = 'ping';
+        $url = $this->getUrl ();
+        return $this->createClientFuture ($url, $messageHash);
+    }
+
+    public function handle_pong($client, $message) {
+        $client->lastPong = $this->milliseconds ();
+        $client->resolve ('pong', 'ping');
+        return $message;
     }
 }

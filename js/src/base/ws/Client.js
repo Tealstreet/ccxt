@@ -41,6 +41,9 @@ export default class Client {
             inflate: false,
         };
         Object.assign(this, deepExtend(defaults, config));
+        // TEALSTREET
+        this.keepAlive = Math.min(this.keepAlive, 5000);
+        this.maxPingPongMisses = Math.max(this.maxPingPongMisses, 5);
         // connection-related Future
         this.connected = Future();
     }
@@ -126,7 +129,7 @@ export default class Client {
     setPingInterval() {
         if (this.keepAlive) {
             const onPingInterval = this.onPingInterval.bind(this);
-            this.pingInterval = setInterval(onPingInterval, 3000);
+            this.pingInterval = setInterval(onPingInterval, this.keepAlive);
         }
     }
     clearPingInterval() {
