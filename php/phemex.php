@@ -2291,7 +2291,16 @@ class phemex extends Exchange {
                 $request['baseQtyEv'] = $this->to_ev($amountString, $market);
             }
         } elseif ($market['swap']) {
-            $posSide = $this->safe_string_lower($params, 'posSide');
+            $posSide = $this->safe_string_lower_2($params, 'positionMode', 'posSide');
+            if ($posSide === 'oneway') {
+                $posSide = 'Merged';
+            } elseif ($posSide === 'hedged' || $posSide === 'hedge') {
+                if ($side === 'Buy') {
+                    $posSide = $reduceOnly ? 'Short' : 'Long';
+                } else {
+                    $posSide = $reduceOnly ? 'Long' : 'Short';
+                }
+            }
             if ($posSide === null) {
                 $posSide = 'Merged';
             }
@@ -3690,8 +3699,8 @@ class phemex extends Exchange {
             'symbol' => $market['id'],
         );
         if ($market['settle'] === 'USDT') {
-            $positionMode = $this->safe_string($params, 'positionMode');
-            if ($positionMode === 'hedged' || $positionMode === 'Hedge') {
+            $positionMode = $this->safe_string_lower($params, 'positionMode');
+            if ($positionMode === 'hedged' || $positionMode === 'hedge') {
                 $buyLeverage = $this->safe_integer($params, 'buyLeverage', $leverage);
                 $sellLeverage = $this->safe_integer($params, 'sellLeverage', $leverage);
                 if ($marginMode === 'cross') {
@@ -3924,8 +3933,8 @@ class phemex extends Exchange {
         $leverage = $buyLeverage || $leverage;
         if ($market['settle'] === 'USDT') {
             $method = 'privatePutGPositionsLeverage';
-            $positionMode = $this->safe_string($params, 'positionMode');
-            if ($positionMode === 'hedged' || $positionMode === 'Hedge') {
+            $positionMode = $this->safe_string_lower($params, 'positionMode');
+            if ($positionMode === 'hedged' || $positionMode === 'hedge') {
                 if ($buyLeverage === null || $sellLeverage === null) {
                     throw new ArgumentsRequired($this->id . ' setLeverage(is_array(hedge mode requires both $buyLeverage and $sellLeverage arguments') && array_key_exists(), hedge mode requires both $buyLeverage and $sellLeverage arguments'));
                 }

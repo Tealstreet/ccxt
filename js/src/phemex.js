@@ -2293,7 +2293,18 @@ export default class phemex extends Exchange {
             }
         }
         else if (market['swap']) {
-            let posSide = this.safeStringLower(params, 'posSide');
+            let posSide = this.safeStringLower2(params, 'positionMode', 'posSide');
+            if (posSide === 'oneway') {
+                posSide = 'Merged';
+            }
+            else if (posSide === 'hedged' || posSide === 'hedge') {
+                if (side === 'Buy') {
+                    posSide = reduceOnly ? 'Short' : 'Long';
+                }
+                else {
+                    posSide = reduceOnly ? 'Long' : 'Short';
+                }
+            }
             if (posSide === undefined) {
                 posSide = 'Merged';
             }
@@ -3736,8 +3747,8 @@ export default class phemex extends Exchange {
             'symbol': market['id'],
         };
         if (market['settle'] === 'USDT') {
-            const positionMode = this.safeString(params, 'positionMode');
-            if (positionMode === 'hedged' || positionMode === 'Hedge') {
+            const positionMode = this.safeStringLower(params, 'positionMode');
+            if (positionMode === 'hedged' || positionMode === 'hedge') {
                 let buyLeverage = this.safeInteger(params, 'buyLeverage', leverage);
                 let sellLeverage = this.safeInteger(params, 'sellLeverage', leverage);
                 if (marginMode === 'cross') {
@@ -3974,8 +3985,8 @@ export default class phemex extends Exchange {
         leverage = buyLeverage || leverage;
         if (market['settle'] === 'USDT') {
             method = 'privatePutGPositionsLeverage';
-            const positionMode = this.safeString(params, 'positionMode');
-            if (positionMode === 'hedged' || positionMode === 'Hedge') {
+            const positionMode = this.safeStringLower(params, 'positionMode');
+            if (positionMode === 'hedged' || positionMode === 'hedge') {
                 if (buyLeverage === undefined || sellLeverage === undefined) {
                     throw new ArgumentsRequired(this.id + ' setLeverage() in hedge mode requires both buyLeverage and sellLeverage arguments');
                 }
