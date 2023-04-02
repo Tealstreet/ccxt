@@ -2208,7 +2208,14 @@ class phemex(Exchange):
                 amountString = str(amount)
                 request['baseQtyEv'] = self.to_ev(amountString, market)
         elif market['swap']:
-            posSide = self.safe_string_lower(params, 'posSide')
+            posSide = self.safe_string_lower_2(params, 'positionMode', 'posSide')
+            if posSide == 'oneway':
+                posSide = 'Merged'
+            elif posSide == 'hedged' or posSide == 'hedge':
+                if side == 'Buy':
+                    posSide = 'Short' if reduceOnly else 'Long'
+                else:
+                    posSide = 'Long' if reduceOnly else 'Short'
             if posSide is None:
                 posSide = 'Merged'
             posSide = self.capitalize(posSide)
@@ -3504,8 +3511,8 @@ class phemex(Exchange):
             'symbol': market['id'],
         }
         if market['settle'] == 'USDT':
-            positionMode = self.safe_string(params, 'positionMode')
-            if positionMode == 'hedged' or positionMode == 'Hedge':
+            positionMode = self.safe_string_lower(params, 'positionMode')
+            if positionMode == 'hedged' or positionMode == 'hedge':
                 buyLeverage = self.safe_integer(params, 'buyLeverage', leverage)
                 sellLeverage = self.safe_integer(params, 'sellLeverage', leverage)
                 if marginMode == 'cross':
@@ -3722,8 +3729,8 @@ class phemex(Exchange):
         leverage = buyLeverage or leverage
         if market['settle'] == 'USDT':
             method = 'privatePutGPositionsLeverage'
-            positionMode = self.safe_string(params, 'positionMode')
-            if positionMode == 'hedged' or positionMode == 'Hedge':
+            positionMode = self.safe_string_lower(params, 'positionMode')
+            if positionMode == 'hedged' or positionMode == 'hedge':
                 if buyLeverage is None or sellLeverage is None:
                     raise ArgumentsRequired(self.id + ' setLeverage() in hedge mode requires both buyLeverage and sellLeverage arguments')
                 if (buyLeverage < 1) or (buyLeverage > 100):
