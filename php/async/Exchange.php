@@ -2252,9 +2252,9 @@ class Exchange extends \ccxt\Exchange {
             return $foundMarket;
         }
         // eslint-disable-next-line no-console
-        var_dump ($symbol);
+        // var_dump ($symbol);
         // eslint-disable-next-line no-console
-        var_dump ($this->markets);
+        // var_dump ($this->markets);
         throw new BadSymbol($this->id . ' does not have market $symbol ' . $symbol);
     }
 

@@ -1,171 +1,139 @@
 'use strict';
 
 var _commonjsHelpers = require('./_commonjsHelpers.js');
-var require$$1 = require('buffer');
-
-function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
-
-var require$$1__default = /*#__PURE__*/_interopDefaultLegacy(require$$1);
 
 const commonjsRegister = _commonjsHelpers.commonjsRegister;
-commonjsRegister("/$$rollup_base$$/js/src/static_dependencies/node-rsa/schemes/pkcs1.cjs", function (module, exports) {
-/**
- * PKCS1 padding and signature scheme
- */
-var BigInteger = _commonjsHelpers.commonjsRequire("../libs/jsbn.cjs", "/$$rollup_base$$/js/src/static_dependencies/node-rsa/schemes");
-var CryptoJS = _commonjsHelpers.commonjsRequire("../../crypto-js/crypto-js.cjs", "/$$rollup_base$$/js/src/static_dependencies/node-rsa/schemes");
-var constants = { RSA_NO_PADDING: 3 };
-var Buffer = require$$1__default["default"].Buffer;
-// require('constants');
-var SIGN_INFO_HEAD = {
-    md2: Buffer.from('3020300c06082a864886f70d020205000410', 'hex'),
-    md5: Buffer.from('3020300c06082a864886f70d020505000410', 'hex'),
-    sha1: Buffer.from('3021300906052b0e03021a05000414', 'hex'),
-    sha224: Buffer.from('302d300d06096086480165030402040500041c', 'hex'),
-    sha256: Buffer.from('3031300d060960864801650304020105000420', 'hex'),
-    sha384: Buffer.from('3041300d060960864801650304020205000430', 'hex'),
-    sha512: Buffer.from('3051300d060960864801650304020305000440', 'hex'),
-    ripemd160: Buffer.from('3021300906052b2403020105000414', 'hex'),
-    rmd160: Buffer.from('3021300906052b2403020105000414', 'hex')
-};
-var SIGN_ALG_TO_HASH_ALIASES = {
-    'ripemd160': 'rmd160'
-};
-var DEFAULT_HASH_FUNCTION = 'sha256';
+commonjsRegister("/$$rollup_base$$/js/src/static_dependencies/node-rsa/formats/pkcs1.cjs", function (module, exports) {
+var ber = _commonjsHelpers.commonjsRequire("../asn1/index.cjs", "/$$rollup_base$$/js/src/static_dependencies/node-rsa/formats").Ber;
+var _ = _commonjsHelpers.commonjsRequire("../utils.cjs", "/$$rollup_base$$/js/src/static_dependencies/node-rsa/formats")._;
+var utils = _commonjsHelpers.commonjsRequire("../utils.cjs", "/$$rollup_base$$/js/src/static_dependencies/node-rsa/formats");
+const PRIVATE_OPENING_BOUNDARY = '-----BEGIN RSA PRIVATE KEY-----';
+const PRIVATE_CLOSING_BOUNDARY = '-----END RSA PRIVATE KEY-----';
+const PUBLIC_OPENING_BOUNDARY = '-----BEGIN RSA PUBLIC KEY-----';
+const PUBLIC_CLOSING_BOUNDARY = '-----END RSA PUBLIC KEY-----';
 module.exports = {
-    isEncryption: true,
-    isSignature: true
-};
-module.exports.makeScheme = function (key, options) {
-    function Scheme(key, options) {
-        this.key = key;
-        this.options = options;
-    }
-    Scheme.prototype.maxMessageLength = function () {
-        if (this.options.encryptionSchemeOptions && this.options.encryptionSchemeOptions.padding == constants.RSA_NO_PADDING) {
-            return this.key.encryptedDataLength;
-        }
-        return this.key.encryptedDataLength - 11;
-    };
-    /**
-     * Unpad input Buffer and, if valid, return the Buffer object
-     * alg: PKCS#1 (type 2, random)
-     * @param buffer
-     * @returns {Buffer}
-     */
-    Scheme.prototype.encUnPad = function (buffer, options) {
+    privateExport: function (key, options) {
         options = options || {};
-        var i = 0;
-        if (this.options.encryptionSchemeOptions && this.options.encryptionSchemeOptions.padding == constants.RSA_NO_PADDING) {
-            //RSA_NO_PADDING treated like JAVA left pad with zero character
-            var unPad;
-            if (typeof buffer.lastIndexOf == "function") { //patch for old node version
-                unPad = buffer.slice(buffer.lastIndexOf('\0') + 1, buffer.length);
+        var n = key.n.toBuffer();
+        var d = key.d.toBuffer();
+        var p = key.p.toBuffer();
+        var q = key.q.toBuffer();
+        var dmp1 = key.dmp1.toBuffer();
+        var dmq1 = key.dmq1.toBuffer();
+        var coeff = key.coeff.toBuffer();
+        var length = n.length + d.length + p.length + q.length + dmp1.length + dmq1.length + coeff.length + 512; // magic
+        var writer = new ber.Writer({ size: length });
+        writer.startSequence();
+        writer.writeInt(0);
+        writer.writeBuffer(n, 2);
+        writer.writeInt(key.e);
+        writer.writeBuffer(d, 2);
+        writer.writeBuffer(p, 2);
+        writer.writeBuffer(q, 2);
+        writer.writeBuffer(dmp1, 2);
+        writer.writeBuffer(dmq1, 2);
+        writer.writeBuffer(coeff, 2);
+        writer.endSequence();
+        if (options.type === 'der') {
+            return writer.buffer;
+        }
+        else {
+            return PRIVATE_OPENING_BOUNDARY + '\n' + utils.linebrk(writer.buffer.toString('base64'), 64) + '\n' + PRIVATE_CLOSING_BOUNDARY;
+        }
+    },
+    privateImport: function (key, data, options) {
+        options = options || {};
+        var buffer;
+        if (options.type !== 'der') {
+            if (Buffer.isBuffer(data)) {
+                data = data.toString('utf8');
+            }
+            if (_.isString(data)) {
+                var pem = utils.trimSurroundingText(data, PRIVATE_OPENING_BOUNDARY, PRIVATE_CLOSING_BOUNDARY)
+                    .replace(/\s+|\n\r|\n|\r$/gm, '');
+                buffer = Buffer.from(pem, 'base64');
             }
             else {
-                unPad = buffer.slice(String.prototype.lastIndexOf.call(buffer, '\0') + 1, buffer.length);
+                throw Error('Unsupported key format');
             }
-            return unPad;
         }
-        if (buffer.length < 4) {
-            return null;
-        }
-        /* Type 1: zeros padding for private key decrypt */
-        if (options.type === 1) {
-            if (buffer[0] !== 0 && buffer[1] !== 1) {
-                return null;
-            }
-            i = 3;
-            while (buffer[i] !== 0) {
-                if (buffer[i] != 0xFF || ++i >= buffer.length) {
-                    return null;
-                }
-            }
+        else if (Buffer.isBuffer(data)) {
+            buffer = data;
         }
         else {
-            /* random padding for public key decrypt */
-            if (buffer[0] !== 0 && buffer[1] !== 2) {
-                return null;
-            }
-            i = 3;
-            while (buffer[i] !== 0) {
-                if (++i >= buffer.length) {
-                    return null;
-                }
-            }
+            throw Error('Unsupported key format');
         }
-        return buffer.slice(i + 1, buffer.length);
-    };
-    Scheme.prototype.sign = function (buffer) {
-        var hashAlgorithm = this.options.signingSchemeOptions.hash || DEFAULT_HASH_FUNCTION;
-        if (this.options.environment === 'browser') {
-            hashAlgorithm = SIGN_ALG_TO_HASH_ALIASES[hashAlgorithm] || hashAlgorithm;
-            var hasher = CryptoJS[hashAlgorithm.toUpperCase()](buffer.toString());
-            var asBuffer = wordArrayToBuffer(hasher);
-            var paddedHash = this.pkcs1pad(asBuffer, hashAlgorithm);
-            var res = this.key.$doPrivate(new BigInteger(paddedHash)).toBuffer(this.key.encryptedDataLength);
-            return res;
+        var reader = new ber.Reader(buffer);
+        reader.readSequence();
+        reader.readString(2, true); // just zero
+        key.setPrivate(reader.readString(2, true), // modulus
+        reader.readString(2, true), // publicExponent
+        reader.readString(2, true), // privateExponent
+        reader.readString(2, true), // prime1
+        reader.readString(2, true), // prime2
+        reader.readString(2, true), // exponent1 -- d mod (p1)
+        reader.readString(2, true), // exponent2 -- d mod (q-1)
+        reader.readString(2, true) // coefficient -- (inverse of q) mod p
+        );
+    },
+    publicExport: function (key, options) {
+        options = options || {};
+        var n = key.n.toBuffer();
+        var length = n.length + 512; // magic
+        var bodyWriter = new ber.Writer({ size: length });
+        bodyWriter.startSequence();
+        bodyWriter.writeBuffer(n, 2);
+        bodyWriter.writeInt(key.e);
+        bodyWriter.endSequence();
+        if (options.type === 'der') {
+            return bodyWriter.buffer;
         }
         else {
-            throw new Error('CCXT only supports browser mode :P');
+            return PUBLIC_OPENING_BOUNDARY + '\n' + utils.linebrk(bodyWriter.buffer.toString('base64'), 64) + '\n' + PUBLIC_CLOSING_BOUNDARY;
         }
-    };
+    },
+    publicImport: function (key, data, options) {
+        options = options || {};
+        var buffer;
+        if (options.type !== 'der') {
+            if (Buffer.isBuffer(data)) {
+                data = data.toString('utf8');
+            }
+            if (_.isString(data)) {
+                var pem = utils.trimSurroundingText(data, PUBLIC_OPENING_BOUNDARY, PUBLIC_CLOSING_BOUNDARY)
+                    .replace(/\s+|\n\r|\n|\r$/gm, '');
+                buffer = Buffer.from(pem, 'base64');
+            }
+        }
+        else if (Buffer.isBuffer(data)) {
+            buffer = data;
+        }
+        else {
+            throw Error('Unsupported key format');
+        }
+        var body = new ber.Reader(buffer);
+        body.readSequence();
+        key.setPublic(body.readString(0x02, true), // modulus
+        body.readString(0x02, true) // publicExponent
+        );
+    },
     /**
-     * PKCS#1 pad input buffer to max data length
-     * @param hashBuf
-     * @param hashAlgorithm
-     * @returns {*}
+     * Trying autodetect and import key
+     * @param key
+     * @param data
      */
-    Scheme.prototype.pkcs1pad = function (hashBuf, hashAlgorithm) {
-        var digest = SIGN_INFO_HEAD[hashAlgorithm];
-        if (!digest) {
-            throw Error('Unsupported hash algorithm');
+    autoImport: function (key, data) {
+        // [\S\s]* matches zero or more of any character
+        if (/^[\S\s]*-----BEGIN RSA PRIVATE KEY-----\s*(?=(([A-Za-z0-9+/=]+\s*)+))\1-----END RSA PRIVATE KEY-----[\S\s]*$/g.test(data)) {
+            module.exports.privateImport(key, data);
+            return true;
         }
-        var data = Buffer.concat([digest, hashBuf]);
-        if (data.length + 10 > this.key.encryptedDataLength) {
-            throw Error('Key is too short for signing algorithm (' + hashAlgorithm + ')');
+        if (/^[\S\s]*-----BEGIN RSA PUBLIC KEY-----\s*(?=(([A-Za-z0-9+/=]+\s*)+))\1-----END RSA PUBLIC KEY-----[\S\s]*$/g.test(data)) {
+            module.exports.publicImport(key, data);
+            return true;
         }
-        var filled = Buffer.alloc(this.key.encryptedDataLength - data.length - 1);
-        filled.fill(0xff, 0, filled.length - 1);
-        filled[0] = 1;
-        filled[filled.length - 1] = 0;
-        var res = Buffer.concat([filled, data]);
-        return res;
-    };
-    return new Scheme(key, options);
+        return false;
+    }
 };
-// used to convert `CryptoJS` wordArrays into `crypto` hex buffers
-function wordToByteArray(word, length) {
-    var ba = [], xFF = 0xFF;
-    if (length > 0)
-        ba.push(word >>> 24);
-    if (length > 1)
-        ba.push((word >>> 16) & xFF);
-    if (length > 2)
-        ba.push((word >>> 8) & xFF);
-    if (length > 3)
-        ba.push(word & xFF);
-    return ba;
-}
-function wordArrayToBuffer(wordArray) {
-    let length = undefined;
-    if (wordArray.hasOwnProperty("sigBytes") && wordArray.hasOwnProperty("words")) {
-        length = wordArray.sigBytes;
-        wordArray = wordArray.words;
-    }
-    else {
-        throw Error('Argument not a wordArray');
-    }
-    const result = [];
-    let bytes = [];
-    let i = 0;
-    while (length > 0) {
-        bytes = wordToByteArray(wordArray[i], Math.min(4, length));
-        length -= bytes.length;
-        result.push(bytes);
-        i++;
-    }
-    return new Buffer.from([].concat.apply([], result), 'hex');
-}
 
 });

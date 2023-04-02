@@ -3393,9 +3393,9 @@ class Exchange(object):
         if foundMarket:
             return foundMarket
         # eslint-disable-next-line no-console
-        print(symbol)
+        # print(symbol)
         # eslint-disable-next-line no-console
-        print(self.markets)
+        # print(self.markets)
         raise BadSymbol(self.id + ' does not have market symbol ' + symbol)
 
     def handle_withdraw_tag_and_params(self, tag, params):
