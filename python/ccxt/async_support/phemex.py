@@ -3186,7 +3186,6 @@ class phemex(Exchange):
         initialMarginPercentageString = Precise.string_div(initialMarginString, notionalString)
         liquidationPrice = self.safe_number_2(position, 'liquidationPrice', 'liquidationPriceRp')
         markPriceString = self.safe_string_2(position, 'markPrice', 'markPriceRp')
-        contracts = self.safe_string(position, 'size')
         contractSize = self.safe_value(market, 'contractSize')
         contractSizeString = self.number_to_string(contractSize)
         leverage = self.safe_number_2(position, 'leverage', 'leverageRr')
@@ -3204,6 +3203,9 @@ class phemex(Exchange):
             side = 'short'
         elif rawSide is not None:
             side = 'long' if (rawSide == 'Buy') else 'short'
+        contracts = abs(self.safe_number(position, 'size', 0))
+        if side == 'short':
+            contracts = -1 * contracts
         rawPosMode = self.safe_string(position, 'posMode')
         positionMode = 'oneway'
         hedged = False
@@ -3227,7 +3229,8 @@ class phemex(Exchange):
                 priceDiff = Precise.string_sub(Precise.string_div('1', entryPriceString), Precise.string_div('1', markPriceString))
             else:
                 priceDiff = Precise.string_sub(Precise.string_div('1', markPriceString), Precise.string_div('1', entryPriceString))
-        unrealizedPnl = Precise.string_mul(Precise.string_mul(priceDiff, contracts), contractSizeString)
+        contractsString = self.safe_string(position, 'size')
+        unrealizedPnl = Precise.string_mul(Precise.string_mul(priceDiff, contractsString), contractSizeString)
         percentage = Precise.string_mul(Precise.string_div(unrealizedPnl, initialMarginString), '100')
         marginRatio = Precise.string_div(maintenanceMarginString, collateral)
         return {

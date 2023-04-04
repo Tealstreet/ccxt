@@ -79,14 +79,31 @@ class phemex extends \ccxt\async\phemex {
     }
 
     public function parse_usdt_ticker($ticker, $market = null) {
+        // array(
+        //     "BTCUSDT",
+        //     "28262.2",   $open
+        //     "28505.9",   $high
+        //     "27505.5",   $low
+        //     "28218.6",   close
+        //     "27175.609",
+        //     "760874852.225",
+        //     "1183.968",
+        //     "28245.61",   $index
+        //     "28227.262",  $mark
+        //     "0.0001",
+        //     "0.0001"
+        // )
         $marketId = $this->safe_string($ticker, 0);
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
         $timestamp = $this->milliseconds();
-        $last = $this->safe_number($ticker, 1);
-        $open = $this->safe_number($ticker, 2);
-        $change = $this->safe_number($ticker, 3);
-        $percentage = $this->safe_number($ticker, 4);
+        $open = $this->safe_number($ticker, 1);
+        $high = $this->safe_number($ticker, 2);
+        $low = $this->safe_number($ticker, 3);
+        $last = $this->safe_number($ticker, 4);
+        $index = $this->safe_number($ticker, 8);
+        $mark = $this->safe_number($ticker, 9);
+        $change = $this->safe_number($ticker, 7);
         $average = $this->sum($open, $last) / 2;
         $baseVolume = $this->safe_number($ticker, 5);
         $quoteVolume = $this->safe_number($ticker, 6);
@@ -94,8 +111,8 @@ class phemex extends \ccxt\async\phemex {
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => null,
-            'low' => null,
+            'high' => $high,
+            'low' => $low,
             'bid' => null,
             'bidVolume' => null,
             'ask' => null,
@@ -106,11 +123,13 @@ class phemex extends \ccxt\async\phemex {
             'last' => $last,
             'previousClose' => null, // previous day close
             'change' => $change,
-            'percentage' => $percentage,
+            'percentage' => null,
             'average' => $average,
             'baseVolume' => $baseVolume,
             'quoteVolume' => $quoteVolume,
             'info' => $ticker,
+            'index' => $index,
+            'mark' => $mark,
         );
         return $result;
     }

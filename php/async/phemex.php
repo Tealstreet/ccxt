@@ -3398,7 +3398,6 @@ class phemex extends Exchange {
         $initialMarginPercentageString = Precise::string_div($initialMarginString, $notionalString);
         $liquidationPrice = $this->safe_number_2($position, 'liquidationPrice', 'liquidationPriceRp');
         $markPriceString = $this->safe_string_2($position, 'markPrice', 'markPriceRp');
-        $contracts = $this->safe_string($position, 'size');
         $contractSize = $this->safe_value($market, 'contractSize');
         $contractSizeString = $this->number_to_string($contractSize);
         $leverage = $this->safe_number_2($position, 'leverage', 'leverageRr');
@@ -3417,6 +3416,10 @@ class phemex extends Exchange {
             $side = 'short';
         } elseif ($rawSide !== null) {
             $side = ($rawSide === 'Buy') ? 'long' : 'short';
+        }
+        $contracts = abs($this->safe_number($position, 'size', 0));
+        if ($side === 'short') {
+            $contracts = -1 * $contracts;
         }
         $rawPosMode = $this->safe_string($position, 'posMode');
         $positionMode = 'oneway';
@@ -3445,7 +3448,8 @@ class phemex extends Exchange {
                 $priceDiff = Precise::string_sub(Precise::string_div('1', $markPriceString), Precise::string_div('1', $entryPriceString));
             }
         }
-        $unrealizedPnl = Precise::string_mul(Precise::string_mul($priceDiff, $contracts), $contractSizeString);
+        $contractsString = $this->safe_string($position, 'size');
+        $unrealizedPnl = Precise::string_mul(Precise::string_mul($priceDiff, $contractsString), $contractSizeString);
         $percentage = Precise::string_mul(Precise::string_div($unrealizedPnl, $initialMarginString), '100');
         $marginRatio = Precise::string_div($maintenanceMarginString, $collateral);
         return array(

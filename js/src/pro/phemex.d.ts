@@ -10,8 +10,8 @@ export default class phemex extends phemexRest {
         symbol: any;
         timestamp: number;
         datetime: string;
-        high: any;
-        low: any;
+        high: number;
+        low: number;
         bid: any;
         bidVolume: any;
         ask: any;
@@ -22,11 +22,13 @@ export default class phemex extends phemexRest {
         last: number;
         previousClose: any;
         change: number;
-        percentage: number;
+        percentage: any;
         average: number;
         baseVolume: number;
         quoteVolume: number;
         info: any;
+        index: number;
+        mark: number;
     };
     parseSwapTicker(ticker: any, market?: any): {
         symbol: any;

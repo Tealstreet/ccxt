@@ -72,14 +72,31 @@ export default class phemex extends phemexRest {
         return requestId;
     }
     parseUsdtTicker(ticker, market = undefined) {
+        // [
+        //     "BTCUSDT",
+        //     "28262.2",   open
+        //     "28505.9",   high
+        //     "27505.5",   low
+        //     "28218.6",   close
+        //     "27175.609",
+        //     "760874852.225",
+        //     "1183.968",
+        //     "28245.61",   index
+        //     "28227.262",  mark
+        //     "0.0001",
+        //     "0.0001"
+        // ]
         const marketId = this.safeString(ticker, 0);
         market = this.safeMarket(marketId, market);
         const symbol = market['symbol'];
         const timestamp = this.milliseconds();
-        const last = this.safeNumber(ticker, 1);
-        const open = this.safeNumber(ticker, 2);
-        const change = this.safeNumber(ticker, 3);
-        const percentage = this.safeNumber(ticker, 4);
+        const open = this.safeNumber(ticker, 1);
+        const high = this.safeNumber(ticker, 2);
+        const low = this.safeNumber(ticker, 3);
+        const last = this.safeNumber(ticker, 4);
+        const index = this.safeNumber(ticker, 8);
+        const mark = this.safeNumber(ticker, 9);
+        const change = this.safeNumber(ticker, 7);
         const average = this.sum(open, last) / 2;
         const baseVolume = this.safeNumber(ticker, 5);
         const quoteVolume = this.safeNumber(ticker, 6);
@@ -87,8 +104,8 @@ export default class phemex extends phemexRest {
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
-            'high': undefined,
-            'low': undefined,
+            'high': high,
+            'low': low,
             'bid': undefined,
             'bidVolume': undefined,
             'ask': undefined,
@@ -99,11 +116,13 @@ export default class phemex extends phemexRest {
             'last': last,
             'previousClose': undefined,
             'change': change,
-            'percentage': percentage,
+            'percentage': undefined,
             'average': average,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
+            'index': index,
+            'mark': mark,
         };
         return result;
     }

@@ -3390,7 +3390,6 @@ export default class phemex extends Exchange {
         const initialMarginPercentageString = Precise.stringDiv(initialMarginString, notionalString);
         const liquidationPrice = this.safeNumber2(position, 'liquidationPrice', 'liquidationPriceRp');
         const markPriceString = this.safeString2(position, 'markPrice', 'markPriceRp');
-        const contracts = this.safeString(position, 'size');
         const contractSize = this.safeValue(market, 'contractSize');
         const contractSizeString = this.numberToString(contractSize);
         let leverage = this.safeNumber2(position, 'leverage', 'leverageRr');
@@ -3411,6 +3410,10 @@ export default class phemex extends Exchange {
         }
         else if (rawSide !== undefined) {
             side = (rawSide === 'Buy') ? 'long' : 'short';
+        }
+        let contracts = Math.abs(this.safeNumber(position, 'size', 0));
+        if (side === 'short') {
+            contracts = -1 * contracts;
         }
         const rawPosMode = this.safeString(position, 'posMode');
         let positionMode = 'oneway';
@@ -3443,7 +3446,8 @@ export default class phemex extends Exchange {
                 priceDiff = Precise.stringSub(Precise.stringDiv('1', markPriceString), Precise.stringDiv('1', entryPriceString));
             }
         }
-        const unrealizedPnl = Precise.stringMul(Precise.stringMul(priceDiff, contracts), contractSizeString);
+        const contractsString = this.safeString(position, 'size');
+        const unrealizedPnl = Precise.stringMul(Precise.stringMul(priceDiff, contractsString), contractSizeString);
         const percentage = Precise.stringMul(Precise.stringDiv(unrealizedPnl, initialMarginString), '100');
         const marginRatio = Precise.stringDiv(maintenanceMarginString, collateral);
         return {
