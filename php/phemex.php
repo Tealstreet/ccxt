@@ -3935,6 +3935,7 @@ class phemex extends Exchange {
         $buyLeverage = $this->safe_float($params, 'buyLeverage', $leverage);
         $sellLeverage = $this->safe_float($params, 'sellLeverage', $leverage);
         $leverage = $buyLeverage || $leverage;
+        $marginMode = $this->safe_string_lower($params, 'marginMode', 'cross');
         if ($market['settle'] === 'USDT') {
             $method = 'privatePutGPositionsLeverage';
             $positionMode = $this->safe_string_lower($params, 'positionMode');
@@ -3948,20 +3949,33 @@ class phemex extends Exchange {
                 if (($sellLeverage < 1) || ($sellLeverage > 100)) {
                     throw new BadRequest($this->id . ' setLeverage() $sellLeverage should be between 1 and 100');
                 }
-                $request['longLeverageRr'] = $buyLeverage;
-                $request['shortLeverageRr'] = $sellLeverage;
+                if ($marginMode === 'cross') {
+                    $request['longLeverageRr'] = -1 * $buyLeverage;
+                    $request['shortLeverageRr'] = -1 * $sellLeverage;
+                } else {
+                    $request['longLeverageRr'] = $buyLeverage;
+                    $request['shortLeverageRr'] = $sellLeverage;
+                }
             } else {
                 if (($leverage < 1) || ($leverage > 100)) {
                     throw new BadRequest($this->id . ' setLeverage() $leverage should be between 1 and 100');
                 }
-                $request['leverageRr'] = $leverage;
+                if ($marginMode === 'cross') {
+                    $request['leverageRr'] = -1 * $leverage;
+                } else {
+                    $request['leverageRr'] = $leverage;
+                }
             }
         } else {
             $effectiveLeverage = $leverage || $buyLeverage;
             if (($effectiveLeverage < 1) || ($effectiveLeverage > 100)) {
                 throw new BadRequest($this->id . ' setLeverage() $leverage should be between 1 and 100');
             }
-            $request['leverage'] = $effectiveLeverage;
+            if ($marginMode === 'cross') {
+                $request['leverage'] = -1 * $effectiveLeverage;
+            } else {
+                $request['leverage'] = $effectiveLeverage;
+            }
         }
         $params = $this->omit($params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode');
         return $this->$method (array_merge($request, $params));

@@ -3984,6 +3984,7 @@ class phemex extends Exchange["default"] {
         const buyLeverage = this.safeFloat(params, 'buyLeverage', leverage);
         const sellLeverage = this.safeFloat(params, 'sellLeverage', leverage);
         leverage = buyLeverage || leverage;
+        const marginMode = this.safeStringLower(params, 'marginMode', 'cross');
         if (market['settle'] === 'USDT') {
             method = 'privatePutGPositionsLeverage';
             const positionMode = this.safeStringLower(params, 'positionMode');
@@ -3997,14 +3998,25 @@ class phemex extends Exchange["default"] {
                 if ((sellLeverage < 1) || (sellLeverage > 100)) {
                     throw new errors.BadRequest(this.id + ' setLeverage() sellLeverage should be between 1 and 100');
                 }
-                request['longLeverageRr'] = buyLeverage;
-                request['shortLeverageRr'] = sellLeverage;
+                if (marginMode === 'cross') {
+                    request['longLeverageRr'] = -1 * buyLeverage;
+                    request['shortLeverageRr'] = -1 * sellLeverage;
+                }
+                else {
+                    request['longLeverageRr'] = buyLeverage;
+                    request['shortLeverageRr'] = sellLeverage;
+                }
             }
             else {
                 if ((leverage < 1) || (leverage > 100)) {
                     throw new errors.BadRequest(this.id + ' setLeverage() leverage should be between 1 and 100');
                 }
-                request['leverageRr'] = leverage;
+                if (marginMode === 'cross') {
+                    request['leverageRr'] = -1 * leverage;
+                }
+                else {
+                    request['leverageRr'] = leverage;
+                }
             }
         }
         else {
@@ -4012,7 +4024,12 @@ class phemex extends Exchange["default"] {
             if ((effectiveLeverage < 1) || (effectiveLeverage > 100)) {
                 throw new errors.BadRequest(this.id + ' setLeverage() leverage should be between 1 and 100');
             }
-            request['leverage'] = effectiveLeverage;
+            if (marginMode === 'cross') {
+                request['leverage'] = -1 * effectiveLeverage;
+            }
+            else {
+                request['leverage'] = effectiveLeverage;
+            }
         }
         params = this.omit(params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode');
         return await this[method](this.extend(request, params));
