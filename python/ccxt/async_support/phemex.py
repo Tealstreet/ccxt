@@ -3730,6 +3730,7 @@ class phemex(Exchange):
         buyLeverage = self.safe_float(params, 'buyLeverage', leverage)
         sellLeverage = self.safe_float(params, 'sellLeverage', leverage)
         leverage = buyLeverage or leverage
+        marginMode = self.safe_string_lower(params, 'marginMode', 'cross')
         if market['settle'] == 'USDT':
             method = 'privatePutGPositionsLeverage'
             positionMode = self.safe_string_lower(params, 'positionMode')
@@ -3740,17 +3741,27 @@ class phemex(Exchange):
                     raise BadRequest(self.id + ' setLeverage() buyLeverage should be between 1 and 100')
                 if (sellLeverage < 1) or (sellLeverage > 100):
                     raise BadRequest(self.id + ' setLeverage() sellLeverage should be between 1 and 100')
-                request['longLeverageRr'] = buyLeverage
-                request['shortLeverageRr'] = sellLeverage
+                if marginMode == 'cross':
+                    request['longLeverageRr'] = -1 * buyLeverage
+                    request['shortLeverageRr'] = -1 * sellLeverage
+                else:
+                    request['longLeverageRr'] = buyLeverage
+                    request['shortLeverageRr'] = sellLeverage
             else:
                 if (leverage < 1) or (leverage > 100):
                     raise BadRequest(self.id + ' setLeverage() leverage should be between 1 and 100')
-                request['leverageRr'] = leverage
+                if marginMode == 'cross':
+                    request['leverageRr'] = -1 * leverage
+                else:
+                    request['leverageRr'] = leverage
         else:
             effectiveLeverage = leverage or buyLeverage
             if (effectiveLeverage < 1) or (effectiveLeverage > 100):
                 raise BadRequest(self.id + ' setLeverage() leverage should be between 1 and 100')
-            request['leverage'] = effectiveLeverage
+            if marginMode == 'cross':
+                request['leverage'] = -1 * effectiveLeverage
+            else:
+                request['leverage'] = effectiveLeverage
         params = self.omit(params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode')
         return await getattr(self, method)(self.extend(request, params))
 
