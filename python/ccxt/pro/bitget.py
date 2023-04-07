@@ -31,7 +31,7 @@ class bitget(ccxt.async_support.bitget):
             },
             'urls': {
                 'api': {
-                    'ws': 'wss://ws.bitget.com/spot/v1/stream',
+                    'ws': 'wss://ws.bitget.com/mix/v1/stream',
                 },
             },
             'options': {
@@ -45,7 +45,6 @@ class bitget(ccxt.async_support.bitget):
                     '30m': '30m',
                     '1h': '1H',
                     '4h': '4H',
-                    '6h': '6H',
                     '12h': '12H',
                     '1d': '1D',
                     '1w': '1W',
@@ -67,29 +66,37 @@ class bitget(ccxt.async_support.bitget):
     def get_ws_market_id(self, market):
         # WS don't use the same 'id'
         # rest version
-        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
         if market['spot']:
             return market['info']['symbolName']
         else:
-            if not sandboxMode:
-                return market['id'].replace('_UMCBL', '')
-            else:
-                return market['id'].replace('_SUMCBL', '')
+            formattedId = market['id']
+            marketIdParts = formattedId.split('_')
+            if len(marketIdParts) >= 2:
+                prefix = marketIdParts[0]
+                # suffix = marketIdParts[1]
+                formattedId = prefix
+            return formattedId
 
     def get_market_id_from_arg(self, arg):
         #
         # {arg: {instType: 'sp', channel: 'ticker', instId: 'BTCUSDT'}
         #
         instType = self.safe_string(arg, 'instType')
-        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
         marketId = self.safe_string(arg, 'instId')
         if instType == 'sp':
             marketId += '_SPBL'
-        else:
-            if not sandboxMode:
-                marketId += '_UMCBL'
-            else:
-                marketId += '_SUMCBL'
+        elif marketId[0] == 'S' and len(marketId) > 6 and marketId[-5:] == 'SPERP':
+            marketId = marketId + '_SCMCBL'
+        elif marketId[0] == 'S' and len(marketId) > 6 and marketId[-5:] == 'SUSDT':
+            marketId = marketId + '_SUMCBL'
+        elif marketId[0] == 'S' and len(marketId) > 6 and marketId[-4:] == 'SUSD':
+            marketId = marketId + '_SDMCBL'
+        elif marketId[-4:] == 'PERP':
+            marketId = marketId + '_CMCBL'
+        elif marketId[-4:] == 'USDT':
+            marketId = marketId + '_UMCBL'
+        elif marketId[-3:] == 'USD':
+            marketId = marketId + '_DMCBL'
         return marketId
 
     async def watch_ticker(self, symbol, params={}):
@@ -97,7 +104,7 @@ class bitget(ccxt.async_support.bitget):
         watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
         :param str symbol: unified symbol of the market to fetch the ticker for
         :param dict params: extra parameters specific to the bitget api endpoint
-        :returns dict: a `ticker structure <https://docs.ccxt.com/#/?id=ticker-structure>`
+        :returns dict: a `ticker structure <https://docs.ccxt.com/en/latest/manual.html#ticker-structure>`
         """
         await self.load_markets()
         market = self.market(symbol)
@@ -324,7 +331,6 @@ class bitget(ccxt.async_support.bitget):
             self.safe_number(ohlcv, 2),
             self.safe_number(ohlcv, 3),
             self.safe_number(ohlcv, 4),
-            self.safe_number(ohlcv, 5),
         ]
 
     async def watch_order_book(self, symbol, limit=None, params={}):
@@ -333,11 +339,12 @@ class bitget(ccxt.async_support.bitget):
         :param str symbol: unified symbol of the market to fetch the order book for
         :param int|None limit: the maximum amount of order book entries to return
         :param dict params: extra parameters specific to the bitget api endpoint
-        :returns dict: A dictionary of `order book structures <https://docs.ccxt.com/#/?id=order-book-structure>` indexed by market symbols
+        :returns dict: A dictionary of `order book structures <https://docs.ccxt.com/en/latest/manual.html#order-book-structure>` indexed by market symbols
         """
         await self.load_markets()
         market = self.market(symbol)
         symbol = market['symbol']
+        # symbol = 'BTCUSD'
         messageHash = 'orderbook' + ':' + symbol
         instType = 'sp' if market['spot'] else 'mc'
         channel = 'books'
@@ -519,7 +526,7 @@ class bitget(ccxt.async_support.bitget):
         amount = self.safe_string(trade, 2)
         return self.safe_trade({
             'info': trade,
-            'id': None,
+            'id': self.uuid(),
             'order': None,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
@@ -540,31 +547,23 @@ class bitget(ccxt.async_support.bitget):
         :param int|None since: the earliest time in ms to fetch orders for
         :param int|None limit: the maximum number of  orde structures to retrieve
         :param dict params: extra parameters specific to the bitget api endpoint
-        :returns [dict]: a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
+        :returns [dict]: a list of [order structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure
         """
         await self.load_markets()
         market = None
         marketId = None
-        messageHash = 'order'
+        messageHash = 'order:'
         subscriptionHash = 'order:trades'
         if symbol is not None:
             market = self.market(symbol)
             symbol = market['symbol']
             marketId = market['id']
-            messageHash = messageHash + ':' + symbol
+            messageHash += market['symbol']
         type = None
         type, params = self.handle_market_type_and_params('watchOrders', market, params)
         if (type == 'spot') and (symbol is None):
             raise ArgumentsRequired(self.id + ' watchOrders requires a symbol argument for ' + type + ' markets.')
-        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
-        instType = None
-        if type == 'spot':
-            instType = 'spbl'
-        else:
-            if not sandboxMode:
-                instType = 'UMCBL'
-            else:
-                instType = 'SUMCBL'
+        instType = 'spbl' if (type == 'spot') else 'umcbl'
         instId = marketId if (type == 'spot') else 'default'  # different from other streams here the 'rest' id is required for spot markets, contract markets require default here
         args = {
             'instType': instType,
@@ -606,8 +605,7 @@ class bitget(ccxt.async_support.bitget):
         #
         arg = self.safe_value(message, 'arg', {})
         instType = self.safe_string(arg, 'instType')
-        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
-        isContractUpdate = (instType == 'umcbl') if (not sandboxMode) else (instType == 'sumcbl')
+        isContractUpdate = instType == 'umcbl'
         data = self.safe_value(message, 'data', [])
         if self.orders is None:
             limit = self.safe_integer(self.options, 'ordersLimit', 1000)
@@ -629,7 +627,6 @@ class bitget(ccxt.async_support.bitget):
             symbol = keys[i]
             messageHash = 'order:' + symbol
             client.resolve(stored, messageHash)
-        client.resolve(stored, 'order')
 
     def parse_ws_order(self, order, market=None):
         #
@@ -744,7 +741,6 @@ class bitget(ccxt.async_support.bitget):
             'side': side,
             'price': price,
             'stopPrice': None,
-            'triggerPrice': None,
             'amount': amount,
             'cost': cost,
             'average': average,
@@ -772,7 +768,7 @@ class bitget(ccxt.async_support.bitget):
         :param int|None since: the earliest time in ms to fetch trades for
         :param int|None limit: the maximum number of trades structures to retrieve
         :param dict params: extra parameters specific to the bitget api endpoint
-        :returns [dict]: a list of `trade structures <https://docs.ccxt.com/#/?id=trade-structure>`
+        :returns [dict]: a list of `trade structures <https://docs.ccxt.com/en/latest/manual.html#trade-structure>`
         """
         # only contracts stream provides the trade info consistently in between order updates
         # the spot stream only provides on limit orders updates so we can't support it for spot
@@ -787,10 +783,9 @@ class bitget(ccxt.async_support.bitget):
         type, params = self.handle_market_type_and_params('watchMyTrades', market, params)
         if type == 'spot':
             raise NotSupported(self.id + ' watchMyTrades is not supported for ' + type + ' markets.')
-        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
         subscriptionHash = 'order:trades'
         args = {
-            'instType': 'umcbl' if (not sandboxMode) else 'sumcbl',
+            'instType': 'umcbl',
             'channel': 'orders',
             'instId': 'default',
         }
@@ -922,22 +917,16 @@ class bitget(ccxt.async_support.bitget):
         """
         type = None
         type, params = self.handle_market_type_and_params('watchOrders', None, params)
-        sandboxMode = self.safe_value(self.options, 'sandboxMode', False)
-        instType = 'spbl'
-        if type == 'swap':
-            instType = 'UMCBL'
-            if sandboxMode:
-                instType = 'S' + instType
+        instType = 'spbl' if (type == 'spot') else 'umcbl'
         args = {
             'instType': instType,
             'channel': 'account',
             'instId': 'default',
         }
-        messageHash = 'balance:' + instType.lower()
+        messageHash = 'balance:' + instType
         return await self.watch_private(messageHash, messageHash, args, params)
 
     def handle_balance(self, client, message):
-        # spot
         #
         #    {
         #        action: 'snapshot',
@@ -948,35 +937,13 @@ class bitget(ccxt.async_support.bitget):
         #        ]
         #    }
         #
-        # swap
-        #    {
-        #      "action": "snapshot",
-        #      "arg": {
-        #        "instType": "umcbl",
-        #        "channel": "account",
-        #        "instId": "default"
-        #      },
-        #      "data": [
-        #        {
-        #          "marginCoin": "USDT",
-        #          "locked": "0.00000000",
-        #          "available": "3384.58046492",
-        #          "maxOpenPosAvailable": "3384.58046492",
-        #          "maxTransferOut": "3384.58046492",
-        #          "equity": "3384.58046492",
-        #          "usdtEquity": "3384.580464925690"
-        #        }
-        #      ]
-        #    }
-        #
         data = self.safe_value(message, 'data', [])
         for i in range(0, len(data)):
             rawBalance = data[i]
-            currencyId = self.safe_string_2(rawBalance, 'coinName', 'marginCoin')
+            currencyId = self.safe_string(rawBalance, 'coinName')
             code = self.safe_currency_code(currencyId)
             account = self.balance[code] if (code in self.balance) else self.account()
             account['free'] = self.safe_string(rawBalance, 'available')
-            account['total'] = self.safe_string(rawBalance, 'equity')
             self.balance[code] = account
         self.balance = self.safe_balance(self.balance)
         arg = self.safe_value(message, 'arg')
@@ -993,19 +960,19 @@ class bitget(ccxt.async_support.bitget):
         message = self.extend(request, params)
         return await self.watch(url, messageHash, message, messageHash)
 
-    def authenticate(self, params={}):
+    async def authenticate(self, params={}):
         self.check_required_credentials()
         url = self.urls['api']['ws']
         client = self.client(url)
-        messageHash = 'authenticated'
-        future = self.safe_value(client.subscriptions, messageHash)
-        if future is None:
+        future = client.future('authenticated')
+        messageHash = 'login'
+        authenticated = self.safe_value(client.subscriptions, messageHash)
+        if authenticated is None:
             timestamp = str(self.seconds())
             auth = timestamp + 'GET' + '/user/verify'
             signature = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256, 'base64')
-            operation = 'login'
             request = {
-                'op': operation,
+                'op': messageHash,
                 'args': [
                     {
                         'apiKey': self.apiKey,
@@ -1015,10 +982,8 @@ class bitget(ccxt.async_support.bitget):
                     },
                 ],
             }
-            message = self.extend(request, params)
-            future = self.watch(url, messageHash, message)
-            client.subscriptions[messageHash] = future
-        return future
+            self.spawn(self.watch, url, messageHash, self.extend(request, params), messageHash)
+        return await future
 
     async def watch_private(self, messageHash, subscriptionHash, args, params={}):
         await self.authenticate()
@@ -1034,8 +999,10 @@ class bitget(ccxt.async_support.bitget):
         #
         #  {event: 'login', code: 0}
         #
-        messageHash = 'authenticated'
-        client.resolve(message, messageHash)
+        future = client.futures['authenticated']
+        future.resolve(1)
+        client.resolve(1, 'login')
+        return message
 
     def handle_error_message(self, client, message):
         #
@@ -1047,14 +1014,10 @@ class bitget(ccxt.async_support.bitget):
                 code = self.safe_string(message, 'code')
                 feedback = self.id + ' ' + self.json(message)
                 self.throw_exactly_matched_exception(self.exceptions['ws']['exact'], code, feedback)
-            return False
         except Exception as e:
             if isinstance(e, AuthenticationError):
-                messageHash = 'authenticated'
-                client.reject(e, messageHash)
-                if messageHash in client.subscriptions:
-                    del client.subscriptions[messageHash]
-            return True
+                return False
+        return message
 
     def handle_message(self, client, message):
         #
@@ -1091,7 +1054,7 @@ class bitget(ccxt.async_support.bitget):
         #        arg: {instType: 'spbl', channel: 'account', instId: 'default'}
         #    }
         #
-        if self.handle_error_message(client, message):
+        if not self.handle_error_message(client, message):
             return
         content = self.safe_string(message, 'message')
         if content == 'pong':
