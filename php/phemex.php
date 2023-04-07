@@ -1856,6 +1856,8 @@ class phemex extends Exchange {
             '10' => 'market',
             'Limit' => 'limit',
             'Market' => 'market',
+            'MarketIfTouched' => 'stop',
+            'LimitIfTouched' => 'stopLimit',
         );
         return $this->safe_string($types, $type, $type);
     }
@@ -2254,11 +2256,14 @@ class phemex extends Exchange {
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId' ));
         }
         $stopPrice = $this->safe_string_2($params, 'stopPx', 'stopPrice');
+        $formattedStopPrice = null;
         if ($stopPrice !== null) {
             if ($market['settle'] === 'USDT') {
                 $request['stopPxRp'] = $this->price_to_precision($symbol, $stopPrice);
+                $formattedStopPrice = $this->safe_float($request, 'stopPxRp');
             } else {
                 $request['stopPxEp'] = $this->to_ep($stopPrice, $market);
+                $formattedStopPrice = $this->safe_float($request, 'stopPxEp');
             }
         }
         $params = $this->omit($params, array( 'stopPx', 'stopPrice' ));
@@ -2314,12 +2319,24 @@ class phemex extends Exchange {
             } else {
                 $request['orderQty'] = intval($amount);
             }
-            if ($stopPrice !== null) {
+            if ($formattedStopPrice !== null) {
                 $triggerType = $this->format_trigger_type($this->safe_string_2($params, 'trigger', 'triggerType', 'ByMarkPrice'));
                 $request['triggerType'] = $triggerType;
                 $closeOnTrigger = $this->safe_value_2($params, 'close', 'closeOnTrigger');
                 if ($closeOnTrigger !== null) {
                     $request['closeOnTrigger'] = $closeOnTrigger;
+                }
+                $basePrice = $this->safe_float($params, 'basePrice');
+                if ($basePrice !== null) {
+                    if (($formattedStopPrice > $basePrice && $side === 'Sell') || ($formattedStopPrice < $basePrice && $side === 'Buy')) {
+                        if ($type === 'Stop') {
+                            $type = 'MarketIfTouched';
+                            $request['ordType'] = $type;
+                        } elseif ($type === 'StopLimit') {
+                            $type = 'LimitIfTouched';
+                            $request['ordType'] = $type;
+                        }
+                    }
                 }
             }
         }
@@ -2355,7 +2372,7 @@ class phemex extends Exchange {
         } elseif ($market['contract']) {
             $method = 'privatePostOrders';
         }
-        $params = $this->omit($params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice');
+        $params = $this->omit($params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice', 'positionMode');
         $response = $this->$method (array_merge($request, $params));
         //
         // spot
@@ -3997,7 +4014,7 @@ class phemex extends Exchange {
         $accountsByType = $this->safe_value($this->options, 'accountsByType', array());
         $fromId = $this->safe_string($accountsByType, $fromAccount, $fromAccount);
         $toId = $this->safe_string($accountsByType, $toAccount, $toAccount);
-        $scaledAmmount = $this->to_ev($amount, $currency);
+        $scaledAmount = $this->to_ev($amount, $currency);
         $direction = null;
         $transfer = null;
         if ($fromId === 'spot' && $toId === 'future') {
@@ -4009,7 +4026,7 @@ class phemex extends Exchange {
             $request = array(
                 'currency' => $currency['id'],
                 'moveOp' => $direction,
-                'amountEv' => $scaledAmmount,
+                'amountEv' => $scaledAmount,
             );
             $response = $this->privatePostAssetsTransfer (array_merge($request, $params));
             //
@@ -4032,7 +4049,7 @@ class phemex extends Exchange {
             $request = array(
                 'fromUserId' => $fromId,
                 'toUserId' => $toId,
-                'amountEv' => $scaledAmmount,
+                'amountEv' => $scaledAmount,
                 'currency' => $currency['id'],
                 'bizType' => $this->safe_string($params, 'bizType', 'SPOT'),
             );

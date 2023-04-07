@@ -1870,6 +1870,8 @@ export default class phemex extends Exchange {
             '10': 'market',
             'Limit': 'limit',
             'Market': 'market',
+            'MarketIfTouched': 'stop',
+            'LimitIfTouched': 'stopLimit',
         };
         return this.safeString (types, type, type);
     }
@@ -2270,11 +2272,14 @@ export default class phemex extends Exchange {
             params = this.omit (params, [ 'clOrdID', 'clientOrderId' ]);
         }
         const stopPrice = this.safeString2 (params, 'stopPx', 'stopPrice');
+        let formattedStopPrice = undefined;
         if (stopPrice !== undefined) {
             if (market['settle'] === 'USDT') {
                 request['stopPxRp'] = this.priceToPrecision (symbol, stopPrice);
+                formattedStopPrice = this.safeFloat (request, 'stopPxRp');
             } else {
                 request['stopPxEp'] = this.toEp (stopPrice, market);
+                formattedStopPrice = this.safeFloat (request, 'stopPxEp');
             }
         }
         params = this.omit (params, [ 'stopPx', 'stopPrice' ]);
@@ -2330,12 +2335,24 @@ export default class phemex extends Exchange {
             } else {
                 request['orderQty'] = parseInt (amount);
             }
-            if (stopPrice !== undefined) {
+            if (formattedStopPrice !== undefined) {
                 const triggerType = this.formatTriggerType (this.safeString2 (params, 'trigger', 'triggerType', 'ByMarkPrice'));
                 request['triggerType'] = triggerType;
                 const closeOnTrigger = this.safeValue2 (params, 'close', 'closeOnTrigger');
                 if (closeOnTrigger !== undefined) {
                     request['closeOnTrigger'] = closeOnTrigger;
+                }
+                const basePrice = this.safeFloat (params, 'basePrice');
+                if (basePrice !== undefined) {
+                    if ((formattedStopPrice > basePrice && side === 'Sell') || (formattedStopPrice < basePrice && side === 'Buy')) {
+                        if (type === 'Stop') {
+                            type = 'MarketIfTouched';
+                            request['ordType'] = type;
+                        } else if (type === 'StopLimit') {
+                            type = 'LimitIfTouched';
+                            request['ordType'] = type;
+                        }
+                    }
                 }
             }
         }
@@ -2371,7 +2388,7 @@ export default class phemex extends Exchange {
         } else if (market['contract']) {
             method = 'privatePostOrders';
         }
-        params = this.omit (params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice');
+        params = this.omit (params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice', 'positionMode');
         const response = await this[method] (this.extend (request, params));
         //
         // spot
@@ -4053,7 +4070,7 @@ export default class phemex extends Exchange {
         const accountsByType = this.safeValue (this.options, 'accountsByType', {});
         const fromId = this.safeString (accountsByType, fromAccount, fromAccount);
         const toId = this.safeString (accountsByType, toAccount, toAccount);
-        const scaledAmmount = this.toEv (amount, currency);
+        const scaledAmount = this.toEv (amount, currency);
         let direction = undefined;
         let transfer = undefined;
         if (fromId === 'spot' && toId === 'future') {
@@ -4065,7 +4082,7 @@ export default class phemex extends Exchange {
             const request = {
                 'currency': currency['id'],
                 'moveOp': direction,
-                'amountEv': scaledAmmount,
+                'amountEv': scaledAmount,
             };
             const response = await (this as any).privatePostAssetsTransfer (this.extend (request, params));
             //
@@ -4088,7 +4105,7 @@ export default class phemex extends Exchange {
             const request = {
                 'fromUserId': fromId,
                 'toUserId': toId,
-                'amountEv': scaledAmmount,
+                'amountEv': scaledAmount,
                 'currency': currency['id'],
                 'bizType': this.safeString (params, 'bizType', 'SPOT'),
             };

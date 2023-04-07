@@ -1801,6 +1801,8 @@ class phemex(Exchange):
             '10': 'market',
             'Limit': 'limit',
             'Market': 'market',
+            'MarketIfTouched': 'stop',
+            'LimitIfTouched': 'stopLimit',
         }
         return self.safe_string(types, type, type)
 
@@ -2178,11 +2180,14 @@ class phemex(Exchange):
             request['clOrdID'] = clientOrderId
             params = self.omit(params, ['clOrdID', 'clientOrderId'])
         stopPrice = self.safe_string_2(params, 'stopPx', 'stopPrice')
+        formattedStopPrice = None
         if stopPrice is not None:
             if market['settle'] == 'USDT':
                 request['stopPxRp'] = self.price_to_precision(symbol, stopPrice)
+                formattedStopPrice = self.safe_float(request, 'stopPxRp')
             else:
                 request['stopPxEp'] = self.to_ep(stopPrice, market)
+                formattedStopPrice = self.safe_float(request, 'stopPxEp')
         params = self.omit(params, ['stopPx', 'stopPrice'])
         if market['spot']:
             qtyType = self.safe_value(params, 'qtyType', 'ByBase')
@@ -2226,12 +2231,21 @@ class phemex(Exchange):
                 request['orderQtyRq'] = amount
             else:
                 request['orderQty'] = int(amount)
-            if stopPrice is not None:
+            if formattedStopPrice is not None:
                 triggerType = self.format_trigger_type(self.safe_string_2(params, 'trigger', 'triggerType', 'ByMarkPrice'))
                 request['triggerType'] = triggerType
                 closeOnTrigger = self.safe_value_2(params, 'close', 'closeOnTrigger')
                 if closeOnTrigger is not None:
                     request['closeOnTrigger'] = closeOnTrigger
+                basePrice = self.safe_float(params, 'basePrice')
+                if basePrice is not None:
+                    if (formattedStopPrice > basePrice and side == 'Sell') or (formattedStopPrice < basePrice and side == 'Buy'):
+                        if type == 'Stop':
+                            type = 'MarketIfTouched'
+                            request['ordType'] = type
+                        elif type == 'StopLimit':
+                            type = 'LimitIfTouched'
+                            request['ordType'] = type
         if (type == 'Limit') or (type == 'StopLimit') or (type == 'LimitIfTouched'):
             if market['settle'] == 'USDT':
                 request['priceRp'] = self.price_to_precision(symbol, price)
@@ -2257,7 +2271,7 @@ class phemex(Exchange):
             method = 'privatePostGOrders'
         elif market['contract']:
             method = 'privatePostOrders'
-        params = self.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice')
+        params = self.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice', 'positionMode')
         response = getattr(self, method)(self.extend(request, params))
         #
         # spot
@@ -3781,7 +3795,7 @@ class phemex(Exchange):
         accountsByType = self.safe_value(self.options, 'accountsByType', {})
         fromId = self.safe_string(accountsByType, fromAccount, fromAccount)
         toId = self.safe_string(accountsByType, toAccount, toAccount)
-        scaledAmmount = self.to_ev(amount, currency)
+        scaledAmount = self.to_ev(amount, currency)
         direction = None
         transfer = None
         if fromId == 'spot' and toId == 'future':
@@ -3792,7 +3806,7 @@ class phemex(Exchange):
             request = {
                 'currency': currency['id'],
                 'moveOp': direction,
-                'amountEv': scaledAmmount,
+                'amountEv': scaledAmount,
             }
             response = self.privatePostAssetsTransfer(self.extend(request, params))
             #
@@ -3815,7 +3829,7 @@ class phemex(Exchange):
             request = {
                 'fromUserId': fromId,
                 'toUserId': toId,
-                'amountEv': scaledAmmount,
+                'amountEv': scaledAmount,
                 'currency': currency['id'],
                 'bizType': self.safe_string(params, 'bizType', 'SPOT'),
             }
