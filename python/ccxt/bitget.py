@@ -2352,7 +2352,7 @@ class bitget(Exchange):
         market = self.market(symbol)
         marketType, query = self.handle_market_type_and_params('createOrder', market, params)
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        tradeMode = self.safe_value(params, 'tradeMode', 'hedged')
+        positionMode = self.safe_value(params, 'positionMode', 'hedged')
         isTriggerOrder = triggerPrice is not None
         stopLossPrice = None
         isStopLossOrder = None
@@ -2462,7 +2462,7 @@ class bitget(Exchange):
                 else:
                     method = 'privateMixPostPlanPlaceTPSL'
             else:
-                if tradeMode == 'oneway':
+                if positionMode == 'oneway':
                     request['side'] = 'buy_single' if (side == 'buy') else 'sell_single'
                     if reduceOnly:
                         request['reduceOnly'] = True
@@ -2474,7 +2474,7 @@ class bitget(Exchange):
                 if reduceOnly:
                     request['cancelOrder'] = True
             request['marginCoin'] = market['settleId']
-        omitted = self.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginMode', 'reduceOnly', 'close'])
+        omitted = self.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'positionMode', 'marginMode', 'reduceOnly', 'close'])
         response = getattr(self, method)(self.extend(request, omitted))
         #
         #     {
@@ -3515,7 +3515,7 @@ class bitget(Exchange):
         self.load_markets()
         market = self.market(symbol)
         marginMode = self.safe_string(params, 'marginMode')
-        params = self.omit(params, ['marginMode', 'tradeMode'])
+        params = self.omit(params, ['marginMode', 'positionMode'])
         if marginMode == 'isolated':
             promises = []
             request = {
@@ -3620,15 +3620,15 @@ class bitget(Exchange):
         sellLeverage = self.safe_float(data, 'fixedShortLeverage')
         marginCoin = self.safe_string(data, 'marginCoin')
         holdMode = self.safe_string(data, 'holdMode')
-        tradeMode = 'hedged'
+        positionMode = 'hedged'
         if holdMode == 'single_hold':
-            tradeMode = 'oneway'
+            positionMode = 'oneway'
             if isIsolated:
                 leverage = buyLeverage
         accountConfig = {
             'info': data,
             'markets': {},
-            'tradeMode': tradeMode,
+            'positionMode': positionMode,
             'marginMode': 'isolated' if isIsolated else 'cross',
         }
         leverageConfigs = accountConfig['markets']
@@ -3639,7 +3639,7 @@ class bitget(Exchange):
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
             'marginCoin': marginCoin,
-            'tradeMode': tradeMode,
+            'positionMode': positionMode,
         }
         return accountConfig
 

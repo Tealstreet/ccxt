@@ -2442,7 +2442,7 @@ export default class bitget extends Exchange {
         const market = this.market(symbol);
         const [marketType, query] = this.handleMarketTypeAndParams('createOrder', market, params);
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-        const tradeMode = this.safeValue(params, 'tradeMode', 'hedged');
+        const positionMode = this.safeValue(params, 'positionMode', 'hedged');
         let isTriggerOrder = triggerPrice !== undefined;
         let stopLossPrice = undefined;
         let isStopLossOrder = undefined;
@@ -2587,7 +2587,7 @@ export default class bitget extends Exchange {
                 }
             }
             else {
-                if (tradeMode === 'oneway') {
+                if (positionMode === 'oneway') {
                     request['side'] = (side === 'buy') ? 'buy_single' : 'sell_single';
                     if (reduceOnly) {
                         request['reduceOnly'] = true;
@@ -2607,7 +2607,7 @@ export default class bitget extends Exchange {
             }
             request['marginCoin'] = market['settleId'];
         }
-        const omitted = this.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginMode', 'reduceOnly', 'close']);
+        const omitted = this.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'positionMode', 'marginMode', 'reduceOnly', 'close']);
         const response = await this[method](this.extend(request, omitted));
         //
         //     {
@@ -3726,7 +3726,7 @@ export default class bitget extends Exchange {
         await this.loadMarkets();
         const market = this.market(symbol);
         const marginMode = this.safeString(params, 'marginMode');
-        params = this.omit(params, ['marginMode', 'tradeMode']);
+        params = this.omit(params, ['marginMode', 'positionMode']);
         if (marginMode === 'isolated') {
             let promises = [];
             const request = {
@@ -3849,9 +3849,9 @@ export default class bitget extends Exchange {
         const sellLeverage = this.safeFloat(data, 'fixedShortLeverage');
         const marginCoin = this.safeString(data, 'marginCoin');
         const holdMode = this.safeString(data, 'holdMode');
-        let tradeMode = 'hedged';
+        let positionMode = 'hedged';
         if (holdMode === 'single_hold') {
-            tradeMode = 'oneway';
+            positionMode = 'oneway';
             if (isIsolated) {
                 leverage = buyLeverage;
             }
@@ -3859,7 +3859,7 @@ export default class bitget extends Exchange {
         const accountConfig = {
             'info': data,
             'markets': {},
-            'tradeMode': tradeMode,
+            'positionMode': positionMode,
             'marginMode': isIsolated ? 'isolated' : 'cross',
         };
         const leverageConfigs = accountConfig['markets'];
@@ -3870,7 +3870,7 @@ export default class bitget extends Exchange {
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
             'marginCoin': marginCoin,
-            'tradeMode': tradeMode,
+            'positionMode': positionMode,
         };
         return accountConfig;
     }
