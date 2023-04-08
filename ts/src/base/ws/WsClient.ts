@@ -4,7 +4,7 @@ import Client from './Client.js';
 import {
     sleep,
     isNode,
-    milliseconds,
+    milliseconds, safeValue,
 } from '../../base/functions.js';
 import WebSocket from 'ws';
 
@@ -22,10 +22,11 @@ export default class WsClient extends Client {
         this.connectionStarted = milliseconds ()
         this.setConnectionTimeout ()
         const url = `${this.url}${this.url.includes('?') ? '&' : '?'}${+new Date()}`;
+        const wsClass = safeValue(this.options, 'wsClass', WebSocketPlatform)
         if (isNode) {
-            this.connection = new WebSocketPlatform (url, this.protocols, this.options)
+            this.connection = new wsClass (url, this.protocols, this.options)
         } else {
-            this.connection = new WebSocketPlatform (url, this.protocols)
+            this.connection = new wsClass (url, this.protocols)
         }
 
         this.connection.onopen = this.onOpen.bind (this)
@@ -60,7 +61,8 @@ export default class WsClient extends Client {
     }
 
     close () {
-        if (this.connection instanceof WebSocketPlatform) {
+        const wsClass = safeValue(this.options, 'wsClass', WebSocketPlatform)
+        if (this.connection instanceof wsClass) {
             return this.connection.close ()
         }
     }
