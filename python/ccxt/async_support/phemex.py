@@ -2445,9 +2445,9 @@ class phemex(Exchange):
             method = 'privateDeleteOrdersCancel'
         elif market['settle'] == 'USDT':
             method = 'privateDeleteGOrdersCancel'
-            posSide = self.safe_string(params, 'posSide')
-            if posSide is None:
-                request['posSide'] = 'Merged'
+            posSide = self.safe_string_lower_2(params, 'positionMode', 'posSide')
+            if posSide is not None:
+                request['posSide'] = posSide
         response = await getattr(self, method)(self.extend(request, params))
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
@@ -3211,7 +3211,7 @@ class phemex(Exchange):
         notionalString = self.safe_string_2(position, 'value', 'valueRv')
         maintenanceMarginPercentageString = self.safe_string_2(position, 'maintMarginReq', 'maintMarginReqRr')
         maintenanceMarginString = Precise.string_mul(notionalString, maintenanceMarginPercentageString)
-        initialMarginString = self.safe_string_2(position, 'assignedPosBalance', 'assignedPosBalanceRv')
+        initialMarginString = self.safe_string_n(position, ['posCostRv', 'assignedPosBalance', 'assignedPosBalanceRv'])
         initialMarginPercentageString = Precise.string_div(initialMarginString, notionalString)
         liquidationPrice = self.safe_number_2(position, 'liquidationPrice', 'liquidationPriceRp')
         markPriceString = self.safe_string_2(position, 'markPrice', 'markPriceRp')
@@ -3245,6 +3245,9 @@ class phemex(Exchange):
             id = symbol + ':' + side
         else:
             id = symbol
+        term = self.safe_string(position, 'term')
+        if term:
+            id += ':' + term
         priceDiff = None
         currency = self.safe_string(position, 'currency')
         if currency == 'USD':
@@ -3262,6 +3265,8 @@ class phemex(Exchange):
         unrealizedPnl = Precise.string_mul(Precise.string_mul(priceDiff, contractsString), contractSizeString)
         percentage = Precise.string_mul(Precise.string_div(unrealizedPnl, initialMarginString), '100')
         marginRatio = Precise.string_div(maintenanceMarginString, collateral)
+        if '1INCH' in symbol:
+            print('here')
         return {
             'info': position,
             'id': id,

@@ -2576,9 +2576,9 @@ class phemex extends Exchange["default"] {
         }
         else if (market['settle'] === 'USDT') {
             method = 'privateDeleteGOrdersCancel';
-            const posSide = this.safeString(params, 'posSide');
-            if (posSide === undefined) {
-                request['posSide'] = 'Merged';
+            const posSide = this.safeStringLower2(params, 'positionMode', 'posSide');
+            if (posSide !== undefined) {
+                request['posSide'] = posSide;
             }
         }
         const response = await this[method](this.extend(request, params));
@@ -3419,7 +3419,7 @@ class phemex extends Exchange["default"] {
         const notionalString = this.safeString2(position, 'value', 'valueRv');
         const maintenanceMarginPercentageString = this.safeString2(position, 'maintMarginReq', 'maintMarginReqRr');
         const maintenanceMarginString = Precise["default"].stringMul(notionalString, maintenanceMarginPercentageString);
-        const initialMarginString = this.safeString2(position, 'assignedPosBalance', 'assignedPosBalanceRv');
+        const initialMarginString = this.safeStringN(position, ['posCostRv', 'assignedPosBalance', 'assignedPosBalanceRv']);
         const initialMarginPercentageString = Precise["default"].stringDiv(initialMarginString, notionalString);
         const liquidationPrice = this.safeNumber2(position, 'liquidationPrice', 'liquidationPriceRp');
         const markPriceString = this.safeString2(position, 'markPrice', 'markPriceRp');
@@ -3459,6 +3459,10 @@ class phemex extends Exchange["default"] {
         }
         else {
             id = symbol;
+        }
+        const term = this.safeString(position, 'term');
+        if (term) {
+            id += ':' + term;
         }
         let priceDiff = undefined;
         const currency = this.safeString(position, 'currency');

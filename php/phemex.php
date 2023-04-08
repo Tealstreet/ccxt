@@ -2559,9 +2559,9 @@ class phemex extends Exchange {
             $method = 'privateDeleteOrdersCancel';
         } elseif ($market['settle'] === 'USDT') {
             $method = 'privateDeleteGOrdersCancel';
-            $posSide = $this->safe_string($params, 'posSide');
-            if ($posSide === null) {
-                $request['posSide'] = 'Merged';
+            $posSide = $this->safe_string_lower_2($params, 'positionMode', 'posSide');
+            if ($posSide !== null) {
+                $request['posSide'] = $posSide;
             }
         }
         $response = $this->$method (array_merge($request, $params));
@@ -3366,7 +3366,7 @@ class phemex extends Exchange {
         //     transactTimeNs => '1641571200001885324',
         //     takerFeeRateEr => '0',
         //     makerFeeRateEr => '0',
-        //     term => '6',
+        //     $term => '6',
         //     lastTermEndTimeNs => '1607711882505745356',
         //     lastFundingTimeNs => '1641571200000000000',
         //     curTermRealisedPnlEv => '-1567',
@@ -3380,7 +3380,7 @@ class phemex extends Exchange {
         $notionalString = $this->safe_string_2($position, 'value', 'valueRv');
         $maintenanceMarginPercentageString = $this->safe_string_2($position, 'maintMarginReq', 'maintMarginReqRr');
         $maintenanceMarginString = Precise::string_mul($notionalString, $maintenanceMarginPercentageString);
-        $initialMarginString = $this->safe_string_2($position, 'assignedPosBalance', 'assignedPosBalanceRv');
+        $initialMarginString = $this->safe_string_n($position, array( 'posCostRv', 'assignedPosBalance', 'assignedPosBalanceRv' ));
         $initialMarginPercentageString = Precise::string_div($initialMarginString, $notionalString);
         $liquidationPrice = $this->safe_number_2($position, 'liquidationPrice', 'liquidationPriceRp');
         $markPriceString = $this->safe_string_2($position, 'markPrice', 'markPriceRp');
@@ -3417,6 +3417,10 @@ class phemex extends Exchange {
             $id = $symbol . ':' . $side;
         } else {
             $id = $symbol;
+        }
+        $term = $this->safe_string($position, 'term');
+        if ($term) {
+            $id .= ':' . $term;
         }
         $priceDiff = null;
         $currency = $this->safe_string($position, 'currency');
