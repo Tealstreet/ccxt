@@ -1506,7 +1506,7 @@ class phemex extends Exchange {
                 } elseif ($ordType === '2') {
                     $type = 'limit';
                 }
-                $priceString = $this->safe_string($trade, 'priceRp');
+                $priceString = $this->safe_string_2($trade, 'execPriceRp', 'priceRp');
                 $amountString = $this->safe_string($trade, 'execQtyRq');
                 $costString = $this->safe_string($trade, 'execValueRv');
                 $feeCostString = $this->safe_string($trade, 'execFeeRv');
@@ -3158,6 +3158,23 @@ class phemex extends Exchange {
             'updated' => null,
             'fee' => $fee,
         );
+    }
+
+    public function fetch_all_positions($params = array ()) {
+        /**
+         * fetch all open positions for all currencies
+         */
+        $settleCurrencies = array( 'USDT', 'USD', 'BTC' );
+        $promises = array();
+        for ($i = 0; $i < count($settleCurrencies); $i++) {
+            $promises[] = $this->fetch_positions(null, array( 'settle' => $settleCurrencies[$i] ));
+        }
+        $promises = $promises;
+        $result = array();
+        for ($i = 0; $i < count($promises); $i++) {
+            $result = $this->array_concat($result, $promises[$i]);
+        }
+        return $result;
     }
 
     public function fetch_positions($symbols = null, $params = array ()) {

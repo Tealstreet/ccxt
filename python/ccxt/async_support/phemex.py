@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+import asyncio
 import numbers
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import PermissionDenied
@@ -1468,7 +1469,7 @@ class phemex(Exchange):
                     type = 'market'
                 elif ordType == '2':
                     type = 'limit'
-                priceString = self.safe_string(trade, 'priceRp')
+                priceString = self.safe_string_2(trade, 'execPriceRp', 'priceRp')
                 amountString = self.safe_string(trade, 'execQtyRq')
                 costString = self.safe_string(trade, 'execValueRv')
                 feeCostString = self.safe_string(trade, 'execFeeRv')
@@ -2996,6 +2997,20 @@ class phemex(Exchange):
             'updated': None,
             'fee': fee,
         }
+
+    async def fetch_all_positions(self, params={}):
+        """
+        fetch all open positions for all currencies
+        """
+        settleCurrencies = ['USDT', 'USD', 'BTC']
+        promises = []
+        for i in range(0, len(settleCurrencies)):
+            promises.append(self.fetch_positions(None, {'settle': settleCurrencies[i]}))
+        promises = await asyncio.gather(*promises)
+        result = []
+        for i in range(0, len(promises)):
+            result = self.array_concat(result, promises[i])
+        return result
 
     async def fetch_positions(self, symbols=None, params={}):
         """

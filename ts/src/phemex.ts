@@ -1518,7 +1518,7 @@ export default class phemex extends Exchange {
                 } else if (ordType === '2') {
                     type = 'limit';
                 }
-                priceString = this.safeString (trade, 'priceRp');
+                priceString = this.safeString2 (trade, 'execPriceRp', 'priceRp');
                 amountString = this.safeString (trade, 'execQtyRq');
                 costString = this.safeString (trade, 'execValueRv');
                 feeCostString = this.safeString (trade, 'execFeeRv');
@@ -3196,6 +3196,25 @@ export default class phemex extends Exchange {
             'updated': undefined,
             'fee': fee,
         };
+    }
+
+    async fetchAllPositions (params = {}) {
+        /**
+         * @method
+         * @name phemex#fetchAllPositions
+         * @description fetch all open positions for all currencies
+         */
+        const settleCurrencies = [ 'USDT', 'USD', 'BTC' ];
+        let promises = [];
+        for (let i = 0; i < settleCurrencies.length; i++) {
+            promises.push (this.fetchPositions (undefined, { 'settle': settleCurrencies[i] }));
+        }
+        promises = await Promise.all (promises);
+        let result = [];
+        for (let i = 0; i < promises.length; i++) {
+            result = this.arrayConcat (result, promises[i]);
+        }
+        return result;
     }
 
     async fetchPositions (symbols: string[] = undefined, params = {}) {
