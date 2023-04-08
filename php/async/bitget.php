@@ -2471,7 +2471,7 @@ class bitget extends Exchange {
             $market = $this->market($symbol);
             list($marketType, $query) = $this->handle_market_type_and_params('createOrder', $market, $params);
             $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-            $tradeMode = $this->safe_value($params, 'tradeMode', 'hedged');
+            $positionMode = $this->safe_value($params, 'positionMode', 'hedged');
             $isTriggerOrder = $triggerPrice !== null;
             $stopLossPrice = null;
             $isStopLossOrder = null;
@@ -2604,7 +2604,7 @@ class bitget extends Exchange {
                         $method = 'privateMixPostPlanPlaceTPSL';
                     }
                 } else {
-                    if ($tradeMode === 'oneway') {
+                    if ($positionMode === 'oneway') {
                         $request['side'] = ($side === 'buy') ? 'buy_single' : 'sell_single';
                         if ($reduceOnly) {
                             $request['reduceOnly'] = true;
@@ -2622,7 +2622,7 @@ class bitget extends Exchange {
                 }
                 $request['marginCoin'] = $market['settleId'];
             }
-            $omitted = $this->omit($query, array( 'stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'tradeMode', 'marginMode', 'reduceOnly', 'close' ));
+            $omitted = $this->omit($query, array( 'stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'positionMode', 'marginMode', 'reduceOnly', 'close' ));
             $response = Async\await($this->$method (array_merge($request, $omitted)));
             //
             //     {
@@ -3763,7 +3763,7 @@ class bitget extends Exchange {
             Async\await($this->load_markets());
             $market = $this->market($symbol);
             $marginMode = $this->safe_string($params, 'marginMode');
-            $params = $this->omit($params, array( 'marginMode', 'tradeMode' ));
+            $params = $this->omit($params, array( 'marginMode', 'positionMode' ));
             if ($marginMode === 'isolated') {
                 $promises = array();
                 $request = array(
@@ -3890,9 +3890,9 @@ class bitget extends Exchange {
         $sellLeverage = $this->safe_float($data, 'fixedShortLeverage');
         $marginCoin = $this->safe_string($data, 'marginCoin');
         $holdMode = $this->safe_string($data, 'holdMode');
-        $tradeMode = 'hedged';
+        $positionMode = 'hedged';
         if ($holdMode === 'single_hold') {
-            $tradeMode = 'oneway';
+            $positionMode = 'oneway';
             if ($isIsolated) {
                 $leverage = $buyLeverage;
             }
@@ -3900,7 +3900,7 @@ class bitget extends Exchange {
         $accountConfig = array(
             'info' => $data,
             'markets' => array(),
-            'tradeMode' => $tradeMode,
+            'positionMode' => $positionMode,
             'marginMode' => $isIsolated ? 'isolated' : 'cross',
         );
         $leverageConfigs = $accountConfig['markets'];
@@ -3911,7 +3911,7 @@ class bitget extends Exchange {
             'buyLeverage' => $buyLeverage,
             'sellLeverage' => $sellLeverage,
             'marginCoin' => $marginCoin,
-            'tradeMode' => $tradeMode,
+            'positionMode' => $positionMode,
         );
         return $accountConfig;
     }

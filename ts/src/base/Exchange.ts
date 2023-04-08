@@ -3345,9 +3345,9 @@ export default class Exchange {
             return foundMarket;
         }
         // eslint-disable-next-line no-console
-        console.log (symbol);
+        // console.log (symbol);
         // eslint-disable-next-line no-console
-        console.log (this.markets);
+        // console.log (this.markets);
         throw new BadSymbol (this.id + ' does not have market symbol ' + symbol);
     }
 

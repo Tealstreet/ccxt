@@ -285,13 +285,13 @@ export default class bitget extends Exchange {
     fetchAccountConfiguration(symbol: any, params?: {}): Promise<{
         info: any;
         markets: {};
-        tradeMode: string;
+        positionMode: string;
         marginMode: string;
     }>;
     parseAccountConfiguration(data: any, market: any): {
         info: any;
         markets: {};
-        tradeMode: string;
+        positionMode: string;
         marginMode: string;
     };
     fetchOpenInterest(symbol: any, params?: {}): Promise<{

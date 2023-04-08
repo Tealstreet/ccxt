@@ -26,7 +26,7 @@ export default class bitget extends bitgetRest {
             },
             'urls': {
                 'api': {
-                    'ws': 'wss://ws.bitget.com/spot/v1/stream',
+                    'ws': 'wss://ws.bitget.com/mix/v1/stream',
                 },
             },
             'options': {
@@ -40,7 +40,6 @@ export default class bitget extends bitgetRest {
                     '30m': '30m',
                     '1h': '1H',
                     '4h': '4H',
-                    '6h': '6H',
                     '12h': '12H',
                     '1d': '1D',
                     '1w': '1W',
@@ -62,17 +61,18 @@ export default class bitget extends bitgetRest {
     getWsMarketId(market) {
         // WS don't use the same 'id'
         // as the rest version
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
         if (market['spot']) {
             return market['info']['symbolName'];
         }
         else {
-            if (!sandboxMode) {
-                return market['id'].replace('_UMCBL', '');
+            let formattedId = market['id'];
+            const marketIdParts = formattedId.split('_');
+            if (marketIdParts.length >= 2) {
+                const prefix = marketIdParts[0];
+                // const suffix = marketIdParts[1];
+                formattedId = prefix;
             }
-            else {
-                return market['id'].replace('_SUMCBL', '');
-            }
+            return formattedId;
         }
     }
     getMarketIdFromArg(arg) {
@@ -80,18 +80,27 @@ export default class bitget extends bitgetRest {
         // { arg: { instType: 'sp', channel: 'ticker', instId: 'BTCUSDT' }
         //
         const instType = this.safeString(arg, 'instType');
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
         let marketId = this.safeString(arg, 'instId');
         if (instType === 'sp') {
             marketId += '_SPBL';
         }
-        else {
-            if (!sandboxMode) {
-                marketId += '_UMCBL';
-            }
-            else {
-                marketId += '_SUMCBL';
-            }
+        else if (marketId[0] === 'S' && marketId.length > 6 && marketId.slice(-5) === 'SPERP') {
+            marketId = marketId + '_SCMCBL';
+        }
+        else if (marketId[0] === 'S' && marketId.length > 6 && marketId.slice(-5) === 'SUSDT') {
+            marketId = marketId + '_SUMCBL';
+        }
+        else if (marketId[0] === 'S' && marketId.length > 6 && marketId.slice(-4) === 'SUSD') {
+            marketId = marketId + '_SDMCBL';
+        }
+        else if (marketId.slice(-4) === 'PERP') {
+            marketId = marketId + '_CMCBL';
+        }
+        else if (marketId.slice(-4) === 'USDT') {
+            marketId = marketId + '_UMCBL';
+        }
+        else if (marketId.slice(-3) === 'USD') {
+            marketId = marketId + '_DMCBL';
         }
         return marketId;
     }
@@ -100,9 +109,9 @@ export default class bitget extends bitgetRest {
          * @method
          * @name bitget#watchTicker
          * @description watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
-         * @param {string} symbol unified symbol of the market to fetch the ticker for
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         * @param {str} symbol unified symbol of the market to fetch the ticker for
+         * @param {dict} params extra parameters specific to the bitget api endpoint
+         * @returns {dict} a [ticker structure]{@link https://docs.ccxt.com/en/latest/manual.html#ticker-structure}
          */
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -240,11 +249,11 @@ export default class bitget extends bitgetRest {
          * @method
          * @name bitget#watchOHLCV
          * @description watches historical candlestick data containing the open, high, low, and close price, and the volume of a market
-         * @param {string} symbol unified symbol of the market to fetch OHLCV data for
-         * @param {string} timeframe the length of time each candle represents
+         * @param {str} symbol unified symbol of the market to fetch OHLCV data for
+         * @param {str} timeframe the length of time each candle represents
          * @param {int|undefined} since timestamp in ms of the earliest candle to fetch
          * @param {int|undefined} limit the maximum amount of candles to fetch
-         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @param {dict} params extra parameters specific to the bitget api endpoint
          * @returns {[[int]]} A list of candles ordered as timestamp, open, high, low, close, volume
          */
         await this.loadMarkets();
@@ -334,7 +343,6 @@ export default class bitget extends bitgetRest {
             this.safeNumber(ohlcv, 2),
             this.safeNumber(ohlcv, 3),
             this.safeNumber(ohlcv, 4),
-            this.safeNumber(ohlcv, 5),
         ];
     }
     async watchOrderBook(symbol, limit = undefined, params = {}) {
@@ -342,14 +350,15 @@ export default class bitget extends bitgetRest {
          * @method
          * @name bitget#watchOrderBook
          * @description watches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
-         * @param {string} symbol unified symbol of the market to fetch the order book for
+         * @param {str} symbol unified symbol of the market to fetch the order book for
          * @param {int|undefined} limit the maximum amount of order book entries to return
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {object} A dictionary of [order book structures]{@link https://docs.ccxt.com/#/?id=order-book-structure} indexed by market symbols
+         * @param {dict} params extra parameters specific to the bitget api endpoint
+         * @returns {dict} A dictionary of [order book structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-book-structure} indexed by market symbols
          */
         await this.loadMarkets();
         const market = this.market(symbol);
         symbol = market['symbol'];
+        // symbol = 'BTCUSD';
         const messageHash = 'orderbook' + ':' + symbol;
         const instType = market['spot'] ? 'sp' : 'mc';
         let channel = 'books';
@@ -472,11 +481,11 @@ export default class bitget extends bitgetRest {
          * @method
          * @name bitget#watchTrades
          * @description get the list of most recent trades for a particular symbol
-         * @param {string} symbol unified symbol of the market to fetch trades for
+         * @param {str} symbol unified symbol of the market to fetch trades for
          * @param {int|undefined} since timestamp in ms of the earliest trade to fetch
          * @param {int|undefined} limit the maximum amount of trades to fetch
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/en/latest/manual.html?#public-trades}
+         * @param {dict} params extra parameters specific to the bitget api endpoint
+         * @returns {[dict]} a list of [trade structures]{@link https://docs.ccxt.com/en/latest/manual.html?#public-trades}
          */
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -548,7 +557,7 @@ export default class bitget extends bitgetRest {
         const amount = this.safeString(trade, 2);
         return this.safeTrade({
             'info': trade,
-            'id': undefined,
+            'id': this.uuid(),
             'order': undefined,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
@@ -567,41 +576,29 @@ export default class bitget extends bitgetRest {
          * @method
          * @name bitget#watchOrders
          * @description watches information on multiple orders made by the user
-         * @param {string} symbol unified market symbol of the market orders were made in
+         * @param {str} symbol unified market symbol of the market orders were made in
          * @param {int|undefined} since the earliest time in ms to fetch orders for
          * @param {int|undefined} limit the maximum number of  orde structures to retrieve
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
+         * @param {dict} params extra parameters specific to the bitget api endpoint
+         * @returns {[dict]} a list of [order structures]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure
          */
         await this.loadMarkets();
         let market = undefined;
         let marketId = undefined;
-        let messageHash = 'order';
+        let messageHash = 'order:';
         const subscriptionHash = 'order:trades';
         if (symbol !== undefined) {
             market = this.market(symbol);
             symbol = market['symbol'];
             marketId = market['id'];
-            messageHash = messageHash + ':' + symbol;
+            messageHash += market['symbol'];
         }
         let type = undefined;
         [type, params] = this.handleMarketTypeAndParams('watchOrders', market, params);
         if ((type === 'spot') && (symbol === undefined)) {
             throw new ArgumentsRequired(this.id + ' watchOrders requires a symbol argument for ' + type + ' markets.');
         }
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
-        let instType = undefined;
-        if (type === 'spot') {
-            instType = 'spbl';
-        }
-        else {
-            if (!sandboxMode) {
-                instType = 'UMCBL';
-            }
-            else {
-                instType = 'SUMCBL';
-            }
-        }
+        const instType = (type === 'spot') ? 'spbl' : 'umcbl';
         const instId = (type === 'spot') ? marketId : 'default'; // different from other streams here the 'rest' id is required for spot markets, contract markets require default here
         const args = {
             'instType': instType,
@@ -644,8 +641,7 @@ export default class bitget extends bitgetRest {
         //
         const arg = this.safeValue(message, 'arg', {});
         const instType = this.safeString(arg, 'instType');
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
-        const isContractUpdate = (!sandboxMode) ? (instType === 'umcbl') : (instType === 'sumcbl');
+        const isContractUpdate = instType === 'umcbl';
         const data = this.safeValue(message, 'data', []);
         if (this.orders === undefined) {
             const limit = this.safeInteger(this.options, 'ordersLimit', 1000);
@@ -671,7 +667,6 @@ export default class bitget extends bitgetRest {
             const messageHash = 'order:' + symbol;
             client.resolve(stored, messageHash);
         }
-        client.resolve(stored, 'order');
     }
     parseWsOrder(order, market = undefined) {
         //
@@ -789,7 +784,6 @@ export default class bitget extends bitgetRest {
             'side': side,
             'price': price,
             'stopPrice': undefined,
-            'triggerPrice': undefined,
             'amount': amount,
             'cost': cost,
             'average': average,
@@ -818,8 +812,8 @@ export default class bitget extends bitgetRest {
          * @param {str|undefined} symbol unified market symbol
          * @param {int|undefined} since the earliest time in ms to fetch trades for
          * @param {int|undefined} limit the maximum number of trades structures to retrieve
-         * @param {object} params extra parameters specific to the bitget api endpoint
-         * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/#/?id=trade-structure}
+         * @param {dict} params extra parameters specific to the bitget api endpoint
+         * @returns {[dict]} a list of [trade structures]{@link https://docs.ccxt.com/en/latest/manual.html#trade-structure}
          */
         // only contracts stream provides the trade info consistently in between order updates
         // the spot stream only provides on limit orders updates so we can't support it for spot
@@ -836,10 +830,9 @@ export default class bitget extends bitgetRest {
         if (type === 'spot') {
             throw new NotSupported(this.id + ' watchMyTrades is not supported for ' + type + ' markets.');
         }
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
         const subscriptionHash = 'order:trades';
         const args = {
-            'instType': (!sandboxMode) ? 'umcbl' : 'sumcbl',
+            'instType': 'umcbl',
             'channel': 'orders',
             'instId': 'default',
         };
@@ -969,30 +962,22 @@ export default class bitget extends bitgetRest {
          * @method
          * @name bitget#watchBalance
          * @description query for balance and get the amount of funds available for trading or funds locked in orders
-         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @param {dict} params extra parameters specific to the bitget api endpoint
          * @param {str|undefined} params.type spot or contract if not provided this.options['defaultType'] is used
-         * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
+         * @returns {dict} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
          */
         let type = undefined;
         [type, params] = this.handleMarketTypeAndParams('watchOrders', undefined, params);
-        const sandboxMode = this.safeValue(this.options, 'sandboxMode', false);
-        let instType = 'spbl';
-        if (type === 'swap') {
-            instType = 'UMCBL';
-            if (sandboxMode) {
-                instType = 'S' + instType;
-            }
-        }
+        const instType = (type === 'spot') ? 'spbl' : 'umcbl';
         const args = {
             'instType': instType,
             'channel': 'account',
             'instId': 'default',
         };
-        const messageHash = 'balance:' + instType.toLowerCase();
+        const messageHash = 'balance:' + instType;
         return await this.watchPrivate(messageHash, messageHash, args, params);
     }
     handleBalance(client, message) {
-        // spot
         //
         //    {
         //        action: 'snapshot',
@@ -1003,35 +988,13 @@ export default class bitget extends bitgetRest {
         //        ]
         //    }
         //
-        // swap
-        //    {
-        //      "action": "snapshot",
-        //      "arg": {
-        //        "instType": "umcbl",
-        //        "channel": "account",
-        //        "instId": "default"
-        //      },
-        //      "data": [
-        //        {
-        //          "marginCoin": "USDT",
-        //          "locked": "0.00000000",
-        //          "available": "3384.58046492",
-        //          "maxOpenPosAvailable": "3384.58046492",
-        //          "maxTransferOut": "3384.58046492",
-        //          "equity": "3384.58046492",
-        //          "usdtEquity": "3384.580464925690"
-        //        }
-        //      ]
-        //    }
-        //
         const data = this.safeValue(message, 'data', []);
         for (let i = 0; i < data.length; i++) {
             const rawBalance = data[i];
-            const currencyId = this.safeString2(rawBalance, 'coinName', 'marginCoin');
+            const currencyId = this.safeString(rawBalance, 'coinName');
             const code = this.safeCurrencyCode(currencyId);
             const account = (code in this.balance) ? this.balance[code] : this.account();
             account['free'] = this.safeString(rawBalance, 'available');
-            account['total'] = this.safeString(rawBalance, 'equity');
             this.balance[code] = account;
         }
         this.balance = this.safeBalance(this.balance);
@@ -1049,19 +1012,19 @@ export default class bitget extends bitgetRest {
         const message = this.extend(request, params);
         return await this.watch(url, messageHash, message, messageHash);
     }
-    authenticate(params = {}) {
+    async authenticate(params = {}) {
         this.checkRequiredCredentials();
         const url = this.urls['api']['ws'];
         const client = this.client(url);
-        const messageHash = 'authenticated';
-        let future = this.safeValue(client.subscriptions, messageHash);
-        if (future === undefined) {
+        const future = client.future('authenticated');
+        const messageHash = 'login';
+        const authenticated = this.safeValue(client.subscriptions, messageHash);
+        if (authenticated === undefined) {
             const timestamp = this.seconds().toString();
             const auth = timestamp + 'GET' + '/user/verify';
             const signature = this.hmac(this.encode(auth), this.encode(this.secret), 'sha256', 'base64');
-            const operation = 'login';
             const request = {
-                'op': operation,
+                'op': messageHash,
                 'args': [
                     {
                         'apiKey': this.apiKey,
@@ -1071,11 +1034,9 @@ export default class bitget extends bitgetRest {
                     },
                 ],
             };
-            const message = this.extend(request, params);
-            future = this.watch(url, messageHash, message);
-            client.subscriptions[messageHash] = future;
+            this.spawn(this.watch, url, messageHash, this.extend(request, params), messageHash);
         }
-        return future;
+        return await future;
     }
     async watchPrivate(messageHash, subscriptionHash, args, params = {}) {
         await this.authenticate();
@@ -1091,8 +1052,10 @@ export default class bitget extends bitgetRest {
         //
         //  { event: 'login', code: 0 }
         //
-        const messageHash = 'authenticated';
-        client.resolve(message, messageHash);
+        const future = client.futures['authenticated'];
+        future.resolve(1);
+        client.resolve(1, 'login');
+        return message;
     }
     handleErrorMessage(client, message) {
         //
@@ -1105,18 +1068,13 @@ export default class bitget extends bitgetRest {
                 const feedback = this.id + ' ' + this.json(message);
                 this.throwExactlyMatchedException(this.exceptions['ws']['exact'], code, feedback);
             }
-            return false;
         }
         catch (e) {
             if (e instanceof AuthenticationError) {
-                const messageHash = 'authenticated';
-                client.reject(e, messageHash);
-                if (messageHash in client.subscriptions) {
-                    delete client.subscriptions[messageHash];
-                }
+                return false;
             }
-            return true;
         }
+        return message;
     }
     handleMessage(client, message) {
         //
@@ -1153,7 +1111,7 @@ export default class bitget extends bitgetRest {
         //        arg: { instType: 'spbl', channel: 'account', instId: 'default' }
         //    }
         //
-        if (this.handleErrorMessage(client, message)) {
+        if (!this.handleErrorMessage(client, message)) {
             return;
         }
         const content = this.safeString(message, 'message');

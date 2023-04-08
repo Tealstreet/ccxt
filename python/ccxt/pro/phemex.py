@@ -69,14 +69,31 @@ class phemex(ccxt.async_support.phemex):
         return requestId
 
     def parse_usdt_ticker(self, ticker, market=None):
+        # [
+        #     "BTCUSDT",
+        #     "28262.2",   open
+        #     "28505.9",   high
+        #     "27505.5",   low
+        #     "28218.6",   close
+        #     "27175.609",
+        #     "760874852.225",
+        #     "1183.968",
+        #     "28245.61",   index
+        #     "28227.262",  mark
+        #     "0.0001",
+        #     "0.0001"
+        # ]
         marketId = self.safe_string(ticker, 0)
         market = self.safe_market(marketId, market)
         symbol = market['symbol']
         timestamp = self.milliseconds()
-        last = self.safe_number(ticker, 1)
-        open = self.safe_number(ticker, 2)
-        change = self.safe_number(ticker, 3)
-        percentage = self.safe_number(ticker, 4)
+        open = self.safe_number(ticker, 1)
+        high = self.safe_number(ticker, 2)
+        low = self.safe_number(ticker, 3)
+        last = self.safe_number(ticker, 4)
+        index = self.safe_number(ticker, 8)
+        mark = self.safe_number(ticker, 9)
+        change = self.safe_number(ticker, 7)
         average = self.sum(open, last) / 2
         baseVolume = self.safe_number(ticker, 5)
         quoteVolume = self.safe_number(ticker, 6)
@@ -84,8 +101,8 @@ class phemex(ccxt.async_support.phemex):
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': None,
-            'low': None,
+            'high': high,
+            'low': low,
             'bid': None,
             'bidVolume': None,
             'ask': None,
@@ -96,11 +113,13 @@ class phemex(ccxt.async_support.phemex):
             'last': last,
             'previousClose': None,  # previous day close
             'change': change,
-            'percentage': percentage,
+            'percentage': None,
             'average': average,
             'baseVolume': baseVolume,
             'quoteVolume': quoteVolume,
             'info': ticker,
+            'index': index,
+            'mark': mark,
         }
         return result
 

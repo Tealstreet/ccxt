@@ -1468,7 +1468,7 @@ class phemex(Exchange):
                     type = 'market'
                 elif ordType == '2':
                     type = 'limit'
-                priceString = self.safe_string(trade, 'priceRp')
+                priceString = self.safe_string_2(trade, 'execPriceRp', 'priceRp')
                 amountString = self.safe_string(trade, 'execQtyRq')
                 costString = self.safe_string(trade, 'execValueRv')
                 feeCostString = self.safe_string(trade, 'execFeeRv')
@@ -1801,6 +1801,8 @@ class phemex(Exchange):
             '10': 'market',
             'Limit': 'limit',
             'Market': 'market',
+            'MarketIfTouched': 'stop',
+            'LimitIfTouched': 'stopLimit',
         }
         return self.safe_string(types, type, type)
 
@@ -2178,11 +2180,14 @@ class phemex(Exchange):
             request['clOrdID'] = clientOrderId
             params = self.omit(params, ['clOrdID', 'clientOrderId'])
         stopPrice = self.safe_string_2(params, 'stopPx', 'stopPrice')
+        formattedStopPrice = None
         if stopPrice is not None:
             if market['settle'] == 'USDT':
                 request['stopPxRp'] = self.price_to_precision(symbol, stopPrice)
+                formattedStopPrice = self.safe_float(request, 'stopPxRp')
             else:
                 request['stopPxEp'] = self.to_ep(stopPrice, market)
+                formattedStopPrice = self.safe_float(request, 'stopPxEp')
         params = self.omit(params, ['stopPx', 'stopPrice'])
         if market['spot']:
             qtyType = self.safe_value(params, 'qtyType', 'ByBase')
@@ -2208,7 +2213,14 @@ class phemex(Exchange):
                 amountString = str(amount)
                 request['baseQtyEv'] = self.to_ev(amountString, market)
         elif market['swap']:
-            posSide = self.safe_string_lower(params, 'posSide')
+            posSide = self.safe_string_lower_2(params, 'positionMode', 'posSide')
+            if posSide == 'oneway':
+                posSide = 'Merged'
+            elif posSide == 'hedged' or posSide == 'hedge':
+                if side == 'Buy':
+                    posSide = 'Short' if reduceOnly else 'Long'
+                else:
+                    posSide = 'Long' if reduceOnly else 'Short'
             if posSide is None:
                 posSide = 'Merged'
             posSide = self.capitalize(posSide)
@@ -2219,12 +2231,21 @@ class phemex(Exchange):
                 request['orderQtyRq'] = amount
             else:
                 request['orderQty'] = int(amount)
-            if stopPrice is not None:
+            if formattedStopPrice is not None:
                 triggerType = self.format_trigger_type(self.safe_string_2(params, 'trigger', 'triggerType', 'ByMarkPrice'))
                 request['triggerType'] = triggerType
                 closeOnTrigger = self.safe_value_2(params, 'close', 'closeOnTrigger')
                 if closeOnTrigger is not None:
                     request['closeOnTrigger'] = closeOnTrigger
+                basePrice = self.safe_float(params, 'basePrice')
+                if basePrice is not None:
+                    if (formattedStopPrice > basePrice and side == 'Sell') or (formattedStopPrice < basePrice and side == 'Buy'):
+                        if type == 'Stop':
+                            type = 'MarketIfTouched'
+                            request['ordType'] = type
+                        elif type == 'StopLimit':
+                            type = 'LimitIfTouched'
+                            request['ordType'] = type
         if (type == 'Limit') or (type == 'StopLimit') or (type == 'LimitIfTouched'):
             if market['settle'] == 'USDT':
                 request['priceRp'] = self.price_to_precision(symbol, price)
@@ -2250,7 +2271,7 @@ class phemex(Exchange):
             method = 'privatePostGOrders'
         elif market['contract']:
             method = 'privatePostOrders'
-        params = self.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice')
+        params = self.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice', 'positionMode')
         response = getattr(self, method)(self.extend(request, params))
         #
         # spot
@@ -2423,9 +2444,9 @@ class phemex(Exchange):
             method = 'privateDeleteOrdersCancel'
         elif market['settle'] == 'USDT':
             method = 'privateDeleteGOrdersCancel'
-            posSide = self.safe_string(params, 'posSide')
-            if posSide is None:
-                request['posSide'] = 'Merged'
+            posSide = self.safe_string_lower_2(params, 'positionMode', 'posSide')
+            if posSide is not None:
+                request['posSide'] = posSide
         response = getattr(self, method)(self.extend(request, params))
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
@@ -2976,6 +2997,20 @@ class phemex(Exchange):
             'fee': fee,
         }
 
+    def fetch_all_positions(self, params={}):
+        """
+        fetch all open positions for all currencies
+        """
+        settleCurrencies = ['USDT', 'USD', 'BTC']
+        promises = []
+        for i in range(0, len(settleCurrencies)):
+            promises.append(self.fetch_positions(None, {'settle': settleCurrencies[i]}))
+        promises = promises
+        result = []
+        for i in range(0, len(promises)):
+            result = self.array_concat(result, promises[i])
+        return result
+
     def fetch_positions(self, symbols=None, params={}):
         """
         fetch all open positions
@@ -3175,11 +3210,10 @@ class phemex(Exchange):
         notionalString = self.safe_string_2(position, 'value', 'valueRv')
         maintenanceMarginPercentageString = self.safe_string_2(position, 'maintMarginReq', 'maintMarginReqRr')
         maintenanceMarginString = Precise.string_mul(notionalString, maintenanceMarginPercentageString)
-        initialMarginString = self.safe_string_2(position, 'assignedPosBalance', 'assignedPosBalanceRv')
+        initialMarginString = self.safe_string_n(position, ['posCostRv', 'assignedPosBalance', 'assignedPosBalanceRv'])
         initialMarginPercentageString = Precise.string_div(initialMarginString, notionalString)
         liquidationPrice = self.safe_number_2(position, 'liquidationPrice', 'liquidationPriceRp')
         markPriceString = self.safe_string_2(position, 'markPrice', 'markPriceRp')
-        contracts = self.safe_string(position, 'size')
         contractSize = self.safe_value(market, 'contractSize')
         contractSizeString = self.number_to_string(contractSize)
         leverage = self.safe_number_2(position, 'leverage', 'leverageRr')
@@ -3197,6 +3231,9 @@ class phemex(Exchange):
             side = 'short'
         elif rawSide is not None:
             side = 'long' if (rawSide == 'Buy') else 'short'
+        contracts = abs(self.safe_number(position, 'size', 0))
+        if side == 'short':
+            contracts = -1 * contracts
         rawPosMode = self.safe_string(position, 'posMode')
         positionMode = 'oneway'
         hedged = False
@@ -3207,6 +3244,9 @@ class phemex(Exchange):
             id = symbol + ':' + side
         else:
             id = symbol
+        term = self.safe_string(position, 'term')
+        if term:
+            id += ':' + term
         priceDiff = None
         currency = self.safe_string(position, 'currency')
         if currency == 'USD':
@@ -3220,7 +3260,8 @@ class phemex(Exchange):
                 priceDiff = Precise.string_sub(Precise.string_div('1', entryPriceString), Precise.string_div('1', markPriceString))
             else:
                 priceDiff = Precise.string_sub(Precise.string_div('1', markPriceString), Precise.string_div('1', entryPriceString))
-        unrealizedPnl = Precise.string_mul(Precise.string_mul(priceDiff, contracts), contractSizeString)
+        contractsString = self.safe_string(position, 'size')
+        unrealizedPnl = Precise.string_mul(Precise.string_mul(priceDiff, contractsString), contractSizeString)
         percentage = Precise.string_mul(Precise.string_div(unrealizedPnl, initialMarginString), '100')
         marginRatio = Precise.string_div(maintenanceMarginString, collateral)
         return {
@@ -3504,8 +3545,8 @@ class phemex(Exchange):
             'symbol': market['id'],
         }
         if market['settle'] == 'USDT':
-            positionMode = self.safe_string(params, 'positionMode')
-            if positionMode == 'hedged' or positionMode == 'Hedge':
+            positionMode = self.safe_string_lower(params, 'positionMode')
+            if positionMode == 'hedged' or positionMode == 'hedge':
                 buyLeverage = self.safe_integer(params, 'buyLeverage', leverage)
                 sellLeverage = self.safe_integer(params, 'sellLeverage', leverage)
                 if marginMode == 'cross':
@@ -3720,27 +3761,38 @@ class phemex(Exchange):
         buyLeverage = self.safe_float(params, 'buyLeverage', leverage)
         sellLeverage = self.safe_float(params, 'sellLeverage', leverage)
         leverage = buyLeverage or leverage
+        marginMode = self.safe_string_lower(params, 'marginMode', 'cross')
         if market['settle'] == 'USDT':
             method = 'privatePutGPositionsLeverage'
-            positionMode = self.safe_string(params, 'positionMode')
-            if positionMode == 'hedged' or positionMode == 'Hedge':
+            positionMode = self.safe_string_lower(params, 'positionMode')
+            if positionMode == 'hedged' or positionMode == 'hedge':
                 if buyLeverage is None or sellLeverage is None:
                     raise ArgumentsRequired(self.id + ' setLeverage() in hedge mode requires both buyLeverage and sellLeverage arguments')
                 if (buyLeverage < 1) or (buyLeverage > 100):
                     raise BadRequest(self.id + ' setLeverage() buyLeverage should be between 1 and 100')
                 if (sellLeverage < 1) or (sellLeverage > 100):
                     raise BadRequest(self.id + ' setLeverage() sellLeverage should be between 1 and 100')
-                request['longLeverageRr'] = buyLeverage
-                request['shortLeverageRr'] = sellLeverage
+                if marginMode == 'cross':
+                    request['longLeverageRr'] = -1 * buyLeverage
+                    request['shortLeverageRr'] = -1 * sellLeverage
+                else:
+                    request['longLeverageRr'] = buyLeverage
+                    request['shortLeverageRr'] = sellLeverage
             else:
                 if (leverage < 1) or (leverage > 100):
                     raise BadRequest(self.id + ' setLeverage() leverage should be between 1 and 100')
-                request['leverageRr'] = leverage
+                if marginMode == 'cross':
+                    request['leverageRr'] = -1 * leverage
+                else:
+                    request['leverageRr'] = leverage
         else:
             effectiveLeverage = leverage or buyLeverage
             if (effectiveLeverage < 1) or (effectiveLeverage > 100):
                 raise BadRequest(self.id + ' setLeverage() leverage should be between 1 and 100')
-            request['leverage'] = effectiveLeverage
+            if marginMode == 'cross':
+                request['leverage'] = -1 * effectiveLeverage
+            else:
+                request['leverage'] = effectiveLeverage
         params = self.omit(params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode')
         return getattr(self, method)(self.extend(request, params))
 
@@ -3760,7 +3812,7 @@ class phemex(Exchange):
         accountsByType = self.safe_value(self.options, 'accountsByType', {})
         fromId = self.safe_string(accountsByType, fromAccount, fromAccount)
         toId = self.safe_string(accountsByType, toAccount, toAccount)
-        scaledAmmount = self.to_ev(amount, currency)
+        scaledAmount = self.to_ev(amount, currency)
         direction = None
         transfer = None
         if fromId == 'spot' and toId == 'future':
@@ -3771,7 +3823,7 @@ class phemex(Exchange):
             request = {
                 'currency': currency['id'],
                 'moveOp': direction,
-                'amountEv': scaledAmmount,
+                'amountEv': scaledAmount,
             }
             response = self.privatePostAssetsTransfer(self.extend(request, params))
             #
@@ -3794,7 +3846,7 @@ class phemex(Exchange):
             request = {
                 'fromUserId': fromId,
                 'toUserId': toId,
-                'amountEv': scaledAmmount,
+                'amountEv': scaledAmount,
                 'currency': currency['id'],
                 'bizType': self.safe_string(params, 'bizType', 'SPOT'),
             }

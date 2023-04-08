@@ -1505,7 +1505,7 @@ class phemex extends Exchange["default"] {
                 else if (ordType === '2') {
                     type = 'limit';
                 }
-                priceString = this.safeString(trade, 'priceRp');
+                priceString = this.safeString2(trade, 'execPriceRp', 'priceRp');
                 amountString = this.safeString(trade, 'execQtyRq');
                 costString = this.safeString(trade, 'execValueRv');
                 feeCostString = this.safeString(trade, 'execFeeRv');
@@ -1857,6 +1857,8 @@ class phemex extends Exchange["default"] {
             '10': 'market',
             'Limit': 'limit',
             'Market': 'market',
+            'MarketIfTouched': 'stop',
+            'LimitIfTouched': 'stopLimit',
         };
         return this.safeString(types, type, type);
     }
@@ -2249,12 +2251,15 @@ class phemex extends Exchange["default"] {
             params = this.omit(params, ['clOrdID', 'clientOrderId']);
         }
         const stopPrice = this.safeString2(params, 'stopPx', 'stopPrice');
+        let formattedStopPrice = undefined;
         if (stopPrice !== undefined) {
             if (market['settle'] === 'USDT') {
                 request['stopPxRp'] = this.priceToPrecision(symbol, stopPrice);
+                formattedStopPrice = this.safeFloat(request, 'stopPxRp');
             }
             else {
                 request['stopPxEp'] = this.toEp(stopPrice, market);
+                formattedStopPrice = this.safeFloat(request, 'stopPxEp');
             }
         }
         params = this.omit(params, ['stopPx', 'stopPrice']);
@@ -2290,7 +2295,18 @@ class phemex extends Exchange["default"] {
             }
         }
         else if (market['swap']) {
-            let posSide = this.safeStringLower(params, 'posSide');
+            let posSide = this.safeStringLower2(params, 'positionMode', 'posSide');
+            if (posSide === 'oneway') {
+                posSide = 'Merged';
+            }
+            else if (posSide === 'hedged' || posSide === 'hedge') {
+                if (side === 'Buy') {
+                    posSide = reduceOnly ? 'Short' : 'Long';
+                }
+                else {
+                    posSide = reduceOnly ? 'Long' : 'Short';
+                }
+            }
             if (posSide === undefined) {
                 posSide = 'Merged';
             }
@@ -2305,12 +2321,25 @@ class phemex extends Exchange["default"] {
             else {
                 request['orderQty'] = parseInt(amount);
             }
-            if (stopPrice !== undefined) {
+            if (formattedStopPrice !== undefined) {
                 const triggerType = this.formatTriggerType(this.safeString2(params, 'trigger', 'triggerType', 'ByMarkPrice'));
                 request['triggerType'] = triggerType;
                 const closeOnTrigger = this.safeValue2(params, 'close', 'closeOnTrigger');
                 if (closeOnTrigger !== undefined) {
                     request['closeOnTrigger'] = closeOnTrigger;
+                }
+                const basePrice = this.safeFloat(params, 'basePrice');
+                if (basePrice !== undefined) {
+                    if ((formattedStopPrice > basePrice && side === 'Sell') || (formattedStopPrice < basePrice && side === 'Buy')) {
+                        if (type === 'Stop') {
+                            type = 'MarketIfTouched';
+                            request['ordType'] = type;
+                        }
+                        else if (type === 'StopLimit') {
+                            type = 'LimitIfTouched';
+                            request['ordType'] = type;
+                        }
+                    }
                 }
             }
         }
@@ -2350,7 +2379,7 @@ class phemex extends Exchange["default"] {
         else if (market['contract']) {
             method = 'privatePostOrders';
         }
-        params = this.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice');
+        params = this.omit(params, 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice', 'positionMode');
         const response = await this[method](this.extend(request, params));
         //
         // spot
@@ -2547,9 +2576,9 @@ class phemex extends Exchange["default"] {
         }
         else if (market['settle'] === 'USDT') {
             method = 'privateDeleteGOrdersCancel';
-            const posSide = this.safeString(params, 'posSide');
-            if (posSide === undefined) {
-                request['posSide'] = 'Merged';
+            const posSide = this.safeStringLower2(params, 'positionMode', 'posSide');
+            if (posSide !== undefined) {
+                request['posSide'] = posSide;
             }
         }
         const response = await this[method](this.extend(request, params));
@@ -3165,6 +3194,24 @@ class phemex extends Exchange["default"] {
             'fee': fee,
         };
     }
+    async fetchAllPositions(params = {}) {
+        /**
+         * @method
+         * @name phemex#fetchAllPositions
+         * @description fetch all open positions for all currencies
+         */
+        const settleCurrencies = ['USDT', 'USD', 'BTC'];
+        let promises = [];
+        for (let i = 0; i < settleCurrencies.length; i++) {
+            promises.push(this.fetchPositions(undefined, { 'settle': settleCurrencies[i] }));
+        }
+        promises = await Promise.all(promises);
+        let result = [];
+        for (let i = 0; i < promises.length; i++) {
+            result = this.arrayConcat(result, promises[i]);
+        }
+        return result;
+    }
     async fetchPositions(symbols = undefined, params = {}) {
         /**
          * @method
@@ -3372,11 +3419,10 @@ class phemex extends Exchange["default"] {
         const notionalString = this.safeString2(position, 'value', 'valueRv');
         const maintenanceMarginPercentageString = this.safeString2(position, 'maintMarginReq', 'maintMarginReqRr');
         const maintenanceMarginString = Precise["default"].stringMul(notionalString, maintenanceMarginPercentageString);
-        const initialMarginString = this.safeString2(position, 'assignedPosBalance', 'assignedPosBalanceRv');
+        const initialMarginString = this.safeStringN(position, ['posCostRv', 'assignedPosBalance', 'assignedPosBalanceRv']);
         const initialMarginPercentageString = Precise["default"].stringDiv(initialMarginString, notionalString);
         const liquidationPrice = this.safeNumber2(position, 'liquidationPrice', 'liquidationPriceRp');
         const markPriceString = this.safeString2(position, 'markPrice', 'markPriceRp');
-        const contracts = this.safeString(position, 'size');
         const contractSize = this.safeValue(market, 'contractSize');
         const contractSizeString = this.numberToString(contractSize);
         let leverage = this.safeNumber2(position, 'leverage', 'leverageRr');
@@ -3398,6 +3444,10 @@ class phemex extends Exchange["default"] {
         else if (rawSide !== undefined) {
             side = (rawSide === 'Buy') ? 'long' : 'short';
         }
+        let contracts = Math.abs(this.safeNumber(position, 'size', 0));
+        if (side === 'short') {
+            contracts = -1 * contracts;
+        }
         const rawPosMode = this.safeString(position, 'posMode');
         let positionMode = 'oneway';
         let hedged = false;
@@ -3409,6 +3459,10 @@ class phemex extends Exchange["default"] {
         }
         else {
             id = symbol;
+        }
+        const term = this.safeString(position, 'term');
+        if (term) {
+            id += ':' + term;
         }
         let priceDiff = undefined;
         const currency = this.safeString(position, 'currency');
@@ -3429,7 +3483,8 @@ class phemex extends Exchange["default"] {
                 priceDiff = Precise["default"].stringSub(Precise["default"].stringDiv('1', markPriceString), Precise["default"].stringDiv('1', entryPriceString));
             }
         }
-        const unrealizedPnl = Precise["default"].stringMul(Precise["default"].stringMul(priceDiff, contracts), contractSizeString);
+        const contractsString = this.safeString(position, 'size');
+        const unrealizedPnl = Precise["default"].stringMul(Precise["default"].stringMul(priceDiff, contractsString), contractSizeString);
         const percentage = Precise["default"].stringMul(Precise["default"].stringDiv(unrealizedPnl, initialMarginString), '100');
         const marginRatio = Precise["default"].stringDiv(maintenanceMarginString, collateral);
         return {
@@ -3733,8 +3788,8 @@ class phemex extends Exchange["default"] {
             'symbol': market['id'],
         };
         if (market['settle'] === 'USDT') {
-            const positionMode = this.safeString(params, 'positionMode');
-            if (positionMode === 'hedged' || positionMode === 'Hedge') {
+            const positionMode = this.safeStringLower(params, 'positionMode');
+            if (positionMode === 'hedged' || positionMode === 'hedge') {
                 let buyLeverage = this.safeInteger(params, 'buyLeverage', leverage);
                 let sellLeverage = this.safeInteger(params, 'sellLeverage', leverage);
                 if (marginMode === 'cross') {
@@ -3969,10 +4024,11 @@ class phemex extends Exchange["default"] {
         const buyLeverage = this.safeFloat(params, 'buyLeverage', leverage);
         const sellLeverage = this.safeFloat(params, 'sellLeverage', leverage);
         leverage = buyLeverage || leverage;
+        const marginMode = this.safeStringLower(params, 'marginMode', 'cross');
         if (market['settle'] === 'USDT') {
             method = 'privatePutGPositionsLeverage';
-            const positionMode = this.safeString(params, 'positionMode');
-            if (positionMode === 'hedged' || positionMode === 'Hedge') {
+            const positionMode = this.safeStringLower(params, 'positionMode');
+            if (positionMode === 'hedged' || positionMode === 'hedge') {
                 if (buyLeverage === undefined || sellLeverage === undefined) {
                     throw new errors.ArgumentsRequired(this.id + ' setLeverage() in hedge mode requires both buyLeverage and sellLeverage arguments');
                 }
@@ -3982,14 +4038,25 @@ class phemex extends Exchange["default"] {
                 if ((sellLeverage < 1) || (sellLeverage > 100)) {
                     throw new errors.BadRequest(this.id + ' setLeverage() sellLeverage should be between 1 and 100');
                 }
-                request['longLeverageRr'] = buyLeverage;
-                request['shortLeverageRr'] = sellLeverage;
+                if (marginMode === 'cross') {
+                    request['longLeverageRr'] = -1 * buyLeverage;
+                    request['shortLeverageRr'] = -1 * sellLeverage;
+                }
+                else {
+                    request['longLeverageRr'] = buyLeverage;
+                    request['shortLeverageRr'] = sellLeverage;
+                }
             }
             else {
                 if ((leverage < 1) || (leverage > 100)) {
                     throw new errors.BadRequest(this.id + ' setLeverage() leverage should be between 1 and 100');
                 }
-                request['leverageRr'] = leverage;
+                if (marginMode === 'cross') {
+                    request['leverageRr'] = -1 * leverage;
+                }
+                else {
+                    request['leverageRr'] = leverage;
+                }
             }
         }
         else {
@@ -3997,7 +4064,12 @@ class phemex extends Exchange["default"] {
             if ((effectiveLeverage < 1) || (effectiveLeverage > 100)) {
                 throw new errors.BadRequest(this.id + ' setLeverage() leverage should be between 1 and 100');
             }
-            request['leverage'] = effectiveLeverage;
+            if (marginMode === 'cross') {
+                request['leverage'] = -1 * effectiveLeverage;
+            }
+            else {
+                request['leverage'] = effectiveLeverage;
+            }
         }
         params = this.omit(params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode');
         return await this[method](this.extend(request, params));
@@ -4020,7 +4092,7 @@ class phemex extends Exchange["default"] {
         const accountsByType = this.safeValue(this.options, 'accountsByType', {});
         const fromId = this.safeString(accountsByType, fromAccount, fromAccount);
         const toId = this.safeString(accountsByType, toAccount, toAccount);
-        const scaledAmmount = this.toEv(amount, currency);
+        const scaledAmount = this.toEv(amount, currency);
         let direction = undefined;
         let transfer = undefined;
         if (fromId === 'spot' && toId === 'future') {
@@ -4033,7 +4105,7 @@ class phemex extends Exchange["default"] {
             const request = {
                 'currency': currency['id'],
                 'moveOp': direction,
-                'amountEv': scaledAmmount,
+                'amountEv': scaledAmount,
             };
             const response = await this.privatePostAssetsTransfer(this.extend(request, params));
             //
@@ -4057,7 +4129,7 @@ class phemex extends Exchange["default"] {
             const request = {
                 'fromUserId': fromId,
                 'toUserId': toId,
-                'amountEv': scaledAmmount,
+                'amountEv': scaledAmount,
                 'currency': currency['id'],
                 'bizType': this.safeString(params, 'bizType', 'SPOT'),
             };
