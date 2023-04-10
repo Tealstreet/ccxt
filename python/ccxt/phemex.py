@@ -3244,9 +3244,6 @@ class phemex(Exchange):
             id = symbol + ':' + side
         else:
             id = symbol
-        term = self.safe_string(position, 'term')
-        if term:
-            id += ':' + term
         priceDiff = None
         currency = self.safe_string(position, 'currency')
         if currency == 'USD':

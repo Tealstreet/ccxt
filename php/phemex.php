@@ -3366,7 +3366,7 @@ class phemex extends Exchange {
         //     transactTimeNs => '1641571200001885324',
         //     takerFeeRateEr => '0',
         //     makerFeeRateEr => '0',
-        //     $term => '6',
+        //     term => '6',
         //     lastTermEndTimeNs => '1607711882505745356',
         //     lastFundingTimeNs => '1641571200000000000',
         //     curTermRealisedPnlEv => '-1567',
@@ -3417,10 +3417,6 @@ class phemex extends Exchange {
             $id = $symbol . ':' . $side;
         } else {
             $id = $symbol;
-        }
-        $term = $this->safe_string($position, 'term');
-        if ($term) {
-            $id .= ':' . $term;
         }
         $priceDiff = null;
         $currency = $this->safe_string($position, 'currency');

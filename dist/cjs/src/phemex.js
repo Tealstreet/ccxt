@@ -3460,10 +3460,6 @@ class phemex extends Exchange["default"] {
         else {
             id = symbol;
         }
-        const term = this.safeString(position, 'term');
-        if (term) {
-            id += ':' + term;
-        }
         let priceDiff = undefined;
         const currency = this.safeString(position, 'currency');
         if (currency === 'USD') {
