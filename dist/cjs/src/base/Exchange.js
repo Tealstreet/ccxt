@@ -1059,8 +1059,10 @@ class Exchange {
         // console.log ('Connected to', client.url)
     }
     onError(client, error) {
-        if ((client.url in this.clients) && (this.clients[client.url].error)) {
-            delete this.clients[client.url];
+        if (client.url in this.clients && this.clients[client.url].error) {
+            if (!this.safeValue(this.clients[client.url].connection, 'willReconnect', false)) {
+                delete this.clients[client.url];
+            }
         }
     }
     onClose(client, error) {
@@ -1068,7 +1070,9 @@ class Exchange {
         else {
             // server disconnected a working connection
             if (this.clients[client.url]) {
-                delete this.clients[client.url];
+                if (!this.safeValue(this.clients[client.url].connection, 'willReconnect', false)) {
+                    delete this.clients[client.url];
+                }
             }
         }
     }
