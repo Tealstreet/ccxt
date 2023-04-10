@@ -2,6 +2,7 @@
 
 var Client = require('./Client.js');
 var platform = require('../functions/platform.js');
+var type = require('../functions/type.js');
 require('../../static_dependencies/crypto-js/crypto-js.cjs.js');
 require('../../static_dependencies/qs/index.cjs.js');
 require('../../static_dependencies/BN/bn.cjs.js');
@@ -22,11 +23,12 @@ class WsClient extends Client {
         this.connectionStarted = time.milliseconds();
         this.setConnectionTimeout();
         const url = `${this.url}${this.url.includes('?') ? '&' : '?'}${+new Date()}`;
+        const wsClass = type.safeValue(this.options, 'wsClass', WebSocketPlatform);
         if (platform.isNode) {
-            this.connection = new WebSocketPlatform(url, this.protocols, this.options);
+            this.connection = new wsClass(url, this.protocols, this.options);
         }
         else {
-            this.connection = new WebSocketPlatform(url, this.protocols);
+            this.connection = new wsClass(url, this.protocols);
         }
         this.connection.onopen = this.onOpen.bind(this);
         this.connection.onmessage = this.onMessage.bind(this);
@@ -58,7 +60,8 @@ class WsClient extends Client {
         return (this.connection.readyState === WebSocketPlatform.OPEN);
     }
     close() {
-        if (this.connection instanceof WebSocketPlatform) {
+        const wsClass = type.safeValue(this.options, 'wsClass', WebSocketPlatform);
+        if (this.connection instanceof wsClass) {
             return this.connection.close();
         }
     }
