@@ -145,6 +145,7 @@ export default class phemex extends Exchange {
     parseSwapOrder(order: any, market?: any): any;
     parseOrder(order: any, market?: any): any;
     createOrder(symbol: any, type: any, side: any, amount: any, price?: any, params?: {}): Promise<any>;
+    formatPosSide(side: any, params?: {}): string;
     editOrder(id: any, symbol: any, type?: any, side?: any, amount?: any, price?: any, params?: {}): Promise<any>;
     cancelOrder(id: any, symbol?: string, params?: {}): Promise<any>;
     cancelAllOrders(symbol?: string, params?: {}): Promise<any>;

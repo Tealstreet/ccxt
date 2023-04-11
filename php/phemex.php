@@ -2212,7 +2212,8 @@ class phemex extends Exchange {
         $market = $this->market($symbol);
         $side = $this->capitalize($side);
         $type = $this->capitalize($type);
-        $reduceOnly = $this->safe_value($params, 'reduceOnly');
+        $reduceOnly = $this->safe_value_2($params, 'reduce', 'reduceOnly');
+        $closeOnTrigger = $this->safe_value_2($params, 'close', 'closeOnTrigger');
         $request = array(
             // common
             'symbol' => $market['id'],
@@ -2296,21 +2297,7 @@ class phemex extends Exchange {
                 $request['baseQtyEv'] = $this->to_ev($amountString, $market);
             }
         } elseif ($market['swap']) {
-            $posSide = $this->safe_string_lower_2($params, 'positionMode', 'posSide');
-            if ($posSide === 'oneway') {
-                $posSide = 'Merged';
-            } elseif ($posSide === 'hedged' || $posSide === 'hedge') {
-                if ($side === 'Buy') {
-                    $posSide = $reduceOnly ? 'Short' : 'Long';
-                } else {
-                    $posSide = $reduceOnly ? 'Long' : 'Short';
-                }
-            }
-            if ($posSide === null) {
-                $posSide = 'Merged';
-            }
-            $posSide = $this->capitalize($posSide);
-            $request['posSide'] = $posSide;
+            $request['posSide'] = $this->format_pos_side($side, $params);
             if ($reduceOnly !== null) {
                 $request['reduceOnly'] = $reduceOnly;
             }
@@ -2322,7 +2309,6 @@ class phemex extends Exchange {
             if ($formattedStopPrice !== null) {
                 $triggerType = $this->format_trigger_type($this->safe_string_2($params, 'trigger', 'triggerType', 'ByMarkPrice'));
                 $request['triggerType'] = $triggerType;
-                $closeOnTrigger = $this->safe_value_2($params, 'close', 'closeOnTrigger');
                 if ($closeOnTrigger !== null) {
                     $request['closeOnTrigger'] = $closeOnTrigger;
                 }
@@ -2454,6 +2440,34 @@ class phemex extends Exchange {
         return $this->parse_order($data, $market);
     }
 
+    public function format_pos_side($side, $params = array ()) {
+        $side = $this->capitalize($side);
+        $posSide = $this->safe_string_lower_2($params, 'positionMode', 'posSide');
+        $reduceOnly = $this->safe_value_2($params, 'reduce', 'reduceOnly');
+        $closeOnTrigger = $this->safe_value_2($params, 'close', 'closeOnTrigger');
+        if ($posSide === 'oneway') {
+            $posSide = 'Merged';
+        } elseif ($posSide === 'hedged' || $posSide === 'hedge') {
+            if ($side === 'Buy') {
+                if ($reduceOnly || $closeOnTrigger) {
+                    $posSide = 'Short';
+                } else {
+                    $posSide = 'Long';
+                }
+            } else {
+                if ($reduceOnly || $closeOnTrigger) {
+                    $posSide = 'Long';
+                } else {
+                    $posSide = 'Short';
+                }
+            }
+        }
+        if ($posSide === null) {
+            $posSide = 'Merged';
+        }
+        return $this->capitalize($posSide);
+    }
+
     public function edit_order($id, $symbol, $type = null, $side = null, $amount = null, $price = null, $params = array ()) {
         /**
          * edit a trade order
@@ -2518,12 +2532,9 @@ class phemex extends Exchange {
             $method = 'privatePutOrdersReplace';
         } elseif ($isUSDTSettled) {
             $method = 'privatePutGOrdersReplace';
-            $posSide = $this->safe_string($params, 'posSide');
-            if ($posSide === null) {
-                $request['posSide'] = 'Merged';
-            }
+            $request['posSide'] = $this->format_pos_side($side, $params);
         }
-        $params = $this->omit($params, array( 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice' ));
+        $params = $this->omit($params, array( 'reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice', 'positionSide' ));
         $response = $this->$method (array_merge($request, $params));
         $data = $this->safe_value($response, 'data', array());
         return $this->parse_order($data, $market);
@@ -2559,11 +2570,10 @@ class phemex extends Exchange {
             $method = 'privateDeleteOrdersCancel';
         } elseif ($market['settle'] === 'USDT') {
             $method = 'privateDeleteGOrdersCancel';
-            $posSide = $this->safe_string_lower_2($params, 'positionMode', 'posSide');
-            if ($posSide !== null) {
-                $request['posSide'] = $posSide;
-            }
+            $side = $this->safe_string($params, 'side');
+            $request['posSide'] = $this->format_pos_side($side, $params);
         }
+        $params = $this->omit($params, array( 'side' ));
         $response = $this->$method (array_merge($request, $params));
         $data = $this->safe_value($response, 'data', array());
         return $this->parse_order($data, $market);
