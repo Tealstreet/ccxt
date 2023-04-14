@@ -5133,9 +5133,15 @@ export default class bybit extends Exchange {
             request['category'] = type;
             if (type === 'swap') {
                 if (subType === 'linear') {
-                    this.checkRequiredSymbol ('fetchOpenOrders', symbol);
+                    // TEALSTREET BEGIN
+                    // this.checkRequiredSymbol ('fetchOpenOrders', symbol);
+                    request['settleCoin'] = 'USDT';
+                    // TEALSTREET END
                 } else if (subType === 'inverse') {
-                    throw new NotSupported (this.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets');
+                    // TEALSTREET BEGIN
+                    // throw new NotSupported (this.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets');
+                    request['settleCoin'] = 'BTC';
+                    // TEALSTREET END
                 }
                 request['category'] = subType;
             }
@@ -5154,13 +5160,15 @@ export default class bybit extends Exchange {
         }
         const isStop = this.safeValue (params, 'stop', false);
         params = this.omit (params, [ 'stop' ]);
+        // TEALSTREET BEGIN
         if (isStop) {
-            if (market['spot']) {
-                request['orderFilter'] = 'tpslOrder';
-            } else {
-                request['orderFilter'] = 'StopOrder';
-            }
+            // if (market['spot']) {
+            //     request['orderFilter'] = 'tpslOrder';
+            // } else {
+            request['orderFilter'] = 'StopOrder';
+            // }
         }
+        // TEALSTREET END
         if (limit !== undefined) {
             request['limit'] = limit;
         }

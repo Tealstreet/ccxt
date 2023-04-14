@@ -4834,9 +4834,11 @@ class bybit(Exchange):
             request['category'] = type
             if type == 'swap':
                 if subType == 'linear':
-                    self.check_required_symbol('fetchOpenOrders', symbol)
+                    # self.check_required_symbol('fetchOpenOrders', symbol)
+                    request['settleCoin'] = 'USDT'
                 elif subType == 'inverse':
-                    raise NotSupported(self.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets')
+                    # raise NotSupported(self.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets')
+                    request['settleCoin'] = 'BTC'
                 request['category'] = subType
         else:
             market = self.market(symbol)
@@ -4852,10 +4854,11 @@ class bybit(Exchange):
         isStop = self.safe_value(params, 'stop', False)
         params = self.omit(params, ['stop'])
         if isStop:
-            if market['spot']:
-                request['orderFilter'] = 'tpslOrder'
-            else:
-                request['orderFilter'] = 'StopOrder'
+            # if market['spot']:
+            #     request['orderFilter'] = 'tpslOrder'
+            # else:
+            request['orderFilter'] = 'StopOrder'
+            # }
         if limit is not None:
             request['limit'] = limit
         response = await self.privateGetV5OrderRealtime(self.extend(request, params))
