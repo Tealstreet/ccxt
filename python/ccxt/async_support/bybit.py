@@ -4834,11 +4834,15 @@ class bybit(Exchange):
             request['category'] = type
             if type == 'swap':
                 if subType == 'linear':
+                    # TEALSTREET BEGIN
                     # self.check_required_symbol('fetchOpenOrders', symbol)
                     request['settleCoin'] = 'USDT'
+                    # TEALSTREET END
                 elif subType == 'inverse':
+                    # TEALSTREET BEGIN
                     # raise NotSupported(self.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets')
                     request['settleCoin'] = 'BTC'
+                    # TEALSTREET END
                 request['category'] = subType
         else:
             market = self.market(symbol)
@@ -4853,12 +4857,14 @@ class bybit(Exchange):
                 raise NotSupported(self.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets')
         isStop = self.safe_value(params, 'stop', False)
         params = self.omit(params, ['stop'])
+        # TEALSTREET BEGIN
         if isStop:
             # if market['spot']:
             #     request['orderFilter'] = 'tpslOrder'
             # else:
             request['orderFilter'] = 'StopOrder'
             # }
+        # TEALSTREET END
         if limit is not None:
             request['limit'] = limit
         response = await self.privateGetV5OrderRealtime(self.extend(request, params))
@@ -6804,9 +6810,16 @@ class bybit(Exchange):
         maintenanceMarginPercentage = Precise.string_div(maintenanceMarginString, notional)
         percentage = Precise.string_mul(Precise.string_div(unrealisedPnl, initialMarginString), '100')
         marginRatio = Precise.string_div(maintenanceMarginString, collateralString, 4)
+        positionIdx = self.safe_string(position, 'positionIdx')
+        mode = 'oneway'
+        symbolSuffix = market['symbol']
+        if positionIdx == '1':
+            mode = 'hedged'
+            symbolSuffix = side
         return {
             'info': position,
-            'id': None,
+            'id': market['symbol'] + ':' + symbolSuffix,
+            'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),

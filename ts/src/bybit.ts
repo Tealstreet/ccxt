@@ -7254,9 +7254,17 @@ export default class bybit extends Exchange {
         const maintenanceMarginPercentage = Precise.stringDiv (maintenanceMarginString, notional);
         const percentage = Precise.stringMul (Precise.stringDiv (unrealisedPnl, initialMarginString), '100');
         const marginRatio = Precise.stringDiv (maintenanceMarginString, collateralString, 4);
+        const positionIdx = this.safeString (position, 'positionIdx');
+        let mode = 'oneway';
+        let symbolSuffix = market['symbol'];
+        if (positionIdx === '1') {
+            mode = 'hedged';
+            symbolSuffix = side;
+        }
         return {
             'info': position,
-            'id': undefined,
+            'id': market['symbol'] + ':' + symbolSuffix,
+            'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
