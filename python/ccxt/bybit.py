@@ -6765,6 +6765,7 @@ class bybit(Exchange):
             else:
                 side = None
         notional = self.safe_string(position, 'positionValue')
+        realizedPnl = self.omit_zero(self.safe_string(position, 'cumRealisedPnl'))
         unrealisedPnl = self.omit_zero(self.safe_string(position, 'unrealisedPnl'))
         initialMarginString = self.safe_string(position, 'positionIM')
         maintenanceMarginString = self.safe_string(position, 'positionMM')
@@ -6810,14 +6811,24 @@ class bybit(Exchange):
         percentage = Precise.string_mul(Precise.string_div(unrealisedPnl, initialMarginString), '100')
         marginRatio = Precise.string_div(maintenanceMarginString, collateralString, 4)
         positionIdx = self.safe_string(position, 'positionIdx')
+        # /TEALSTREET
         mode = 'oneway'
         symbolSuffix = market['symbol']
         if positionIdx == '1':
             mode = 'hedged'
             symbolSuffix = side
+        status = True
+        if size == '0':
+            status = False
+        active = True
+        if self.safe_string(position, 'positionStatus') != 'Normal':
+            active = False
+        # \TEALSTREET
         return {
             'info': position,
+            # /TEALSTREET
             'id': market['symbol'] + ':' + symbolSuffix,
+            # \TEALSTREET
             'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
@@ -6830,6 +6841,7 @@ class bybit(Exchange):
             'notional': self.parse_number(notional),
             'leverage': self.parse_number(leverage),
             'unrealizedPnl': self.parse_number(unrealisedPnl),
+            'pnl': realizedPnl + unrealisedPnl,
             'contracts': self.parse_number(size),  # in USD for inverse swaps
             'contractSize': self.safe_number(market, 'contractSize'),
             'marginRatio': self.parse_number(marginRatio),
@@ -6837,6 +6849,14 @@ class bybit(Exchange):
             'markPrice': self.safe_number(position, 'markPrice'),
             'collateral': self.parse_number(collateralString),
             'marginMode': marginMode,
+            # /TEALSTREET
+            'isolated': marginMode == 'isolated',
+            'hedged': mode == 'hedged',
+            'price': self.parse_number(entryPrice),
+            'status': status,
+            'tradeMode': mode,
+            'active': active,
+            # \TEALSTREET
             'side': side,
             'percentage': self.parse_number(percentage),
         }

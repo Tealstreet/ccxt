@@ -2838,6 +2838,22 @@ class Exchange {
         $this->currencies_by_id = $this->index_by($this->currencies, 'id');
         $currenciesSortedByCode = $this->keysort ($this->currencies);
         $this->codes = is_array($currenciesSortedByCode) ? array_keys($currenciesSortedByCode) : array();
+        // TEALSTREET
+        $markets_by_id_no_spot = array();
+        $market_symbols = is_array($this->markets_by_id) ? array_keys($this->markets_by_id) : array();
+        for ($i = 0; $i < count($market_symbols); $i++) {
+            for ($j = 0; $j < count($this->markets_by_id[$market_symbols[$i]]); $j++) {
+                if ($this->markets_by_id[$market_symbols[$i]][$j]['type'] !== 'spot') {
+                    if (is_array($markets_by_id_no_spot) && array_key_exists($market_symbols[$i], $markets_by_id_no_spot)) {
+                        $markets_by_id_no_spot[$market_symbols[$i]][] = $this->markets_by_id[$market_symbols[$i]][$j];
+                    } else {
+                        $markets_by_id_no_spot[$market_symbols[$i]] = [ $this->markets_by_id[$market_symbols[$i]][$j] ];
+                    }
+                }
+            }
+        }
+        $this->markets_by_id = $markets_by_id_no_spot;
+        // TEALSTREET
         return $this->markets;
     }
 

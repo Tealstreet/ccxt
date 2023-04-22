@@ -684,6 +684,18 @@ class Exchange(BaseExchange):
         self.currencies_by_id = self.index_by(self.currencies, 'id')
         currenciesSortedByCode = self.keysort(self.currencies)
         self.codes = list(currenciesSortedByCode.keys())
+        # TEALSTREET
+        markets_by_id_no_spot = {}
+        market_symbols = list(self.markets_by_id.keys())
+        for i in range(0, len(market_symbols)):
+            for j in range(0, len(self.markets_by_id[market_symbols[i]])):
+                if self.markets_by_id[market_symbols[i]][j]['type'] != 'spot':
+                    if market_symbols[i] in markets_by_id_no_spot:
+                        markets_by_id_no_spot[market_symbols[i]].append(self.markets_by_id[market_symbols[i]][j])
+                    else:
+                        markets_by_id_no_spot[market_symbols[i]] = [self.markets_by_id[market_symbols[i]][j]]
+        self.markets_by_id = markets_by_id_no_spot
+        # TEALSTREET
         return self.markets
 
     def safe_balance(self, balance):

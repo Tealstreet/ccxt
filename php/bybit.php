@@ -5097,9 +5097,15 @@ class bybit extends Exchange {
             $request['category'] = $type;
             if ($type === 'swap') {
                 if ($subType === 'linear') {
-                    $this->check_required_symbol('fetchOpenOrders', $symbol);
+                    // TEALSTREET BEGIN
+                    // $this->check_required_symbol('fetchOpenOrders', $symbol);
+                    $request['settleCoin'] = 'USDT';
+                    // TEALSTREET END
                 } elseif ($subType === 'inverse') {
-                    throw new NotSupported($this->id . ' fetchOpenOrders() does not allow inverse $market orders for ' . $symbol . ' markets');
+                    // TEALSTREET BEGIN
+                    // throw new NotSupported($this->id . ' fetchOpenOrders() does not allow inverse $market orders for ' . $symbol . ' markets');
+                    $request['settleCoin'] = 'BTC';
+                    // TEALSTREET END
                 }
                 $request['category'] = $subType;
             }
@@ -5118,13 +5124,15 @@ class bybit extends Exchange {
         }
         $isStop = $this->safe_value($params, 'stop', false);
         $params = $this->omit($params, array( 'stop' ));
+        // TEALSTREET BEGIN
         if ($isStop) {
-            if ($market['spot']) {
-                $request['orderFilter'] = 'tpslOrder';
-            } else {
-                $request['orderFilter'] = 'StopOrder';
-            }
+            // if ($market['spot']) {
+            //     $request['orderFilter'] = 'tpslOrder';
+            // } else {
+            $request['orderFilter'] = 'StopOrder';
+            // }
         }
+        // TEALSTREET END
         if ($limit !== null) {
             $request['limit'] = $limit;
         }
@@ -7138,6 +7146,7 @@ class bybit extends Exchange {
             }
         }
         $notional = $this->safe_string($position, 'positionValue');
+        $realizedPnl = $this->omit_zero($this->safe_string($position, 'cumRealisedPnl'));
         $unrealisedPnl = $this->omit_zero($this->safe_string($position, 'unrealisedPnl'));
         $initialMarginString = $this->safe_string($position, 'positionIM');
         $maintenanceMarginString = $this->safe_string($position, 'positionMM');
@@ -7188,9 +7197,29 @@ class bybit extends Exchange {
         $maintenanceMarginPercentage = Precise::string_div($maintenanceMarginString, $notional);
         $percentage = Precise::string_mul(Precise::string_div($unrealisedPnl, $initialMarginString), '100');
         $marginRatio = Precise::string_div($maintenanceMarginString, $collateralString, 4);
+        $positionIdx = $this->safe_string($position, 'positionIdx');
+        // /TEALSTREET
+        $mode = 'oneway';
+        $symbolSuffix = $market['symbol'];
+        if ($positionIdx === '1') {
+            $mode = 'hedged';
+            $symbolSuffix = $side;
+        }
+        $status = true;
+        if ($size === '0') {
+            $status = false;
+        }
+        $active = true;
+        if ($this->safe_string($position, 'positionStatus') !== 'Normal') {
+            $active = false;
+        }
+        // \TEALSTREET
         return array(
             'info' => $position,
-            'id' => null,
+            // /TEALSTREET
+            'id' => $market['symbol'] . ':' . $symbolSuffix,
+            // \TEALSTREET
+            'mode' => $mode,
             'symbol' => $market['symbol'],
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
@@ -7202,6 +7231,7 @@ class bybit extends Exchange {
             'notional' => $this->parse_number($notional),
             'leverage' => $this->parse_number($leverage),
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
+            'pnl' => $realizedPnl . $unrealisedPnl,
             'contracts' => $this->parse_number($size), // in USD for inverse swaps
             'contractSize' => $this->safe_number($market, 'contractSize'),
             'marginRatio' => $this->parse_number($marginRatio),
@@ -7209,6 +7239,14 @@ class bybit extends Exchange {
             'markPrice' => $this->safe_number($position, 'markPrice'),
             'collateral' => $this->parse_number($collateralString),
             'marginMode' => $marginMode,
+            // /TEALSTREET
+            'isolated' => $marginMode === 'isolated',
+            'hedged' => $mode === 'hedged',
+            'price' => $this->parse_number($entryPrice),
+            'status' => $status,
+            'tradeMode' => $mode,
+            'active' => $active,
+            // \TEALSTREET
             'side' => $side,
             'percentage' => $this->parse_number($percentage),
         );

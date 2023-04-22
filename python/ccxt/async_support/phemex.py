@@ -3265,8 +3265,6 @@ class phemex(Exchange):
         unrealizedPnl = Precise.string_mul(Precise.string_mul(priceDiff, contractsString), contractSizeString)
         percentage = Precise.string_mul(Precise.string_div(unrealizedPnl, initialMarginString), '100')
         marginRatio = Precise.string_div(maintenanceMarginString, collateral)
-        if '1INCH' in symbol:
-            print('here')
         return {
             'info': position,
             'id': id,

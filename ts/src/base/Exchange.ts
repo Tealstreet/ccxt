@@ -1661,6 +1661,22 @@ export default class Exchange {
         this.currencies_by_id = this.indexBy (this.currencies, 'id');
         const currenciesSortedByCode = this.keysort (this.currencies);
         this.codes = Object.keys (currenciesSortedByCode);
+        // TEALSTREET
+        const markets_by_id_no_spot = {};
+        const market_symbols = Object.keys (this.markets_by_id);
+        for (let i = 0; i < market_symbols.length; i++) {
+            for (let j = 0; j < this.markets_by_id[market_symbols[i]].length; j++) {
+                if (this.markets_by_id[market_symbols[i]][j]['type'] !== 'spot') {
+                    if (market_symbols[i] in markets_by_id_no_spot) {
+                        markets_by_id_no_spot[market_symbols[i]].push (this.markets_by_id[market_symbols[i]][j]);
+                    } else {
+                        markets_by_id_no_spot[market_symbols[i]] = [ this.markets_by_id[market_symbols[i]][j] ];
+                    }
+                }
+            }
+        }
+        this.markets_by_id = markets_by_id_no_spot;
+        // TEALSTREET
         return this.markets;
     }
 
