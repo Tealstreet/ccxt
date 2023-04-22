@@ -7000,6 +7000,9 @@ class bybit(Exchange):
             request['coin'] = 'USDT'
         else:
             market = self.market(symbol)
+            # TEALSTREET
+            request['category'] = 'linear' if market['linear'] else 'inverse'
+            # TEALSTREET
             request['symbol'] = market['id']
         #
         #     {

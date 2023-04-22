@@ -7468,6 +7468,9 @@ export default class bybit extends Exchange {
             request['coin'] = 'USDT';
         } else {
             const market = this.market (symbol);
+            // TEALSTREET
+            request['category'] = market['linear'] ? 'linear' : 'inverse';
+            // TEALSTREET
             request['symbol'] = market['id'];
         }
         //
