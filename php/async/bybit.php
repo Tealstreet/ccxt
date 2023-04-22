@@ -20,6 +20,7 @@ class bybit extends Exchange {
 
     public function describe() {
         return $this->deep_extend(parent::describe(), array(
+            'verbose' => true,
             'id' => 'bybit',
             'name' => 'Bybit',
             'countries' => array( 'VG' ), // British Virgin Islands
@@ -7539,6 +7540,12 @@ class bybit extends Exchange {
                 );
                 $method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave';
             }
+            // TEALSTREET
+            $params = array(
+                'buyLeverage' => $this->safe_string($params, 'buyLeverage') || $request['buyLeverage'],
+                'sellLeverage' => $this->safe_string($params, 'sellLeverage') || $request['sellLeverage'],
+            );
+            // TEALSTREET
             return Async\await($this->$method (array_merge($request, $params)));
         }) ();
     }

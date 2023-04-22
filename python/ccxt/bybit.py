@@ -25,6 +25,7 @@ class bybit(Exchange):
 
     def describe(self):
         return self.deep_extend(super(bybit, self).describe(), {
+            'verbose': True,
             'id': 'bybit',
             'name': 'Bybit',
             'countries': ['VG'],  # British Virgin Islands
@@ -6977,6 +6978,12 @@ class bybit(Exchange):
                 'leverage': leverage,
             }
             method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave'
+        # TEALSTREET
+        params = {
+            'buyLeverage': self.safe_string(params, 'buyLeverage') or request['buyLeverage'],
+            'sellLeverage': self.safe_string(params, 'sellLeverage') or request['sellLeverage'],
+        }
+        # TEALSTREET
         return getattr(self, method)(self.extend(request, params))
 
     def set_position_mode(self, hedged, symbol=None, params={}):

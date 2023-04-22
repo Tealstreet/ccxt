@@ -11,6 +11,7 @@ import { Precise } from './base/Precise.js';
 export default class bybit extends Exchange {
     describe () {
         return this.deepExtend (super.describe (), {
+            'verbose': true,
             'id': 'bybit',
             'name': 'Bybit',
             'countries': [ 'VG' ], // British Virgin Islands
@@ -7443,6 +7444,12 @@ export default class bybit extends Exchange {
             };
             method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave';
         }
+        // TEALSTREET
+        params = {
+            'buyLeverage': this.safeString (params, 'buyLeverage') || request['buyLeverage'],
+            'sellLeverage': this.safeString (params, 'sellLeverage') || request['sellLeverage'],
+        };
+        // TEALSTREET
         return await this[method] (this.extend (request, params));
     }
 
