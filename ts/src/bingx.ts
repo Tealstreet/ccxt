@@ -8,12 +8,12 @@ import { TICK_SIZE } from './base/functions/number.js';
 
 //  ---------------------------------------------------------------------------
 
-export default class paymium extends Exchange {
+export default class bingx extends Exchange {
     describe () {
         return this.deepExtend (super.describe (), {
-            'id': 'paymium',
-            'name': 'Paymium',
-            'countries': [ 'FR', 'EU' ],
+            'id': 'bingx',
+            'name': 'BingX',
+            'countries': [ 'EU' ],
             'rateLimit': 2000,
             'version': 'v1',
             'has': {
