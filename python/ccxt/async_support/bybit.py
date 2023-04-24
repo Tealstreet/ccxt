@@ -6915,11 +6915,19 @@ class bybit(Exchange):
         tradeMode = 1 if (marginMode == 'ISOLATED') else 0
         request = {
             'symbol': market['id'],
+            # TEALSTREET
+            'category': 'linear' if market['linear'] else 'inverse',
+            # TEALSTREET
             'tradeMode': tradeMode,
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
         }
-        response = await self.privatePostContractV3PrivatePositionSwitchIsolated(self.extend(request, params))
+        # TEALSTREET
+        args = self.extend(request, params)
+        args['buyLeverage'] = self.number_to_string(args['buyLeverage'])
+        args['sellLeverage'] = self.number_to_string(args['sellLeverage'])
+        # TEALSTREET
+        response = await self.privatePostContractV3PrivatePositionSwitchIsolated(args)
         #
         #     {
         #         "retCode": 0,

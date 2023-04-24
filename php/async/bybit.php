@@ -7469,11 +7469,19 @@ class bybit extends Exchange {
             $tradeMode = ($marginMode === 'ISOLATED') ? 1 : 0;
             $request = array(
                 'symbol' => $market['id'],
+                // TEALSTREET
+                'category' => $market['linear'] ? 'linear' : 'inverse',
+                // TEALSTREET
                 'tradeMode' => $tradeMode,
                 'buyLeverage' => $buyLeverage,
                 'sellLeverage' => $sellLeverage,
             );
-            $response = Async\await($this->privatePostContractV3PrivatePositionSwitchIsolated (array_merge($request, $params)));
+            // TEALSTREET
+            $args = array_merge($request, $params);
+            $args['buyLeverage'] = $this->number_to_string($args['buyLeverage']);
+            $args['sellLeverage'] = $this->number_to_string($args['sellLeverage']);
+            // TEALSTREET
+            $response = Async\await($this->privatePostContractV3PrivatePositionSwitchIsolated ($args));
             //
             //     {
             //         "retCode" => 0,

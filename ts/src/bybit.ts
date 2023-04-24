@@ -7373,11 +7373,19 @@ export default class bybit extends Exchange {
         const tradeMode = (marginMode === 'ISOLATED') ? 1 : 0;
         const request = {
             'symbol': market['id'],
+            // TEALSTREET
+            'category': market['linear'] ? 'linear' : 'inverse',
+            // TEALSTREET
             'tradeMode': tradeMode,
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
         };
-        const response = await (this as any).privatePostContractV3PrivatePositionSwitchIsolated (this.extend (request, params));
+        // TEALSTREET
+        const args = this.extend (request, params);
+        args['buyLeverage'] = this.numberToString (args['buyLeverage']);
+        args['sellLeverage'] = this.numberToString (args['sellLeverage']);
+        // TEALSTREET
+        const response = await (this as any).privatePostContractV3PrivatePositionSwitchIsolated (args);
         //
         //     {
         //         "retCode": 0,
