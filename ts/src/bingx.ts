@@ -3,7 +3,6 @@
 
 import { Exchange } from './base/Exchange.js';
 import { ExchangeError } from './base/errors.js';
-import { Precise } from './base/Precise.js';
 import { TICK_SIZE } from './base/functions/number.js';
 
 //  ---------------------------------------------------------------------------
@@ -237,9 +236,8 @@ export default class bingx extends Exchange {
          * @param {object} params extra parameters specific to the exchange api endpoint
          * @returns {[object]} an array of objects representing market data
          */
-        // const contract = await this.fetchContractMarkets (params);
-        // return contract;
-        return [];
+        const contract = await this.fetchContractMarkets (params);
+        return contract;
     }
 
     parseBalance (response) {
@@ -296,48 +294,40 @@ export default class bingx extends Exchange {
     parseTicker (ticker, market = undefined) {
         //
         // {
-        //     "high":"33740.82",
-        //     "low":"32185.15",
-        //     "volume":"4.7890433",
-        //     "bid":"33313.53",
-        //     "ask":"33497.97",
-        //     "midpoint":"33405.75",
-        //     "vwap":"32802.5263553",
-        //     "at":1643381654,
-        //     "price":"33143.91",
-        //     "open":"33116.86",
-        //     "variation":"0.0817",
-        //     "currency":"EUR",
-        //     "trade_id":"ce2f5152-3ac5-412d-9b24-9fa72338474c",
-        //     "size":"0.00041087"
+        //   "symbol": "BTC-USDT",
+        //   "priceChange": "10.00",
+        //   "priceChangePercent": "10",
+        //   "lastPrice": "5738.23",
+        //   "lastVolume": "31.21",
+        //   "highPrice": "5938.23",
+        //   "lowPrice": "5238.23",
+        //   "volume": "23211231.13",
+        //   "dayVolume": "213124412412.47",
+        //   "openPrice": "5828.32"
         // }
         //
         const symbol = this.safeSymbol (undefined, market);
-        const timestamp = this.safeTimestamp (ticker, 'at');
-        const vwap = this.safeString (ticker, 'vwap');
+        const timestamp = this.milliseconds ();
         const baseVolume = this.safeString (ticker, 'volume');
-        const quoteVolume = Precise.stringMul (baseVolume, vwap);
-        const last = this.safeString (ticker, 'price');
+        const last = this.safeString (ticker, 'lastPrice');
         return this.safeTicker ({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'high': this.safeString (ticker, 'high'),
-            'low': this.safeString (ticker, 'low'),
-            'bid': this.safeString (ticker, 'bid'),
+            'high': this.safeString (ticker, 'highPrice'),
+            'low': this.safeString (ticker, 'lowPrice'),
+            'bid': this.safeString (ticker, 'lastPrice'),
             'bidVolume': undefined,
-            'ask': this.safeString (ticker, 'ask'),
+            'ask': this.safeString (ticker, 'lastPrice'),
             'askVolume': undefined,
-            'vwap': vwap,
-            'open': this.safeString (ticker, 'open'),
+            'open': this.safeString (ticker, 'openPrice'),
             'close': last,
             'last': last,
             'previousClose': undefined,
             'change': undefined,
-            'percentage': this.safeString (ticker, 'variation'),
+            'percentage': this.safeString (ticker, 'priceChangePercent'),
             'average': undefined,
             'baseVolume': baseVolume,
-            'quoteVolume': quoteVolume,
             'info': ticker,
         }, market);
     }
@@ -354,25 +344,21 @@ export default class bingx extends Exchange {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request = {
-            'currency': market['id'],
+            'symbol': market['id'],
         };
-        const ticker = await (this as any).publicGetDataCurrencyTicker (this.extend (request, params));
+        const ticker = await (this as any).swapV1PublicGetMarketGetTicker (this.extend (request, params));
         //
         // {
-        //     "high":"33740.82",
-        //     "low":"32185.15",
-        //     "volume":"4.7890433",
-        //     "bid":"33313.53",
-        //     "ask":"33497.97",
-        //     "midpoint":"33405.75",
-        //     "vwap":"32802.5263553",
-        //     "at":1643381654,
-        //     "price":"33143.91",
-        //     "open":"33116.86",
-        //     "variation":"0.0817",
-        //     "currency":"EUR",
-        //     "trade_id":"ce2f5152-3ac5-412d-9b24-9fa72338474c",
-        //     "size":"0.00041087"
+        //   "symbol": "BTC-USDT",
+        //   "priceChange": "10.00",
+        //   "priceChangePercent": "10",
+        //   "lastPrice": "5738.23",
+        //   "lastVolume": "31.21",
+        //   "highPrice": "5938.23",
+        //   "lowPrice": "5238.23",
+        //   "volume": "23211231.13",
+        //   "dayVolume": "213124412412.47",
+        //   "openPrice": "5828.32"
         // }
         //
         return this.parseTicker (ticker, market);
