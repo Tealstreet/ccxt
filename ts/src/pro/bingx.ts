@@ -14,7 +14,7 @@ export default class bingx extends bingxRest {
                 'ws': true,
                 'watchBalance': true,
                 'watchMyTrades': true,
-                'watchOHLCV': true,
+                'watchOHLCV': false,
                 'watchOrderBook': true,
                 'watchOrders': true,
                 'watchTicker': false,
@@ -85,113 +85,6 @@ export default class bingx extends bingxRest {
     cleanParams (params) {
         params = this.omit (params, [ 'type', 'subType', 'settle', 'defaultSettle', 'unifiedMargin' ]);
         return params;
-    }
-
-    async watchOHLCV (symbol, timeframe = '1m', since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name bingx#watchOHLCV
-         * @description watches historical candlestick data containing the open, high, low, and close price, and the volume of a market
-         * @see https://bingx-exchange.github.io/docs/v5/websocket/public/kline
-         * @see https://bingx-exchange.github.io/docs/v5/websocket/public/etp-kline
-         * @param {string} symbol unified symbol of the market to fetch OHLCV data for
-         * @param {string} timeframe the length of time each candle represents
-         * @param {int|undefined} since timestamp in ms of the earliest candle to fetch
-         * @param {int|undefined} limit the maximum amount of candles to fetch
-         * @param {object} params extra parameters specific to the bingx api endpoint
-         * @returns {[[int]]} A list of candles ordered as timestamp, open, high, low, close, volume
-         */
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        symbol = market['symbol'];
-        const url = this.urls['api']['ws'];
-        params = this.cleanParams (params);
-        let ohlcv = undefined;
-        const timeframeId = this.safeString (this.timeframes, timeframe, timeframe);
-        const topics = [ 'kline.' + timeframeId + '.' + market['id'] ];
-        const messageHash = 'kline' + ':' + timeframeId + ':' + symbol;
-        ohlcv = await this.watchTopics (url, messageHash, topics, params);
-        if (this.newUpdates) {
-            limit = ohlcv.getLimit (symbol, limit);
-        }
-        return this.filterBySinceLimit (ohlcv, since, limit, 0, true);
-    }
-
-    handleOHLCV (client, message) {
-        //
-        //     {
-        //         "topic": "kline.5.BTCUSDT",
-        //         "data": [
-        //             {
-        //                 "start": 1672324800000,
-        //                 "end": 1672325099999,
-        //                 "interval": "5",
-        //                 "open": "16649.5",
-        //                 "close": "16677",
-        //                 "high": "16677",
-        //                 "low": "16608",
-        //                 "volume": "2.081",
-        //                 "turnover": "34666.4005",
-        //                 "confirm": false,
-        //                 "timestamp": 1672324988882
-        //             }
-        //         ],
-        //         "ts": 1672324988882,
-        //         "type": "snapshot"
-        //     }
-        //
-        const data = this.safeValue (message, 'data', {});
-        const topic = this.safeString (message, 'topic');
-        const topicParts = topic.split ('.');
-        const topicLength = topicParts.length;
-        const timeframeId = this.safeString (topicParts, 1);
-        const marketId = this.safeString (topicParts, topicLength - 1);
-        const isSpot = client.url.indexOf ('spot') > -1;
-        const marketType = isSpot ? 'spot' : 'contract';
-        const market = this.safeMarket (marketId, undefined, undefined, marketType);
-        const symbol = market['symbol'];
-        const ohlcvsByTimeframe = this.safeValue (this.ohlcvs, symbol);
-        if (ohlcvsByTimeframe === undefined) {
-            this.ohlcvs[symbol] = {};
-        }
-        let stored = this.safeValue (ohlcvsByTimeframe, timeframeId);
-        if (stored === undefined) {
-            const limit = this.safeInteger (this.options, 'OHLCVLimit', 1000);
-            stored = new ArrayCacheByTimestamp (limit);
-            this.ohlcvs[symbol][timeframeId] = stored;
-        }
-        for (let i = 0; i < data.length; i++) {
-            const parsed = this.parseWsOHLCV (data[i]);
-            stored.append (parsed);
-        }
-        const messageHash = 'kline' + ':' + timeframeId + ':' + symbol;
-        client.resolve (stored, messageHash);
-    }
-
-    parseWsOHLCV (ohlcv) {
-        //
-        //     {
-        //         "start": 1670363160000,
-        //         "end": 1670363219999,
-        //         "interval": "1",
-        //         "open": "16987.5",
-        //         "close": "16987.5",
-        //         "high": "16988",
-        //         "low": "16987.5",
-        //         "volume": "23.511",
-        //         "turnover": "399396.344",
-        //         "confirm": false,
-        //         "timestamp": 1670363219614
-        //     }
-        //
-        return [
-            this.safeInteger (ohlcv, 'timestamp'),
-            this.safeNumber (ohlcv, 'open'),
-            this.safeNumber (ohlcv, 'high'),
-            this.safeNumber (ohlcv, 'low'),
-            this.safeNumber (ohlcv, 'close'),
-            this.safeNumber2 (ohlcv, 'volume', 'turnover'),
-        ];
     }
 
     async watchOrderBook (symbol, limit = undefined, params = {}) {
@@ -460,7 +353,6 @@ export default class bingx extends bingxRest {
          * @param {boolean} params.unifiedMargin use unified margin account
          * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
          */
-        const method = 'watchMyTrades';
         let messageHash = 'myTrades';
         await this.loadMarkets ();
         if (symbol !== undefined) {
@@ -825,7 +717,6 @@ export default class bingx extends bingxRest {
          * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
          */
         await this.loadMarkets ();
-        const method = 'watchBalance';
         let messageHash = 'balances';
         let type = undefined;
         [ type, params ] = this.handleMarketTypeAndParams ('watchBalance', undefined, params);
@@ -1229,7 +1120,6 @@ export default class bingx extends bingxRest {
         const topic = this.safeString (message, 'topic', '');
         const methods = {
             'orderbook': this.handleOrderBook,
-            'kline': this.handleOHLCV,
             'order': this.handleOrder,
             'stopOrder': this.handleOrder,
             'trade': this.handleTrades,
