@@ -3,7 +3,7 @@
 
 import bingxRest from '../bingx.js';
 import { AuthenticationError, ExchangeError, BadRequest } from '../base/errors.js';
-import { ArrayCache, ArrayCacheBySymbolById, ArrayCacheByTimestamp } from '../base/ws/Cache.js';
+import { ArrayCache, ArrayCacheBySymbolById } from '../base/ws/Cache.js';
 
 //  ---------------------------------------------------------------------------
 
@@ -24,7 +24,7 @@ export default class bingx extends bingxRest {
             },
             'urls': {
                 'api': {
-                    'ws': 'wss://open-ws-swap.bingbon.pro/ws',
+                    'ws': 'wss://ws-market-swap.we-api.com/ws',
                 },
             },
             'options': {
@@ -238,7 +238,7 @@ export default class bingx extends bingxRest {
         //
         const data = this.safeValue (message, 'data', {});
         const topic = this.safeString (message, 'dataType');
-        const trades = this.isArray (data.trades) ? data.trades : [];
+        const trades = this.isArray (data.trades) ? data.trades.reverse () : [];
         const parts = topic.split ('.');
         const marketId = this.safeString (parts, 3);
         const market = this.safeMarket (marketId);
@@ -272,8 +272,8 @@ export default class bingx extends bingxRest {
         //     }
         //
         const symbol = market['symbol'];
-        const timestamp = this.milliseconds () - 0;
-        const id = timestamp;
+        const timestamp = this.safeInteger (trade, 'rawTs');
+        const id = '' + timestamp;
         const m = this.safeValue (trade, 'makerSide');
         const side = m ? 'Bid' : 'Ask';
         const price = this.safeString (trade, 'price');
@@ -1003,7 +1003,7 @@ export default class bingx extends bingxRest {
         // }
     }
 
-    ping () {
+    ping (client) {
         return 'Pong'; // XD
     }
 
