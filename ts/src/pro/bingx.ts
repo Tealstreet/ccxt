@@ -584,7 +584,6 @@ export default class bingx extends bingxRest {
         //         ]
         //     }
         //
-        const type = this.safeString (message, 'type', '');
         if (this.orders === undefined) {
             const limit = this.safeInteger (this.options, 'ordersLimit', 1000);
             this.orders = new ArrayCacheBySymbolById (limit);
@@ -592,14 +591,9 @@ export default class bingx extends bingxRest {
         const orders = this.orders;
         let rawOrders = [];
         let parser = undefined;
-        if (type === 'snapshot') {
-            rawOrders = this.safeValue (message, 'data', []);
-            parser = 'parseWsSpotOrder';
-        } else {
-            parser = 'parseContractOrder';
-            rawOrders = this.safeValue (message, 'data', []);
-            rawOrders = this.safeValue (rawOrders, 'result', rawOrders);
-        }
+        parser = 'parseContractOrder';
+        rawOrders = this.safeValue (message, 'data', []);
+        rawOrders = this.safeValue (rawOrders, 'result', rawOrders);
         const symbols = {};
         for (let i = 0; i < rawOrders.length; i++) {
             const parsed = this[parser] (rawOrders[i]);
@@ -614,97 +608,6 @@ export default class bingx extends bingxRest {
         }
         const messageHash = 'orders';
         client.resolve (orders, messageHash);
-    }
-
-    parseWsSpotOrder (order, market = undefined) {
-        //
-        //    {
-        //        e: 'executionReport',
-        //        E: '1653297251061', // timestamp
-        //        s: 'LTCUSDT', // symbol
-        //        c: '1653297250740', // user id
-        //        S: 'SELL', // side
-        //        o: 'MARKET_OF_BASE', // order type
-        //        f: 'GTC', // time in force
-        //        q: '0.16233', // quantity
-        //        p: '0', // price
-        //        X: 'NEW', // status
-        //        i: '1162336018974750208', // order id
-        //        M: '0',
-        //        l: '0', // last filled
-        //        z: '0', // total filled
-        //        L: '0', // last traded price
-        //        n: '0', // trading fee
-        //        N: '', // fee asset
-        //        u: true,
-        //        w: true,
-        //        m: false, // is limit_maker
-        //        O: '1653297251042', // order creation
-        //        Z: '0', // total filled
-        //        A: '0', // account id
-        //        C: false, // is close
-        //        v: '0', // leverage
-        //        d: 'NO_LIQ'
-        //    }
-        //
-        const id = this.safeString (order, 'i');
-        const marketId = this.safeString (order, 's');
-        const symbol = this.safeSymbol (marketId, market, undefined, 'spot');
-        const timestamp = this.safeInteger (order, 'O');
-        let price = this.safeString (order, 'p');
-        if (price === '0') {
-            price = undefined; // market orders
-        }
-        const filled = this.safeString (order, 'z');
-        const status = 'NEW';
-        const side = this.safeStringLower (order, 'S');
-        const lastTradeTimestamp = this.safeString (order, 'E');
-        const timeInForce = this.safeString (order, 'f');
-        let amount = undefined;
-        const cost = this.safeString (order, 'Z');
-        const q = this.safeString (order, 'q');
-        let type = this.safeStringLower (order, 'o');
-        if (type.indexOf ('quote') >= 0) {
-            amount = filled;
-        } else {
-            amount = q;
-        }
-        if (type.indexOf ('market') >= 0) {
-            type = 'market';
-        }
-        let fee = undefined;
-        const feeCost = this.safeString (order, 'n');
-        if (feeCost !== undefined && feeCost !== '0') {
-            const feeCurrencyId = this.safeString (order, 'N');
-            const feeCurrencyCode = this.safeCurrencyCode (feeCurrencyId);
-            fee = {
-                'cost': feeCost,
-                'currency': feeCurrencyCode,
-            };
-        }
-        return this.safeOrder ({
-            'info': order,
-            'id': id,
-            'clientOrderId': this.safeString (order, 'c'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'lastTradeTimestamp': lastTradeTimestamp,
-            'symbol': symbol,
-            'type': type,
-            'timeInForce': timeInForce,
-            'postOnly': undefined,
-            'side': side,
-            'price': price,
-            'stopPrice': undefined,
-            'triggerPrice': undefined,
-            'amount': amount,
-            'cost': cost,
-            'average': undefined,
-            'filled': filled,
-            'remaining': undefined,
-            'status': status,
-            'fee': fee,
-        }, market);
     }
 
     async watchBalance (params = {}) {
