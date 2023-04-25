@@ -109,70 +109,30 @@ export default class bingx extends bingxRest {
         return orderbook.limit();
     }
     handleOrderBook(client, message) {
-        //
-        //     {
-        //         "topic": "orderbook.50.BTCUSDT",
-        //         "type": "snapshot",
-        //         "ts": 1672304484978,
-        //         "data": {
-        //             "s": "BTCUSDT",
-        //             "b": [
-        //                 ...,
-        //                 [
-        //                     "16493.50",
-        //                     "0.006"
-        //                 ],
-        //                 [
-        //                     "16493.00",
-        //                     "0.100"
-        //                 ]
-        //             ],
-        //             "a": [
-        //                 [
-        //                     "16611.00",
-        //                     "0.029"
-        //                 ],
-        //                 [
-        //                     "16612.00",
-        //                     "0.213"
-        //                 ],
-        //             ],
-        //             "u": 18521288,
-        //             "seq": 7961638724
-        //         }
-        //     }
-        //
-        const isSpot = client.url.indexOf('spot') >= 0;
-        const type = this.safeString(message, 'type');
-        const isSnapshot = (type === 'snapshot');
         const data = this.safeValue(message, 'data', {});
-        const marketId = this.safeString(data, 's');
-        const marketType = isSpot ? 'spot' : 'contract';
-        const market = this.safeMarket(marketId, undefined, undefined, marketType);
+        const dataType = this.safeValue(message, 'dataType', '');
+        const parts = dataType.split('.');
+        const marketId = this.safeString(parts, 2);
+        const market = this.safeMarket(marketId);
         const symbol = market['symbol'];
-        const timestamp = this.safeInteger(message, 'ts');
+        const latestTrade = this.safeValue(data, 'latestTrade', {});
+        const timestamp = this.safeInteger(latestTrade, 'rawTs');
         let orderbook = this.safeValue(this.orderbooks, symbol);
         if (orderbook === undefined) {
             orderbook = this.orderBook();
         }
-        if (isSnapshot) {
-            const snapshot = this.parseOrderBook(data, symbol, timestamp, 'b', 'a');
-            orderbook.reset(snapshot);
-        }
-        else {
-            const asks = this.safeValue(data, 'a', []);
-            const bids = this.safeValue(data, 'b', []);
-            this.handleDeltas(orderbook['asks'], asks);
-            this.handleDeltas(orderbook['bids'], bids);
-            orderbook['timestamp'] = timestamp;
-            orderbook['datetime'] = this.iso8601(timestamp);
-        }
+        const asks = this.safeValue(data, 'asks', []);
+        const bids = this.safeValue(data, 'bids', []);
+        this.handleDeltas(orderbook['asks'], asks);
+        this.handleDeltas(orderbook['bids'], bids);
+        orderbook['timestamp'] = timestamp;
+        orderbook['datetime'] = this.iso8601(timestamp);
         const messageHash = 'orderbook' + ':' + symbol;
         this.orderbooks[symbol] = orderbook;
         client.resolve(orderbook, messageHash);
     }
     handleDelta(bookside, delta) {
-        const bidAsk = this.parseBidAsk(delta, 0, 1);
+        const bidAsk = this.parseBidAsk(delta, 'price', 'volume');
         bookside.storeArray(bidAsk);
     }
     handleDeltas(bookside, deltas) {
