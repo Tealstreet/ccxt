@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.base.exchange import Exchange
+import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.decimal_to_precision import TICK_SIZE
 from ccxt.base.precise import Precise
@@ -16,8 +17,10 @@ class bingx(Exchange):
             'id': 'bingx',
             'name': 'BingX',
             'countries': ['EU'],
-            'rateLimit': 2000,
+            'rateLimit': 100,
             'version': 'v1',
+            'verbose': True,
+            'pro': True,
             'has': {
                 'CORS': True,
                 'spot': True,
@@ -47,54 +50,71 @@ class bingx(Exchange):
                 'transfer': True,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/51840849/87153930-f0f02200-c2c0-11ea-9c0a-40337375ae89.jpg',
+                'logo': '',
                 'api': {
-                    'rest': 'https://paymium.com/api',
+                    'spot': 'https://open-api.bingx.com/openApi/spot',
+                    'swap': 'https://api-swap-rest.bingbon.pro/api',
+                    'contract': 'https://api.bingbon.com/api/coingecko',
                 },
-                'www': 'https://www.paymium.com',
-                'fees': 'https://www.paymium.com/page/help/fees',
+                'test': {
+                },
+                'www': 'https://bingx.com/',
                 'doc': [
-                    'https://github.com/Paymium/api-documentation',
-                    'https://www.paymium.com/page/developers',
-                    'https://paymium.github.io/api-documentation/',
+                    'https://bingx-api.github.io/docs',
                 ],
-                'referral': 'https://www.paymium.com/page/sign-up?referral=eDAzPoRQFMvaAB8sf-qj',
+                'fees': [
+                    'https://support.bingx.com/hc/en-001/articles/360027240173',
+                ],
+                'referral': '',
             },
             'api': {
-                'public': {
-                    'get': [
-                        'countries',
-                        'data/{currency}/ticker',
-                        'data/{currency}/trades',
-                        'data/{currency}/depth',
-                        'bitcoin_charts/{id}/trades',
-                        'bitcoin_charts/{id}/depth',
-                    ],
+                'swap': {
+                    'v1': {
+                        'public': {
+                            'get': {
+                                'market/getAllContracts': 1,
+                                'market/getLatestPrice': 1,
+                                'market/getMarketDepth': 1,
+                                'market/getMarketTrades': 1,
+                                'market/getLatestFunding': 1,
+                                'market/getHistoryFunding': 1,
+                                'market/getLatestKline': 1,
+                                'market/getHistoryKlines': 1,
+                                'market/getOpenPositions': 1,
+                                'market/getTicker': 1,
+                            },
+                            'post': {
+                                'common/server/time': 1,
+                            },
+                        },
+                        'private': {
+                            'post': {
+                                'user/getBalance': 1,
+                                'user/getPositions': 1,
+                                'user/trade': 1,
+                                'user/oneClickClosePosition': 1,
+                                'user/oneClickCloseAllPositions': 1,
+                                'user/cancelOrder': 1,
+                                'user/batchCancelOrders': 1,
+                                'user/cancelAll': 1,
+                                'user/pendingOrders': 1,
+                                'user/queryOrderStatus': 1,
+                                'user/setMarginMode': 1,
+                                'user/setLeverage': 1,
+                                'user/forceOrders': 1,
+                            },
+                        },
+                    },
                 },
-                'private': {
-                    'get': [
-                        'user',
-                        'user/addresses',
-                        'user/addresses/{address}',
-                        'user/orders',
-                        'user/orders/{uuid}',
-                        'user/price_alerts',
-                        'merchant/get_payment/{uuid}',
-                    ],
-                    'post': [
-                        'user/addresses',
-                        'user/orders',
-                        'user/withdrawals',
-                        'user/email_transfers',
-                        'user/payment_requests',
-                        'user/price_alerts',
-                        'merchant/create_payment',
-                    ],
-                    'delete': [
-                        'user/orders/{uuid}',
-                        'user/orders/{uuid}/cancel',
-                        'user/price_alerts/{id}',
-                    ],
+                'contract': {
+                    'v1': {
+                        'public': {
+                            'get': {
+                                'derivatives/contracts': 1,
+                                'derivatives/orderbook/{ticker_id}': 1,
+                            },
+                        },
+                    },
                 },
             },
             'markets': {
@@ -102,12 +122,122 @@ class bingx(Exchange):
             },
             'fees': {
                 'trading': {
-                    'maker': self.parse_number('-0.001'),
-                    'taker': self.parse_number('0.005'),
+                    'tierBased': True,
+                    'percentage': True,
+                    'maker': self.parse_number('0.0002'),
+                    'taker': self.parse_number('0.0004'),
                 },
             },
             'precisionMode': TICK_SIZE,
+            'requiredCredentials': {
+                'apiKey': True,
+                'secret': True,
+            },
         })
+
+    def fetch_contract_markets(self, params={}):
+        response = self.swapV1PublicGetMarketGetAllContracts(params)
+        #
+        #     {
+        #         "code":0,
+        #         "msg":"Success",
+        #         "data":{
+        #             "contracts":[
+        #                 {
+        #                     "contractId":"100",
+        #                     "symbol":"BTC-USDT",
+        #                     "name":"BTC",
+        #                     "size":"0.0001",
+        #                     "currency":"USDT",
+        #                     "asset":"BTC",
+        #                     "pricePrecision":2,
+        #                     "volumePrecision":4,
+        #                     "feeRate":0.0005,
+        #                     "tradeMinLimit":1,
+        #                     "maxLongLeverage":100,
+        #                     "maxShortLeverage":100,
+        #                     "status":1
+        #                 }
+        #             ]
+        #         }
+        #     }
+        #
+        result = []
+        data = self.safe_value(response, 'data', {})
+        contracts = self.safe_value(data, 'contracts', [])
+        for i in range(0, len(contracts)):
+            market = contracts[i]
+            # should we use contract id id?
+            # contractId = self.safe_string(market, 'contractId')
+            marketId = self.safe_string(market, 'symbol')
+            parts = marketId.split('-')
+            baseId = self.safe_string(parts, 0)
+            quoteId = self.safe_string(parts, 1)
+            settleId = self.safe_string(market, 'currency')
+            base = self.safe_currency_code(baseId)
+            quote = self.safe_currency_code(quoteId)
+            settle = self.safe_currency_code(settleId)
+            symbol = base + '/' + quote + ':' + settle
+            status = self.safe_number(market, 'status')
+            result.append({
+                'id': marketId,
+                'symbol': symbol,
+                'base': base,
+                'quote': quote,
+                'settle': settle,
+                'baseId': baseId,
+                'quoteId': quoteId,
+                'settleId': settleId,
+                'type': 'swap',
+                'spot': False,
+                'margin': True,
+                'swap': True,
+                'future': False,
+                'option': False,
+                'active': status == 1,
+                'contract': True,
+                'linear': True,
+                'inverse': None,
+                'contractSize': self.safe_number(market, 'size'),
+                'expiry': None,
+                'expiryDatetime': None,
+                'strike': None,
+                'optionType': None,
+                'precision': {
+                    'amount': self.safe_number(market, 'volumePrecision'),
+                    'price': self.safe_number(market, 'pricePrecision'),
+                },
+                'limits': {
+                    'leverage': {
+                        'min': None,
+                        'max': self.safe_number(market, 'maxLongLeverage'),
+                    },
+                    'amount': {
+                        'min': self.safe_number(market, 'tradeMinLimit'),
+                        'max': None,
+                    },
+                    'price': {
+                        'min': None,
+                        'max': None,
+                    },
+                    'cost': {
+                        'min': None,
+                        'max': None,
+                    },
+                },
+                'info': market,
+            })
+        return result
+
+    def fetch_markets(self, params={}):
+        """
+        retrieves data on all markets for bingx
+        :param dict params: extra parameters specific to the exchange api endpoint
+        :returns [dict]: an array of objects representing market data
+        """
+        # contract = self.fetch_contract_markets(params)
+        # return contract
+        return []
 
     def parse_balance(self, response):
         result = {'info': response}
@@ -131,8 +261,8 @@ class bingx(Exchange):
         :param dict params: extra parameters specific to the paymium api endpoint
         :returns dict: a `balance structure <https://docs.ccxt.com/en/latest/manual.html?#balance-structure>`
         """
-        self.load_markets()
-        response = self.privateGetUser(params)
+        # self.load_markets()
+        response = self.swapV1PrivatePostUserGetBalance(params)
         return self.parse_balance(response)
 
     def fetch_order_book(self, symbol, limit=None, params={}):
@@ -509,36 +639,40 @@ class bingx(Exchange):
         }
         return self.safe_string(statuses, status, status)
 
-    def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
-        url = self.urls['api']['rest'] + '/' + self.version + '/' + self.implode_params(path, params)
-        query = self.omit(params, self.extract_params(path))
-        if api == 'public':
-            if query:
-                url += '?' + self.urlencode(query)
-        else:
+    def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
+        type = section[0]
+        version = section[1]
+        access = section[2]
+        rawPath = path
+        url = self.implode_hostname(self.urls['api'][type])
+        url += '/' + version + '/' + path
+        path = self.implode_params(path, params)
+        params = self.omit(params, self.extract_params(path))
+        params = self.keysort(params)
+        if access == 'public':
+            if params:
+                url += '?' + self.urlencode(params)
+        elif access == 'private':
             self.check_required_credentials()
-            nonce = str(self.nonce())
-            auth = nonce + url
-            headers = {
-                'Api-Key': self.apiKey,
-                'Api-Nonce': nonce,
-            }
-            if method == 'POST':
-                if query:
-                    body = self.json(query)
-                    auth += body
-                    headers['Content-Type'] = 'application/json'
-            else:
-                if query:
-                    queryString = self.urlencode(query)
-                    auth += queryString
-                    url += '?' + queryString
-            headers['Api-Signature'] = self.hmac(self.encode(auth), self.encode(self.secret))
+            params = self.extend(params, {
+                'apiKey': self.apiKey,
+                'timestamp': self.milliseconds() - 0,
+            })
+            # ACTUAL SIGNATURE GENERATION
+            paramString = self.rawencode(params)
+            originString = method + '/api/' + version + '/' + rawPath + paramString
+            signature = self.hmac(self.encode(originString), self.encode(self.secret), hashlib.sha256, 'base64')
+            # ACTUAL SIGNATURE GENERATION
+            params = self.extend(params, {
+                'sign': signature,
+            })
+            if params:
+                url += '?' + self.urlencode(params)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
-        if response is None:
-            return
-        errors = self.safe_value(response, 'errors')
-        if errors is not None:
+        if not response:
+            return  # fallback to default error handler
+        errorCode = self.safe_integer(response, 'code')
+        if errorCode > 0:
             raise ExchangeError(self.id + ' ' + self.json(response))

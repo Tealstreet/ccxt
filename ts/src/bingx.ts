@@ -14,8 +14,10 @@ export default class bingx extends Exchange {
             'id': 'bingx',
             'name': 'BingX',
             'countries': [ 'EU' ],
-            'rateLimit': 2000,
+            'rateLimit': 100,
             'version': 'v1',
+            'verbose': true,
+            'pro': true,
             'has': {
                 'CORS': true,
                 'spot': true,
@@ -45,54 +47,71 @@ export default class bingx extends Exchange {
                 'transfer': true,
             },
             'urls': {
-                'logo': 'https://user-images.githubusercontent.com/51840849/87153930-f0f02200-c2c0-11ea-9c0a-40337375ae89.jpg',
+                'logo': '',
                 'api': {
-                    'rest': 'https://paymium.com/api',
+                    'spot': 'https://open-api.bingx.com/openApi/spot',
+                    'swap': 'https://api-swap-rest.bingbon.pro/api',
+                    'contract': 'https://api.bingbon.com/api/coingecko',
                 },
-                'www': 'https://www.paymium.com',
-                'fees': 'https://www.paymium.com/page/help/fees',
+                'test': {
+                },
+                'www': 'https://bingx.com/',
                 'doc': [
-                    'https://github.com/Paymium/api-documentation',
-                    'https://www.paymium.com/page/developers',
-                    'https://paymium.github.io/api-documentation/',
+                    'https://bingx-api.github.io/docs',
                 ],
-                'referral': 'https://www.paymium.com/page/sign-up?referral=eDAzPoRQFMvaAB8sf-qj',
+                'fees': [
+                    'https://support.bingx.com/hc/en-001/articles/360027240173',
+                ],
+                'referral': '',
             },
             'api': {
-                'public': {
-                    'get': [
-                        'countries',
-                        'data/{currency}/ticker',
-                        'data/{currency}/trades',
-                        'data/{currency}/depth',
-                        'bitcoin_charts/{id}/trades',
-                        'bitcoin_charts/{id}/depth',
-                    ],
+                'swap': {
+                    'v1': {
+                        'public': {
+                            'get': {
+                                'market/getAllContracts': 1,
+                                'market/getLatestPrice': 1,
+                                'market/getMarketDepth': 1,
+                                'market/getMarketTrades': 1,
+                                'market/getLatestFunding': 1,
+                                'market/getHistoryFunding': 1,
+                                'market/getLatestKline': 1,
+                                'market/getHistoryKlines': 1,
+                                'market/getOpenPositions': 1,
+                                'market/getTicker': 1,
+                            },
+                            'post': {
+                                'common/server/time': 1,
+                            },
+                        },
+                        'private': {
+                            'post': {
+                                'user/getBalance': 1,
+                                'user/getPositions': 1,
+                                'user/trade': 1,
+                                'user/oneClickClosePosition': 1,
+                                'user/oneClickCloseAllPositions': 1,
+                                'user/cancelOrder': 1,
+                                'user/batchCancelOrders': 1,
+                                'user/cancelAll': 1,
+                                'user/pendingOrders': 1,
+                                'user/queryOrderStatus': 1,
+                                'user/setMarginMode': 1,
+                                'user/setLeverage': 1,
+                                'user/forceOrders': 1,
+                            },
+                        },
+                    },
                 },
-                'private': {
-                    'get': [
-                        'user',
-                        'user/addresses',
-                        'user/addresses/{address}',
-                        'user/orders',
-                        'user/orders/{uuid}',
-                        'user/price_alerts',
-                        'merchant/get_payment/{uuid}',
-                    ],
-                    'post': [
-                        'user/addresses',
-                        'user/orders',
-                        'user/withdrawals',
-                        'user/email_transfers',
-                        'user/payment_requests',
-                        'user/price_alerts',
-                        'merchant/create_payment',
-                    ],
-                    'delete': [
-                        'user/orders/{uuid}',
-                        'user/orders/{uuid}/cancel',
-                        'user/price_alerts/{id}',
-                    ],
+                'contract': {
+                    'v1': {
+                        'public': {
+                            'get': {
+                                'derivatives/contracts': 1,
+                                'derivatives/orderbook/{ticker_id}': 1,
+                            },
+                        },
+                    },
                 },
             },
             'markets': {
@@ -100,12 +119,127 @@ export default class bingx extends Exchange {
             },
             'fees': {
                 'trading': {
-                    'maker': this.parseNumber ('-0.001'),
-                    'taker': this.parseNumber ('0.005'),
+                    'tierBased': true,
+                    'percentage': true,
+                    'maker': this.parseNumber ('0.0002'),
+                    'taker': this.parseNumber ('0.0004'),
                 },
             },
             'precisionMode': TICK_SIZE,
+            'requiredCredentials': {
+                'apiKey': true,
+                'secret': true,
+            },
         });
+    }
+
+    async fetchContractMarkets (params = {}) {
+        const response = await (this as any).swapV1PublicGetMarketGetAllContracts (params);
+        //
+        //     {
+        //         "code":0,
+        //         "msg":"Success",
+        //         "data":{
+        //             "contracts":[
+        //                 {
+        //                     "contractId":"100",
+        //                     "symbol":"BTC-USDT",
+        //                     "name":"BTC",
+        //                     "size":"0.0001",
+        //                     "currency":"USDT",
+        //                     "asset":"BTC",
+        //                     "pricePrecision":2,
+        //                     "volumePrecision":4,
+        //                     "feeRate":0.0005,
+        //                     "tradeMinLimit":1,
+        //                     "maxLongLeverage":100,
+        //                     "maxShortLeverage":100,
+        //                     "status":1
+        //                 }
+        //             ]
+        //         }
+        //     }
+        //
+        const result = [];
+        const data = this.safeValue (response, 'data', {});
+        const contracts = this.safeValue (data, 'contracts', []);
+        for (let i = 0; i < contracts.length; i++) {
+            const market = contracts[i];
+            // should we use contract id as market id?
+            // const contractId = this.safeString (market, 'contractId');
+            const marketId = this.safeString (market, 'symbol');
+            const parts = marketId.split ('-');
+            const baseId = this.safeString (parts, 0);
+            const quoteId = this.safeString (parts, 1);
+            const settleId = this.safeString (market, 'currency');
+            const base = this.safeCurrencyCode (baseId);
+            const quote = this.safeCurrencyCode (quoteId);
+            const settle = this.safeCurrencyCode (settleId);
+            const symbol = base + '/' + quote + ':' + settle;
+            const status = this.safeNumber (market, 'status');
+            result.push ({
+                'id': marketId,
+                'symbol': symbol,
+                'base': base,
+                'quote': quote,
+                'settle': settle,
+                'baseId': baseId,
+                'quoteId': quoteId,
+                'settleId': settleId,
+                'type': 'swap',
+                'spot': false,
+                'margin': true,
+                'swap': true,
+                'future': false,
+                'option': false,
+                'active': status === 1,
+                'contract': true,
+                'linear': true,
+                'inverse': undefined,
+                'contractSize': this.safeNumber (market, 'size'),
+                'expiry': undefined,
+                'expiryDatetime': undefined,
+                'strike': undefined,
+                'optionType': undefined,
+                'precision': {
+                    'amount': this.safeNumber (market, 'volumePrecision'),
+                    'price': this.safeNumber (market, 'pricePrecision'),
+                },
+                'limits': {
+                    'leverage': {
+                        'min': undefined,
+                        'max': this.safeNumber (market, 'maxLongLeverage'),
+                    },
+                    'amount': {
+                        'min': this.safeNumber (market, 'tradeMinLimit'),
+                        'max': undefined,
+                    },
+                    'price': {
+                        'min': undefined,
+                        'max': undefined,
+                    },
+                    'cost': {
+                        'min': undefined,
+                        'max': undefined,
+                    },
+                },
+                'info': market,
+            });
+        }
+        return result;
+    }
+
+    async fetchMarkets (params = {}) {
+        /**
+         * @method
+         * @name bingx#fetchMarkets
+         * @description retrieves data on all markets for bingx
+         * @param {object} params extra parameters specific to the exchange api endpoint
+         * @returns {[object]} an array of objects representing market data
+         */
+        // const contract = await this.fetchContractMarkets (params);
+        // return contract;
+        return [];
     }
 
     parseBalance (response) {
@@ -135,8 +269,8 @@ export default class bingx extends Exchange {
          * @param {object} params extra parameters specific to the paymium api endpoint
          * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
          */
-        await this.loadMarkets ();
-        const response = await (this as any).privateGetUser (params);
+        // await this.loadMarkets ();
+        const response = await (this as any).swapV1PrivatePostUserGetBalance (params);
         return this.parseBalance (response);
     }
 
@@ -549,45 +683,47 @@ export default class bingx extends Exchange {
         return this.safeString (statuses, status, status);
     }
 
-    sign (path, api: any = 'public', method = 'GET', params = {}, headers: any = undefined, body: any = undefined) {
-        let url = this.urls['api']['rest'] + '/' + this.version + '/' + this.implodeParams (path, params);
-        const query = this.omit (params, this.extractParams (path));
-        if (api === 'public') {
-            if (Object.keys (query).length) {
-                url += '?' + this.urlencode (query);
+    sign (path, section = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
+        const type = section[0];
+        const version = section[1];
+        const access = section[2];
+        const rawPath = path;
+        let url = this.implodeHostname (this.urls['api'][type]);
+        url += '/' + version + '/' + path;
+        path = this.implodeParams (path, params);
+        params = this.omit (params, this.extractParams (path));
+        params = this.keysort (params);
+        if (access === 'public') {
+            if (Object.keys (params).length) {
+                url += '?' + this.urlencode (params);
             }
-        } else {
+        } else if (access === 'private') {
             this.checkRequiredCredentials ();
-            const nonce = this.nonce ().toString ();
-            let auth = nonce + url;
-            headers = {
-                'Api-Key': this.apiKey,
-                'Api-Nonce': nonce,
-            };
-            if (method === 'POST') {
-                if (Object.keys (query).length) {
-                    body = this.json (query);
-                    auth += body;
-                    headers['Content-Type'] = 'application/json';
-                }
-            } else {
-                if (Object.keys (query).length) {
-                    const queryString = this.urlencode (query);
-                    auth += queryString;
-                    url += '?' + queryString;
-                }
+            params = this.extend (params, {
+                'apiKey': this.apiKey,
+                'timestamp': this.milliseconds () - 0,
+            });
+            // ACTUAL SIGNATURE GENERATION
+            const paramString = this.rawencode (params);
+            const originString = method + '/api/' + version + '/' + rawPath + paramString;
+            const signature = this.hmac (this.encode (originString), this.encode (this.secret), 'sha256', 'base64');
+            // ACTUAL SIGNATURE GENERATION
+            params = this.extend (params, {
+                'sign': signature,
+            });
+            if (Object.keys (params).length) {
+                url += '?' + this.urlencode (params);
             }
-            headers['Api-Signature'] = this.hmac (this.encode (auth), this.encode (this.secret));
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
 
     handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
-        if (response === undefined) {
-            return;
+        if (!response) {
+            return; // fallback to default error handler
         }
-        const errors = this.safeValue (response, 'errors');
-        if (errors !== undefined) {
+        const errorCode = this.safeInteger (response, 'code');
+        if (errorCode > 0) {
             throw new ExchangeError (this.id + ' ' + this.json (response));
         }
     }

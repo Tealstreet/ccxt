@@ -14,8 +14,10 @@ class bingx extends Exchange {
             'id' => 'bingx',
             'name' => 'BingX',
             'countries' => array( 'EU' ),
-            'rateLimit' => 2000,
+            'rateLimit' => 100,
             'version' => 'v1',
+            'verbose' => true,
+            'pro' => true,
             'has' => array(
                 'CORS' => true,
                 'spot' => true,
@@ -45,53 +47,70 @@ class bingx extends Exchange {
                 'transfer' => true,
             ),
             'urls' => array(
-                'logo' => 'https://user-images.githubusercontent.com/51840849/87153930-f0f02200-c2c0-11ea-9c0a-40337375ae89.jpg',
+                'logo' => '',
                 'api' => array(
-                    'rest' => 'https://paymium.com/api',
+                    'spot' => 'https://open-api.bingx.com/openApi/spot',
+                    'swap' => 'https://api-swap-rest.bingbon.pro/api',
+                    'contract' => 'https://api.bingbon.com/api/coingecko',
                 ),
-                'www' => 'https://www.paymium.com',
-                'fees' => 'https://www.paymium.com/page/help/fees',
+                'test' => array(
+                ),
+                'www' => 'https://bingx.com/',
                 'doc' => array(
-                    'https://github.com/Paymium/api-documentation',
-                    'https://www.paymium.com/page/developers',
-                    'https://paymium.github.io/api-documentation/',
+                    'https://bingx-api.github.io/docs',
                 ),
-                'referral' => 'https://www.paymium.com/page/sign-up?referral=eDAzPoRQFMvaAB8sf-qj',
+                'fees' => array(
+                    'https://support.bingx.com/hc/en-001/articles/360027240173',
+                ),
+                'referral' => '',
             ),
             'api' => array(
-                'public' => array(
-                    'get' => array(
-                        'countries',
-                        'data/{currency}/ticker',
-                        'data/{currency}/trades',
-                        'data/{currency}/depth',
-                        'bitcoin_charts/{id}/trades',
-                        'bitcoin_charts/{id}/depth',
+                'swap' => array(
+                    'v1' => array(
+                        'public' => array(
+                            'get' => array(
+                                'market/getAllContracts' => 1,
+                                'market/getLatestPrice' => 1,
+                                'market/getMarketDepth' => 1,
+                                'market/getMarketTrades' => 1,
+                                'market/getLatestFunding' => 1,
+                                'market/getHistoryFunding' => 1,
+                                'market/getLatestKline' => 1,
+                                'market/getHistoryKlines' => 1,
+                                'market/getOpenPositions' => 1,
+                                'market/getTicker' => 1,
+                            ),
+                            'post' => array(
+                                'common/server/time' => 1,
+                            ),
+                        ),
+                        'private' => array(
+                            'post' => array(
+                                'user/getBalance' => 1,
+                                'user/getPositions' => 1,
+                                'user/trade' => 1,
+                                'user/oneClickClosePosition' => 1,
+                                'user/oneClickCloseAllPositions' => 1,
+                                'user/cancelOrder' => 1,
+                                'user/batchCancelOrders' => 1,
+                                'user/cancelAll' => 1,
+                                'user/pendingOrders' => 1,
+                                'user/queryOrderStatus' => 1,
+                                'user/setMarginMode' => 1,
+                                'user/setLeverage' => 1,
+                                'user/forceOrders' => 1,
+                            ),
+                        ),
                     ),
                 ),
-                'private' => array(
-                    'get' => array(
-                        'user',
-                        'user/addresses',
-                        'user/addresses/{address}',
-                        'user/orders',
-                        'user/orders/{uuid}',
-                        'user/price_alerts',
-                        'merchant/get_payment/{uuid}',
-                    ),
-                    'post' => array(
-                        'user/addresses',
-                        'user/orders',
-                        'user/withdrawals',
-                        'user/email_transfers',
-                        'user/payment_requests',
-                        'user/price_alerts',
-                        'merchant/create_payment',
-                    ),
-                    'delete' => array(
-                        'user/orders/{uuid}',
-                        'user/orders/{uuid}/cancel',
-                        'user/price_alerts/{id}',
+                'contract' => array(
+                    'v1' => array(
+                        'public' => array(
+                            'get' => array(
+                                'derivatives/contracts' => 1,
+                                'derivatives/orderbook/{ticker_id}' => 1,
+                            ),
+                        ),
                     ),
                 ),
             ),
@@ -100,12 +119,125 @@ class bingx extends Exchange {
             ),
             'fees' => array(
                 'trading' => array(
-                    'maker' => $this->parse_number('-0.001'),
-                    'taker' => $this->parse_number('0.005'),
+                    'tierBased' => true,
+                    'percentage' => true,
+                    'maker' => $this->parse_number('0.0002'),
+                    'taker' => $this->parse_number('0.0004'),
                 ),
             ),
             'precisionMode' => TICK_SIZE,
+            'requiredCredentials' => array(
+                'apiKey' => true,
+                'secret' => true,
+            ),
         ));
+    }
+
+    public function fetch_contract_markets($params = array ()) {
+        $response = $this->swapV1PublicGetMarketGetAllContracts ($params);
+        //
+        //     {
+        //         "code":0,
+        //         "msg":"Success",
+        //         "data":{
+        //             "contracts":array(
+        //                 {
+        //                     "contractId":"100",
+        //                     "symbol":"BTC-USDT",
+        //                     "name":"BTC",
+        //                     "size":"0.0001",
+        //                     "currency":"USDT",
+        //                     "asset":"BTC",
+        //                     "pricePrecision":2,
+        //                     "volumePrecision":4,
+        //                     "feeRate":0.0005,
+        //                     "tradeMinLimit":1,
+        //                     "maxLongLeverage":100,
+        //                     "maxShortLeverage":100,
+        //                     "status":1
+        //                 }
+        //             )
+        //         }
+        //     }
+        //
+        $result = array();
+        $data = $this->safe_value($response, 'data', array());
+        $contracts = $this->safe_value($data, 'contracts', array());
+        for ($i = 0; $i < count($contracts); $i++) {
+            $market = $contracts[$i];
+            // should we use contract id id?
+            // $contractId = $this->safe_string($market, 'contractId');
+            $marketId = $this->safe_string($market, 'symbol');
+            $parts = explode('-', $marketId);
+            $baseId = $this->safe_string($parts, 0);
+            $quoteId = $this->safe_string($parts, 1);
+            $settleId = $this->safe_string($market, 'currency');
+            $base = $this->safe_currency_code($baseId);
+            $quote = $this->safe_currency_code($quoteId);
+            $settle = $this->safe_currency_code($settleId);
+            $symbol = $base . '/' . $quote . ':' . $settle;
+            $status = $this->safe_number($market, 'status');
+            $result[] = array(
+                'id' => $marketId,
+                'symbol' => $symbol,
+                'base' => $base,
+                'quote' => $quote,
+                'settle' => $settle,
+                'baseId' => $baseId,
+                'quoteId' => $quoteId,
+                'settleId' => $settleId,
+                'type' => 'swap',
+                'spot' => false,
+                'margin' => true,
+                'swap' => true,
+                'future' => false,
+                'option' => false,
+                'active' => $status === 1,
+                'contract' => true,
+                'linear' => true,
+                'inverse' => null,
+                'contractSize' => $this->safe_number($market, 'size'),
+                'expiry' => null,
+                'expiryDatetime' => null,
+                'strike' => null,
+                'optionType' => null,
+                'precision' => array(
+                    'amount' => $this->safe_number($market, 'volumePrecision'),
+                    'price' => $this->safe_number($market, 'pricePrecision'),
+                ),
+                'limits' => array(
+                    'leverage' => array(
+                        'min' => null,
+                        'max' => $this->safe_number($market, 'maxLongLeverage'),
+                    ),
+                    'amount' => array(
+                        'min' => $this->safe_number($market, 'tradeMinLimit'),
+                        'max' => null,
+                    ),
+                    'price' => array(
+                        'min' => null,
+                        'max' => null,
+                    ),
+                    'cost' => array(
+                        'min' => null,
+                        'max' => null,
+                    ),
+                ),
+                'info' => $market,
+            );
+        }
+        return $result;
+    }
+
+    public function fetch_markets($params = array ()) {
+        /**
+         * retrieves data on all markets for bingx
+         * @param {array} $params extra parameters specific to the exchange api endpoint
+         * @return {[array]} an array of objects representing market data
+         */
+        // $contract = $this->fetch_contract_markets($params);
+        // return $contract;
+        return array();
     }
 
     public function parse_balance($response) {
@@ -133,8 +265,8 @@ class bingx extends Exchange {
          * @param {array} $params extra parameters specific to the paymium api endpoint
          * @return {array} a ~@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure balance structure~
          */
-        $this->load_markets();
-        $response = $this->privateGetUser ($params);
+        // $this->load_markets();
+        $response = $this->swapV1PrivatePostUserGetBalance ($params);
         return $this->parse_balance($response);
     }
 
@@ -529,45 +661,47 @@ class bingx extends Exchange {
         return $this->safe_string($statuses, $status, $status);
     }
 
-    public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $url = $this->urls['api']['rest'] . '/' . $this->version . '/' . $this->implode_params($path, $params);
-        $query = $this->omit($params, $this->extract_params($path));
-        if ($api === 'public') {
-            if ($query) {
-                $url .= '?' . $this->urlencode($query);
+    public function sign($path, $section = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
+        $type = $section[0];
+        $version = $section[1];
+        $access = $section[2];
+        $rawPath = $path;
+        $url = $this->implode_hostname($this->urls['api'][$type]);
+        $url .= '/' . $version . '/' . $path;
+        $path = $this->implode_params($path, $params);
+        $params = $this->omit($params, $this->extract_params($path));
+        $params = $this->keysort($params);
+        if ($access === 'public') {
+            if ($params) {
+                $url .= '?' . $this->urlencode($params);
             }
-        } else {
+        } elseif ($access === 'private') {
             $this->check_required_credentials();
-            $nonce = (string) $this->nonce();
-            $auth = $nonce . $url;
-            $headers = array(
-                'Api-Key' => $this->apiKey,
-                'Api-Nonce' => $nonce,
-            );
-            if ($method === 'POST') {
-                if ($query) {
-                    $body = $this->json($query);
-                    $auth .= $body;
-                    $headers['Content-Type'] = 'application/json';
-                }
-            } else {
-                if ($query) {
-                    $queryString = $this->urlencode($query);
-                    $auth .= $queryString;
-                    $url .= '?' . $queryString;
-                }
+            $params = array_merge($params, array(
+                'apiKey' => $this->apiKey,
+                'timestamp' => $this->milliseconds() - 0,
+            ));
+            // ACTUAL SIGNATURE GENERATION
+            $paramString = $this->rawencode($params);
+            $originString = $method . '/api/' . $version . '/' . $rawPath . $paramString;
+            $signature = $this->hmac($this->encode($originString), $this->encode($this->secret), 'sha256', 'base64');
+            // ACTUAL SIGNATURE GENERATION
+            $params = array_merge($params, array(
+                'sign' => $signature,
+            ));
+            if ($params) {
+                $url .= '?' . $this->urlencode($params);
             }
-            $headers['Api-Signature'] = $this->hmac($this->encode($auth), $this->encode($this->secret));
         }
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
     public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
-        if ($response === null) {
-            return;
+        if (!$response) {
+            return; // fallback to default error handler
         }
-        $errors = $this->safe_value($response, 'errors');
-        if ($errors !== null) {
+        $errorCode = $this->safe_integer($response, 'code');
+        if ($errorCode > 0) {
             throw new ExchangeError($this->id . ' ' . $this->json($response));
         }
     }
