@@ -150,13 +150,11 @@ export default class bingx extends bingxRest {
         //         }
         //     }
         //
-        const isSpot = client.url.indexOf ('spot') >= 0;
         const type = this.safeString (message, 'type');
         const isSnapshot = (type === 'snapshot');
         const data = this.safeValue (message, 'data', {});
         const marketId = this.safeString (data, 's');
-        const marketType = isSpot ? 'spot' : 'contract';
-        const market = this.safeMarket (marketId, undefined, undefined, marketType);
+        const market = this.safeMarket (marketId);
         const symbol = market['symbol'];
         const timestamp = this.safeInteger (message, 'ts');
         let orderbook = this.safeValue (this.orderbooks, symbol);
