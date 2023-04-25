@@ -7,7 +7,6 @@ from ccxt.async_support.base.exchange import Exchange
 import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.decimal_to_precision import TICK_SIZE
-from ccxt.base.precise import Precise
 
 
 class bingx(Exchange):
@@ -235,9 +234,8 @@ class bingx(Exchange):
         :param dict params: extra parameters specific to the exchange api endpoint
         :returns [dict]: an array of objects representing market data
         """
-        # contract = await self.fetch_contract_markets(params)
-        # return contract
-        return []
+        contract = await self.fetch_contract_markets(params)
+        return contract
 
     def parse_balance(self, response):
         result = {'info': response}
@@ -284,48 +282,40 @@ class bingx(Exchange):
     def parse_ticker(self, ticker, market=None):
         #
         # {
-        #     "high":"33740.82",
-        #     "low":"32185.15",
-        #     "volume":"4.7890433",
-        #     "bid":"33313.53",
-        #     "ask":"33497.97",
-        #     "midpoint":"33405.75",
-        #     "vwap":"32802.5263553",
-        #     "at":1643381654,
-        #     "price":"33143.91",
-        #     "open":"33116.86",
-        #     "variation":"0.0817",
-        #     "currency":"EUR",
-        #     "trade_id":"ce2f5152-3ac5-412d-9b24-9fa72338474c",
-        #     "size":"0.00041087"
+        #   "symbol": "BTC-USDT",
+        #   "priceChange": "10.00",
+        #   "priceChangePercent": "10",
+        #   "lastPrice": "5738.23",
+        #   "lastVolume": "31.21",
+        #   "highPrice": "5938.23",
+        #   "lowPrice": "5238.23",
+        #   "volume": "23211231.13",
+        #   "dayVolume": "213124412412.47",
+        #   "openPrice": "5828.32"
         # }
         #
         symbol = self.safe_symbol(None, market)
-        timestamp = self.safe_timestamp(ticker, 'at')
-        vwap = self.safe_string(ticker, 'vwap')
+        timestamp = self.milliseconds()
         baseVolume = self.safe_string(ticker, 'volume')
-        quoteVolume = Precise.string_mul(baseVolume, vwap)
-        last = self.safe_string(ticker, 'price')
+        last = self.safe_string(ticker, 'lastPrice')
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_string(ticker, 'high'),
-            'low': self.safe_string(ticker, 'low'),
-            'bid': self.safe_string(ticker, 'bid'),
+            'high': self.safe_string(ticker, 'highPrice'),
+            'low': self.safe_string(ticker, 'lowPrice'),
+            'bid': self.safe_string(ticker, 'lastPrice'),
             'bidVolume': None,
-            'ask': self.safe_string(ticker, 'ask'),
+            'ask': self.safe_string(ticker, 'lastPrice'),
             'askVolume': None,
-            'vwap': vwap,
-            'open': self.safe_string(ticker, 'open'),
+            'open': self.safe_string(ticker, 'openPrice'),
             'close': last,
             'last': last,
             'previousClose': None,
             'change': None,
-            'percentage': self.safe_string(ticker, 'variation'),
+            'percentage': self.safe_string(ticker, 'priceChangePercent'),
             'average': None,
             'baseVolume': baseVolume,
-            'quoteVolume': quoteVolume,
             'info': ticker,
         }, market)
 
@@ -339,25 +329,21 @@ class bingx(Exchange):
         await self.load_markets()
         market = self.market(symbol)
         request = {
-            'currency': market['id'],
+            'symbol': market['id'],
         }
-        ticker = await self.publicGetDataCurrencyTicker(self.extend(request, params))
+        ticker = await self.swapV1PublicGetMarketGetTicker(self.extend(request, params))
         #
         # {
-        #     "high":"33740.82",
-        #     "low":"32185.15",
-        #     "volume":"4.7890433",
-        #     "bid":"33313.53",
-        #     "ask":"33497.97",
-        #     "midpoint":"33405.75",
-        #     "vwap":"32802.5263553",
-        #     "at":1643381654,
-        #     "price":"33143.91",
-        #     "open":"33116.86",
-        #     "variation":"0.0817",
-        #     "currency":"EUR",
-        #     "trade_id":"ce2f5152-3ac5-412d-9b24-9fa72338474c",
-        #     "size":"0.00041087"
+        #   "symbol": "BTC-USDT",
+        #   "priceChange": "10.00",
+        #   "priceChangePercent": "10",
+        #   "lastPrice": "5738.23",
+        #   "lastVolume": "31.21",
+        #   "highPrice": "5938.23",
+        #   "lowPrice": "5238.23",
+        #   "volume": "23211231.13",
+        #   "dayVolume": "213124412412.47",
+        #   "openPrice": "5828.32"
         # }
         #
         return self.parse_ticker(ticker, market)

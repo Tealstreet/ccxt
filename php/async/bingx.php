@@ -7,7 +7,6 @@ namespace ccxt\async;
 
 use Exception; // a common import
 use ccxt\ExchangeError;
-use ccxt\Precise;
 use React\Async;
 
 class bingx extends Exchange {
@@ -241,9 +240,8 @@ class bingx extends Exchange {
              * @param {array} $params extra parameters specific to the exchange api endpoint
              * @return {[array]} an array of objects representing market data
              */
-            // $contract = Async\await($this->fetch_contract_markets($params));
-            // return $contract;
-            return array();
+            $contract = Async\await($this->fetch_contract_markets($params));
+            return $contract;
         }) ();
     }
 
@@ -301,48 +299,40 @@ class bingx extends Exchange {
     public function parse_ticker($ticker, $market = null) {
         //
         // {
-        //     "high":"33740.82",
-        //     "low":"32185.15",
-        //     "volume":"4.7890433",
-        //     "bid":"33313.53",
-        //     "ask":"33497.97",
-        //     "midpoint":"33405.75",
-        //     "vwap":"32802.5263553",
-        //     "at":1643381654,
-        //     "price":"33143.91",
-        //     "open":"33116.86",
-        //     "variation":"0.0817",
-        //     "currency":"EUR",
-        //     "trade_id":"ce2f5152-3ac5-412d-9b24-9fa72338474c",
-        //     "size":"0.00041087"
+        //   "symbol" => "BTC-USDT",
+        //   "priceChange" => "10.00",
+        //   "priceChangePercent" => "10",
+        //   "lastPrice" => "5738.23",
+        //   "lastVolume" => "31.21",
+        //   "highPrice" => "5938.23",
+        //   "lowPrice" => "5238.23",
+        //   "volume" => "23211231.13",
+        //   "dayVolume" => "213124412412.47",
+        //   "openPrice" => "5828.32"
         // }
         //
         $symbol = $this->safe_symbol(null, $market);
-        $timestamp = $this->safe_timestamp($ticker, 'at');
-        $vwap = $this->safe_string($ticker, 'vwap');
+        $timestamp = $this->milliseconds();
         $baseVolume = $this->safe_string($ticker, 'volume');
-        $quoteVolume = Precise::string_mul($baseVolume, $vwap);
-        $last = $this->safe_string($ticker, 'price');
+        $last = $this->safe_string($ticker, 'lastPrice');
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_string($ticker, 'high'),
-            'low' => $this->safe_string($ticker, 'low'),
-            'bid' => $this->safe_string($ticker, 'bid'),
+            'high' => $this->safe_string($ticker, 'highPrice'),
+            'low' => $this->safe_string($ticker, 'lowPrice'),
+            'bid' => $this->safe_string($ticker, 'lastPrice'),
             'bidVolume' => null,
-            'ask' => $this->safe_string($ticker, 'ask'),
+            'ask' => $this->safe_string($ticker, 'lastPrice'),
             'askVolume' => null,
-            'vwap' => $vwap,
-            'open' => $this->safe_string($ticker, 'open'),
+            'open' => $this->safe_string($ticker, 'openPrice'),
             'close' => $last,
             'last' => $last,
             'previousClose' => null,
             'change' => null,
-            'percentage' => $this->safe_string($ticker, 'variation'),
+            'percentage' => $this->safe_string($ticker, 'priceChangePercent'),
             'average' => null,
             'baseVolume' => $baseVolume,
-            'quoteVolume' => $quoteVolume,
             'info' => $ticker,
         ), $market);
     }
@@ -358,25 +348,21 @@ class bingx extends Exchange {
             Async\await($this->load_markets());
             $market = $this->market($symbol);
             $request = array(
-                'currency' => $market['id'],
+                'symbol' => $market['id'],
             );
-            $ticker = Async\await($this->publicGetDataCurrencyTicker (array_merge($request, $params)));
+            $ticker = Async\await($this->swapV1PublicGetMarketGetTicker (array_merge($request, $params)));
             //
             // {
-            //     "high":"33740.82",
-            //     "low":"32185.15",
-            //     "volume":"4.7890433",
-            //     "bid":"33313.53",
-            //     "ask":"33497.97",
-            //     "midpoint":"33405.75",
-            //     "vwap":"32802.5263553",
-            //     "at":1643381654,
-            //     "price":"33143.91",
-            //     "open":"33116.86",
-            //     "variation":"0.0817",
-            //     "currency":"EUR",
-            //     "trade_id":"ce2f5152-3ac5-412d-9b24-9fa72338474c",
-            //     "size":"0.00041087"
+            //   "symbol" => "BTC-USDT",
+            //   "priceChange" => "10.00",
+            //   "priceChangePercent" => "10",
+            //   "lastPrice" => "5738.23",
+            //   "lastVolume" => "31.21",
+            //   "highPrice" => "5938.23",
+            //   "lowPrice" => "5238.23",
+            //   "volume" => "23211231.13",
+            //   "dayVolume" => "213124412412.47",
+            //   "openPrice" => "5828.32"
             // }
             //
             return $this->parse_ticker($ticker, $market);
