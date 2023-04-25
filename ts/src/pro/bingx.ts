@@ -237,13 +237,11 @@ export default class bingx extends bingxRest {
         //     }
         //
         const data = this.safeValue (message, 'data', {});
-        const topic = this.safeString (message, 'topic');
-        const trades = data;
+        const topic = this.safeString (message, 'dataType');
+        const trades = this.isArray (data.trades) ? data.trades : [];
         const parts = topic.split ('.');
-        const isSpot = client.url.indexOf ('spot') >= 0;
-        const marketType = (isSpot) ? 'spot' : 'contract';
-        const marketId = this.safeString (parts, 1);
-        const market = this.safeMarket (marketId, undefined, undefined, marketType);
+        const marketId = this.safeString (parts, 3);
+        const market = this.safeMarket (marketId);
         const symbol = market['symbol'];
         let stored = this.safeValue (this.trades, symbol);
         if (stored === undefined) {
@@ -263,66 +261,33 @@ export default class bingx extends bingxRest {
         //
         // public
         //    {
-        //         "T": 1672304486865,
-        //         "s": "BTCUSDT",
-        //         "S": "Buy",
-        //         "v": "0.001",
-        //         "p": "16578.50",
-        //         "L": "PlusTick",
-        //         "i": "20f43950-d8dd-5b31-9112-a178eb6023af",
-        //         "BT": false
+        // makerSide
+        // "Ask"
+        // price
+        // "27563.5"
+        // time
+        // "03:06:43"
+        // volume
+        // "0.2312"
         //     }
         //
-        // spot private
-        //     {
-        //         "e": "ticketInfo",
-        //         "E": "1662348310386",
-        //         "s": "BTCUSDT",
-        //         "q": "0.001007",
-        //         "t": "1662348310373",
-        //         "p": "19842.02",
-        //         "T": "2100000000002220938",
-        //         "o": "1238261807653647872",
-        //         "c": "spotx008",
-        //         "O": "1238225004531834368",
-        //         "a": "533287",
-        //         "A": "642908",
-        //         "m": false,
-        //         "S": "BUY"
-        //     }
-        //
-        const id = this.safeStringN (trade, [ 'i', 'T', 'v' ]);
-        const isContract = ('BT' in trade);
-        let marketType = isContract ? 'contract' : 'spot';
-        if (market !== undefined) {
-            marketType = market['type'];
-        }
-        const marketId = this.safeString (trade, 's');
-        market = this.safeMarket (marketId, market, undefined, marketType);
         const symbol = market['symbol'];
-        const timestamp = this.safeInteger2 (trade, 't', 'T');
-        let side = this.safeStringLower (trade, 'S');
-        let takerOrMaker = undefined;
-        const m = this.safeValue (trade, 'm');
-        if (side === undefined) {
-            side = m ? 'buy' : 'sell';
-        } else {
-            // spot private
-            takerOrMaker = m;
-        }
-        const price = this.safeString (trade, 'p');
-        const amount = this.safeString2 (trade, 'q', 'v');
-        const orderId = this.safeString (trade, 'o');
+        const timestamp = this.milliseconds () - 0;
+        const id = timestamp;
+        const m = this.safeValue (trade, 'makerSide');
+        const side = m ? 'Bid' : 'Ask';
+        const price = this.safeString (trade, 'price');
+        const amount = this.safeString (trade, 'volume');
         return this.safeTrade ({
             'id': id,
             'info': trade,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'symbol': symbol,
-            'order': orderId,
+            'order': undefined,
             'type': undefined,
             'side': side,
-            'takerOrMaker': takerOrMaker,
+            'takerOrMaker': 'taker',
             'price': price,
             'amount': amount,
             'cost': undefined,
@@ -961,9 +926,9 @@ export default class bingx extends bingxRest {
         //
         //   { code: '-10009', desc: 'Invalid period!' }
         //
-        const code = this.safeString2 (message, 'code', 'ret_code');
+        const code = this.safeInteger (message, 'code');
         try {
-            if (code !== undefined) {
+            if (code !== 0) {
                 const feedback = this.id + ' ' + this.json (message);
                 this.throwExactlyMatchedException (this.exceptions['exact'], code, feedback);
             }
@@ -997,48 +962,31 @@ export default class bingx extends bingxRest {
         if (this.handleErrorMessage (client, message)) {
             return;
         }
-        // contract pong
-        const ret_msg = this.safeString (message, 'ret_msg');
-        if (ret_msg === 'pong') {
-            this.handlePong (client, message);
-            return;
-        }
-        // spot pong
-        const pong = this.safeInteger (message, 'pong');
-        if (pong !== undefined) {
-            this.handlePong (client, message);
-            return;
-        }
         // pong
-        const op = this.safeString (message, 'op');
-        if (op === 'pong') {
+        if (message === 'Ping') {
             this.handlePong (client, message);
             return;
         }
-        const event = this.safeString (message, 'event');
-        if (event === 'sub') {
-            this.handleSubscriptionStatus (client, message);
-            return;
-        }
-        const topic = this.safeString (message, 'topic', '');
+        // const event = this.safeString (message, 'event');
+        // if (event === 'sub') {
+        //     this.handleSubscriptionStatus (client, message);
+        //     return;
+        // }
+        const topic = this.safeString (message, 'dataType', '');
         const methods = {
-            'orderbook': this.handleOrderBook,
-            'order': this.handleOrder,
-            'stopOrder': this.handleOrder,
-            'trade': this.handleTrades,
-            'publicTrade': this.handleTrades,
-            'depth': this.handleOrderBook,
-            'wallet': this.handleBalance,
-            'outboundAccountInfo': this.handleBalance,
-            'execution': this.handleMyTrades,
-            'ticketInfo': this.handleMyTrades,
-            'user.openapi.perp.trade': this.handleMyTrades,
+            // 'market.depth.': this.handleOrderBook,
+            // 'order': this.handleOrder,
+            // 'stopOrder': this.handleOrder,
+            // 'trade': this.handleTrades,
+            // 'publicTrade': this.handleTrades,
+            'market.depth.': this.handleOrderBook,
+            'market.trade.detail.': this.handleTrades,
+            // 'wallet': this.handleBalance,
+            // 'outboundAccountInfo': this.handleBalance,
+            // 'execution': this.handleMyTrades,
+            // 'ticketInfo': this.handleMyTrades,
+            // 'user.openapi.perp.trade': this.handleMyTrades,
         };
-        const exacMethod = this.safeValue (methods, topic);
-        if (exacMethod !== undefined) {
-            exacMethod.call (this, client, message);
-            return;
-        }
         const keys = Object.keys (methods);
         for (let i = 0; i < keys.length; i++) {
             const key = keys[i];
@@ -1049,31 +997,18 @@ export default class bingx extends bingxRest {
             }
         }
         // unified auth acknowledgement
-        const type = this.safeString (message, 'type');
-        if ((op === 'auth') || (type === 'AUTH_RESP')) {
-            this.handleAuthenticate (client, message);
-        }
+        // const type = this.safeString (message, 'type');
+        // if ((op === 'auth') || (type === 'AUTH_RESP')) {
+        //     this.handleAuthenticate (client, message);
+        // }
     }
 
-    ping (client) {
-        return {
-            'req_id': this.requestId (),
-            'op': 'ping',
-        };
+    ping () {
+        return 'Pong'; // XD
     }
 
     handlePong (client, message) {
-        //
-        //   {
-        //       success: true,
-        //       ret_msg: 'pong',
-        //       conn_id: 'db3158a0-8960-44b9-a9de-ac350ee13158',
-        //       request: { op: 'ping', args: null }
-        //   }
-        //
-        //   { pong: 1653296711335 }
-        //
-        client.lastPong = this.safeInteger (message, 'pong');
+        client.lastPong = this.milliseconds () - 0;
         return message;
     }
 
