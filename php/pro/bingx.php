@@ -27,7 +27,7 @@ class bingx extends \ccxt\async\bingx {
             ),
             'urls' => array(
                 'api' => array(
-                    'ws' => 'wss://ws-feed.pro.coinbase.com',
+                    'ws' => 'wss://push.bibox.com/',
                 ),
             ),
             'options' => array(

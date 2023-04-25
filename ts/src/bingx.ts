@@ -38,6 +38,7 @@ export default class bingx extends Exchange {
                 'fetchMarkOHLCV': false,
                 'fetchOpenInterestHistory': false,
                 'fetchOrderBook': true,
+                'fetchPositions': true,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchTicker': true,
                 'fetchTrades': true,
@@ -390,23 +391,24 @@ export default class bingx extends Exchange {
     }
 
     async fetchTrades (symbol, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name paymium#fetchTrades
-         * @description get the list of most recent trades for a particular symbol
-         * @param {string} symbol unified symbol of the market to fetch trades for
-         * @param {int|undefined} since timestamp in ms of the earliest trade to fetch
-         * @param {int|undefined} limit the maximum amount of trades to fetch
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/en/latest/manual.html?#public-trades}
-         */
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'currency': market['id'],
-        };
-        const response = await (this as any).publicGetDataCurrencyTrades (this.extend (request, params));
-        return this.parseTrades (response, market, since, limit);
+        return [];
+        // /**
+        //  * @method
+        //  * @name paymium#fetchTrades
+        //  * @description get the list of most recent trades for a particular symbol
+        //  * @param {string} symbol unified symbol of the market to fetch trades for
+        //  * @param {int|undefined} since timestamp in ms of the earliest trade to fetch
+        //  * @param {int|undefined} limit the maximum amount of trades to fetch
+        //  * @param {object} params extra parameters specific to the paymium api endpoint
+        //  * @returns {[object]} a list of [trade structures]{@link https://docs.ccxt.com/en/latest/manual.html?#public-trades}
+        //  */
+        // await this.loadMarkets ();
+        // const market = this.market (symbol);
+        // const request = {
+        //     'currency': market['id'],
+        // };
+        // const response = await (this as any).publicGetDataCurrencyTrades (this.extend (request, params));
+        // return this.parseTrades (response, market, since, limit);
     }
 
     async createDepositAddress (code, params = {}) {
@@ -667,6 +669,19 @@ export default class bingx extends Exchange {
             // what are the other statuses?
         };
         return this.safeString (statuses, status, status);
+    }
+
+    async fetchPositions (symbols: string[] = undefined, params = {}) {
+        /**
+         * @method
+         * @name bingx#fetchPositions
+         * @description fetch all open positions
+         * @param {[string]|undefined} symbols list of unified market symbols
+         * @param {object} params extra parameters specific to the bybit api endpoint
+         * @returns {[object]} a list of [position structure]{@link https://docs.ccxt.com/#/?id=position-structure}
+         */
+        const response = await (this as any).swapV1PrivatePostUserGetPositions ();
+        return [];
     }
 
     sign (path, section = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {

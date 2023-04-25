@@ -41,6 +41,7 @@ class bingx(Exchange):
                 'fetchMarkOHLCV': False,
                 'fetchOpenInterestHistory': False,
                 'fetchOrderBook': True,
+                'fetchPositions': True,
                 'fetchPremiumIndexOHLCV': False,
                 'fetchTicker': True,
                 'fetchTrades': True,
@@ -373,21 +374,24 @@ class bingx(Exchange):
         }, market)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
-        """
-        get the list of most recent trades for a particular symbol
-        :param str symbol: unified symbol of the market to fetch trades for
-        :param int|None since: timestamp in ms of the earliest trade to fetch
-        :param int|None limit: the maximum amount of trades to fetch
-        :param dict params: extra parameters specific to the paymium api endpoint
-        :returns [dict]: a list of `trade structures <https://docs.ccxt.com/en/latest/manual.html?#public-trades>`
-        """
-        self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'currency': market['id'],
-        }
-        response = self.publicGetDataCurrencyTrades(self.extend(request, params))
-        return self.parse_trades(response, market, since, limit)
+        return []
+        # """
+        #
+        #
+        # get the list of most recent trades for a particular symbol
+        # :param str symbol: unified symbol of the market to fetch trades for
+        # :param int|None since: timestamp in ms of the earliest trade to fetch
+        # :param int|None limit: the maximum amount of trades to fetch
+        # :param dict params: extra parameters specific to the paymium api endpoint
+        # :returns [dict]: a list of `trade structures <https://docs.ccxt.com/en/latest/manual.html?#public-trades>`
+        # """
+        # self.load_markets()
+        # market = self.market(symbol)
+        # request = {
+        #     'currency': market['id'],
+        # }
+        # response = self.publicGetDataCurrencyTrades(self.extend(request, params))
+        # return self.parse_trades(response, market, since, limit)
 
     def create_deposit_address(self, code, params={}):
         """
@@ -624,6 +628,16 @@ class bingx(Exchange):
             # what are the other statuses?
         }
         return self.safe_string(statuses, status, status)
+
+    def fetch_positions(self, symbols=None, params={}):
+        """
+        fetch all open positions
+        :param [str]|None symbols: list of unified market symbols
+        :param dict params: extra parameters specific to the bybit api endpoint
+        :returns [dict]: a list of `position structure <https://docs.ccxt.com/#/?id=position-structure>`
+        """
+        response = self.swapV1PrivatePostUserGetPositions()
+        return []
 
     def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
         type = section[0]

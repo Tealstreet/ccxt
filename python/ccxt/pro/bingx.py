@@ -27,7 +27,7 @@ class bingx(ccxt.async_support.bingx):
             },
             'urls': {
                 'api': {
-                    'ws': 'wss://ws-feed.pro.coinbase.com',
+                    'ws': 'wss://push.bibox.com/',
                 },
             },
             'options': {

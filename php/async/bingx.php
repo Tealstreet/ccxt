@@ -41,6 +41,7 @@ class bingx extends Exchange {
                 'fetchMarkOHLCV' => false,
                 'fetchOpenInterestHistory' => false,
                 'fetchOrderBook' => true,
+                'fetchPositions' => true,
                 'fetchPremiumIndexOHLCV' => false,
                 'fetchTicker' => true,
                 'fetchTrades' => true,
@@ -396,21 +397,24 @@ class bingx extends Exchange {
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
         return Async\async(function () use ($symbol, $since, $limit, $params) {
-            /**
-             * get the list of most recent trades for a particular $symbol
-             * @param {string} $symbol unified $symbol of the $market to fetch trades for
-             * @param {int|null} $since timestamp in ms of the earliest trade to fetch
-             * @param {int|null} $limit the maximum amount of trades to fetch
-             * @param {array} $params extra parameters specific to the paymium api endpoint
-             * @return {[array]} a list of ~@link https://docs.ccxt.com/en/latest/manual.html?#public-trades trade structures~
-             */
-            Async\await($this->load_markets());
-            $market = $this->market($symbol);
-            $request = array(
-                'currency' => $market['id'],
-            );
-            $response = Async\await($this->publicGetDataCurrencyTrades (array_merge($request, $params)));
-            return $this->parse_trades($response, $market, $since, $limit);
+            return array();
+            // /**
+            //
+            //
+            //  * get the list of most recent trades for a particular $symbol
+            //  * @param {string} $symbol unified $symbol of the $market to fetch trades for
+            //  * @param {int|null} $since timestamp in ms of the earliest trade to fetch
+            //  * @param {int|null} $limit the maximum amount of trades to fetch
+            //  * @param {array} $params extra parameters specific to the paymium api endpoint
+            //  * @return {[array]} a list of ~@link https://docs.ccxt.com/en/latest/manual.html?#public-trades trade structures~
+            //  */
+            // Async\await($this->load_markets());
+            // $market = $this->market($symbol);
+            // $request = array(
+            //     'currency' => $market['id'],
+            // );
+            // $response = Async\await($this->publicGetDataCurrencyTrades (array_merge($request, $params)));
+            // return $this->parse_trades($response, $market, $since, $limit);
         }) ();
     }
 
@@ -672,6 +676,19 @@ class bingx extends Exchange {
             // what are the other $statuses?
         );
         return $this->safe_string($statuses, $status, $status);
+    }
+
+    public function fetch_positions($symbols = null, $params = array ()) {
+        return Async\async(function () use ($symbols, $params) {
+            /**
+             * fetch all open positions
+             * @param {[string]|null} $symbols list of unified market $symbols
+             * @param {array} $params extra parameters specific to the bybit api endpoint
+             * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=position-structure position structure~
+             */
+            $response = Async\await($this->swapV1PrivatePostUserGetPositions ());
+            return array();
+        }) ();
     }
 
     public function sign($path, $section = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
