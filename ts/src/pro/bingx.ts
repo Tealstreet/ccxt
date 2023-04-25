@@ -930,7 +930,7 @@ export default class bingx extends bingxRest {
         try {
             if (code !== 0) {
                 const feedback = this.id + ' ' + this.json (message);
-                this.throwExactlyMatchedException (this.exceptions['exact'], code, feedback);
+                throw new ExchangeError (feedback);
             }
             const success = this.safeValue (message, 'success');
             if (success !== undefined && !success) {
@@ -959,12 +959,14 @@ export default class bingx extends bingxRest {
     }
 
     handleMessage (client, message) {
-        if (this.handleErrorMessage (client, message)) {
-            return;
-        }
         // pong
-        if (message === 'Ping') {
-            this.handlePong (client, message);
+        if (message === 'Ping' || this.safeString (message, 'ping', '') !== '') {
+            return this.sendPong (client, message);
+        }
+        if (message === 'Pong' || this.safeString (message, 'pong', '') !== '') {
+            return this.handlePong (client, message);
+        }
+        if (this.handleErrorMessage (client, message)) {
             return;
         }
         // const event = this.safeString (message, 'event');
@@ -1004,12 +1006,19 @@ export default class bingx extends bingxRest {
     }
 
     ping (client) {
-        return 'Pong'; // XD
+        this.client (this.urls['api']['ws']).send ('Ping');
+        return {
+            'ping': this.uuid (),
+            'time': this.iso8601 (this.milliseconds ()),
+        }; // XD
     }
 
-    handlePong (client, message) {
-        client.lastPong = this.milliseconds () - 0;
-        return message;
+    sendPong (client, message) {
+        this.client (this.urls['api']['ws']).send ('Pong');
+        this.client (this.urls['api']['ws']).send (this.json ({
+            'ping': this.uuid (),
+            'time': this.iso8601 (this.milliseconds ()),
+        }));
     }
 
     handleAuthenticate (client, message) {
