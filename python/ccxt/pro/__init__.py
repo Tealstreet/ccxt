@@ -19,6 +19,7 @@ from ccxt.pro.binance import binance                                      # noqa
 from ccxt.pro.binancecoinm import binancecoinm                            # noqa: F401
 from ccxt.pro.binanceus import binanceus                                  # noqa: F401
 from ccxt.pro.binanceusdm import binanceusdm                              # noqa: F401
+from ccxt.pro.bingx import bingx                                          # noqa: F401
 from ccxt.pro.bitcoincom import bitcoincom                                # noqa: F401
 from ccxt.pro.bitfinex import bitfinex                                    # noqa: F401
 from ccxt.pro.bitfinex2 import bitfinex2                                  # noqa: F401
@@ -75,6 +76,7 @@ exchanges = [
     'binancecoinm',
     'binanceus',
     'binanceusdm',
+    'bingx',
     'bitcoincom',
     'bitfinex',
     'bitfinex2',
