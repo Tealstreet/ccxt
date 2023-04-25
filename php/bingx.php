@@ -242,19 +242,18 @@ class bingx extends Exchange {
 
     public function parse_balance($response) {
         $result = array( 'info' => $response );
+        $data = $this->safe_value($response, 'data', array());
+        $dataAccount = $this->safe_value($data, 'account', array());
         $currencies = is_array($this->currencies) ? array_keys($this->currencies) : array();
         for ($i = 0; $i < count($currencies); $i++) {
             $code = $currencies[$i];
-            $currency = $this->currency($code);
-            $currencyId = $currency['id'];
-            $free = 'balance_' . $currencyId;
-            if (is_array($response) && array_key_exists($free, $response)) {
-                $account = $this->account();
-                $used = 'locked_' . $currencyId;
-                $account['free'] = $this->safe_string($response, $free);
-                $account['used'] = $this->safe_string($response, $used);
-                $result[$code] = $account;
+            $account = $this->account();
+            if ($this->safe_string($dataAccount, 'currency', '') === $code) {
+                $account['free'] = $this->safe_string($dataAccount, 'availableMArgin');
+                $account['used'] = $this->safe_string($dataAccount, 'usedMargin');
+                $account['total'] = $this->safe_string($dataAccount, 'balance');
             }
+            $result[$code] = $account;
         }
         return $this->safe_balance($result);
     }
@@ -654,13 +653,242 @@ class bingx extends Exchange {
 
     public function fetch_positions($symbols = null, $params = array ()) {
         /**
-         * fetch all open positions
+         * fetch all open $positions
          * @param {[string]|null} $symbols list of unified market $symbols
          * @param {array} $params extra parameters specific to the bybit api endpoint
          * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=position-structure position structure~
          */
         $response = $this->swapV1PrivatePostUserGetPositions ();
-        return array();
+        $data = $this->safe_value($response, 'data', array());
+        $positions = $this->safe_value($data, 'positions', array());
+        $result = array();
+        for ($i = 0; $i < count($positions); $i++) {
+            $result[] = $this->parse_position($positions[$i]);
+        }
+        return $result;
+    }
+
+    public function parse_position($position, $market = null) {
+        //
+        // linear swap
+        //
+        //     {
+        //         "positionIdx" => 0,
+        //         "riskId" => "11",
+        //         "symbol" => "ETHUSDT",
+        //         "side" => "Buy",
+        //         "size" => "0.10",
+        //         "positionValue" => "119.845",
+        //         "entryPrice" => "1198.45",
+        //         "tradeMode" => 1,
+        //         "autoAddMargin" => 0,
+        //         "leverage" => "4.2",
+        //         "positionBalance" => "28.58931118",
+        //         "liqPrice" => "919.10",
+        //         "bustPrice" => "913.15",
+        //         "takeProfit" => "0.00",
+        //         "stopLoss" => "0.00",
+        //         "trailingStop" => "0.00",
+        //         "unrealisedPnl" => "0.083",
+        //         "createdTime" => "1669097244192",
+        //         "updatedTime" => "1669413126190",
+        //         "tpSlMode" => "Full",
+        //         "riskLimitValue" => "900000",
+        //         "activePrice" => "0.00"
+        //     }
+        //
+        // usdc
+        //    {
+        //       "symbol":"BTCPERP",
+        //       "leverage":"1.00",
+        //       "occClosingFee":"0.0000",
+        //       "liqPrice":"",
+        //       "positionValue":"30.8100",
+        //       "takeProfit":"0.0",
+        //       "riskId":"10001",
+        //       "trailingStop":"0.0000",
+        //       "unrealisedPnl":"0.0000",
+        //       "createdAt":"1652451795305",
+        //       "markPrice":"30809.41",
+        //       "cumRealisedPnl":"0.0000",
+        //       "positionMM":"0.1541",
+        //       "positionIM":"30.8100",
+        //       "updatedAt":"1652451795305",
+        //       "tpSLMode":"UNKNOWN",
+        //       "side":"Buy",
+        //       "bustPrice":"",
+        //       "deleverageIndicator":"0",
+        //       "entryPrice":"30810.0",
+        //       "size":"0.001",
+        //       "sessionRPL":"0.0000",
+        //       "positionStatus":"NORMAL",
+        //       "sessionUPL":"-0.0006",
+        //       "stopLoss":"0.0",
+        //       "orderMargin":"0.0000",
+        //       "sessionAvgPrice":"30810.0"
+        //    }
+        //
+        // unified margin
+        //
+        //     {
+        //         "symbol" => "ETHUSDT",
+        //         "leverage" => "10",
+        //         "updatedTime" => 1657711949945,
+        //         "side" => "Buy",
+        //         "positionValue" => "536.92500000",
+        //         "takeProfit" => "",
+        //         "tpslMode" => "Full",
+        //         "riskId" => 11,
+        //         "trailingStop" => "",
+        //         "entryPrice" => "1073.85000000",
+        //         "unrealisedPnl" => "",
+        //         "markPrice" => "1080.65000000",
+        //         "size" => "0.5000",
+        //         "positionStatus" => "normal",
+        //         "stopLoss" => "",
+        //         "cumRealisedPnl" => "-0.32215500",
+        //         "positionMM" => "2.97456450",
+        //         "createdTime" => 1657711949928,
+        //         "positionIdx" => 0,
+        //         "positionIM" => "53.98243950"
+        //     }
+        //
+        // unified account
+        //
+        //     {
+        //         "symbol" => "XRPUSDT",
+        //         "leverage" => "10",
+        //         "avgPrice" => "0.3615",
+        //         "liqPrice" => "0.0001",
+        //         "riskLimitValue" => "200000",
+        //         "takeProfit" => "",
+        //         "positionValue" => "36.15",
+        //         "tpslMode" => "Full",
+        //         "riskId" => 41,
+        //         "trailingStop" => "0",
+        //         "unrealisedPnl" => "-1.83",
+        //         "markPrice" => "0.3432",
+        //         "cumRealisedPnl" => "0.48805876",
+        //         "positionMM" => "0.381021",
+        //         "createdTime" => "1672121182216",
+        //         "positionIdx" => 0,
+        //         "positionIM" => "3.634521",
+        //         "updatedTime" => "1672279322668",
+        //         "side" => "Buy",
+        //         "bustPrice" => "",
+        //         "size" => "100",
+        //         "positionStatus" => "Normal",
+        //         "stopLoss" => "",
+        //         "tradeMode" => 0
+        //     }
+        //
+        $contract = $this->safe_string($position, 'symbol');
+        $market = $this->safe_market($contract);
+        $size = Precise::string_abs($this->safe_string($position, 'volume'));
+        $side = $this->safe_string($position, 'positionSide');
+        if ($side !== null) {
+            if ($side === 'Long') {
+                $side = 'long';
+            } elseif ($side === 'Short') {
+                $side = 'short';
+            } else {
+                $side = null;
+            }
+        }
+        $notional = $this->safe_string($position, 'volume');
+        $realizedPnl = $this->omit_zero($this->safe_string($position, 'realisedPNL'));
+        $unrealisedPnl = $this->omit_zero($this->safe_string($position, 'unrealisedPNL'));
+        $initialMarginString = $this->safe_string($position, 'margin');
+        $maintenanceMarginString = $this->safe_string($position, 'margin');
+        $timestamp = $this->parse8601($this->safe_string($position, 'updated_at'));
+        if ($timestamp === null) {
+            $timestamp = $this->safe_integer($position, 'updatedAt');
+        }
+        // default to cross of USDC margined positions
+        $marginMode = $this->safe_string($position, 'marginMode', 'Isolated') === 'Isolated' ? 'isolated' : 'cross';
+        $mode = 'hedged';
+        $collateralString = $this->safe_string($position, 'positionBalance');
+        $entryPrice = $this->omit_zero($this->safe_string_2($position, 'avgPrice', ''));
+        $liquidationPrice = $this->omit_zero($this->safe_string($position, 'liqPrice'));
+        $leverage = $this->safe_string($position, 'leverage');
+        if ($liquidationPrice !== null) {
+            if ($market['settle'] === 'USDC') {
+                //  (Entry price - Liq price) * Contracts . Maintenance Margin . (unrealised pnl) = Collateral
+                $difference = Precise::string_abs(Precise::string_sub($entryPrice, $liquidationPrice));
+                $collateralString = Precise::string_add(Precise::string_add(Precise::string_mul($difference, $size), $maintenanceMarginString), $unrealisedPnl);
+            } else {
+                $bustPrice = $this->safe_string($position, 'bustPrice');
+                if ($market['linear']) {
+                    // derived from the following formulas
+                    //  (Entry price - Bust price) * Contracts = Collateral
+                    //  (Entry price - Liq price) * Contracts = Collateral - Maintenance Margin
+                    // Maintenance Margin = (Bust price - Liq price) x Contracts
+                    $maintenanceMarginPriceDifference = Precise::string_abs(Precise::string_sub($liquidationPrice, $bustPrice));
+                    $maintenanceMarginString = Precise::string_mul($maintenanceMarginPriceDifference, $size);
+                    // Initial Margin = Contracts x Entry Price / Leverage
+                    if ($entryPrice !== null) {
+                        $initialMarginString = Precise::string_div(Precise::string_mul($size, $entryPrice), $leverage);
+                    }
+                } else {
+                    // Contracts * (1 / Entry price - 1 / Bust price) = Collateral
+                    // Contracts * (1 / Entry price - 1 / Liq price) = Collateral - Maintenance Margin
+                    // Maintenance Margin = Contracts * (1 / Liq price - 1 / Bust price)
+                    // Maintenance Margin = Contracts * (Bust price - Liq price) / (Liq price x Bust price)
+                    $difference = Precise::string_abs(Precise::string_sub($bustPrice, $liquidationPrice));
+                    $multiply = Precise::string_mul($bustPrice, $liquidationPrice);
+                    $maintenanceMarginString = Precise::string_div(Precise::string_mul($size, $difference), $multiply);
+                    // Initial Margin = Leverage x Contracts / EntryPrice
+                    if ($entryPrice !== null) {
+                        $initialMarginString = Precise::string_div($size, Precise::string_mul($entryPrice, $leverage));
+                    }
+                }
+            }
+        }
+        $maintenanceMarginPercentage = Precise::string_div($maintenanceMarginString, $notional);
+        $percentage = Precise::string_mul(Precise::string_div($unrealisedPnl, $initialMarginString), '100');
+        $marginRatio = Precise::string_div($maintenanceMarginString, $collateralString, 4);
+        // /TEALSTREET
+        $status = true;
+        if ($size === '0') {
+            $status = false;
+        }
+        // \TEALSTREET
+        return array(
+            'info' => $position,
+            // /TEALSTREET
+            'id' => $market['symbol'] . ':' . $side,
+            // \TEALSTREET
+            'mode' => $mode,
+            'symbol' => $market['symbol'],
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'initialMargin' => $this->parse_number($initialMarginString),
+            'initialMarginPercentage' => $this->parse_number(Precise::string_div($initialMarginString, $notional)),
+            'maintenanceMargin' => $this->parse_number($maintenanceMarginString),
+            'maintenanceMarginPercentage' => $this->parse_number($maintenanceMarginPercentage),
+            'entryPrice' => $this->parse_number($entryPrice),
+            'notional' => $this->parse_number($notional),
+            'leverage' => $this->parse_number($leverage),
+            'unrealizedPnl' => $this->parse_number($unrealisedPnl),
+            'pnl' => $realizedPnl . $unrealisedPnl,
+            'contracts' => $this->parse_number($size) / $this->safe_number($market, 'contractSize'), // in USD for inverse swaps
+            'contractSize' => $this->safe_number($market, 'contractSize'),
+            'marginRatio' => $this->parse_number($marginRatio),
+            'liquidationPrice' => $this->parse_number($liquidationPrice),
+            'markPrice' => $this->safe_number($position, 'markPrice'),
+            'collateral' => $this->parse_number($collateralString),
+            'marginMode' => $marginMode,
+            // /TEALSTREET
+            'isolated' => $marginMode === 'isolated',
+            'hedged' => $mode === 'hedged',
+            'price' => $this->parse_number($entryPrice),
+            'status' => $status,
+            'tradeMode' => $mode,
+            'active' => $status,
+            // \TEALSTREET
+            'side' => $side,
+            'percentage' => $this->parse_number($percentage),
+        );
     }
 
     public function sign($path, $section = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {

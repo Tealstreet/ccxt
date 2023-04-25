@@ -7,6 +7,7 @@ from ccxt.base.exchange import Exchange
 import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.decimal_to_precision import TICK_SIZE
+from ccxt.base.precise import Precise
 
 
 class bingx(Exchange):
@@ -240,18 +241,17 @@ class bingx(Exchange):
 
     def parse_balance(self, response):
         result = {'info': response}
+        data = self.safe_value(response, 'data', {})
+        dataAccount = self.safe_value(data, 'account', {})
         currencies = list(self.currencies.keys())
         for i in range(0, len(currencies)):
             code = currencies[i]
-            currency = self.currency(code)
-            currencyId = currency['id']
-            free = 'balance_' + currencyId
-            if free in response:
-                account = self.account()
-                used = 'locked_' + currencyId
-                account['free'] = self.safe_string(response, free)
-                account['used'] = self.safe_string(response, used)
-                result[code] = account
+            account = self.account()
+            if self.safe_string(dataAccount, 'currency', '') == code:
+                account['free'] = self.safe_string(dataAccount, 'availableMArgin')
+                account['used'] = self.safe_string(dataAccount, 'usedMargin')
+                account['total'] = self.safe_string(dataAccount, 'balance')
+            result[code] = account
         return self.safe_balance(result)
 
     def fetch_balance(self, params={}):
@@ -637,7 +637,225 @@ class bingx(Exchange):
         :returns [dict]: a list of `position structure <https://docs.ccxt.com/#/?id=position-structure>`
         """
         response = self.swapV1PrivatePostUserGetPositions()
-        return []
+        data = self.safe_value(response, 'data', {})
+        positions = self.safe_value(data, 'positions', [])
+        result = []
+        for i in range(0, len(positions)):
+            result.append(self.parse_position(positions[i]))
+        return result
+
+    def parse_position(self, position, market=None):
+        #
+        # linear swap
+        #
+        #     {
+        #         "positionIdx": 0,
+        #         "riskId": "11",
+        #         "symbol": "ETHUSDT",
+        #         "side": "Buy",
+        #         "size": "0.10",
+        #         "positionValue": "119.845",
+        #         "entryPrice": "1198.45",
+        #         "tradeMode": 1,
+        #         "autoAddMargin": 0,
+        #         "leverage": "4.2",
+        #         "positionBalance": "28.58931118",
+        #         "liqPrice": "919.10",
+        #         "bustPrice": "913.15",
+        #         "takeProfit": "0.00",
+        #         "stopLoss": "0.00",
+        #         "trailingStop": "0.00",
+        #         "unrealisedPnl": "0.083",
+        #         "createdTime": "1669097244192",
+        #         "updatedTime": "1669413126190",
+        #         "tpSlMode": "Full",
+        #         "riskLimitValue": "900000",
+        #         "activePrice": "0.00"
+        #     }
+        #
+        # usdc
+        #    {
+        #       "symbol":"BTCPERP",
+        #       "leverage":"1.00",
+        #       "occClosingFee":"0.0000",
+        #       "liqPrice":"",
+        #       "positionValue":"30.8100",
+        #       "takeProfit":"0.0",
+        #       "riskId":"10001",
+        #       "trailingStop":"0.0000",
+        #       "unrealisedPnl":"0.0000",
+        #       "createdAt":"1652451795305",
+        #       "markPrice":"30809.41",
+        #       "cumRealisedPnl":"0.0000",
+        #       "positionMM":"0.1541",
+        #       "positionIM":"30.8100",
+        #       "updatedAt":"1652451795305",
+        #       "tpSLMode":"UNKNOWN",
+        #       "side":"Buy",
+        #       "bustPrice":"",
+        #       "deleverageIndicator":"0",
+        #       "entryPrice":"30810.0",
+        #       "size":"0.001",
+        #       "sessionRPL":"0.0000",
+        #       "positionStatus":"NORMAL",
+        #       "sessionUPL":"-0.0006",
+        #       "stopLoss":"0.0",
+        #       "orderMargin":"0.0000",
+        #       "sessionAvgPrice":"30810.0"
+        #    }
+        #
+        # unified margin
+        #
+        #     {
+        #         "symbol": "ETHUSDT",
+        #         "leverage": "10",
+        #         "updatedTime": 1657711949945,
+        #         "side": "Buy",
+        #         "positionValue": "536.92500000",
+        #         "takeProfit": "",
+        #         "tpslMode": "Full",
+        #         "riskId": 11,
+        #         "trailingStop": "",
+        #         "entryPrice": "1073.85000000",
+        #         "unrealisedPnl": "",
+        #         "markPrice": "1080.65000000",
+        #         "size": "0.5000",
+        #         "positionStatus": "normal",
+        #         "stopLoss": "",
+        #         "cumRealisedPnl": "-0.32215500",
+        #         "positionMM": "2.97456450",
+        #         "createdTime": 1657711949928,
+        #         "positionIdx": 0,
+        #         "positionIM": "53.98243950"
+        #     }
+        #
+        # unified account
+        #
+        #     {
+        #         "symbol": "XRPUSDT",
+        #         "leverage": "10",
+        #         "avgPrice": "0.3615",
+        #         "liqPrice": "0.0001",
+        #         "riskLimitValue": "200000",
+        #         "takeProfit": "",
+        #         "positionValue": "36.15",
+        #         "tpslMode": "Full",
+        #         "riskId": 41,
+        #         "trailingStop": "0",
+        #         "unrealisedPnl": "-1.83",
+        #         "markPrice": "0.3432",
+        #         "cumRealisedPnl": "0.48805876",
+        #         "positionMM": "0.381021",
+        #         "createdTime": "1672121182216",
+        #         "positionIdx": 0,
+        #         "positionIM": "3.634521",
+        #         "updatedTime": "1672279322668",
+        #         "side": "Buy",
+        #         "bustPrice": "",
+        #         "size": "100",
+        #         "positionStatus": "Normal",
+        #         "stopLoss": "",
+        #         "tradeMode": 0
+        #     }
+        #
+        contract = self.safe_string(position, 'symbol')
+        market = self.safe_market(contract)
+        size = Precise.string_abs(self.safe_string(position, 'volume'))
+        side = self.safe_string(position, 'positionSide')
+        if side is not None:
+            if side == 'Long':
+                side = 'long'
+            elif side == 'Short':
+                side = 'short'
+            else:
+                side = None
+        notional = self.safe_string(position, 'volume')
+        realizedPnl = self.omit_zero(self.safe_string(position, 'realisedPNL'))
+        unrealisedPnl = self.omit_zero(self.safe_string(position, 'unrealisedPNL'))
+        initialMarginString = self.safe_string(position, 'margin')
+        maintenanceMarginString = self.safe_string(position, 'margin')
+        timestamp = self.parse8601(self.safe_string(position, 'updated_at'))
+        if timestamp is None:
+            timestamp = self.safe_integer(position, 'updatedAt')
+        # default to cross of USDC margined positions
+        marginMode = self.safe_string(position, 'marginMode', 'Isolated') == 'isolated' if 'Isolated' else 'cross'
+        mode = 'hedged'
+        collateralString = self.safe_string(position, 'positionBalance')
+        entryPrice = self.omit_zero(self.safe_string_2(position, 'avgPrice', ''))
+        liquidationPrice = self.omit_zero(self.safe_string(position, 'liqPrice'))
+        leverage = self.safe_string(position, 'leverage')
+        if liquidationPrice is not None:
+            if market['settle'] == 'USDC':
+                #  (Entry price - Liq price) * Contracts + Maintenance Margin + (unrealised pnl) = Collateral
+                difference = Precise.string_abs(Precise.string_sub(entryPrice, liquidationPrice))
+                collateralString = Precise.string_add(Precise.string_add(Precise.string_mul(difference, size), maintenanceMarginString), unrealisedPnl)
+            else:
+                bustPrice = self.safe_string(position, 'bustPrice')
+                if market['linear']:
+                    # derived from the following formulas
+                    #  (Entry price - Bust price) * Contracts = Collateral
+                    #  (Entry price - Liq price) * Contracts = Collateral - Maintenance Margin
+                    # Maintenance Margin = (Bust price - Liq price) x Contracts
+                    maintenanceMarginPriceDifference = Precise.string_abs(Precise.string_sub(liquidationPrice, bustPrice))
+                    maintenanceMarginString = Precise.string_mul(maintenanceMarginPriceDifference, size)
+                    # Initial Margin = Contracts x Entry Price / Leverage
+                    if entryPrice is not None:
+                        initialMarginString = Precise.string_div(Precise.string_mul(size, entryPrice), leverage)
+                else:
+                    # Contracts * (1 / Entry price - 1 / Bust price) = Collateral
+                    # Contracts * (1 / Entry price - 1 / Liq price) = Collateral - Maintenance Margin
+                    # Maintenance Margin = Contracts * (1 / Liq price - 1 / Bust price)
+                    # Maintenance Margin = Contracts * (Bust price - Liq price) / (Liq price x Bust price)
+                    difference = Precise.string_abs(Precise.string_sub(bustPrice, liquidationPrice))
+                    multiply = Precise.string_mul(bustPrice, liquidationPrice)
+                    maintenanceMarginString = Precise.string_div(Precise.string_mul(size, difference), multiply)
+                    # Initial Margin = Leverage x Contracts / EntryPrice
+                    if entryPrice is not None:
+                        initialMarginString = Precise.string_div(size, Precise.string_mul(entryPrice, leverage))
+        maintenanceMarginPercentage = Precise.string_div(maintenanceMarginString, notional)
+        percentage = Precise.string_mul(Precise.string_div(unrealisedPnl, initialMarginString), '100')
+        marginRatio = Precise.string_div(maintenanceMarginString, collateralString, 4)
+        # /TEALSTREET
+        status = True
+        if size == '0':
+            status = False
+        # \TEALSTREET
+        return {
+            'info': position,
+            # /TEALSTREET
+            'id': market['symbol'] + ':' + side,
+            # \TEALSTREET
+            'mode': mode,
+            'symbol': market['symbol'],
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'initialMargin': self.parse_number(initialMarginString),
+            'initialMarginPercentage': self.parse_number(Precise.string_div(initialMarginString, notional)),
+            'maintenanceMargin': self.parse_number(maintenanceMarginString),
+            'maintenanceMarginPercentage': self.parse_number(maintenanceMarginPercentage),
+            'entryPrice': self.parse_number(entryPrice),
+            'notional': self.parse_number(notional),
+            'leverage': self.parse_number(leverage),
+            'unrealizedPnl': self.parse_number(unrealisedPnl),
+            'pnl': realizedPnl + unrealisedPnl,
+            'contracts': self.parse_number(size) / self.safe_number(market, 'contractSize'),  # in USD for inverse swaps
+            'contractSize': self.safe_number(market, 'contractSize'),
+            'marginRatio': self.parse_number(marginRatio),
+            'liquidationPrice': self.parse_number(liquidationPrice),
+            'markPrice': self.safe_number(position, 'markPrice'),
+            'collateral': self.parse_number(collateralString),
+            'marginMode': marginMode,
+            # /TEALSTREET
+            'isolated': marginMode == 'isolated',
+            'hedged': mode == 'hedged',
+            'price': self.parse_number(entryPrice),
+            'status': status,
+            'tradeMode': mode,
+            'active': status,
+            # \TEALSTREET
+            'side': side,
+            'percentage': self.parse_number(percentage),
+        }
 
     def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
         type = section[0]
