@@ -870,7 +870,7 @@ class bingx extends Exchange {
             'notional' => $this->parse_number($notional),
             'leverage' => $this->parse_number($leverage),
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
-            'pnl' => $realizedPnl . $unrealisedPnl,
+            'pnl' =>  $this->parse_number($realizedPnl) . $this->parse_number($unrealisedPnl),
             'contracts' => $this->parse_number($size) / $this->safe_number($market, 'contractSize'), // in USD for inverse swaps
             'contractSize' => $this->safe_number($market, 'contractSize'),
             'marginRatio' => $this->parse_number($marginRatio),

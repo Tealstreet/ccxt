@@ -837,7 +837,7 @@ class bingx(Exchange):
             'notional': self.parse_number(notional),
             'leverage': self.parse_number(leverage),
             'unrealizedPnl': self.parse_number(unrealisedPnl),
-            'pnl': realizedPnl + unrealisedPnl,
+            'pnl':  self.parse_number(realizedPnl) + self.parse_number(unrealisedPnl),
             'contracts': self.parse_number(size) / self.safe_number(market, 'contractSize'),  # in USD for inverse swaps
             'contractSize': self.safe_number(market, 'contractSize'),
             'marginRatio': self.parse_number(marginRatio),

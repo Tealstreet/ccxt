@@ -892,7 +892,7 @@ export default class bingx extends Exchange {
             'notional': this.parseNumber (notional),
             'leverage': this.parseNumber (leverage),
             'unrealizedPnl': this.parseNumber (unrealisedPnl),
-            'pnl': realizedPnl + unrealisedPnl,
+            'pnl': this.parseNumber (realizedPnl) + this.parseNumber (unrealisedPnl),
             'contracts': this.parseNumber (size) / this.safeNumber (market, 'contractSize'), // in USD for inverse swaps
             'contractSize': this.safeNumber (market, 'contractSize'),
             'marginRatio': this.parseNumber (marginRatio),
