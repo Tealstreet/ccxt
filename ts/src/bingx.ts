@@ -26,11 +26,11 @@ export default class bingx extends Exchange {
                 'future': false,
                 'option': false,
                 'cancelOrder': true,
-                'createDepositAddress': true,
+                'createDepositAddress': false,
                 'createOrder': true,
                 'fetchBalance': true,
-                'fetchDepositAddress': true,
-                'fetchDepositAddresses': true,
+                'fetchDepositAddress': false,
+                'fetchDepositAddresses': false,
                 'fetchFundingHistory': false,
                 'fetchFundingRate': false,
                 'fetchFundingRateHistory': false,
@@ -409,97 +409,6 @@ export default class bingx extends Exchange {
         // };
         // const response = await (this as any).publicGetDataCurrencyTrades (this.extend (request, params));
         // return this.parseTrades (response, market, since, limit);
-    }
-
-    async createDepositAddress (code, params = {}) {
-        /**
-         * @method
-         * @name paymium#createDepositAddress
-         * @description create a currency deposit address
-         * @param {string} code unified currency code of the currency for the deposit address
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} an [address structure]{@link https://docs.ccxt.com/#/?id=address-structure}
-         */
-        await this.loadMarkets ();
-        const response = await (this as any).privatePostUserAddresses (params);
-        //
-        //     {
-        //         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until": 1620041926,
-        //         "currency": "BTC",
-        //         "label": "Savings"
-        //     }
-        //
-        return this.parseDepositAddress (response);
-    }
-
-    async fetchDepositAddress (code, params = {}) {
-        /**
-         * @method
-         * @name paymium#fetchDepositAddress
-         * @description fetch the deposit address for a currency associated with this account
-         * @param {string} code unified currency code
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} an [address structure]{@link https://docs.ccxt.com/#/?id=address-structure}
-         */
-        await this.loadMarkets ();
-        const request = {
-            'address': code,
-        };
-        const response = await (this as any).privateGetUserAddressesAddress (this.extend (request, params));
-        //
-        //     {
-        //         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until": 1620041926,
-        //         "currency": "BTC",
-        //         "label": "Savings"
-        //     }
-        //
-        return this.parseDepositAddress (response);
-    }
-
-    async fetchDepositAddresses (codes: string[] = undefined, params = {}) {
-        /**
-         * @method
-         * @name paymium#fetchDepositAddresses
-         * @description fetch deposit addresses for multiple currencies and chain types
-         * @param {[string]|undefined} codes list of unified currency codes, default is undefined
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} a list of [address structures]{@link https://docs.ccxt.com/#/?id=address-structure}
-         */
-        await this.loadMarkets ();
-        const response = await (this as any).privateGetUserAddresses (params);
-        //
-        //     [
-        //         {
-        //             "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //             "valid_until": 1620041926,
-        //             "currency": "BTC",
-        //             "label": "Savings"
-        //         }
-        //     ]
-        //
-        return this.parseDepositAddresses (response, codes);
-    }
-
-    parseDepositAddress (depositAddress, currency = undefined) {
-        //
-        //     {
-        //         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until": 1620041926,
-        //         "currency": "BTC",
-        //         "label": "Savings"
-        //     }
-        //
-        const address = this.safeString (depositAddress, 'address');
-        const currencyId = this.safeString (depositAddress, 'currency');
-        return {
-            'info': depositAddress,
-            'currency': this.safeCurrencyCode (currencyId, currency),
-            'address': address,
-            'tag': undefined,
-            'network': undefined,
-        };
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
