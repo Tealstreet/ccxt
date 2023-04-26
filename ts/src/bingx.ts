@@ -5,6 +5,7 @@ import { Exchange } from './base/Exchange.js';
 import Precise from './base/Precise.js';
 import { ExchangeError } from './base/errors.js';
 import { TICK_SIZE } from './base/functions/number.js';
+import { OHLCV } from './base/types.js';
 
 //  ---------------------------------------------------------------------------
 
@@ -37,6 +38,7 @@ export default class bingx extends Exchange {
                 'fetchFundingRates': false,
                 'fetchIndexOHLCV': false,
                 'fetchMarkOHLCV': false,
+                'fetchOHLCV': true,
                 'fetchOpenInterestHistory': false,
                 'fetchOrderBook': true,
                 'fetchPositions': true,
@@ -130,6 +132,21 @@ export default class bingx extends Exchange {
             'requiredCredentials': {
                 'apiKey': true,
                 'secret': true,
+            },
+            'timeframes': {
+                '1m': '1',
+                '3m': '3',
+                '5m': '5',
+                '15m': '15',
+                '30m': '30',
+                '1h': '60',
+                '2h': '120',
+                '4h': '240',
+                '6h': '360',
+                '12h': '720',
+                '1d': '1D',
+                '1w': '1W',
+                '1M': '1M',
             },
         });
     }
@@ -583,6 +600,94 @@ export default class bingx extends Exchange {
             'side': side,
             'percentage': this.parseNumber (percentage),
         };
+    }
+
+    async fetchOHLCV (symbol, timeframe = '1m', since: any = undefined, limit: any = undefined, params = {}) {
+        /**
+         * @method
+         * @name bybit#fetchOHLCV
+         * @description fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
+         * @see https://bybit-exchange.github.io/docs/v5/market/kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/mark-kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/index-kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/preimum-index-kline
+         * @param {string} symbol unified symbol of the market to fetch OHLCV data for
+         * @param {string} timeframe the length of time each candle represents
+         * @param {int|undefined} since timestamp in ms of the earliest candle to fetch
+         * @param {int|undefined} limit the maximum amount of candles to fetch
+         * @param {object} params extra parameters specific to the bybit api endpoint
+         * @returns {[[int]]} A list of candles ordered as timestamp, open, high, low, close, volume
+         */
+        this.checkRequiredSymbol ('fetchOHLCV', symbol);
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        if (limit === undefined) {
+            limit = 200; // default is 200 when requested with `since`
+        }
+        if (since !== undefined) {
+            request['startTs'] = since;
+        }
+        request['klineType'] = this.safeString (this.timeframes, timeframe, timeframe);
+        if (limit !== undefined) {
+            // request['limit'] = limit; // max 1000, default 1000
+            if (request['klineType'] === '1') {
+                request['endTs'] = since + limit * 60 * 1000;
+            } else if (request['klineType'] === '3') {
+                request['endTs'] = since + limit * 3 * 60 * 1000;
+            } else if (request['klineType'] === '5') {
+                request['endTs'] = since + limit * 5 * 60 * 1000;
+            } else if (request['klineType'] === '15') {
+                request['endTs'] = since + limit * 15 * 60 * 1000;
+            } else if (request['klineType'] === '30') {
+                request['endTs'] = since + limit * 30 * 60 * 1000;
+            } else if (request['klineType'] === '60') {
+                request['endTs'] = since + limit * 60 * 60 * 1000;
+            } else if (request['klineType'] === '120') {
+                request['endTs'] = since + limit * 120 * 60 * 1000;
+            } else if (request['klineType'] === '240') {
+                request['endTs'] = since + limit * 240 * 60 * 1000;
+            } else if (request['klineType'] === '360') {
+                request['endTs'] = since + limit * 360 * 60 * 1000;
+            } else if (request['klineType'] === '720') {
+                request['endTs'] = since + limit * 720 * 60 * 1000;
+            } else if (request['klineType'] === '1D') {
+                request['endTs'] = since + limit * 24 * 60 * 60 * 1000;
+            } else if (request['klineType'] === '1W') {
+                request['endTs'] = since + limit * 7 * 24 * 60 * 60 * 1000;
+            } else if (request['klineType'] === '1M') {
+                request['endTs'] = since + limit * 30 * 24 * 60 * 60 * 1000;
+            } else {
+                request['endTs'] = since + limit * 60 * 1000;
+            }
+        }
+        const response = await (this as any).swapV1PublicGetMarketGetHistoryKlines (this.extend (request, params));
+        const result = this.safeValue (response, 'data', {});
+        const ohlcvs = this.safeValue (result, 'klines', []);
+        return this.parseOHLCVs (ohlcvs, market, timeframe, since, limit);
+    }
+
+    parseOHLCVs (ohlcvs: object[], market: string = undefined, timeframe: string = '1m', since: number = undefined, limit: any = undefined): OHLCV[] {
+        const results = [];
+        for (let i = 0; i < ohlcvs.length; i++) {
+            results.push (this.parseOHLCV (ohlcvs[i], market));
+        }
+        const sorted = this.sortBy (results, 0);
+        const tail = (since === undefined);
+        return this.filterBySinceLimit (sorted, since, limit, 0, tail) as any;
+    }
+
+    parseOHLCV (ohlcv, market = undefined) {
+        return [
+            this.safeInteger (ohlcv, 'ts'), // timestamp
+            this.safeNumber (ohlcv, 'open'), // open
+            this.safeNumber (ohlcv, 'high'), // high
+            this.safeNumber (ohlcv, 'low'), // low
+            this.safeNumber (ohlcv, 'close'), // close
+            this.safeNumber (ohlcv, 'volume'), // volume
+        ];
     }
 
     sign (path, section = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {

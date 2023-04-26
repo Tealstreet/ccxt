@@ -26,17 +26,18 @@ class bingx extends Exchange {
                 'future' => false,
                 'option' => false,
                 'cancelOrder' => true,
-                'createDepositAddress' => true,
+                'createDepositAddress' => false,
                 'createOrder' => true,
                 'fetchBalance' => true,
-                'fetchDepositAddress' => true,
-                'fetchDepositAddresses' => true,
+                'fetchDepositAddress' => false,
+                'fetchDepositAddresses' => false,
                 'fetchFundingHistory' => false,
                 'fetchFundingRate' => false,
                 'fetchFundingRateHistory' => false,
                 'fetchFundingRates' => false,
                 'fetchIndexOHLCV' => false,
                 'fetchMarkOHLCV' => false,
+                'fetchOHLCV' => true,
                 'fetchOpenInterestHistory' => false,
                 'fetchOrderBook' => true,
                 'fetchPositions' => true,
@@ -45,7 +46,7 @@ class bingx extends Exchange {
                 'fetchTrades' => true,
                 'fetchTradingFee' => false,
                 'fetchTradingFees' => false,
-                'transfer' => true,
+                'transfer' => false,
             ),
             'urls' => array(
                 'logo' => '',
@@ -130,6 +131,21 @@ class bingx extends Exchange {
             'requiredCredentials' => array(
                 'apiKey' => true,
                 'secret' => true,
+            ),
+            'timeframes' => array(
+                '1m' => '1',
+                '3m' => '3',
+                '5m' => '5',
+                '15m' => '15',
+                '30m' => '30',
+                '1h' => '60',
+                '2h' => '120',
+                '4h' => '240',
+                '6h' => '360',
+                '12h' => '720',
+                '1d' => '1D',
+                '1w' => '1W',
+                '1M' => '1M',
             ),
         ));
     }
@@ -403,91 +419,6 @@ class bingx extends Exchange {
         // return $this->parse_trades($response, $market, $since, $limit);
     }
 
-    public function create_deposit_address($code, $params = array ()) {
-        /**
-         * create a currency deposit address
-         * @param {string} $code unified currency $code of the currency for the deposit address
-         * @param {array} $params extra parameters specific to the paymium api endpoint
-         * @return {array} an ~@link https://docs.ccxt.com/#/?id=address-structure address structure~
-         */
-        $this->load_markets();
-        $response = $this->privatePostUserAddresses ($params);
-        //
-        //     {
-        //         "address" => "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until" => 1620041926,
-        //         "currency" => "BTC",
-        //         "label" => "Savings"
-        //     }
-        //
-        return $this->parse_deposit_address($response);
-    }
-
-    public function fetch_deposit_address($code, $params = array ()) {
-        /**
-         * fetch the deposit address for a currency associated with this account
-         * @param {string} $code unified currency $code
-         * @param {array} $params extra parameters specific to the paymium api endpoint
-         * @return {array} an ~@link https://docs.ccxt.com/#/?id=address-structure address structure~
-         */
-        $this->load_markets();
-        $request = array(
-            'address' => $code,
-        );
-        $response = $this->privateGetUserAddressesAddress (array_merge($request, $params));
-        //
-        //     {
-        //         "address" => "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until" => 1620041926,
-        //         "currency" => "BTC",
-        //         "label" => "Savings"
-        //     }
-        //
-        return $this->parse_deposit_address($response);
-    }
-
-    public function fetch_deposit_addresses($codes = null, $params = array ()) {
-        /**
-         * fetch deposit addresses for multiple currencies and chain types
-         * @param {[string]|null} $codes list of unified currency $codes, default is null
-         * @param {array} $params extra parameters specific to the paymium api endpoint
-         * @return {array} a list of ~@link https://docs.ccxt.com/#/?id=address-structure address structures~
-         */
-        $this->load_markets();
-        $response = $this->privateGetUserAddresses ($params);
-        //
-        //     array(
-        //         {
-        //             "address" => "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //             "valid_until" => 1620041926,
-        //             "currency" => "BTC",
-        //             "label" => "Savings"
-        //         }
-        //     )
-        //
-        return $this->parse_deposit_addresses($response, $codes);
-    }
-
-    public function parse_deposit_address($depositAddress, $currency = null) {
-        //
-        //     {
-        //         "address" => "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until" => 1620041926,
-        //         "currency" => "BTC",
-        //         "label" => "Savings"
-        //     }
-        //
-        $address = $this->safe_string($depositAddress, 'address');
-        $currencyId = $this->safe_string($depositAddress, 'currency');
-        return array(
-            'info' => $depositAddress,
-            'currency' => $this->safe_currency_code($currencyId, $currency),
-            'address' => $address,
-            'tag' => null,
-            'network' => null,
-        );
-    }
-
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
         /**
          * create a trade order
@@ -531,126 +462,6 @@ class bingx extends Exchange {
         return $this->privateDeleteUserOrdersUuidCancel (array_merge($request, $params));
     }
 
-    public function transfer($code, $amount, $fromAccount, $toAccount, $params = array ()) {
-        /**
-         * transfer $currency internally between wallets on the same account
-         * @param {string} $code unified $currency $code
-         * @param {float} $amount amount to transfer
-         * @param {string} $fromAccount account to transfer from
-         * @param {string} $toAccount account to transfer to
-         * @param {array} $params extra parameters specific to the paymium api endpoint
-         * @return {array} a ~@link https://docs.ccxt.com/#/?id=transfer-structure transfer structure~
-         */
-        $this->load_markets();
-        $currency = $this->currency($code);
-        if (mb_strpos($toAccount, '@') === false) {
-            throw new ExchangeError($this->id . ' transfer() only allows transfers to an email address');
-        }
-        if ($code !== 'BTC' && $code !== 'EUR') {
-            throw new ExchangeError($this->id . ' transfer() only allows BTC or EUR');
-        }
-        $request = array(
-            'currency' => $currency['id'],
-            'amount' => $this->currency_to_precision($code, $amount),
-            'email' => $toAccount,
-            // 'comment' => 'a small note explaining the transfer'
-        );
-        $response = $this->privatePostUserEmailTransfers (array_merge($request, $params));
-        //
-        //     {
-        //         "uuid" => "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        //         "type" => "Transfer",
-        //         "currency" => "BTC",
-        //         "currency_amount" => "string",
-        //         "created_at" => "2013-10-24T10:34:37.000Z",
-        //         "updated_at" => "2013-10-24T10:34:37.000Z",
-        //         "amount" => "1.0",
-        //         "state" => "executed",
-        //         "currency_fee" => "0.0",
-        //         "btc_fee" => "0.0",
-        //         "comment" => "string",
-        //         "traded_btc" => "string",
-        //         "traded_currency" => "string",
-        //         "direction" => "buy",
-        //         "price" => "string",
-        //         "account_operations" => array(
-        //             {
-        //                 "uuid" => "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        //                 "amount" => "1.0",
-        //                 "currency" => "BTC",
-        //                 "created_at" => "2013-10-24T10:34:37.000Z",
-        //                 "created_at_int" => 1389094259,
-        //                 "name" => "account_operation",
-        //                 "address" => "1FPDBXNqSkZMsw1kSkkajcj8berxDQkUoc",
-        //                 "tx_hash" => "string",
-        //                 "is_trading_account" => true
-        //             }
-        //         )
-        //     }
-        //
-        return $this->parse_transfer($response, $currency);
-    }
-
-    public function parse_transfer($transfer, $currency = null) {
-        //
-        //     {
-        //         "uuid" => "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        //         "type" => "Transfer",
-        //         "currency" => "BTC",
-        //         "currency_amount" => "string",
-        //         "created_at" => "2013-10-24T10:34:37.000Z",
-        //         "updated_at" => "2013-10-24T10:34:37.000Z",
-        //         "amount" => "1.0",
-        //         "state" => "executed",
-        //         "currency_fee" => "0.0",
-        //         "btc_fee" => "0.0",
-        //         "comment" => "string",
-        //         "traded_btc" => "string",
-        //         "traded_currency" => "string",
-        //         "direction" => "buy",
-        //         "price" => "string",
-        //         "account_operations" => array(
-        //             {
-        //                 "uuid" => "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        //                 "amount" => "1.0",
-        //                 "currency" => "BTC",
-        //                 "created_at" => "2013-10-24T10:34:37.000Z",
-        //                 "created_at_int" => 1389094259,
-        //                 "name" => "account_operation",
-        //                 "address" => "1FPDBXNqSkZMsw1kSkkajcj8berxDQkUoc",
-        //                 "tx_hash" => "string",
-        //                 "is_trading_account" => true
-        //             }
-        //         )
-        //     }
-        //
-        $currencyId = $this->safe_string($transfer, 'currency');
-        $updatedAt = $this->safe_string($transfer, 'updated_at');
-        $timetstamp = $this->parse_date($updatedAt);
-        $accountOperations = $this->safe_value($transfer, 'account_operations');
-        $firstOperation = $this->safe_value($accountOperations, 0, array());
-        $status = $this->safe_string($transfer, 'state');
-        return array(
-            'info' => $transfer,
-            'id' => $this->safe_string($transfer, 'uuid'),
-            'timestamp' => $timetstamp,
-            'datetime' => $this->iso8601($timetstamp),
-            'currency' => $this->safe_currency_code($currencyId, $currency),
-            'amount' => $this->safe_number($transfer, 'amount'),
-            'fromAccount' => null,
-            'toAccount' => $this->safe_string($firstOperation, 'address'),
-            'status' => $this->parse_transfer_status($status),
-        );
-    }
-
-    public function parse_transfer_status($status) {
-        $statuses = array(
-            'executed' => 'ok',
-            // what are the other $statuses?
-        );
-        return $this->safe_string($statuses, $status, $status);
-    }
-
     public function fetch_positions($symbols = null, $params = array ()) {
         /**
          * fetch all open $positions
@@ -669,119 +480,6 @@ class bingx extends Exchange {
     }
 
     public function parse_position($position, $market = null) {
-        //
-        // linear swap
-        //
-        //     {
-        //         "positionIdx" => 0,
-        //         "riskId" => "11",
-        //         "symbol" => "ETHUSDT",
-        //         "side" => "Buy",
-        //         "size" => "0.10",
-        //         "positionValue" => "119.845",
-        //         "entryPrice" => "1198.45",
-        //         "tradeMode" => 1,
-        //         "autoAddMargin" => 0,
-        //         "leverage" => "4.2",
-        //         "positionBalance" => "28.58931118",
-        //         "liqPrice" => "919.10",
-        //         "bustPrice" => "913.15",
-        //         "takeProfit" => "0.00",
-        //         "stopLoss" => "0.00",
-        //         "trailingStop" => "0.00",
-        //         "unrealisedPnl" => "0.083",
-        //         "createdTime" => "1669097244192",
-        //         "updatedTime" => "1669413126190",
-        //         "tpSlMode" => "Full",
-        //         "riskLimitValue" => "900000",
-        //         "activePrice" => "0.00"
-        //     }
-        //
-        // usdc
-        //    {
-        //       "symbol":"BTCPERP",
-        //       "leverage":"1.00",
-        //       "occClosingFee":"0.0000",
-        //       "liqPrice":"",
-        //       "positionValue":"30.8100",
-        //       "takeProfit":"0.0",
-        //       "riskId":"10001",
-        //       "trailingStop":"0.0000",
-        //       "unrealisedPnl":"0.0000",
-        //       "createdAt":"1652451795305",
-        //       "markPrice":"30809.41",
-        //       "cumRealisedPnl":"0.0000",
-        //       "positionMM":"0.1541",
-        //       "positionIM":"30.8100",
-        //       "updatedAt":"1652451795305",
-        //       "tpSLMode":"UNKNOWN",
-        //       "side":"Buy",
-        //       "bustPrice":"",
-        //       "deleverageIndicator":"0",
-        //       "entryPrice":"30810.0",
-        //       "size":"0.001",
-        //       "sessionRPL":"0.0000",
-        //       "positionStatus":"NORMAL",
-        //       "sessionUPL":"-0.0006",
-        //       "stopLoss":"0.0",
-        //       "orderMargin":"0.0000",
-        //       "sessionAvgPrice":"30810.0"
-        //    }
-        //
-        // unified margin
-        //
-        //     {
-        //         "symbol" => "ETHUSDT",
-        //         "leverage" => "10",
-        //         "updatedTime" => 1657711949945,
-        //         "side" => "Buy",
-        //         "positionValue" => "536.92500000",
-        //         "takeProfit" => "",
-        //         "tpslMode" => "Full",
-        //         "riskId" => 11,
-        //         "trailingStop" => "",
-        //         "entryPrice" => "1073.85000000",
-        //         "unrealisedPnl" => "",
-        //         "markPrice" => "1080.65000000",
-        //         "size" => "0.5000",
-        //         "positionStatus" => "normal",
-        //         "stopLoss" => "",
-        //         "cumRealisedPnl" => "-0.32215500",
-        //         "positionMM" => "2.97456450",
-        //         "createdTime" => 1657711949928,
-        //         "positionIdx" => 0,
-        //         "positionIM" => "53.98243950"
-        //     }
-        //
-        // unified account
-        //
-        //     {
-        //         "symbol" => "XRPUSDT",
-        //         "leverage" => "10",
-        //         "avgPrice" => "0.3615",
-        //         "liqPrice" => "0.0001",
-        //         "riskLimitValue" => "200000",
-        //         "takeProfit" => "",
-        //         "positionValue" => "36.15",
-        //         "tpslMode" => "Full",
-        //         "riskId" => 41,
-        //         "trailingStop" => "0",
-        //         "unrealisedPnl" => "-1.83",
-        //         "markPrice" => "0.3432",
-        //         "cumRealisedPnl" => "0.48805876",
-        //         "positionMM" => "0.381021",
-        //         "createdTime" => "1672121182216",
-        //         "positionIdx" => 0,
-        //         "positionIM" => "3.634521",
-        //         "updatedTime" => "1672279322668",
-        //         "side" => "Buy",
-        //         "bustPrice" => "",
-        //         "size" => "100",
-        //         "positionStatus" => "Normal",
-        //         "stopLoss" => "",
-        //         "tradeMode" => 0
-        //     }
-        //
         $contract = $this->safe_string($position, 'symbol');
         $market = $this->safe_market($contract);
         $size = Precise::string_abs($this->safe_string($position, 'volume'));
@@ -886,6 +584,92 @@ class bingx extends Exchange {
             'active' => $status,
             'side' => $side,
             'percentage' => $this->parse_number($percentage),
+        );
+    }
+
+    public function fetch_ohlcv($symbol, $timeframe = '1m', $since = null, $limit = null, $params = array ()) {
+        /**
+         * fetches historical candlestick data containing the open, high, low, and close price, and the volume of a $market
+         * @see https://bybit-exchange.github.io/docs/v5/market/kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/mark-kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/index-kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/preimum-index-kline
+         * @param {string} $symbol unified $symbol of the $market to fetch OHLCV data for
+         * @param {string} $timeframe the length of time each candle represents
+         * @param {int|null} $since timestamp in ms of the earliest candle to fetch
+         * @param {int|null} $limit the maximum amount of candles to fetch
+         * @param {array} $params extra parameters specific to the bybit api endpoint
+         * @return {[[int]]} A list of candles ordered, open, high, low, close, volume
+         */
+        $this->check_required_symbol('fetchOHLCV', $symbol);
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'symbol' => $market['id'],
+        );
+        if ($limit === null) {
+            $limit = 200; // default is 200 when requested with `$since`
+        }
+        if ($since !== null) {
+            $request['startTs'] = $since;
+        }
+        $request['klineType'] = $this->safe_string($this->timeframes, $timeframe, $timeframe);
+        if ($limit !== null) {
+            // $request['limit'] = $limit; // max 1000, default 1000
+            if ($request['klineType'] === '1') {
+                $request['endTs'] = $since . $limit * 60 * 1000;
+            } elseif ($request['klineType'] === '3') {
+                $request['endTs'] = $since . $limit * 3 * 60 * 1000;
+            } elseif ($request['klineType'] === '5') {
+                $request['endTs'] = $since . $limit * 5 * 60 * 1000;
+            } elseif ($request['klineType'] === '15') {
+                $request['endTs'] = $since . $limit * 15 * 60 * 1000;
+            } elseif ($request['klineType'] === '30') {
+                $request['endTs'] = $since . $limit * 30 * 60 * 1000;
+            } elseif ($request['klineType'] === '60') {
+                $request['endTs'] = $since . $limit * 60 * 60 * 1000;
+            } elseif ($request['klineType'] === '120') {
+                $request['endTs'] = $since . $limit * 120 * 60 * 1000;
+            } elseif ($request['klineType'] === '240') {
+                $request['endTs'] = $since . $limit * 240 * 60 * 1000;
+            } elseif ($request['klineType'] === '360') {
+                $request['endTs'] = $since . $limit * 360 * 60 * 1000;
+            } elseif ($request['klineType'] === '720') {
+                $request['endTs'] = $since . $limit * 720 * 60 * 1000;
+            } elseif ($request['klineType'] === '1D') {
+                $request['endTs'] = $since . $limit * 24 * 60 * 60 * 1000;
+            } elseif ($request['klineType'] === '1W') {
+                $request['endTs'] = $since . $limit * 7 * 24 * 60 * 60 * 1000;
+            } elseif ($request['klineType'] === '1M') {
+                $request['endTs'] = $since . $limit * 30 * 24 * 60 * 60 * 1000;
+            } else {
+                $request['endTs'] = $since . $limit * 60 * 1000;
+            }
+        }
+        $response = $this->swapV1PublicGetMarketGetHistoryKlines (array_merge($request, $params));
+        $result = $this->safe_value($response, 'data', array());
+        $ohlcvs = $this->safe_value($result, 'klines', array());
+        return $this->parse_ohlcvs($ohlcvs, $market, $timeframe, $since, $limit);
+    }
+
+    public function parse_ohlcvs($ohlcvs, $market = null, $timeframe = '1m', $since = null, $limit = null) {
+        $results = array();
+        for ($i = 0; $i < count($ohlcvs); $i++) {
+            $results[] = $this->parse_ohlcv($ohlcvs[$i], $market);
+        }
+        $sorted = $this->sort_by($results, 0);
+        $tail = ($since === null);
+        return $this->filter_by_since_limit($sorted, $since, $limit, 0, $tail);
+    }
+
+    public function parse_ohlcv($ohlcv, $market = null) {
+        return array(
+            $this->safe_integer($ohlcv, 'ts'), // timestamp
+            $this->safe_number($ohlcv, 'open'), // open
+            $this->safe_number($ohlcv, 'high'), // high
+            $this->safe_number($ohlcv, 'low'), // low
+            $this->safe_number($ohlcv, 'close'), // close
+            $this->safe_number($ohlcv, 'volume'), // volume
         );
     }
 

@@ -29,17 +29,18 @@ class bingx(Exchange):
                 'future': False,
                 'option': False,
                 'cancelOrder': True,
-                'createDepositAddress': True,
+                'createDepositAddress': False,
                 'createOrder': True,
                 'fetchBalance': True,
-                'fetchDepositAddress': True,
-                'fetchDepositAddresses': True,
+                'fetchDepositAddress': False,
+                'fetchDepositAddresses': False,
                 'fetchFundingHistory': False,
                 'fetchFundingRate': False,
                 'fetchFundingRateHistory': False,
                 'fetchFundingRates': False,
                 'fetchIndexOHLCV': False,
                 'fetchMarkOHLCV': False,
+                'fetchOHLCV': True,
                 'fetchOpenInterestHistory': False,
                 'fetchOrderBook': True,
                 'fetchPositions': True,
@@ -48,7 +49,7 @@ class bingx(Exchange):
                 'fetchTrades': True,
                 'fetchTradingFee': False,
                 'fetchTradingFees': False,
-                'transfer': True,
+                'transfer': False,
             },
             'urls': {
                 'logo': '',
@@ -133,6 +134,21 @@ class bingx(Exchange):
             'requiredCredentials': {
                 'apiKey': True,
                 'secret': True,
+            },
+            'timeframes': {
+                '1m': '1',
+                '3m': '3',
+                '5m': '5',
+                '15m': '15',
+                '30m': '30',
+                '1h': '60',
+                '2h': '120',
+                '4h': '240',
+                '6h': '360',
+                '12h': '720',
+                '1d': '1D',
+                '1w': '1W',
+                '1M': '1M',
             },
         })
 
@@ -393,87 +409,6 @@ class bingx(Exchange):
         # response = await self.publicGetDataCurrencyTrades(self.extend(request, params))
         # return self.parse_trades(response, market, since, limit)
 
-    async def create_deposit_address(self, code, params={}):
-        """
-        create a currency deposit address
-        :param str code: unified currency code of the currency for the deposit address
-        :param dict params: extra parameters specific to the paymium api endpoint
-        :returns dict: an `address structure <https://docs.ccxt.com/#/?id=address-structure>`
-        """
-        await self.load_markets()
-        response = await self.privatePostUserAddresses(params)
-        #
-        #     {
-        #         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        #         "valid_until": 1620041926,
-        #         "currency": "BTC",
-        #         "label": "Savings"
-        #     }
-        #
-        return self.parse_deposit_address(response)
-
-    async def fetch_deposit_address(self, code, params={}):
-        """
-        fetch the deposit address for a currency associated with self account
-        :param str code: unified currency code
-        :param dict params: extra parameters specific to the paymium api endpoint
-        :returns dict: an `address structure <https://docs.ccxt.com/#/?id=address-structure>`
-        """
-        await self.load_markets()
-        request = {
-            'address': code,
-        }
-        response = await self.privateGetUserAddressesAddress(self.extend(request, params))
-        #
-        #     {
-        #         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        #         "valid_until": 1620041926,
-        #         "currency": "BTC",
-        #         "label": "Savings"
-        #     }
-        #
-        return self.parse_deposit_address(response)
-
-    async def fetch_deposit_addresses(self, codes=None, params={}):
-        """
-        fetch deposit addresses for multiple currencies and chain types
-        :param [str]|None codes: list of unified currency codes, default is None
-        :param dict params: extra parameters specific to the paymium api endpoint
-        :returns dict: a list of `address structures <https://docs.ccxt.com/#/?id=address-structure>`
-        """
-        await self.load_markets()
-        response = await self.privateGetUserAddresses(params)
-        #
-        #     [
-        #         {
-        #             "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        #             "valid_until": 1620041926,
-        #             "currency": "BTC",
-        #             "label": "Savings"
-        #         }
-        #     ]
-        #
-        return self.parse_deposit_addresses(response, codes)
-
-    def parse_deposit_address(self, depositAddress, currency=None):
-        #
-        #     {
-        #         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        #         "valid_until": 1620041926,
-        #         "currency": "BTC",
-        #         "label": "Savings"
-        #     }
-        #
-        address = self.safe_string(depositAddress, 'address')
-        currencyId = self.safe_string(depositAddress, 'currency')
-        return {
-            'info': depositAddress,
-            'currency': self.safe_currency_code(currencyId, currency),
-            'address': address,
-            'tag': None,
-            'network': None,
-        }
-
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         """
         create a trade order
@@ -514,121 +449,6 @@ class bingx(Exchange):
         }
         return await self.privateDeleteUserOrdersUuidCancel(self.extend(request, params))
 
-    async def transfer(self, code, amount, fromAccount, toAccount, params={}):
-        """
-        transfer currency internally between wallets on the same account
-        :param str code: unified currency code
-        :param float amount: amount to transfer
-        :param str fromAccount: account to transfer from
-        :param str toAccount: account to transfer to
-        :param dict params: extra parameters specific to the paymium api endpoint
-        :returns dict: a `transfer structure <https://docs.ccxt.com/#/?id=transfer-structure>`
-        """
-        await self.load_markets()
-        currency = self.currency(code)
-        if toAccount.find('@') < 0:
-            raise ExchangeError(self.id + ' transfer() only allows transfers to an email address')
-        if code != 'BTC' and code != 'EUR':
-            raise ExchangeError(self.id + ' transfer() only allows BTC or EUR')
-        request = {
-            'currency': currency['id'],
-            'amount': self.currency_to_precision(code, amount),
-            'email': toAccount,
-            # 'comment': 'a small note explaining the transfer'
-        }
-        response = await self.privatePostUserEmailTransfers(self.extend(request, params))
-        #
-        #     {
-        #         "uuid": "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        #         "type": "Transfer",
-        #         "currency": "BTC",
-        #         "currency_amount": "string",
-        #         "created_at": "2013-10-24T10:34:37.000Z",
-        #         "updated_at": "2013-10-24T10:34:37.000Z",
-        #         "amount": "1.0",
-        #         "state": "executed",
-        #         "currency_fee": "0.0",
-        #         "btc_fee": "0.0",
-        #         "comment": "string",
-        #         "traded_btc": "string",
-        #         "traded_currency": "string",
-        #         "direction": "buy",
-        #         "price": "string",
-        #         "account_operations": [
-        #             {
-        #                 "uuid": "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        #                 "amount": "1.0",
-        #                 "currency": "BTC",
-        #                 "created_at": "2013-10-24T10:34:37.000Z",
-        #                 "created_at_int": 1389094259,
-        #                 "name": "account_operation",
-        #                 "address": "1FPDBXNqSkZMsw1kSkkajcj8berxDQkUoc",
-        #                 "tx_hash": "string",
-        #                 "is_trading_account": True
-        #             }
-        #         ]
-        #     }
-        #
-        return self.parse_transfer(response, currency)
-
-    def parse_transfer(self, transfer, currency=None):
-        #
-        #     {
-        #         "uuid": "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        #         "type": "Transfer",
-        #         "currency": "BTC",
-        #         "currency_amount": "string",
-        #         "created_at": "2013-10-24T10:34:37.000Z",
-        #         "updated_at": "2013-10-24T10:34:37.000Z",
-        #         "amount": "1.0",
-        #         "state": "executed",
-        #         "currency_fee": "0.0",
-        #         "btc_fee": "0.0",
-        #         "comment": "string",
-        #         "traded_btc": "string",
-        #         "traded_currency": "string",
-        #         "direction": "buy",
-        #         "price": "string",
-        #         "account_operations": [
-        #             {
-        #                 "uuid": "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        #                 "amount": "1.0",
-        #                 "currency": "BTC",
-        #                 "created_at": "2013-10-24T10:34:37.000Z",
-        #                 "created_at_int": 1389094259,
-        #                 "name": "account_operation",
-        #                 "address": "1FPDBXNqSkZMsw1kSkkajcj8berxDQkUoc",
-        #                 "tx_hash": "string",
-        #                 "is_trading_account": True
-        #             }
-        #         ]
-        #     }
-        #
-        currencyId = self.safe_string(transfer, 'currency')
-        updatedAt = self.safe_string(transfer, 'updated_at')
-        timetstamp = self.parse_date(updatedAt)
-        accountOperations = self.safe_value(transfer, 'account_operations')
-        firstOperation = self.safe_value(accountOperations, 0, {})
-        status = self.safe_string(transfer, 'state')
-        return {
-            'info': transfer,
-            'id': self.safe_string(transfer, 'uuid'),
-            'timestamp': timetstamp,
-            'datetime': self.iso8601(timetstamp),
-            'currency': self.safe_currency_code(currencyId, currency),
-            'amount': self.safe_number(transfer, 'amount'),
-            'fromAccount': None,
-            'toAccount': self.safe_string(firstOperation, 'address'),
-            'status': self.parse_transfer_status(status),
-        }
-
-    def parse_transfer_status(self, status):
-        statuses = {
-            'executed': 'ok',
-            # what are the other statuses?
-        }
-        return self.safe_string(statuses, status, status)
-
     async def fetch_positions(self, symbols=None, params={}):
         """
         fetch all open positions
@@ -645,119 +465,6 @@ class bingx(Exchange):
         return result
 
     def parse_position(self, position, market=None):
-        #
-        # linear swap
-        #
-        #     {
-        #         "positionIdx": 0,
-        #         "riskId": "11",
-        #         "symbol": "ETHUSDT",
-        #         "side": "Buy",
-        #         "size": "0.10",
-        #         "positionValue": "119.845",
-        #         "entryPrice": "1198.45",
-        #         "tradeMode": 1,
-        #         "autoAddMargin": 0,
-        #         "leverage": "4.2",
-        #         "positionBalance": "28.58931118",
-        #         "liqPrice": "919.10",
-        #         "bustPrice": "913.15",
-        #         "takeProfit": "0.00",
-        #         "stopLoss": "0.00",
-        #         "trailingStop": "0.00",
-        #         "unrealisedPnl": "0.083",
-        #         "createdTime": "1669097244192",
-        #         "updatedTime": "1669413126190",
-        #         "tpSlMode": "Full",
-        #         "riskLimitValue": "900000",
-        #         "activePrice": "0.00"
-        #     }
-        #
-        # usdc
-        #    {
-        #       "symbol":"BTCPERP",
-        #       "leverage":"1.00",
-        #       "occClosingFee":"0.0000",
-        #       "liqPrice":"",
-        #       "positionValue":"30.8100",
-        #       "takeProfit":"0.0",
-        #       "riskId":"10001",
-        #       "trailingStop":"0.0000",
-        #       "unrealisedPnl":"0.0000",
-        #       "createdAt":"1652451795305",
-        #       "markPrice":"30809.41",
-        #       "cumRealisedPnl":"0.0000",
-        #       "positionMM":"0.1541",
-        #       "positionIM":"30.8100",
-        #       "updatedAt":"1652451795305",
-        #       "tpSLMode":"UNKNOWN",
-        #       "side":"Buy",
-        #       "bustPrice":"",
-        #       "deleverageIndicator":"0",
-        #       "entryPrice":"30810.0",
-        #       "size":"0.001",
-        #       "sessionRPL":"0.0000",
-        #       "positionStatus":"NORMAL",
-        #       "sessionUPL":"-0.0006",
-        #       "stopLoss":"0.0",
-        #       "orderMargin":"0.0000",
-        #       "sessionAvgPrice":"30810.0"
-        #    }
-        #
-        # unified margin
-        #
-        #     {
-        #         "symbol": "ETHUSDT",
-        #         "leverage": "10",
-        #         "updatedTime": 1657711949945,
-        #         "side": "Buy",
-        #         "positionValue": "536.92500000",
-        #         "takeProfit": "",
-        #         "tpslMode": "Full",
-        #         "riskId": 11,
-        #         "trailingStop": "",
-        #         "entryPrice": "1073.85000000",
-        #         "unrealisedPnl": "",
-        #         "markPrice": "1080.65000000",
-        #         "size": "0.5000",
-        #         "positionStatus": "normal",
-        #         "stopLoss": "",
-        #         "cumRealisedPnl": "-0.32215500",
-        #         "positionMM": "2.97456450",
-        #         "createdTime": 1657711949928,
-        #         "positionIdx": 0,
-        #         "positionIM": "53.98243950"
-        #     }
-        #
-        # unified account
-        #
-        #     {
-        #         "symbol": "XRPUSDT",
-        #         "leverage": "10",
-        #         "avgPrice": "0.3615",
-        #         "liqPrice": "0.0001",
-        #         "riskLimitValue": "200000",
-        #         "takeProfit": "",
-        #         "positionValue": "36.15",
-        #         "tpslMode": "Full",
-        #         "riskId": 41,
-        #         "trailingStop": "0",
-        #         "unrealisedPnl": "-1.83",
-        #         "markPrice": "0.3432",
-        #         "cumRealisedPnl": "0.48805876",
-        #         "positionMM": "0.381021",
-        #         "createdTime": "1672121182216",
-        #         "positionIdx": 0,
-        #         "positionIM": "3.634521",
-        #         "updatedTime": "1672279322668",
-        #         "side": "Buy",
-        #         "bustPrice": "",
-        #         "size": "100",
-        #         "positionStatus": "Normal",
-        #         "stopLoss": "",
-        #         "tradeMode": 0
-        #     }
-        #
         contract = self.safe_string(position, 'symbol')
         market = self.safe_market(contract)
         size = Precise.string_abs(self.safe_string(position, 'volume'))
@@ -853,6 +560,84 @@ class bingx(Exchange):
             'side': side,
             'percentage': self.parse_number(percentage),
         }
+
+    async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        """
+        fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
+        see https://bybit-exchange.github.io/docs/v5/market/kline
+        see https://bybit-exchange.github.io/docs/v5/market/mark-kline
+        see https://bybit-exchange.github.io/docs/v5/market/index-kline
+        see https://bybit-exchange.github.io/docs/v5/market/preimum-index-kline
+        :param str symbol: unified symbol of the market to fetch OHLCV data for
+        :param str timeframe: the length of time each candle represents
+        :param int|None since: timestamp in ms of the earliest candle to fetch
+        :param int|None limit: the maximum amount of candles to fetch
+        :param dict params: extra parameters specific to the bybit api endpoint
+        :returns [[int]]: A list of candles ordered, open, high, low, close, volume
+        """
+        self.check_required_symbol('fetchOHLCV', symbol)
+        await self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+        }
+        if limit is None:
+            limit = 200  # default is 200 when requested with `since`
+        if since is not None:
+            request['startTs'] = since
+        request['klineType'] = self.safe_string(self.timeframes, timeframe, timeframe)
+        if limit is not None:
+            # request['limit'] = limit  # max 1000, default 1000
+            if request['klineType'] == '1':
+                request['endTs'] = since + limit * 60 * 1000
+            elif request['klineType'] == '3':
+                request['endTs'] = since + limit * 3 * 60 * 1000
+            elif request['klineType'] == '5':
+                request['endTs'] = since + limit * 5 * 60 * 1000
+            elif request['klineType'] == '15':
+                request['endTs'] = since + limit * 15 * 60 * 1000
+            elif request['klineType'] == '30':
+                request['endTs'] = since + limit * 30 * 60 * 1000
+            elif request['klineType'] == '60':
+                request['endTs'] = since + limit * 60 * 60 * 1000
+            elif request['klineType'] == '120':
+                request['endTs'] = since + limit * 120 * 60 * 1000
+            elif request['klineType'] == '240':
+                request['endTs'] = since + limit * 240 * 60 * 1000
+            elif request['klineType'] == '360':
+                request['endTs'] = since + limit * 360 * 60 * 1000
+            elif request['klineType'] == '720':
+                request['endTs'] = since + limit * 720 * 60 * 1000
+            elif request['klineType'] == '1D':
+                request['endTs'] = since + limit * 24 * 60 * 60 * 1000
+            elif request['klineType'] == '1W':
+                request['endTs'] = since + limit * 7 * 24 * 60 * 60 * 1000
+            elif request['klineType'] == '1M':
+                request['endTs'] = since + limit * 30 * 24 * 60 * 60 * 1000
+            else:
+                request['endTs'] = since + limit * 60 * 1000
+        response = await self.swapV1PublicGetMarketGetHistoryKlines(self.extend(request, params))
+        result = self.safe_value(response, 'data', {})
+        ohlcvs = self.safe_value(result, 'klines', [])
+        return self.parse_ohlcvs(ohlcvs, market, timeframe, since, limit)
+
+    def parse_ohlcvs(self, ohlcvs, market=None, timeframe='1m', since=None, limit=None):
+        results = []
+        for i in range(0, len(ohlcvs)):
+            results.append(self.parse_ohlcv(ohlcvs[i], market))
+        sorted = self.sort_by(results, 0)
+        tail = (since is None)
+        return self.filter_by_since_limit(sorted, since, limit, 0, tail)
+
+    def parse_ohlcv(self, ohlcv, market=None):
+        return [
+            self.safe_integer(ohlcv, 'ts'),  # timestamp
+            self.safe_number(ohlcv, 'open'),  # open
+            self.safe_number(ohlcv, 'high'),  # high
+            self.safe_number(ohlcv, 'low'),  # low
+            self.safe_number(ohlcv, 'close'),  # close
+            self.safe_number(ohlcv, 'volume'),  # volume
+        ]
 
     def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
         type = section[0]

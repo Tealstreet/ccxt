@@ -28,17 +28,18 @@ export default class bingx extends Exchange {
                 'future': false,
                 'option': false,
                 'cancelOrder': true,
-                'createDepositAddress': true,
+                'createDepositAddress': false,
                 'createOrder': true,
                 'fetchBalance': true,
-                'fetchDepositAddress': true,
-                'fetchDepositAddresses': true,
+                'fetchDepositAddress': false,
+                'fetchDepositAddresses': false,
                 'fetchFundingHistory': false,
                 'fetchFundingRate': false,
                 'fetchFundingRateHistory': false,
                 'fetchFundingRates': false,
                 'fetchIndexOHLCV': false,
                 'fetchMarkOHLCV': false,
+                'fetchOHLCV': true,
                 'fetchOpenInterestHistory': false,
                 'fetchOrderBook': true,
                 'fetchPositions': true,
@@ -47,7 +48,7 @@ export default class bingx extends Exchange {
                 'fetchTrades': true,
                 'fetchTradingFee': false,
                 'fetchTradingFees': false,
-                'transfer': true,
+                'transfer': false,
             },
             'urls': {
                 'logo': '',
@@ -131,6 +132,21 @@ export default class bingx extends Exchange {
             'requiredCredentials': {
                 'apiKey': true,
                 'secret': true,
+            },
+            'timeframes': {
+                '1m': '1',
+                '3m': '3',
+                '5m': '5',
+                '15m': '15',
+                '30m': '30',
+                '1h': '60',
+                '2h': '120',
+                '4h': '240',
+                '6h': '360',
+                '12h': '720',
+                '1d': '1D',
+                '1w': '1W',
+                '1M': '1M',
             },
         });
     }
@@ -402,93 +418,6 @@ export default class bingx extends Exchange {
         // const response = await (this as any).publicGetDataCurrencyTrades (this.extend (request, params));
         // return this.parseTrades (response, market, since, limit);
     }
-    async createDepositAddress(code, params = {}) {
-        /**
-         * @method
-         * @name paymium#createDepositAddress
-         * @description create a currency deposit address
-         * @param {string} code unified currency code of the currency for the deposit address
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} an [address structure]{@link https://docs.ccxt.com/#/?id=address-structure}
-         */
-        await this.loadMarkets();
-        const response = await this.privatePostUserAddresses(params);
-        //
-        //     {
-        //         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until": 1620041926,
-        //         "currency": "BTC",
-        //         "label": "Savings"
-        //     }
-        //
-        return this.parseDepositAddress(response);
-    }
-    async fetchDepositAddress(code, params = {}) {
-        /**
-         * @method
-         * @name paymium#fetchDepositAddress
-         * @description fetch the deposit address for a currency associated with this account
-         * @param {string} code unified currency code
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} an [address structure]{@link https://docs.ccxt.com/#/?id=address-structure}
-         */
-        await this.loadMarkets();
-        const request = {
-            'address': code,
-        };
-        const response = await this.privateGetUserAddressesAddress(this.extend(request, params));
-        //
-        //     {
-        //         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until": 1620041926,
-        //         "currency": "BTC",
-        //         "label": "Savings"
-        //     }
-        //
-        return this.parseDepositAddress(response);
-    }
-    async fetchDepositAddresses(codes = undefined, params = {}) {
-        /**
-         * @method
-         * @name paymium#fetchDepositAddresses
-         * @description fetch deposit addresses for multiple currencies and chain types
-         * @param {[string]|undefined} codes list of unified currency codes, default is undefined
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} a list of [address structures]{@link https://docs.ccxt.com/#/?id=address-structure}
-         */
-        await this.loadMarkets();
-        const response = await this.privateGetUserAddresses(params);
-        //
-        //     [
-        //         {
-        //             "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //             "valid_until": 1620041926,
-        //             "currency": "BTC",
-        //             "label": "Savings"
-        //         }
-        //     ]
-        //
-        return this.parseDepositAddresses(response, codes);
-    }
-    parseDepositAddress(depositAddress, currency = undefined) {
-        //
-        //     {
-        //         "address": "1HdjGr6WCTcnmW1tNNsHX7fh4Jr5C2PeKe",
-        //         "valid_until": 1620041926,
-        //         "currency": "BTC",
-        //         "label": "Savings"
-        //     }
-        //
-        const address = this.safeString(depositAddress, 'address');
-        const currencyId = this.safeString(depositAddress, 'currency');
-        return {
-            'info': depositAddress,
-            'currency': this.safeCurrencyCode(currencyId, currency),
-            'address': address,
-            'tag': undefined,
-            'network': undefined,
-        };
-    }
     async createOrder(symbol, type, side, amount, price = undefined, params = {}) {
         /**
          * @method
@@ -534,125 +463,6 @@ export default class bingx extends Exchange {
         };
         return await this.privateDeleteUserOrdersUuidCancel(this.extend(request, params));
     }
-    async transfer(code, amount, fromAccount, toAccount, params = {}) {
-        /**
-         * @method
-         * @name paymium#transfer
-         * @description transfer currency internally between wallets on the same account
-         * @param {string} code unified currency code
-         * @param {float} amount amount to transfer
-         * @param {string} fromAccount account to transfer from
-         * @param {string} toAccount account to transfer to
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} a [transfer structure]{@link https://docs.ccxt.com/#/?id=transfer-structure}
-         */
-        await this.loadMarkets();
-        const currency = this.currency(code);
-        if (toAccount.indexOf('@') < 0) {
-            throw new ExchangeError(this.id + ' transfer() only allows transfers to an email address');
-        }
-        if (code !== 'BTC' && code !== 'EUR') {
-            throw new ExchangeError(this.id + ' transfer() only allows BTC or EUR');
-        }
-        const request = {
-            'currency': currency['id'],
-            'amount': this.currencyToPrecision(code, amount),
-            'email': toAccount,
-            // 'comment': 'a small note explaining the transfer'
-        };
-        const response = await this.privatePostUserEmailTransfers(this.extend(request, params));
-        //
-        //     {
-        //         "uuid": "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        //         "type": "Transfer",
-        //         "currency": "BTC",
-        //         "currency_amount": "string",
-        //         "created_at": "2013-10-24T10:34:37.000Z",
-        //         "updated_at": "2013-10-24T10:34:37.000Z",
-        //         "amount": "1.0",
-        //         "state": "executed",
-        //         "currency_fee": "0.0",
-        //         "btc_fee": "0.0",
-        //         "comment": "string",
-        //         "traded_btc": "string",
-        //         "traded_currency": "string",
-        //         "direction": "buy",
-        //         "price": "string",
-        //         "account_operations": [
-        //             {
-        //                 "uuid": "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        //                 "amount": "1.0",
-        //                 "currency": "BTC",
-        //                 "created_at": "2013-10-24T10:34:37.000Z",
-        //                 "created_at_int": 1389094259,
-        //                 "name": "account_operation",
-        //                 "address": "1FPDBXNqSkZMsw1kSkkajcj8berxDQkUoc",
-        //                 "tx_hash": "string",
-        //                 "is_trading_account": true
-        //             }
-        //         ]
-        //     }
-        //
-        return this.parseTransfer(response, currency);
-    }
-    parseTransfer(transfer, currency = undefined) {
-        //
-        //     {
-        //         "uuid": "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        //         "type": "Transfer",
-        //         "currency": "BTC",
-        //         "currency_amount": "string",
-        //         "created_at": "2013-10-24T10:34:37.000Z",
-        //         "updated_at": "2013-10-24T10:34:37.000Z",
-        //         "amount": "1.0",
-        //         "state": "executed",
-        //         "currency_fee": "0.0",
-        //         "btc_fee": "0.0",
-        //         "comment": "string",
-        //         "traded_btc": "string",
-        //         "traded_currency": "string",
-        //         "direction": "buy",
-        //         "price": "string",
-        //         "account_operations": [
-        //             {
-        //                 "uuid": "968f4580-e26c-4ad8-8bcd-874d23d55296",
-        //                 "amount": "1.0",
-        //                 "currency": "BTC",
-        //                 "created_at": "2013-10-24T10:34:37.000Z",
-        //                 "created_at_int": 1389094259,
-        //                 "name": "account_operation",
-        //                 "address": "1FPDBXNqSkZMsw1kSkkajcj8berxDQkUoc",
-        //                 "tx_hash": "string",
-        //                 "is_trading_account": true
-        //             }
-        //         ]
-        //     }
-        //
-        const currencyId = this.safeString(transfer, 'currency');
-        const updatedAt = this.safeString(transfer, 'updated_at');
-        const timetstamp = this.parseDate(updatedAt);
-        const accountOperations = this.safeValue(transfer, 'account_operations');
-        const firstOperation = this.safeValue(accountOperations, 0, {});
-        const status = this.safeString(transfer, 'state');
-        return {
-            'info': transfer,
-            'id': this.safeString(transfer, 'uuid'),
-            'timestamp': timetstamp,
-            'datetime': this.iso8601(timetstamp),
-            'currency': this.safeCurrencyCode(currencyId, currency),
-            'amount': this.safeNumber(transfer, 'amount'),
-            'fromAccount': undefined,
-            'toAccount': this.safeString(firstOperation, 'address'),
-            'status': this.parseTransferStatus(status),
-        };
-    }
-    parseTransferStatus(status) {
-        const statuses = {
-            'executed': 'ok',
-            // what are the other statuses?
-        };
-        return this.safeString(statuses, status, status);
-    }
     async fetchPositions(symbols = undefined, params = {}) {
         /**
          * @method
@@ -672,119 +482,6 @@ export default class bingx extends Exchange {
         return result;
     }
     parsePosition(position, market = undefined) {
-        //
-        // linear swap
-        //
-        //     {
-        //         "positionIdx": 0,
-        //         "riskId": "11",
-        //         "symbol": "ETHUSDT",
-        //         "side": "Buy",
-        //         "size": "0.10",
-        //         "positionValue": "119.845",
-        //         "entryPrice": "1198.45",
-        //         "tradeMode": 1,
-        //         "autoAddMargin": 0,
-        //         "leverage": "4.2",
-        //         "positionBalance": "28.58931118",
-        //         "liqPrice": "919.10",
-        //         "bustPrice": "913.15",
-        //         "takeProfit": "0.00",
-        //         "stopLoss": "0.00",
-        //         "trailingStop": "0.00",
-        //         "unrealisedPnl": "0.083",
-        //         "createdTime": "1669097244192",
-        //         "updatedTime": "1669413126190",
-        //         "tpSlMode": "Full",
-        //         "riskLimitValue": "900000",
-        //         "activePrice": "0.00"
-        //     }
-        //
-        // usdc
-        //    {
-        //       "symbol":"BTCPERP",
-        //       "leverage":"1.00",
-        //       "occClosingFee":"0.0000",
-        //       "liqPrice":"",
-        //       "positionValue":"30.8100",
-        //       "takeProfit":"0.0",
-        //       "riskId":"10001",
-        //       "trailingStop":"0.0000",
-        //       "unrealisedPnl":"0.0000",
-        //       "createdAt":"1652451795305",
-        //       "markPrice":"30809.41",
-        //       "cumRealisedPnl":"0.0000",
-        //       "positionMM":"0.1541",
-        //       "positionIM":"30.8100",
-        //       "updatedAt":"1652451795305",
-        //       "tpSLMode":"UNKNOWN",
-        //       "side":"Buy",
-        //       "bustPrice":"",
-        //       "deleverageIndicator":"0",
-        //       "entryPrice":"30810.0",
-        //       "size":"0.001",
-        //       "sessionRPL":"0.0000",
-        //       "positionStatus":"NORMAL",
-        //       "sessionUPL":"-0.0006",
-        //       "stopLoss":"0.0",
-        //       "orderMargin":"0.0000",
-        //       "sessionAvgPrice":"30810.0"
-        //    }
-        //
-        // unified margin
-        //
-        //     {
-        //         "symbol": "ETHUSDT",
-        //         "leverage": "10",
-        //         "updatedTime": 1657711949945,
-        //         "side": "Buy",
-        //         "positionValue": "536.92500000",
-        //         "takeProfit": "",
-        //         "tpslMode": "Full",
-        //         "riskId": 11,
-        //         "trailingStop": "",
-        //         "entryPrice": "1073.85000000",
-        //         "unrealisedPnl": "",
-        //         "markPrice": "1080.65000000",
-        //         "size": "0.5000",
-        //         "positionStatus": "normal",
-        //         "stopLoss": "",
-        //         "cumRealisedPnl": "-0.32215500",
-        //         "positionMM": "2.97456450",
-        //         "createdTime": 1657711949928,
-        //         "positionIdx": 0,
-        //         "positionIM": "53.98243950"
-        //     }
-        //
-        // unified account
-        //
-        //     {
-        //         "symbol": "XRPUSDT",
-        //         "leverage": "10",
-        //         "avgPrice": "0.3615",
-        //         "liqPrice": "0.0001",
-        //         "riskLimitValue": "200000",
-        //         "takeProfit": "",
-        //         "positionValue": "36.15",
-        //         "tpslMode": "Full",
-        //         "riskId": 41,
-        //         "trailingStop": "0",
-        //         "unrealisedPnl": "-1.83",
-        //         "markPrice": "0.3432",
-        //         "cumRealisedPnl": "0.48805876",
-        //         "positionMM": "0.381021",
-        //         "createdTime": "1672121182216",
-        //         "positionIdx": 0,
-        //         "positionIM": "3.634521",
-        //         "updatedTime": "1672279322668",
-        //         "side": "Buy",
-        //         "bustPrice": "",
-        //         "size": "100",
-        //         "positionStatus": "Normal",
-        //         "stopLoss": "",
-        //         "tradeMode": 0
-        //     }
-        //
         const contract = this.safeString(position, 'symbol');
         market = this.safeMarket(contract);
         const size = Precise.stringAbs(this.safeString(position, 'volume'));
@@ -854,17 +551,17 @@ export default class bingx extends Exchange {
         const maintenanceMarginPercentage = Precise.stringDiv(maintenanceMarginString, notional);
         const percentage = Precise.stringMul(Precise.stringDiv(unrealisedPnl, initialMarginString), '100');
         const marginRatio = Precise.stringDiv(maintenanceMarginString, collateralString, 4);
-        // /TEALSTREET
         let status = true;
         if (size === '0') {
             status = false;
         }
-        // \TEALSTREET
+        let contracts = this.parseNumber(size) / this.safeNumber(market, 'contractSize');
+        if (side === 'short') {
+            contracts = contracts * -1;
+        }
         return {
             'info': position,
-            // /TEALSTREET
             'id': market['symbol'] + ':' + side,
-            // \TEALSTREET
             'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
@@ -877,25 +574,137 @@ export default class bingx extends Exchange {
             'notional': this.parseNumber(notional),
             'leverage': this.parseNumber(leverage),
             'unrealizedPnl': this.parseNumber(unrealisedPnl),
-            'pnl': realizedPnl + unrealisedPnl,
-            'contracts': this.parseNumber(size) / this.safeNumber(market, 'contractSize'),
+            'pnl': this.parseNumber(realizedPnl) + this.parseNumber(unrealisedPnl),
+            'contracts': contracts,
             'contractSize': this.safeNumber(market, 'contractSize'),
             'marginRatio': this.parseNumber(marginRatio),
             'liquidationPrice': this.parseNumber(liquidationPrice),
             'markPrice': this.safeNumber(position, 'markPrice'),
             'collateral': this.parseNumber(collateralString),
             'marginMode': marginMode,
-            // /TEALSTREET
             'isolated': marginMode === 'isolated',
             'hedged': mode === 'hedged',
             'price': this.parseNumber(entryPrice),
             'status': status,
             'tradeMode': mode,
             'active': status,
-            // \TEALSTREET
             'side': side,
             'percentage': this.parseNumber(percentage),
         };
+    }
+    async fetchOHLCV(symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
+        /**
+         * @method
+         * @name bybit#fetchOHLCV
+         * @description fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
+         * @see https://bybit-exchange.github.io/docs/v5/market/kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/mark-kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/index-kline
+         * @see https://bybit-exchange.github.io/docs/v5/market/preimum-index-kline
+         * @param {string} symbol unified symbol of the market to fetch OHLCV data for
+         * @param {string} timeframe the length of time each candle represents
+         * @param {int|undefined} since timestamp in ms of the earliest candle to fetch
+         * @param {int|undefined} limit the maximum amount of candles to fetch
+         * @param {object} params extra parameters specific to the bybit api endpoint
+         * @returns {[[int]]} A list of candles ordered as timestamp, open, high, low, close, volume
+         */
+        this.checkRequiredSymbol('fetchOHLCV', symbol);
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        /**
+            klineType  Field Description
+            1          1min Kline
+            3          3min Kline
+            5          5min Kline
+            15         15min Kline
+            30         30min Kline
+            60         1h Kline
+            120        2h Kline
+            240        4h Kline
+            360        6h Kline
+            720        12h Kline
+            1D         1D Kline
+            1W         1W Kline
+            1M         1M Kline
+        */
+        if (limit === undefined) {
+            limit = 200; // default is 200 when requested with `since`
+        }
+        if (since !== undefined) {
+            request['startTs'] = since;
+        }
+        request['klineType'] = this.safeString(this.timeframes, timeframe, timeframe);
+        if (limit !== undefined) {
+            // request['limit'] = limit; // max 1000, default 1000
+            if (request['klineType'] === '1') {
+                request['endTs'] = since + limit * 60 * 1000;
+            }
+            else if (request['klineType'] === '3') {
+                request['endTs'] = since + limit * 3 * 60 * 1000;
+            }
+            else if (request['klineType'] === '5') {
+                request['endTs'] = since + limit * 5 * 60 * 1000;
+            }
+            else if (request['klineType'] === '15') {
+                request['endTs'] = since + limit * 15 * 60 * 1000;
+            }
+            else if (request['klineType'] === '30') {
+                request['endTs'] = since + limit * 30 * 60 * 1000;
+            }
+            else if (request['klineType'] === '60') {
+                request['endTs'] = since + limit * 60 * 60 * 1000;
+            }
+            else if (request['klineType'] === '120') {
+                request['endTs'] = since + limit * 120 * 60 * 1000;
+            }
+            else if (request['klineType'] === '240') {
+                request['endTs'] = since + limit * 240 * 60 * 1000;
+            }
+            else if (request['klineType'] === '360') {
+                request['endTs'] = since + limit * 360 * 60 * 1000;
+            }
+            else if (request['klineType'] === '720') {
+                request['endTs'] = since + limit * 720 * 60 * 1000;
+            }
+            else if (request['klineType'] === '1D') {
+                request['endTs'] = since + limit * 24 * 60 * 60 * 1000;
+            }
+            else if (request['klineType'] === '1W') {
+                request['endTs'] = since + limit * 7 * 24 * 60 * 60 * 1000;
+            }
+            else if (request['klineType'] === '1M') {
+                request['endTs'] = since + limit * 30 * 24 * 60 * 60 * 1000;
+            }
+            else {
+                request['endTs'] = since + limit * 60 * 1000;
+            }
+        }
+        const response = await this.swapV1PublicGetMarketGetHistoryKlines(this.extend(request, params));
+        const result = this.safeValue(response, 'data', {});
+        const ohlcvs = this.safeValue(result, 'klines', []);
+        return this.parseOHLCVs(ohlcvs, market, timeframe, since, limit);
+    }
+    parseOHLCVs(ohlcvs, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
+        const results = [];
+        for (let i = 0; i < ohlcvs.length; i++) {
+            results.push(this.parseOHLCV(ohlcvs[i], market));
+        }
+        const sorted = this.sortBy(results, 0);
+        const tail = (since === undefined);
+        return this.filterBySinceLimit(sorted, since, limit, 0, tail);
+    }
+    parseOHLCV(ohlcv, market = undefined) {
+        return [
+            this.safeInteger(ohlcv, 'ts'),
+            this.safeNumber(ohlcv, 'open'),
+            this.safeNumber(ohlcv, 'high'),
+            this.safeNumber(ohlcv, 'low'),
+            this.safeNumber(ohlcv, 'close'),
+            this.safeNumber(ohlcv, 'volume'), // volume
+        ];
     }
     sign(path, section = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         const type = section[0];
