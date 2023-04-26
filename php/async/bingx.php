@@ -42,6 +42,7 @@ class bingx extends Exchange {
                 'fetchMarkOHLCV' => false,
                 'fetchOHLCV' => true,
                 'fetchOpenInterestHistory' => false,
+                'fetchOpenOrders' => true,
                 'fetchOrderBook' => true,
                 'fetchPositions' => true,
                 'fetchPremiumIndexOHLCV' => false,
@@ -694,6 +695,21 @@ class bingx extends Exchange {
             $this->safe_number($ohlcv, 'close'), // close
             $this->safe_number($ohlcv, 'volume'), // volume
         );
+    }
+
+    public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
+        return Async\async(function () use ($symbol, $since, $limit, $params) {
+            /**
+             * fetch all unfilled currently open orders
+             * @param {string|null} $symbol unified market $symbol
+             * @param {int|null} $since the earliest time in ms to fetch open orders for
+             * @param {int|null} $limit the maximum number of  open orders structures to retrieve
+             * @param {array} $params extra parameters specific to the bybit api endpoint
+             * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=order-structure order structures~
+             */
+            Async\await($this->load_markets());
+            return array();
+        }) ();
     }
 
     public function sign($path, $section = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {

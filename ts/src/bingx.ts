@@ -40,6 +40,7 @@ export default class bingx extends Exchange {
                 'fetchMarkOHLCV': false,
                 'fetchOHLCV': true,
                 'fetchOpenInterestHistory': false,
+                'fetchOpenOrders': true,
                 'fetchOrderBook': true,
                 'fetchPositions': true,
                 'fetchPremiumIndexOHLCV': false,
@@ -52,9 +53,8 @@ export default class bingx extends Exchange {
             'urls': {
                 'logo': '',
                 'api': {
-                    'spot': 'https://open-api.bingx.com/openApi/spot',
                     'swap': 'https://api-swap-rest.bingbon.pro/api',
-                    'contract': 'https://api.bingbon.com/api/coingecko',
+                    'swap2': 'https://open-api.bingx.com',
                 },
                 'test': {
                 },
@@ -106,12 +106,11 @@ export default class bingx extends Exchange {
                         },
                     },
                 },
-                'contract': {
-                    'v1': {
+                'swap2': {
+                    'openApi': {
                         'public': {
                             'get': {
-                                'derivatives/contracts': 1,
-                                'derivatives/orderbook/{ticker_id}': 1,
+                                'swap/v2/quote/klines': 1,
                             },
                         },
                     },
@@ -628,44 +627,44 @@ export default class bingx extends Exchange {
             limit = 200; // default is 200 when requested with `since`
         }
         if (since !== undefined) {
-            request['startTs'] = since;
+            request['startTime'] = since;
         }
-        request['klineType'] = this.safeString (this.timeframes, timeframe, timeframe);
+        const klineType = this.safeString (this.timeframes, timeframe, timeframe);
+        request['interval'] = timeframe;
         if (limit !== undefined) {
             // request['limit'] = limit; // max 1000, default 1000
-            if (request['klineType'] === '1') {
-                request['endTs'] = since + limit * 60 * 1000;
-            } else if (request['klineType'] === '3') {
-                request['endTs'] = since + limit * 3 * 60 * 1000;
-            } else if (request['klineType'] === '5') {
-                request['endTs'] = since + limit * 5 * 60 * 1000;
-            } else if (request['klineType'] === '15') {
-                request['endTs'] = since + limit * 15 * 60 * 1000;
-            } else if (request['klineType'] === '30') {
-                request['endTs'] = since + limit * 30 * 60 * 1000;
-            } else if (request['klineType'] === '60') {
-                request['endTs'] = since + limit * 60 * 60 * 1000;
-            } else if (request['klineType'] === '120') {
-                request['endTs'] = since + limit * 120 * 60 * 1000;
-            } else if (request['klineType'] === '240') {
-                request['endTs'] = since + limit * 240 * 60 * 1000;
-            } else if (request['klineType'] === '360') {
-                request['endTs'] = since + limit * 360 * 60 * 1000;
-            } else if (request['klineType'] === '720') {
-                request['endTs'] = since + limit * 720 * 60 * 1000;
-            } else if (request['klineType'] === '1D') {
-                request['endTs'] = since + limit * 24 * 60 * 60 * 1000;
-            } else if (request['klineType'] === '1W') {
-                request['endTs'] = since + limit * 7 * 24 * 60 * 60 * 1000;
-            } else if (request['klineType'] === '1M') {
-                request['endTs'] = since + limit * 30 * 24 * 60 * 60 * 1000;
+            if (klineType === '1') {
+                request['endTime'] = since + limit * 60 * 1000;
+            } else if (klineType === '3') {
+                request['endTime'] = since + limit * 3 * 60 * 1000;
+            } else if (klineType === '5') {
+                request['endTime'] = since + limit * 5 * 60 * 1000;
+            } else if (klineType === '15') {
+                request['endTime'] = since + limit * 15 * 60 * 1000;
+            } else if (klineType === '30') {
+                request['endTime'] = since + limit * 30 * 60 * 1000;
+            } else if (klineType === '60') {
+                request['endTime'] = since + limit * 60 * 60 * 1000;
+            } else if (klineType === '120') {
+                request['endTime'] = since + limit * 120 * 60 * 1000;
+            } else if (klineType === '240') {
+                request['endTime'] = since + limit * 240 * 60 * 1000;
+            } else if (klineType === '360') {
+                request['endTime'] = since + limit * 360 * 60 * 1000;
+            } else if (klineType === '720') {
+                request['endTime'] = since + limit * 720 * 60 * 1000;
+            } else if (klineType === '1D') {
+                request['endTime'] = since + limit * 24 * 60 * 60 * 1000;
+            } else if (klineType === '1W') {
+                request['endTime'] = since + limit * 7 * 24 * 60 * 60 * 1000;
+            } else if (klineType === '1M') {
+                request['endTime'] = since + limit * 30 * 24 * 60 * 60 * 1000;
             } else {
-                request['endTs'] = since + limit * 60 * 1000;
+                request['endTime'] = since + limit * 60 * 1000;
             }
         }
-        const response = await (this as any).swapV1PublicGetMarketGetHistoryKlines (this.extend (request, params));
-        const result = this.safeValue (response, 'data', {});
-        const ohlcvs = this.safeValue (result, 'klines', []);
+        const response = await (this as any).swap2OpenApiPublicGetSwapV2QuoteKlines (this.extend (request, params));
+        const ohlcvs = this.safeValue (response, 'data', []);
         return this.parseOHLCVs (ohlcvs, market, timeframe, since, limit);
     }
 
@@ -681,13 +680,28 @@ export default class bingx extends Exchange {
 
     parseOHLCV (ohlcv, market = undefined) {
         return [
-            this.safeInteger (ohlcv, 'ts'), // timestamp
+            this.safeInteger (ohlcv, 'time'), // timestamp
             this.safeNumber (ohlcv, 'open'), // open
             this.safeNumber (ohlcv, 'high'), // high
             this.safeNumber (ohlcv, 'low'), // low
             this.safeNumber (ohlcv, 'close'), // close
             this.safeNumber (ohlcv, 'volume'), // volume
         ];
+    }
+
+    async fetchOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
+        /**
+         * @method
+         * @name bybit#fetchOpenOrders
+         * @description fetch all unfilled currently open orders
+         * @param {string|undefined} symbol unified market symbol
+         * @param {int|undefined} since the earliest time in ms to fetch open orders for
+         * @param {int|undefined} limit the maximum number of  open orders structures to retrieve
+         * @param {object} params extra parameters specific to the bybit api endpoint
+         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
+         */
+        await this.loadMarkets ();
+        return [];
     }
 
     sign (path, section = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
@@ -700,27 +714,40 @@ export default class bingx extends Exchange {
         path = this.implodeParams (path, params);
         params = this.omit (params, this.extractParams (path));
         params = this.keysort (params);
-        if (access === 'public') {
-            if (Object.keys (params).length) {
-                url += '?' + this.urlencode (params);
-            }
-        } else if (access === 'private') {
+        if (access === 'private') {
             this.checkRequiredCredentials ();
-            params = this.extend (params, {
-                'apiKey': this.apiKey,
-                'timestamp': this.milliseconds () - 0,
-            });
-            // ACTUAL SIGNATURE GENERATION
-            const paramString = this.rawencode (params);
-            const originString = method + '/api/' + version + '/' + rawPath + paramString;
-            const signature = this.hmac (this.encode (originString), this.encode (this.secret), 'sha256', 'base64');
-            // ACTUAL SIGNATURE GENERATION
-            params = this.extend (params, {
-                'sign': signature,
-            });
-            if (Object.keys (params).length) {
-                url += '?' + this.urlencode (params);
+            const isOpenApi = url.indexOf ('openApi') >= 0;
+            if (isOpenApi) {
+                params = this.extend (params, {
+                    'timestamp': this.milliseconds () - 0,
+                });
+                params = this.keysort (params);
+                const paramString = this.rawencode (params);
+                const signature = this.hmac (this.encode (paramString), this.encode (this.secret), 'sha256', 'base64');
+                params = this.extend (params, {
+                    'signature': signature,
+                });
+                headers = {
+                    'X-BX-APIKEY': this.apiKey,
+                };
+            } else {
+                params = this.extend (params, {
+                    'apiKey': this.apiKey,
+                    'timestamp': this.milliseconds () - 0,
+                });
+                params = this.keysort (params);
+                // ACTUAL SIGNATURE GENERATION
+                const paramString = this.rawencode (params);
+                const originString = method + '/api/' + version + '/' + rawPath + paramString;
+                const signature = this.hmac (this.encode (originString), this.encode (this.secret), 'sha256', 'base64');
+                // ACTUAL SIGNATURE GENERATION
+                params = this.extend (params, {
+                    'sign': signature,
+                });
             }
+        }
+        if (Object.keys (params).length) {
+            url += '?' + this.urlencode (params);
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }

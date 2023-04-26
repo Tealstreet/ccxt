@@ -42,6 +42,7 @@ class bingx(Exchange):
                 'fetchMarkOHLCV': False,
                 'fetchOHLCV': True,
                 'fetchOpenInterestHistory': False,
+                'fetchOpenOrders': True,
                 'fetchOrderBook': True,
                 'fetchPositions': True,
                 'fetchPremiumIndexOHLCV': False,
@@ -638,6 +639,18 @@ class bingx(Exchange):
             self.safe_number(ohlcv, 'close'),  # close
             self.safe_number(ohlcv, 'volume'),  # volume
         ]
+
+    async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
+        """
+        fetch all unfilled currently open orders
+        :param str|None symbol: unified market symbol
+        :param int|None since: the earliest time in ms to fetch open orders for
+        :param int|None limit: the maximum number of  open orders structures to retrieve
+        :param dict params: extra parameters specific to the bybit api endpoint
+        :returns [dict]: a list of `order structures <https://docs.ccxt.com/#/?id=order-structure>`
+        """
+        await self.load_markets()
+        return []
 
     def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
         type = section[0]
