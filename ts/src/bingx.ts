@@ -869,17 +869,17 @@ export default class bingx extends Exchange {
         const maintenanceMarginPercentage = Precise.stringDiv (maintenanceMarginString, notional);
         const percentage = Precise.stringMul (Precise.stringDiv (unrealisedPnl, initialMarginString), '100');
         const marginRatio = Precise.stringDiv (maintenanceMarginString, collateralString, 4);
-        // /TEALSTREET
         let status = true;
         if (size === '0') {
             status = false;
         }
-        // \TEALSTREET
+        let contracts = this.parseNumber (size) / this.safeNumber (market, 'contractSize');
+        if (side === 'short') {
+            contracts = contracts * -1;
+        }
         return {
             'info': position,
-            // /TEALSTREET
             'id': market['symbol'] + ':' + side,
-            // \TEALSTREET
             'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
@@ -893,21 +893,19 @@ export default class bingx extends Exchange {
             'leverage': this.parseNumber (leverage),
             'unrealizedPnl': this.parseNumber (unrealisedPnl),
             'pnl': this.parseNumber (realizedPnl) + this.parseNumber (unrealisedPnl),
-            'contracts': this.parseNumber (size) / this.safeNumber (market, 'contractSize'), // in USD for inverse swaps
+            'contracts': contracts,
             'contractSize': this.safeNumber (market, 'contractSize'),
             'marginRatio': this.parseNumber (marginRatio),
             'liquidationPrice': this.parseNumber (liquidationPrice),
             'markPrice': this.safeNumber (position, 'markPrice'),
             'collateral': this.parseNumber (collateralString),
             'marginMode': marginMode,
-            // /TEALSTREET
             'isolated': marginMode === 'isolated',
             'hedged': mode === 'hedged',
             'price': this.parseNumber (entryPrice),
             'status': status,
             'tradeMode': mode,
             'active': status,
-            // \TEALSTREET
             'side': side,
             'percentage': this.parseNumber (percentage),
         };

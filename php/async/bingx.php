@@ -876,17 +876,17 @@ class bingx extends Exchange {
         $maintenanceMarginPercentage = Precise::string_div($maintenanceMarginString, $notional);
         $percentage = Precise::string_mul(Precise::string_div($unrealisedPnl, $initialMarginString), '100');
         $marginRatio = Precise::string_div($maintenanceMarginString, $collateralString, 4);
-        // /TEALSTREET
         $status = true;
         if ($size === '0') {
             $status = false;
         }
-        // \TEALSTREET
+        $contracts = $this->parse_number($size) / $this->safe_number($market, 'contractSize');
+        if ($side === 'short') {
+            $contracts = $contracts * -1;
+        }
         return array(
             'info' => $position,
-            // /TEALSTREET
             'id' => $market['symbol'] . ':' . $side,
-            // \TEALSTREET
             'mode' => $mode,
             'symbol' => $market['symbol'],
             'timestamp' => $timestamp,
@@ -899,22 +899,20 @@ class bingx extends Exchange {
             'notional' => $this->parse_number($notional),
             'leverage' => $this->parse_number($leverage),
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
-            'pnl' =>  $this->parse_number($realizedPnl) . $this->parse_number($unrealisedPnl),
-            'contracts' => $this->parse_number($size) / $this->safe_number($market, 'contractSize'), // in USD for inverse swaps
+            'pnl' => $this->parse_number($realizedPnl) . $this->parse_number($unrealisedPnl),
+            'contracts' => $contracts,
             'contractSize' => $this->safe_number($market, 'contractSize'),
             'marginRatio' => $this->parse_number($marginRatio),
             'liquidationPrice' => $this->parse_number($liquidationPrice),
             'markPrice' => $this->safe_number($position, 'markPrice'),
             'collateral' => $this->parse_number($collateralString),
             'marginMode' => $marginMode,
-            // /TEALSTREET
             'isolated' => $marginMode === 'isolated',
             'hedged' => $mode === 'hedged',
             'price' => $this->parse_number($entryPrice),
             'status' => $status,
             'tradeMode' => $mode,
             'active' => $status,
-            // \TEALSTREET
             'side' => $side,
             'percentage' => $this->parse_number($percentage),
         );

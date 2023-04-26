@@ -815,16 +815,15 @@ class bingx(Exchange):
         maintenanceMarginPercentage = Precise.string_div(maintenanceMarginString, notional)
         percentage = Precise.string_mul(Precise.string_div(unrealisedPnl, initialMarginString), '100')
         marginRatio = Precise.string_div(maintenanceMarginString, collateralString, 4)
-        # /TEALSTREET
         status = True
         if size == '0':
             status = False
-        # \TEALSTREET
+        contracts = self.parse_number(size) / self.safe_number(market, 'contractSize')
+        if side == 'short':
+            contracts = contracts * -1
         return {
             'info': position,
-            # /TEALSTREET
             'id': market['symbol'] + ':' + side,
-            # \TEALSTREET
             'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
@@ -837,22 +836,20 @@ class bingx(Exchange):
             'notional': self.parse_number(notional),
             'leverage': self.parse_number(leverage),
             'unrealizedPnl': self.parse_number(unrealisedPnl),
-            'pnl':  self.parse_number(realizedPnl) + self.parse_number(unrealisedPnl),
-            'contracts': self.parse_number(size) / self.safe_number(market, 'contractSize'),  # in USD for inverse swaps
+            'pnl': self.parse_number(realizedPnl) + self.parse_number(unrealisedPnl),
+            'contracts': contracts,
             'contractSize': self.safe_number(market, 'contractSize'),
             'marginRatio': self.parse_number(marginRatio),
             'liquidationPrice': self.parse_number(liquidationPrice),
             'markPrice': self.safe_number(position, 'markPrice'),
             'collateral': self.parse_number(collateralString),
             'marginMode': marginMode,
-            # /TEALSTREET
             'isolated': marginMode == 'isolated',
             'hedged': mode == 'hedged',
             'price': self.parse_number(entryPrice),
             'status': status,
             'tradeMode': mode,
             'active': status,
-            # \TEALSTREET
             'side': side,
             'percentage': self.parse_number(percentage),
         }
