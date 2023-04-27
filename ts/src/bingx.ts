@@ -660,7 +660,7 @@ export default class bingx extends Exchange {
 
     parseOrderStatus (status) {
         const statuses = {
-            'new': 'open',
+            'open': 'open',
             'init': 'open',
             'full_fill': 'closed',
             'filled': 'closed',
@@ -711,18 +711,22 @@ export default class bingx extends Exchange {
         const filled = this.safeFloat (order, 'filledVolume');
         const cost = this.safeFloat (order, 'avgFilledPrice');
         const average = this.safeFloat (order, 'avgFilledPrice');
-        const timestamp = this.safeInteger (order, 'cTime');
+        const timestamp = this.parse8601 (this.safeStringUpper (order, 'entrustTm'));
         const rawStopTrigger = this.safeString (order, 'triggerType');
-        const side = this.safeString (order, 'side');
+        const rawSide = this.safeStringLower (order, 'side');
+        let side = 'buy';
+        if (rawSide === 'ask') {
+            side = 'sell';
+        }
         const trigger = this.parseStopTrigger (rawStopTrigger);
-        const clientOrderId = this.safeString2 (order, 'clientOrderId', 'clientOid');
+        const clientOrderId = this.safeString (order, 'orderId');
         const fee = undefined;
-        const rawStatus = this.safeString2 (order, 'status', 'state');
+        const rawStatus = this.safeStringLower (order, 'action');
         const status = this.parseOrderStatus (rawStatus);
-        const lastTradeTimestamp = this.safeInteger (order, 'uTime');
-        const timeInForce = this.safeString (order, 'timeInForce');
+        const lastTradeTimestamp = this.parse8601 (this.safeStringUpper (order, 'updateTm'));
+        const timeInForce = undefined;
         const postOnly = timeInForce === 'postOnly';
-        const stopPrice = this.safeNumber (order, 'triggerPrice');
+        const stopPrice = this.safeNumber (order, 'stopLossPrice');
         return this.safeOrder ({
             'info': order,
             'id': id,
@@ -731,10 +735,10 @@ export default class bingx extends Exchange {
             'datetime': this.iso8601 (timestamp),
             'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
-            'type': 'unkknown',
+            'type': 'limit',
             'timeInForce': 'GTC',
             'postOnly': postOnly,
-            'side': side === 'Bid' ? 'long' : 'short',
+            'side': side,
             'price': price,
             'stopPrice': stopPrice,
             'average': average,
@@ -771,6 +775,11 @@ export default class bingx extends Exchange {
             result.push (this.parseOrder (orders[i]));
         }
         return result;
+    }
+
+    async fetchOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
+        const openOrders = await this.fetchOpenOrders (symbol, since, limit, params);
+        return openOrders;
     }
 
     sign (path, section = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {

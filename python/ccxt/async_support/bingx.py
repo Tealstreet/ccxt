@@ -616,7 +616,7 @@ class bingx(Exchange):
 
     def parse_order_status(self, status):
         statuses = {
-            'new': 'open',
+            'open': 'open',
             'init': 'open',
             'full_fill': 'closed',
             'filled': 'closed',
@@ -665,18 +665,21 @@ class bingx(Exchange):
         filled = self.safe_float(order, 'filledVolume')
         cost = self.safe_float(order, 'avgFilledPrice')
         average = self.safe_float(order, 'avgFilledPrice')
-        timestamp = self.safe_integer(order, 'cTime')
+        timestamp = self.parse8601(self.safe_string_upper(order, 'entrustTm'))
         rawStopTrigger = self.safe_string(order, 'triggerType')
-        side = self.safe_string(order, 'side')
+        rawSide = self.safe_string_lower(order, 'side')
+        side = 'buy'
+        if rawSide == 'ask':
+            side = 'sell'
         trigger = self.parse_stop_trigger(rawStopTrigger)
-        clientOrderId = self.safe_string_2(order, 'clientOrderId', 'clientOid')
+        clientOrderId = self.safe_string(order, 'orderId')
         fee = None
-        rawStatus = self.safe_string_2(order, 'status', 'state')
+        rawStatus = self.safe_string_lower(order, 'action')
         status = self.parse_order_status(rawStatus)
-        lastTradeTimestamp = self.safe_integer(order, 'uTime')
-        timeInForce = self.safe_string(order, 'timeInForce')
+        lastTradeTimestamp = self.parse8601(self.safe_string_upper(order, 'updateTm'))
+        timeInForce = None
         postOnly = timeInForce == 'postOnly'
-        stopPrice = self.safe_number(order, 'triggerPrice')
+        stopPrice = self.safe_number(order, 'stopLossPrice')
         return self.safe_order({
             'info': order,
             'id': id,
@@ -685,10 +688,10 @@ class bingx(Exchange):
             'datetime': self.iso8601(timestamp),
             'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
-            'type': 'unkknown',
+            'type': 'limit',
             'timeInForce': 'GTC',
             'postOnly': postOnly,
-            'side': side == 'long' if 'Bid' else 'short',
+            'side': side,
             'price': price,
             'stopPrice': stopPrice,
             'average': average,
@@ -721,6 +724,10 @@ class bingx(Exchange):
         for i in range(0, len(orders)):
             result.append(self.parse_order(orders[i]))
         return result
+
+    async def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
+        openOrders = await self.fetch_open_orders(symbol, since, limit, params)
+        return openOrders
 
     def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
         type = section[0]

@@ -643,7 +643,7 @@ class bingx extends Exchange {
 
     public function parse_order_status($status) {
         $statuses = array(
-            'new' => 'open',
+            'open' => 'open',
             'init' => 'open',
             'full_fill' => 'closed',
             'filled' => 'closed',
@@ -694,18 +694,22 @@ class bingx extends Exchange {
         $filled = $this->safe_float($order, 'filledVolume');
         $cost = $this->safe_float($order, 'avgFilledPrice');
         $average = $this->safe_float($order, 'avgFilledPrice');
-        $timestamp = $this->safe_integer($order, 'cTime');
+        $timestamp = $this->parse8601($this->safe_string_upper($order, 'entrustTm'));
         $rawStopTrigger = $this->safe_string($order, 'triggerType');
-        $side = $this->safe_string($order, 'side');
+        $rawSide = $this->safe_string_lower($order, 'side');
+        $side = 'buy';
+        if ($rawSide === 'ask') {
+            $side = 'sell';
+        }
         $trigger = $this->parse_stop_trigger($rawStopTrigger);
-        $clientOrderId = $this->safe_string_2($order, 'clientOrderId', 'clientOid');
+        $clientOrderId = $this->safe_string($order, 'orderId');
         $fee = null;
-        $rawStatus = $this->safe_string_2($order, 'status', 'state');
+        $rawStatus = $this->safe_string_lower($order, 'action');
         $status = $this->parse_order_status($rawStatus);
-        $lastTradeTimestamp = $this->safe_integer($order, 'uTime');
-        $timeInForce = $this->safe_string($order, 'timeInForce');
+        $lastTradeTimestamp = $this->parse8601($this->safe_string_upper($order, 'updateTm'));
+        $timeInForce = null;
         $postOnly = $timeInForce === 'postOnly';
-        $stopPrice = $this->safe_number($order, 'triggerPrice');
+        $stopPrice = $this->safe_number($order, 'stopLossPrice');
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,
@@ -714,10 +718,10 @@ class bingx extends Exchange {
             'datetime' => $this->iso8601($timestamp),
             'lastTradeTimestamp' => $lastTradeTimestamp,
             'symbol' => $symbol,
-            'type' => 'unkknown',
+            'type' => 'limit',
             'timeInForce' => 'GTC',
             'postOnly' => $postOnly,
-            'side' => $side === 'Bid' ? 'long' : 'short',
+            'side' => $side,
             'price' => $price,
             'stopPrice' => $stopPrice,
             'average' => $average,
@@ -752,6 +756,11 @@ class bingx extends Exchange {
             $result[] = $this->parse_order($orders[$i]);
         }
         return $result;
+    }
+
+    public function fetch_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
+        $openOrders = $this->fetch_open_orders($symbol, $since, $limit, $params);
+        return $openOrders;
     }
 
     public function sign($path, $section = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
