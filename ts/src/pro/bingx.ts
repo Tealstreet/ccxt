@@ -12,8 +12,8 @@ export default class bingx extends bingxRest {
         return this.deepExtend (super.describe (), {
             'has': {
                 'ws': true,
-                'watchBalance': true,
-                'watchMyTrades': true,
+                'watchBalance': false,
+                'watchMyTrades': false,
                 'watchOHLCV': false,
                 'watchOrderBook': true,
                 'watchOrders': true,
@@ -25,6 +25,7 @@ export default class bingx extends bingxRest {
             'urls': {
                 'api': {
                     'ws': 'wss://ws-market-swap.we-api.com/ws',
+                    'ws2': 'wss://open-api-swap.bingx.com/swap-market',
                 },
             },
             'options': {
@@ -269,133 +270,6 @@ export default class bingx extends bingxRest {
         }
     }
 
-    async watchMyTrades (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name bingx#watchMyTrades
-         * @description watches information on multiple trades made by the user
-         * @see https://bingx-exchange.github.io/docs/v5/websocket/private/execution
-         * @param {string} symbol unified market symbol of the market orders were made in
-         * @param {int|undefined} since the earliest time in ms to fetch orders for
-         * @param {int|undefined} limit the maximum number of  orde structures to retrieve
-         * @param {object} params extra parameters specific to the bingx api endpoint
-         * @param {boolean} params.unifiedMargin use unified margin account
-         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
-         */
-        let messageHash = 'myTrades';
-        await this.loadMarkets ();
-        if (symbol !== undefined) {
-            symbol = this.symbol (symbol);
-            messageHash += ':' + symbol;
-        }
-        const url = this.urls['api']['ws'];
-        await this.authenticate ();
-        const topicByMarket = {
-            'spot': 'ticketInfo',
-            'unified': 'execution',
-            'usdc': 'user.openapi.perp.trade',
-        };
-        const topic = this.safeValue (topicByMarket, this.getPrivateType (url));
-        const trades = await this.watchTopics (url, messageHash, [ topic ], params);
-        if (this.newUpdates) {
-            limit = trades.getLimit (symbol, limit);
-        }
-        return this.filterBySinceLimit (trades, since, limit, 'timestamp', true);
-    }
-
-    handleMyTrades (client, message) {
-        //
-        // spot
-        //    {
-        //        "type": "snapshot",
-        //        "topic": "ticketInfo",
-        //        "ts": "1662348310388",
-        //        "data": [
-        //            {
-        //                "e": "ticketInfo",
-        //                "E": "1662348310386",
-        //                "s": "BTCUSDT",
-        //                "q": "0.001007",
-        //                "t": "1662348310373",
-        //                "p": "19842.02",
-        //                "T": "2100000000002220938",
-        //                "o": "1238261807653647872",
-        //                "c": "spotx008",
-        //                "O": "1238225004531834368",
-        //                "a": "533287",
-        //                "A": "642908",
-        //                "m": false,
-        //                "S": "BUY"
-        //            }
-        //        ]
-        //    }
-        // unified
-        //     {
-        //         "id": "592324803b2785-26fa-4214-9963-bdd4727f07be",
-        //         "topic": "execution",
-        //         "creationTime": 1672364174455,
-        //         "data": [
-        //             {
-        //                 "category": "linear",
-        //                 "symbol": "XRPUSDT",
-        //                 "execFee": "0.005061",
-        //                 "execId": "7e2ae69c-4edf-5800-a352-893d52b446aa",
-        //                 "execPrice": "0.3374",
-        //                 "execQty": "25",
-        //                 "execType": "Trade",
-        //                 "execValue": "8.435",
-        //                 "isMaker": false,
-        //                 "feeRate": "0.0006",
-        //                 "tradeIv": "",
-        //                 "markIv": "",
-        //                 "blockTradeId": "",
-        //                 "markPrice": "0.3391",
-        //                 "indexPrice": "",
-        //                 "underlyingPrice": "",
-        //                 "leavesQty": "0",
-        //                 "orderId": "f6e324ff-99c2-4e89-9739-3086e47f9381",
-        //                 "orderLinkId": "",
-        //                 "orderPrice": "0.3207",
-        //                 "orderQty": "25",
-        //                 "orderType": "Market",
-        //                 "stopOrderType": "UNKNOWN",
-        //                 "side": "Sell",
-        //                 "execTime": "1672364174443",
-        //                 "isLeverage": "0"
-        //             }
-        //         ]
-        //     }
-        //
-        const topic = this.safeString (message, 'topic');
-        const spot = topic === 'ticketInfo';
-        let data = this.safeValue (message, 'data', []);
-        if (!Array.isArray (data)) {
-            data = this.safeValue (data, 'result', []);
-        }
-        if (this.myTrades === undefined) {
-            const limit = this.safeInteger (this.options, 'tradesLimit', 1000);
-            this.myTrades = new ArrayCacheBySymbolById (limit);
-        }
-        const trades = this.myTrades;
-        const symbols = {};
-        const method = spot ? 'parseWsTrade' : 'parseTrade';
-        for (let i = 0; i < data.length; i++) {
-            const rawTrade = data[i];
-            const parsed = this[method] (rawTrade);
-            const symbol = parsed['symbol'];
-            symbols[symbol] = true;
-            trades.append (parsed);
-        }
-        const keys = Object.keys (symbols);
-        for (let i = 0; i < keys.length; i++) {
-            const messageHash = 'myTrades:' + keys[i];
-            client.resolve (trades, messageHash);
-        }
-        // non-symbol specific
-        const messageHash = 'myTrades';
-        client.resolve (trades, messageHash);
-    }
-
     async watchOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
         /**
          * @method
@@ -539,297 +413,6 @@ export default class bingx extends bingxRest {
         client.resolve (orders, messageHash);
     }
 
-    async watchBalance (params = {}) {
-        /**
-         * @method
-         * @name bingx#watchBalance
-         * @description query for balance and get the amount of funds available for trading or funds locked in orders
-         * @see https://bingx-exchange.github.io/docs/v5/websocket/private/wallet
-         * @param {object} params extra parameters specific to the bingx api endpoint
-         * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
-         */
-        await this.loadMarkets ();
-        let messageHash = 'balances';
-        let type = undefined;
-        [ type, params ] = this.handleMarketTypeAndParams ('watchBalance', undefined, params);
-        let subType = undefined;
-        [ subType, params ] = this.handleSubTypeAndParams ('watchBalance', undefined, params);
-        const isUnifiedMargin = false;
-        const isUnifiedAccount = false;
-        const url = this.urls['api']['ws'];
-        await this.authenticate ();
-        const topicByMarket = {
-            'spot': 'outboundAccountInfo',
-            'unified': 'wallet',
-        };
-        if (isUnifiedAccount) {
-            // unified account
-            if (subType === 'inverse') {
-                messageHash += ':contract';
-            } else {
-                messageHash += ':unified';
-            }
-        }
-        if (!isUnifiedMargin && !isUnifiedAccount) {
-            // normal account using v5
-            if (type === 'spot') {
-                messageHash += ':spot';
-            } else {
-                messageHash += ':contract';
-            }
-        }
-        if (isUnifiedMargin) {
-            // unified margin account using v5
-            if (type === 'spot') {
-                messageHash += ':spot';
-            } else {
-                if (subType === 'linear') {
-                    messageHash += ':unified';
-                } else {
-                    messageHash += ':contract';
-                }
-            }
-        }
-        const topics = [ this.safeValue (topicByMarket, this.getPrivateType (url)) ];
-        return await this.watchTopics (url, messageHash, topics, params);
-    }
-
-    handleBalance (client, message) {
-        //
-        // spot
-        //    {
-        //        "type": "snapshot",
-        //        "topic": "outboundAccountInfo",
-        //        "ts": "1662107217641",
-        //        "data": [
-        //            {
-        //                "e": "outboundAccountInfo",
-        //                "E": "1662107217640",
-        //                "T": true,
-        //                "W": true,
-        //                "D": true,
-        //                "B": [
-        //                    {
-        //                        "a": "USDT",
-        //                        "f": "176.81254174",
-        //                        "l": "201.575"
-        //                    }
-        //                ]
-        //            }
-        //        ]
-        //    }
-        // unified
-        //     {
-        //         "id": "5923242c464be9-25ca-483d-a743-c60101fc656f",
-        //         "topic": "wallet",
-        //         "creationTime": 1672364262482,
-        //         "data": [
-        //             {
-        //                 "accountIMRate": "0.016",
-        //                 "accountMMRate": "0.003",
-        //                 "totalEquity": "12837.78330098",
-        //                 "totalWalletBalance": "12840.4045924",
-        //                 "totalMarginBalance": "12837.78330188",
-        //                 "totalAvailableBalance": "12632.05767702",
-        //                 "totalPerpUPL": "-2.62129051",
-        //                 "totalInitialMargin": "205.72562486",
-        //                 "totalMaintenanceMargin": "39.42876721",
-        //                 "coin": [
-        //                     {
-        //                         "coin": "USDC",
-        //                         "equity": "200.62572554",
-        //                         "usdValue": "200.62572554",
-        //                         "walletBalance": "201.34882644",
-        //                         "availableToWithdraw": "0",
-        //                         "availableToBorrow": "1500000",
-        //                         "borrowAmount": "0",
-        //                         "accruedInterest": "0",
-        //                         "totalOrderIM": "0",
-        //                         "totalPositionIM": "202.99874213",
-        //                         "totalPositionMM": "39.14289747",
-        //                         "unrealisedPnl": "74.2768991",
-        //                         "cumRealisedPnl": "-209.1544627",
-        //                         "bonus": "0"
-        //                     },
-        //                     {
-        //                         "coin": "BTC",
-        //                         "equity": "0.06488393",
-        //                         "usdValue": "1023.08402268",
-        //                         "walletBalance": "0.06488393",
-        //                         "availableToWithdraw": "0.06488393",
-        //                         "availableToBorrow": "2.5",
-        //                         "borrowAmount": "0",
-        //                         "accruedInterest": "0",
-        //                         "totalOrderIM": "0",
-        //                         "totalPositionIM": "0",
-        //                         "totalPositionMM": "0",
-        //                         "unrealisedPnl": "0",
-        //                         "cumRealisedPnl": "0",
-        //                         "bonus": "0"
-        //                     },
-        //                     {
-        //                         "coin": "ETH",
-        //                         "equity": "0",
-        //                         "usdValue": "0",
-        //                         "walletBalance": "0",
-        //                         "availableToWithdraw": "0",
-        //                         "availableToBorrow": "26",
-        //                         "borrowAmount": "0",
-        //                         "accruedInterest": "0",
-        //                         "totalOrderIM": "0",
-        //                         "totalPositionIM": "0",
-        //                         "totalPositionMM": "0",
-        //                         "unrealisedPnl": "0",
-        //                         "cumRealisedPnl": "0",
-        //                         "bonus": "0"
-        //                     },
-        //                     {
-        //                         "coin": "USDT",
-        //                         "equity": "11726.64664904",
-        //                         "usdValue": "11613.58597018",
-        //                         "walletBalance": "11728.54414904",
-        //                         "availableToWithdraw": "11723.92075829",
-        //                         "availableToBorrow": "2500000",
-        //                         "borrowAmount": "0",
-        //                         "accruedInterest": "0",
-        //                         "totalOrderIM": "0",
-        //                         "totalPositionIM": "2.72589075",
-        //                         "totalPositionMM": "0.28576575",
-        //                         "unrealisedPnl": "-1.8975",
-        //                         "cumRealisedPnl": "0.64782276",
-        //                         "bonus": "0"
-        //                     },
-        //                     {
-        //                         "coin": "EOS3L",
-        //                         "equity": "215.0570412",
-        //                         "usdValue": "0",
-        //                         "walletBalance": "215.0570412",
-        //                         "availableToWithdraw": "215.0570412",
-        //                         "availableToBorrow": "0",
-        //                         "borrowAmount": "0",
-        //                         "accruedInterest": "",
-        //                         "totalOrderIM": "0",
-        //                         "totalPositionIM": "0",
-        //                         "totalPositionMM": "0",
-        //                         "unrealisedPnl": "0",
-        //                         "cumRealisedPnl": "0",
-        //                         "bonus": "0"
-        //                     },
-        //                     {
-        //                         "coin": "BIT",
-        //                         "equity": "1.82",
-        //                         "usdValue": "0.48758257",
-        //                         "walletBalance": "1.82",
-        //                         "availableToWithdraw": "1.82",
-        //                         "availableToBorrow": "0",
-        //                         "borrowAmount": "0",
-        //                         "accruedInterest": "",
-        //                         "totalOrderIM": "0",
-        //                         "totalPositionIM": "0",
-        //                         "totalPositionMM": "0",
-        //                         "unrealisedPnl": "0",
-        //                         "cumRealisedPnl": "0",
-        //                         "bonus": "0"
-        //                     }
-        //                 ],
-        //                 "accountType": "UNIFIED"
-        //             }
-        //         ]
-        //     }
-        //
-        if (this.balance === undefined) {
-            this.balance = {};
-        }
-        let messageHash = 'balance';
-        const topic = this.safeValue (message, 'topic');
-        let info = undefined;
-        let rawBalances = [];
-        let account = undefined;
-        if (topic === 'outboundAccountInfo') {
-            account = 'spot';
-            const data = this.safeValue (message, 'data', []);
-            for (let i = 0; i < data.length; i++) {
-                const B = this.safeValue (data[i], 'B', []);
-                rawBalances = this.arrayConcat (rawBalances, B);
-            }
-            info = rawBalances;
-        }
-        if (topic === 'wallet') {
-            const data = this.safeValue (message, 'data', {});
-            for (let i = 0; i < data.length; i++) {
-                const result = this.safeValue (data, 0, {});
-                account = this.safeStringLower (result, 'accountType');
-                rawBalances = this.arrayConcat (rawBalances, this.safeValue (result, 'coin', []));
-            }
-            info = data;
-        }
-        for (let i = 0; i < rawBalances.length; i++) {
-            this.parseWsBalance (rawBalances[i], account);
-        }
-        if (account !== undefined) {
-            if (this.safeValue (this.balance, account) === undefined) {
-                this.balance[account] = {};
-            }
-            this.balance[account]['info'] = info;
-            const timestamp = this.safeInteger (message, 'ts');
-            this.balance[account]['timestamp'] = timestamp;
-            this.balance[account]['datetime'] = this.iso8601 (timestamp);
-            this.balance[account] = this.safeBalance (this.balance[account]);
-            messageHash = 'balances:' + account;
-            client.resolve (this.balance[account], messageHash);
-        } else {
-            this.balance['info'] = info;
-            const timestamp = this.safeInteger (message, 'ts');
-            this.balance['timestamp'] = timestamp;
-            this.balance['datetime'] = this.iso8601 (timestamp);
-            this.balance = this.safeBalance (this.balance);
-            messageHash = 'balances';
-            client.resolve (this.balance, messageHash);
-        }
-    }
-
-    parseWsBalance (balance, accountType = undefined) {
-        //
-        // spot
-        //    {
-        //        "a": "USDT",
-        //        "f": "176.81254174",
-        //        "l": "201.575"
-        //    }
-        // unified
-        //     {
-        //         "coin": "BTC",
-        //         "equity": "0.06488393",
-        //         "usdValue": "1023.08402268",
-        //         "walletBalance": "0.06488393",
-        //         "availableToWithdraw": "0.06488393",
-        //         "availableToBorrow": "2.5",
-        //         "borrowAmount": "0",
-        //         "accruedInterest": "0",
-        //         "totalOrderIM": "0",
-        //         "totalPositionIM": "0",
-        //         "totalPositionMM": "0",
-        //         "unrealisedPnl": "0",
-        //         "cumRealisedPnl": "0",
-        //         "bonus": "0"
-        //     }
-        //
-        const account = this.account ();
-        const currencyId = this.safeString2 (balance, 'a', 'coin');
-        const code = this.safeCurrencyCode (currencyId);
-        account['free'] = this.safeStringN (balance, [ 'availableToWithdraw', 'f', 'free', 'availableToWithdraw' ]);
-        account['used'] = this.safeString2 (balance, 'l', 'locked');
-        account['total'] = this.safeString (balance, 'walletBalance');
-        if (accountType !== undefined) {
-            if (this.safeValue (this.balance, accountType) === undefined) {
-                this.balance[accountType] = {};
-            }
-            this.balance[accountType][code] = account;
-        } else {
-            this.balance[code] = account;
-        }
-    }
-
     async watchTopics (url, messageHash, topics = [], params = {}) {
         const request = {
             'id': '' + this.requestId (),
@@ -840,27 +423,77 @@ export default class bingx extends bingxRest {
         return await this.watch (url, messageHash, message, messageHash);
     }
 
-    authenticate (params = {}) {
-        this.checkRequiredCredentials ();
-        const messageHash = 'authenticated';
-        const url = this.urls['api']['ws'];
-        const client = this.client (url);
-        let future = this.safeValue (client.subscriptions, messageHash);
-        if (future === undefined) {
-            const request = {
-                'reqType': 'req',
-                'id': this.uuid (),
-                'dataType': 'account.user.auth',
-                'data': {
-                    'token': this.apiKey + '.' + this.secret,
-                    'platformId': '30',
-                },
-            };
-            const message = this.extend (request, params);
-            future = this.watch (url, messageHash, message);
-            client.subscriptions[messageHash] = future;
+    async authenticate (params = {}) {
+        // this.checkRequiredCredentials ();
+        // const messageHash = 'authenticated';
+        // const url = this.urls['api']['ws'];
+        // const client = this.client (url);
+        // let future = this.safeValue (client.subscriptions, messageHash);
+        // if (future === undefined) {
+        //     const request = {
+        //         'reqType': 'req',
+        //         'id': this.uuid (),
+        //         'dataType': 'account.user.auth',
+        //         'data': {
+        //             'token': this.apiKey + '.' + this.secret,
+        //             'platformId': '30',
+        //         },
+        //     };
+        //     const message = this.extend (request, params);
+        //     future = this.watch (url, messageHash, message);
+        //     client.subscriptions[messageHash] = future;
+        // }
+        // return future;
+        const time = this.milliseconds ();
+        const lastAuthenticatedTime = this.safeInteger (this.options, 'lastAuthenticatedTime', 0);
+        const listenKeyRefreshRate = this.safeInteger (this.options, 'listenKeyRefreshRate', 1200000);
+        const delay = this.sum (listenKeyRefreshRate, 10000);
+        if (time - lastAuthenticatedTime > delay) {
+            const method = 'swap2OpenApiPrivatePostUserAuthUserDataStream';
+            const response = await this[method] (params);
+            this.options = this.extend (this.options, {
+                'listenKey': this.safeString (response, 'listenKey'),
+                'lastAuthenticatedTime': time,
+            });
+            this.delay (listenKeyRefreshRate, this.keepAliveListenKey, params);
         }
-        return future;
+    }
+
+    async keepAliveListenKey (params = {}) {
+        const listenKey = this.safeString (this.options, 'listenKey');
+        if (listenKey === undefined) {
+            // A network error happened: we can't renew a listen key that does not exist.
+            return;
+        }
+        const method = 'swap2OpenApiPrivatePutUserAuthUserDataStream';
+        const request = {
+            'listenKey': listenKey,
+        };
+        const time = this.milliseconds ();
+        const sendParams = this.omit (params, 'type');
+        try {
+            await this[method] (this.extend (request, sendParams));
+        } catch (error) {
+            const url = this.urls['api']['ws2'] + '?' + this.options['listenKey'];
+            const client = this.client (url);
+            const messageHashes = Object.keys (client.futures);
+            for (let i = 0; i < messageHashes.length; i++) {
+                const messageHash = messageHashes[i];
+                client.reject (error, messageHash);
+            }
+            this.options = this.extend (this.options, {
+                'listenKey': undefined,
+                'lastAuthenticatedTime': 0,
+            });
+            return;
+        }
+        this.options = this.extend (this.options, {
+            'listenKey': listenKey,
+            'lastAuthenticatedTime': time,
+        });
+        // whether or not to schedule another listenKey keepAlive request
+        const listenKeyRefreshRate = this.safeInteger (this.options, 'listenKeyRefreshRate', 1200000);
+        return this.delay (listenKeyRefreshRate, this.keepAliveListenKey, params);
     }
 
     handleErrorMessage (client, message) {

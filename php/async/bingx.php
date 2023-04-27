@@ -7,7 +7,6 @@ namespace ccxt\async;
 
 use Exception; // a common import
 use ccxt\ExchangeError;
-use ccxt\Precise;
 use React\Async;
 
 class bingx extends Exchange {
@@ -55,9 +54,8 @@ class bingx extends Exchange {
             'urls' => array(
                 'logo' => '',
                 'api' => array(
-                    'spot' => 'https://open-api.bingx.com/openApi/spot',
                     'swap' => 'https://api-swap-rest.bingbon.pro/api',
-                    'contract' => 'https://api.bingbon.com/api/coingecko',
+                    'swap2' => 'https://open-api.bingx.com',
                 ),
                 'test' => array(
                 ),
@@ -105,16 +103,27 @@ class bingx extends Exchange {
                                 'user/setMarginMode' => 1,
                                 'user/setLeverage' => 1,
                                 'user/forceOrders' => 1,
+                                'user/auth/userDataStream' => 1,
+                            ),
+                            'put' => array(
+                                'user/auth/userDataStream' => 1,
                             ),
                         ),
                     ),
                 ),
-                'contract' => array(
-                    'v1' => array(
+                'swap2' => array(
+                    'openApi' => array(
                         'public' => array(
                             'get' => array(
-                                'derivatives/contracts' => 1,
-                                'derivatives/orderbook/{ticker_id}' => 1,
+                                'swap/v2/quote/klines' => 1,
+                            ),
+                        ),
+                        'private' => array(
+                            'put' => array(
+                                'user/auth/userDataStream' => 1,
+                            ),
+                            'post' => array(
+                                'user/auth/userDataStream' => 1,
                             ),
                         ),
                     ),
@@ -150,6 +159,9 @@ class bingx extends Exchange {
                 '1d' => '1D',
                 '1w' => '1W',
                 '1M' => '1M',
+            ),
+            'options' => array(
+                'listenKeyRefreshRate' => 1200000, // 20 mins
             ),
         ));
     }
@@ -502,110 +514,64 @@ class bingx extends Exchange {
     }
 
     public function parse_position($position, $market = null) {
-        $contract = $this->safe_string($position, 'symbol');
-        $market = $this->safe_market($contract);
-        $size = Precise::string_abs($this->safe_string($position, 'volume'));
-        $side = $this->safe_string($position, 'positionSide');
-        if ($side !== null) {
-            if ($side === 'Long') {
-                $side = 'long';
-            } elseif ($side === 'Short') {
-                $side = 'short';
-            } else {
-                $side = null;
-            }
-        }
-        $notional = $this->safe_string($position, 'volume');
-        $realizedPnl = $this->omit_zero($this->safe_string($position, 'realisedPNL'));
-        $unrealisedPnl = $this->omit_zero($this->safe_string($position, 'unrealisedPNL'));
-        $initialMarginString = $this->safe_string($position, 'margin');
-        $maintenanceMarginString = $this->safe_string($position, 'margin');
-        $timestamp = $this->parse8601($this->safe_string($position, 'updated_at'));
-        if ($timestamp === null) {
-            $timestamp = $this->safe_integer($position, 'updatedAt');
-        }
-        // default to cross of USDC margined positions
-        $marginMode = $this->safe_string($position, 'marginMode', 'Isolated') === 'Isolated' ? 'isolated' : 'cross';
-        $mode = 'hedged';
-        $collateralString = $this->safe_string($position, 'positionBalance');
-        $entryPrice = $this->omit_zero($this->safe_string_2($position, 'avgPrice', ''));
-        $liquidationPrice = $this->omit_zero($this->safe_string($position, 'liqPrice'));
-        $leverage = $this->safe_string($position, 'leverage');
-        if ($liquidationPrice !== null) {
-            if ($market['settle'] === 'USDC') {
-                //  (Entry price - Liq price) * Contracts . Maintenance Margin . (unrealised pnl) = Collateral
-                $difference = Precise::string_abs(Precise::string_sub($entryPrice, $liquidationPrice));
-                $collateralString = Precise::string_add(Precise::string_add(Precise::string_mul($difference, $size), $maintenanceMarginString), $unrealisedPnl);
-            } else {
-                $bustPrice = $this->safe_string($position, 'bustPrice');
-                if ($market['linear']) {
-                    // derived from the following formulas
-                    //  (Entry price - Bust price) * Contracts = Collateral
-                    //  (Entry price - Liq price) * Contracts = Collateral - Maintenance Margin
-                    // Maintenance Margin = (Bust price - Liq price) x Contracts
-                    $maintenanceMarginPriceDifference = Precise::string_abs(Precise::string_sub($liquidationPrice, $bustPrice));
-                    $maintenanceMarginString = Precise::string_mul($maintenanceMarginPriceDifference, $size);
-                    // Initial Margin = Contracts x Entry Price / Leverage
-                    if ($entryPrice !== null) {
-                        $initialMarginString = Precise::string_div(Precise::string_mul($size, $entryPrice), $leverage);
-                    }
-                } else {
-                    // Contracts * (1 / Entry price - 1 / Bust price) = Collateral
-                    // Contracts * (1 / Entry price - 1 / Liq price) = Collateral - Maintenance Margin
-                    // Maintenance Margin = Contracts * (1 / Liq price - 1 / Bust price)
-                    // Maintenance Margin = Contracts * (Bust price - Liq price) / (Liq price x Bust price)
-                    $difference = Precise::string_abs(Precise::string_sub($bustPrice, $liquidationPrice));
-                    $multiply = Precise::string_mul($bustPrice, $liquidationPrice);
-                    $maintenanceMarginString = Precise::string_div(Precise::string_mul($size, $difference), $multiply);
-                    // Initial Margin = Leverage x Contracts / EntryPrice
-                    if ($entryPrice !== null) {
-                        $initialMarginString = Precise::string_div($size, Precise::string_mul($entryPrice, $leverage));
-                    }
-                }
-            }
-        }
-        $maintenanceMarginPercentage = Precise::string_div($maintenanceMarginString, $notional);
-        $percentage = Precise::string_mul(Precise::string_div($unrealisedPnl, $initialMarginString), '100');
-        $marginRatio = Precise::string_div($maintenanceMarginString, $collateralString, 4);
-        $status = true;
-        if ($size === '0') {
-            $status = false;
-        }
-        $contracts = $this->parse_number($size) / $this->safe_number($market, 'contractSize');
+        //
+        //
+        // {
+        //     "positionId" => "1650546544279240704",
+        //     "symbol" => "BTC-USDT",
+        //     "currency" => "",
+        //     "volume" => 0.001,
+        //     "availableVolume" => 0.001,
+        //     "positionSide" => "short",
+        //     "marginMode" => "cross",
+        //     "avgPrice" => 27124.5,
+        //     "liquidatedPrice" => 0.0,
+        //     "margin" => 2.9386,
+        //     "leverage" => 5.0,
+        //     "pnlRate" => -45.83,
+        //     "unrealisedPNL" => -2.4863,
+        //     "realisedPNL" => 0.0126
+        // }
+        //
+        $marketId = $this->safe_string($position, 'symbol');
+        $market = $this->safe_market($marketId, $market);
+        $timestamp = $this->safe_integer($position, 'cTime');
+        $marginMode = $this->safe_string_lower($position, 'marginMode');
+        $hedged = true;
+        $side = $this->safe_string_lower($position, 'positionSide');
+        $contracts = $this->safe_float($position, 'volume') / $this->safe_number($market, 'contractSize');
+        $liquidation = $this->safe_number($position, 'liquidatedPrice');
         if ($side === 'short') {
-            $contracts = $contracts * -1;
+            $contracts = -1 * $contracts;
         }
+        if ($liquidation === 0) {
+            $liquidation = null;
+        }
+        $initialMargin = $this->safe_number($position, 'margin');
         return array(
             'info' => $position,
             'id' => $market['symbol'] . ':' . $side,
-            'mode' => $mode,
             'symbol' => $market['symbol'],
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'initialMargin' => $this->parse_number($initialMarginString),
-            'initialMarginPercentage' => $this->parse_number(Precise::string_div($initialMarginString, $notional)),
-            'maintenanceMargin' => $this->parse_number($maintenanceMarginString),
-            'maintenanceMarginPercentage' => $this->parse_number($maintenanceMarginPercentage),
-            'entryPrice' => $this->parse_number($entryPrice),
-            'notional' => $this->parse_number($notional),
-            'leverage' => $this->parse_number($leverage),
-            'unrealizedPnl' => $this->parse_number($unrealisedPnl),
-            'pnl' => $this->parse_number($realizedPnl) . $this->parse_number($unrealisedPnl),
+            'notional' => null,
+            'marginMode' => $marginMode,
+            'liquidationPrice' => $liquidation,
+            'entryPrice' => $this->safe_number($position, 'avgPrice'),
+            'unrealizedPnl' => $this->safe_number($position, 'unrealizedPL'),
+            'percentage' => null,
             'contracts' => $contracts,
             'contractSize' => $this->safe_number($market, 'contractSize'),
-            'marginRatio' => $this->parse_number($marginRatio),
-            'liquidationPrice' => $this->parse_number($liquidationPrice),
-            'markPrice' => $this->safe_number($position, 'markPrice'),
-            'collateral' => $this->parse_number($collateralString),
-            'marginMode' => $marginMode,
-            'isolated' => $marginMode === 'isolated',
-            'hedged' => $mode === 'hedged',
-            'price' => $this->parse_number($entryPrice),
-            'status' => $status,
-            'tradeMode' => $mode,
-            'active' => $status,
             'side' => $side,
-            'percentage' => $this->parse_number($percentage),
+            'hedged' => $hedged,
+            'timestamp' => $timestamp,
+            'markPrice' => $this->safe_number($position, 'markPrice'),
+            'datetime' => $this->iso8601($timestamp),
+            'maintenanceMargin' => null,
+            'maintenanceMarginPercentage' => null,
+            'collateral' => $this->safe_number($position, 'margin'),
+            'initialMargin' => $initialMargin,
+            'initialMarginPercentage' => null,
+            'leverage' => $this->safe_number($position, 'leverage'),
+            'marginRatio' => null,
         );
     }
 
@@ -634,44 +600,44 @@ class bingx extends Exchange {
                 $limit = 200; // default is 200 when requested with `$since`
             }
             if ($since !== null) {
-                $request['startTs'] = $since;
+                $request['startTime'] = $since;
             }
-            $request['klineType'] = $this->safe_string($this->timeframes, $timeframe, $timeframe);
+            $klineType = $this->safe_string($this->timeframes, $timeframe, $timeframe);
+            $request['interval'] = $timeframe;
             if ($limit !== null) {
                 // $request['limit'] = $limit; // max 1000, default 1000
-                if ($request['klineType'] === '1') {
-                    $request['endTs'] = $since . $limit * 60 * 1000;
-                } elseif ($request['klineType'] === '3') {
-                    $request['endTs'] = $since . $limit * 3 * 60 * 1000;
-                } elseif ($request['klineType'] === '5') {
-                    $request['endTs'] = $since . $limit * 5 * 60 * 1000;
-                } elseif ($request['klineType'] === '15') {
-                    $request['endTs'] = $since . $limit * 15 * 60 * 1000;
-                } elseif ($request['klineType'] === '30') {
-                    $request['endTs'] = $since . $limit * 30 * 60 * 1000;
-                } elseif ($request['klineType'] === '60') {
-                    $request['endTs'] = $since . $limit * 60 * 60 * 1000;
-                } elseif ($request['klineType'] === '120') {
-                    $request['endTs'] = $since . $limit * 120 * 60 * 1000;
-                } elseif ($request['klineType'] === '240') {
-                    $request['endTs'] = $since . $limit * 240 * 60 * 1000;
-                } elseif ($request['klineType'] === '360') {
-                    $request['endTs'] = $since . $limit * 360 * 60 * 1000;
-                } elseif ($request['klineType'] === '720') {
-                    $request['endTs'] = $since . $limit * 720 * 60 * 1000;
-                } elseif ($request['klineType'] === '1D') {
-                    $request['endTs'] = $since . $limit * 24 * 60 * 60 * 1000;
-                } elseif ($request['klineType'] === '1W') {
-                    $request['endTs'] = $since . $limit * 7 * 24 * 60 * 60 * 1000;
-                } elseif ($request['klineType'] === '1M') {
-                    $request['endTs'] = $since . $limit * 30 * 24 * 60 * 60 * 1000;
+                if ($klineType === '1') {
+                    $request['endTime'] = $since . $limit * 60 * 1000;
+                } elseif ($klineType === '3') {
+                    $request['endTime'] = $since . $limit * 3 * 60 * 1000;
+                } elseif ($klineType === '5') {
+                    $request['endTime'] = $since . $limit * 5 * 60 * 1000;
+                } elseif ($klineType === '15') {
+                    $request['endTime'] = $since . $limit * 15 * 60 * 1000;
+                } elseif ($klineType === '30') {
+                    $request['endTime'] = $since . $limit * 30 * 60 * 1000;
+                } elseif ($klineType === '60') {
+                    $request['endTime'] = $since . $limit * 60 * 60 * 1000;
+                } elseif ($klineType === '120') {
+                    $request['endTime'] = $since . $limit * 120 * 60 * 1000;
+                } elseif ($klineType === '240') {
+                    $request['endTime'] = $since . $limit * 240 * 60 * 1000;
+                } elseif ($klineType === '360') {
+                    $request['endTime'] = $since . $limit * 360 * 60 * 1000;
+                } elseif ($klineType === '720') {
+                    $request['endTime'] = $since . $limit * 720 * 60 * 1000;
+                } elseif ($klineType === '1D') {
+                    $request['endTime'] = $since . $limit * 24 * 60 * 60 * 1000;
+                } elseif ($klineType === '1W') {
+                    $request['endTime'] = $since . $limit * 7 * 24 * 60 * 60 * 1000;
+                } elseif ($klineType === '1M') {
+                    $request['endTime'] = $since . $limit * 30 * 24 * 60 * 60 * 1000;
                 } else {
-                    $request['endTs'] = $since . $limit * 60 * 1000;
+                    $request['endTime'] = $since . $limit * 60 * 1000;
                 }
             }
-            $response = Async\await($this->swapV1PublicGetMarketGetHistoryKlines (array_merge($request, $params)));
-            $result = $this->safe_value($response, 'data', array());
-            $ohlcvs = $this->safe_value($result, 'klines', array());
+            $response = Async\await($this->swap2OpenApiPublicGetSwapV2QuoteKlines (array_merge($request, $params)));
+            $ohlcvs = $this->safe_value($response, 'data', array());
             return $this->parse_ohlcvs($ohlcvs, $market, $timeframe, $since, $limit);
         }) ();
     }
@@ -688,7 +654,7 @@ class bingx extends Exchange {
 
     public function parse_ohlcv($ohlcv, $market = null) {
         return array(
-            $this->safe_integer($ohlcv, 'ts'), // timestamp
+            $this->safe_integer($ohlcv, 'time'), // timestamp
             $this->safe_number($ohlcv, 'open'), // open
             $this->safe_number($ohlcv, 'high'), // high
             $this->safe_number($ohlcv, 'low'), // low
@@ -697,18 +663,118 @@ class bingx extends Exchange {
         );
     }
 
+    public function parse_order_status($status) {
+        $statuses = array(
+            'new' => 'open',
+            'init' => 'open',
+            'full_fill' => 'closed',
+            'filled' => 'closed',
+            'not_trigger' => 'untriggered',
+        );
+        return $this->safe_string($statuses, $status, $status);
+    }
+
+    public function parse_stop_trigger($status) {
+        $statuses = array(
+            'market_price' => 'mark',
+            'fill_price' => 'last',
+            'index_price' => 'index',
+        );
+        return $this->safe_string($statuses, $status, $status);
+    }
+
+    public function parse_order($order, $market = null) {
+        // "entrustTm" => "2018-04-25T15:00:51.000Z",
+        // "side" => "Bid",
+        // "tradeType" => "Limit",
+        // "action" => "Open",
+        // "entrustPrice" => 6.021954,
+        // "entrustVolume" => 18.098,
+        // "filledVolume" => 0,
+        // "avgFilledPrice" => 0,
+        // "orderId" => "6030",
+        // "symbol" => "BTC-USDT",
+        // "profit" => 0,
+        // "commission" => 0,
+        // "updateTm" => "2018-04-25T15:00:52.000Z"
+        // ===========
+        // "entrustTm" => "2021-07-12T07:15:21.891Z",
+        // "entrustVolume" => 0.001,
+        // "orderId" => "1414483504200159232",
+        // "positionId" => "1414483266773192704",
+        // "side" => "Ask",
+        // "stopLossPrice" => 10000,
+        // "symbol" => "BTC-USDT",
+        // "takeProfitPrice" => 0,
+        // "userId" => "809519987784454146"
+        $marketId = $this->safe_string($order, 'symbol');
+        $market = $this->safe_market($marketId);
+        $symbol = $market['symbol'];
+        $id = $this->safe_string($order, 'orderId');
+        $price = $this->safe_float($order, 'entrustPrice');
+        $amount = $this->safe_float($order, 'entrustVolume');
+        $filled = $this->safe_float($order, 'filledVolume');
+        $cost = $this->safe_float($order, 'avgFilledPrice');
+        $average = $this->safe_float($order, 'avgFilledPrice');
+        $timestamp = $this->safe_integer($order, 'cTime');
+        $rawStopTrigger = $this->safe_string($order, 'triggerType');
+        $side = $this->safe_string($order, 'side');
+        $trigger = $this->parse_stop_trigger($rawStopTrigger);
+        $clientOrderId = $this->safe_string_2($order, 'clientOrderId', 'clientOid');
+        $fee = null;
+        $rawStatus = $this->safe_string_2($order, 'status', 'state');
+        $status = $this->parse_order_status($rawStatus);
+        $lastTradeTimestamp = $this->safe_integer($order, 'uTime');
+        $timeInForce = $this->safe_string($order, 'timeInForce');
+        $postOnly = $timeInForce === 'postOnly';
+        $stopPrice = $this->safe_number($order, 'triggerPrice');
+        return $this->safe_order(array(
+            'info' => $order,
+            'id' => $id,
+            'clientOrderId' => $clientOrderId,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'lastTradeTimestamp' => $lastTradeTimestamp,
+            'symbol' => $symbol,
+            'type' => 'unkknown',
+            'timeInForce' => 'GTC',
+            'postOnly' => $postOnly,
+            'side' => $side === 'Bid' ? 'long' : 'short',
+            'price' => $price,
+            'stopPrice' => $stopPrice,
+            'average' => $average,
+            'cost' => $cost,
+            'amount' => $amount,
+            'filled' => $filled,
+            'remaining' => null,
+            'status' => $status,
+            'fee' => $fee,
+            'trades' => null,
+            'reduce' => false,  // TEALSTREET
+            'close' => false,  // TEALSTREET
+            'trigger' => $trigger,  // TEALSTREET
+        ), $market);
+    }
+
     public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         return Async\async(function () use ($symbol, $since, $limit, $params) {
             /**
-             * fetch all unfilled currently open orders
+             * fetch all unfilled currently open $orders
              * @param {string|null} $symbol unified market $symbol
-             * @param {int|null} $since the earliest time in ms to fetch open orders for
-             * @param {int|null} $limit the maximum number of  open orders structures to retrieve
+             * @param {int|null} $since the earliest time in ms to fetch open $orders for
+             * @param {int|null} $limit the maximum number of  open $orders structures to retrieve
              * @param {array} $params extra parameters specific to the bybit api endpoint
              * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=order-structure order structures~
              */
             Async\await($this->load_markets());
-            return array();
+            $response = Async\await($this->swapV1PrivatePostUserPendingOrders ());
+            $data = $this->safe_value($response, 'data', array());
+            $orders = $this->safe_value($data, 'orders', array());
+            $result = array();
+            for ($i = 0; $i < count($orders); $i++) {
+                $result[] = $this->parse_order($orders[$i]);
+            }
+            return $result;
         }) ();
     }
 
@@ -722,27 +788,44 @@ class bingx extends Exchange {
         $path = $this->implode_params($path, $params);
         $params = $this->omit($params, $this->extract_params($path));
         $params = $this->keysort($params);
-        if ($access === 'public') {
-            if ($params) {
-                $url .= '?' . $this->urlencode($params);
-            }
-        } elseif ($access === 'private') {
+        if ($access === 'private') {
             $this->check_required_credentials();
-            $params = array_merge($params, array(
-                'apiKey' => $this->apiKey,
-                'timestamp' => $this->milliseconds() - 0,
-            ));
-            // ACTUAL SIGNATURE GENERATION
-            $paramString = $this->rawencode($params);
-            $originString = $method . '/api/' . $version . '/' . $rawPath . $paramString;
-            $signature = $this->hmac($this->encode($originString), $this->encode($this->secret), 'sha256', 'base64');
-            // ACTUAL SIGNATURE GENERATION
-            $params = array_merge($params, array(
-                'sign' => $signature,
-            ));
-            if ($params) {
-                $url .= '?' . $this->urlencode($params);
+            $isOpenApi = mb_strpos($url, 'openApi') !== false;
+            $isUserDataStreamEp = mb_strpos($url, 'userDataStream') !== false;
+            if ($isOpenApi || $isUserDataStreamEp) {
+                $params = array_merge($params, array(
+                    'timestamp' => $this->milliseconds() - 0,
+                ));
+                $params = $this->keysort($params);
+                $paramString = $this->rawencode($params);
+                $signature = $this->hmac($this->encode($paramString), $this->encode($this->secret), 'sha256', 'base64');
+                $params = array_merge($params, array(
+                    'signature' => $signature,
+                ));
+                $headers = array(
+                    'X-BX-APIKEY' => $this->apiKey,
+                );
+                if ($method !== 'GET') {
+                    $body = $this->urlencode($params);
+                }
+            } else {
+                $params = array_merge($params, array(
+                    'apiKey' => $this->apiKey,
+                    'timestamp' => $this->milliseconds() - 0,
+                ));
+                $params = $this->keysort($params);
+                // ACTUAL SIGNATURE GENERATION
+                $paramString = $this->rawencode($params);
+                $originString = $method . '/api/' . $version . '/' . $rawPath . $paramString;
+                $signature = $this->hmac($this->encode($originString), $this->encode($this->secret), 'sha256', 'base64');
+                // ACTUAL SIGNATURE GENERATION
+                $params = array_merge($params, array(
+                    'sign' => $signature,
+                ));
             }
+        }
+        if ($params) {
+            $url .= '?' . $this->urlencode($params);
         }
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
@@ -752,7 +835,7 @@ class bingx extends Exchange {
             return; // fallback to default error handler
         }
         $errorCode = $this->safe_integer($response, 'code');
-        if ($errorCode > 0) {
+        if ($errorCode !== null && $errorCode > 0) {
             throw new ExchangeError($this->id . ' ' . $this->json($response));
         }
     }
