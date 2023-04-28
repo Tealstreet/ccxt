@@ -99,6 +99,7 @@ class bingx(Exchange):
                                 'user/batchCancelOrders': 1,
                                 'user/cancelAll': 1,
                                 'user/pendingOrders': 1,
+                                'user/pendingStopOrders': 1,
                                 'user/queryOrderStatus': 1,
                                 'user/setMarginMode': 1,
                                 'user/setLeverage': 1,
@@ -119,6 +120,9 @@ class bingx(Exchange):
                             },
                         },
                         'private': {
+                            'get': {
+                                'swap/v2/trade/openOrders': 1,
+                            },
                             'put': {
                                 'user/auth/userDataStream': 1,
                             },
@@ -616,11 +620,8 @@ class bingx(Exchange):
 
     def parse_order_status(self, status):
         statuses = {
-            'open': 'open',
-            'init': 'open',
-            'full_fill': 'closed',
-            'filled': 'closed',
-            'not_trigger': 'untriggered',
+            'pending': 'open',
+            'new': 'open',
         }
         return self.safe_string(statuses, status, status)
 
@@ -632,54 +633,143 @@ class bingx(Exchange):
         }
         return self.safe_string(statuses, status, status)
 
+    def parse_order_type(self, type):
+        types = {
+            'limit': 'limit',
+            'market': 'market',
+            'stop_market': 'stop',
+            'take_profit_market': 'stop',
+            'trigger_limit': 'stopLimit',
+            'trigger_market': 'stopLimit',
+        }
+        return self.safe_string_lower(types, type, type)
+
     def parse_order(self, order, market=None):
-        # "entrustTm": "2018-04-25T15:00:51.000Z",
-        # "side": "Bid",
-        # "tradeType": "Limit",
-        # "action": "Open",
-        # "entrustPrice": 6.021954,
-        # "entrustVolume": 18.098,
-        # "filledVolume": 0,
-        # "avgFilledPrice": 0,
-        # "orderId": "6030",
-        # "symbol": "BTC-USDT",
-        # "profit": 0,
-        # "commission": 0,
-        # "updateTm": "2018-04-25T15:00:52.000Z"
-        # ========
-        # "entrustTm": "2021-07-12T07:15:21.891Z",
-        # "entrustVolume": 0.001,
-        # "orderId": "1414483504200159232",
-        # "positionId": "1414483266773192704",
-        # "side": "Ask",
-        # "stopLossPrice": 10000,
-        # "symbol": "BTC-USDT",
-        # "takeProfitPrice": 0,
-        # "userId": "809519987784454146"
+        # {
+        #     "code": 0,
+        #     "msg": "",
+        #     "data": {
+        #       "orders": [
+        #         {
+        #           "symbol": "BTC-USDT",
+        #           "orderId": 1651880171474731000,
+        #           "side": "SELL",
+        #           "positionSide": "LONG",
+        #           "type": "TAKE_PROFIT_MARKET",
+        #           "origQty": "0.0020",
+        #           "price": "0.0",
+        #           "executedQty": "0.0000",
+        #           "avgPrice": "0.0",
+        #           "cumQuote": "0",
+        #           "stopPrice": "35000.0",
+        #           "profit": "0.0",
+        #           "commission": "0.0",
+        #           "status": "NEW",
+        #           "time": 1682673897986,
+        #           "updateTime": 1682673897986
+        #         },
+        #         {
+        #           "symbol": "BTC-USDT",
+        #           "orderId": 1651880171445371000,
+        #           "side": "SELL",
+        #           "positionSide": "LONG",
+        #           "type": "STOP_MARKET",
+        #           "origQty": "0.0020",
+        #           "price": "0.0",
+        #           "executedQty": "0.0000",
+        #           "avgPrice": "28259.0",
+        #           "cumQuote": "0",
+        #           "stopPrice": "27000.0",
+        #           "profit": "0.0",
+        #           "commission": "0.0",
+        #           "status": "NEW",
+        #           "time": 1682673897979,
+        #           "updateTime": 1682673897979
+        #         },
+        #         {
+        #           "symbol": "BTC-USDT",
+        #           "orderId": 1651287406772699100,
+        #           "side": "BUY",
+        #           "positionSide": "LONG",
+        #           "type": "LIMIT",
+        #           "origQty": "0.0001",
+        #           "price": "25000.0",
+        #           "executedQty": "0.0000",
+        #           "avgPrice": "0.0",
+        #           "cumQuote": "0",
+        #           "stopPrice": "",
+        #           "profit": "0.0",
+        #           "commission": "0.0",
+        #           "status": "PENDING",
+        #           "time": 1682532572000,
+        #           "updateTime": 1682532571000
+        #         },
+        #         {
+        #           "symbol": "BTC-USDT",
+        #           "orderId": 1651006482122227700,
+        #           "side": "BUY",
+        #           "positionSide": "LONG",
+        #           "type": "LIMIT",
+        #           "origQty": "0.0001",
+        #           "price": "25000.0",
+        #           "executedQty": "0.0000",
+        #           "avgPrice": "0.0",
+        #           "cumQuote": "0",
+        #           "stopPrice": "",
+        #           "profit": "0.0",
+        #           "commission": "0.0",
+        #           "status": "PENDING",
+        #           "time": 1682465594000,
+        #           "updateTime": 1682465594000
+        #         }
+        #       ]
+        #     }
+        #   }
         marketId = self.safe_string(order, 'symbol')
         market = self.safe_market(marketId)
         symbol = market['symbol']
         id = self.safe_string(order, 'orderId')
-        price = self.safe_float(order, 'entrustPrice')
-        amount = self.safe_float(order, 'entrustVolume')
-        filled = self.safe_float(order, 'filledVolume')
-        cost = self.safe_float(order, 'avgFilledPrice')
-        average = self.safe_float(order, 'avgFilledPrice')
-        timestamp = self.parse8601(self.safe_string_upper(order, 'entrustTm'))
-        rawStopTrigger = self.safe_string(order, 'triggerType')
-        rawSide = self.safe_string_lower(order, 'side')
-        side = 'buy'
-        if rawSide == 'ask':
-            side = 'sell'
+        price = self.safe_string(order, 'price')
+        amount = self.safe_string(order, 'origQty')
+        filled = self.safe_string(order, 'executedQty')
+        cost = self.safe_string(order, 'executedQty')
+        average = self.safe_string(order, 'avgPrice')
+        type = self.parse_order_type(self.safe_string_lower(order, 'type'))
+        timestamp = self.safe_integer(order, 'time')
+        rawStopTrigger = self.safe_string(order, 'stopPrice')
         trigger = self.parse_stop_trigger(rawStopTrigger)
+        side = self.safe_string_lower(order, 'side')
+        reduce = self.safe_value(order, 'reduceOnly', False)
+        close = reduce
+        planType = self.safe_string_lower(order, 'type')
+        if planType == 'stop_market' or planType == 'take_profit_market':
+            reduce = True
+            close = True
+        if side and side.split('_')[0] == 'close':
+            reduce = True
+            close = True
+        # order type LIMIT, MARKET, STOP_MARKET, TAKE_PROFIT_MARKET, TRIGGER_LIMIT, TRIGGER_MARKET
+        # if rawStopTrigger:
+        #     if type == 'market':
+        #         type = 'stop'
+        #     else:
+        #         type = 'stopLimit'
+        #     }
+        # else:
+        #     if type == 'market':
+        #         type = 'market'
+        #     else:
+        #         type = 'limit'
+        #     }
+        # }
         clientOrderId = self.safe_string(order, 'orderId')
-        fee = None
-        rawStatus = self.safe_string_lower(order, 'action')
+        fee = self.safe_string(order, 'comission')
+        rawStatus = self.safe_string_lower(order, 'status')
         status = self.parse_order_status(rawStatus)
-        lastTradeTimestamp = self.parse8601(self.safe_string_upper(order, 'updateTm'))
-        timeInForce = None
-        postOnly = timeInForce == 'postOnly'
-        stopPrice = self.safe_number(order, 'stopLossPrice')
+        lastTradeTimestamp = self.safe_integer(order, 'updateTime')
+        timeInForce = self.safe_string(order, 'timeInForce')
+        postOnly = timeInForce == 'PostOnly'
+        stopPrice = self.safe_number(order, 'stopPrice')
         return self.safe_order({
             'info': order,
             'id': id,
@@ -688,7 +778,7 @@ class bingx(Exchange):
             'datetime': self.iso8601(timestamp),
             'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
-            'type': 'limit',
+            'type': type,
             'timeInForce': 'GTC',
             'postOnly': postOnly,
             'side': side,
@@ -702,12 +792,12 @@ class bingx(Exchange):
             'status': status,
             'fee': fee,
             'trades': None,
-            'reduce': False,  # TEALSTREET
-            'close': False,  # TEALSTREET
+            'reduce': reduce,  # TEALSTREET
+            'close': close,  # TEALSTREET
             'trigger': trigger,  # TEALSTREET
         }, market)
 
-    async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
+    async def fetch_open_orders_v2(self, symbol=None, since=None, limit=None, params={}):
         """
         fetch all unfilled currently open orders
         :param str|None symbol: unified market symbol
@@ -717,7 +807,7 @@ class bingx(Exchange):
         :returns [dict]: a list of `order structures <https://docs.ccxt.com/#/?id=order-structure>`
         """
         await self.load_markets()
-        response = await self.swapV1PrivatePostUserPendingOrders()
+        response = await self.swap2OpenApiPrivateGetSwapV2TradeOpenOrders()
         data = self.safe_value(response, 'data', {})
         orders = self.safe_value(data, 'orders', [])
         result = []
@@ -726,8 +816,7 @@ class bingx(Exchange):
         return result
 
     async def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
-        openOrders = await self.fetch_open_orders(symbol, since, limit, params)
-        return openOrders
+        return await self.fetch_open_orders_v2(symbol, since, limit, params)
 
     def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
         type = section[0]
@@ -741,7 +830,7 @@ class bingx(Exchange):
         params = self.keysort(params)
         if access == 'private':
             self.check_required_credentials()
-            isOpenApi = url.find('openApi') >= 0
+            isOpenApi = url.find('openOrders') >= 0
             isUserDataStreamEp = url.find('userDataStream') >= 0
             if isOpenApi or isUserDataStreamEp:
                 params = self.extend(params, {
@@ -749,7 +838,7 @@ class bingx(Exchange):
                 })
                 params = self.keysort(params)
                 paramString = self.rawencode(params)
-                signature = self.hmac(self.encode(paramString), self.encode(self.secret), hashlib.sha256, 'base64')
+                signature = self.hmac(self.encode(paramString), self.encode(self.secret), hashlib.sha256)
                 params = self.extend(params, {
                     'signature': signature,
                 })

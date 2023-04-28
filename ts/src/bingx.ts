@@ -98,6 +98,7 @@ export default class bingx extends Exchange {
                                 'user/batchCancelOrders': 1,
                                 'user/cancelAll': 1,
                                 'user/pendingOrders': 1,
+                                'user/pendingStopOrders': 1,
                                 'user/queryOrderStatus': 1,
                                 'user/setMarginMode': 1,
                                 'user/setLeverage': 1,
@@ -118,6 +119,9 @@ export default class bingx extends Exchange {
                             },
                         },
                         'private': {
+                            'get': {
+                                'swap/v2/trade/openOrders': 1,
+                            },
                             'put': {
                                 'user/auth/userDataStream': 1,
                             },
@@ -660,11 +664,8 @@ export default class bingx extends Exchange {
 
     parseOrderStatus (status) {
         const statuses = {
-            'open': 'open',
-            'init': 'open',
-            'full_fill': 'closed',
-            'filled': 'closed',
-            'not_trigger': 'untriggered',
+            'pending': 'open',
+            'new': 'open',
         };
         return this.safeString (statuses, status, status);
     }
@@ -678,55 +679,146 @@ export default class bingx extends Exchange {
         return this.safeString (statuses, status, status);
     }
 
+    parseOrderType (type) {
+        const types = {
+            'limit': 'limit',
+            'market': 'market',
+            'stop_market': 'stop',
+            'take_profit_market': 'stop',
+            'trigger_limit': 'stopLimit',
+            'trigger_market': 'stopLimit',
+        };
+        return this.safeStringLower (types, type, type);
+    }
+
     parseOrder (order, market = undefined) {
-        // "entrustTm": "2018-04-25T15:00:51.000Z",
-        // "side": "Bid",
-        // "tradeType": "Limit",
-        // "action": "Open",
-        // "entrustPrice": 6.021954,
-        // "entrustVolume": 18.098,
-        // "filledVolume": 0,
-        // "avgFilledPrice": 0,
-        // "orderId": "6030",
-        // "symbol": "BTC-USDT",
-        // "profit": 0,
-        // "commission": 0,
-        // "updateTm": "2018-04-25T15:00:52.000Z"
-        // ===========
-        // "entrustTm": "2021-07-12T07:15:21.891Z",
-        // "entrustVolume": 0.001,
-        // "orderId": "1414483504200159232",
-        // "positionId": "1414483266773192704",
-        // "side": "Ask",
-        // "stopLossPrice": 10000,
-        // "symbol": "BTC-USDT",
-        // "takeProfitPrice": 0,
-        // "userId": "809519987784454146"
+        // {
+        //     "code": 0,
+        //     "msg": "",
+        //     "data": {
+        //       "orders": [
+        //         {
+        //           "symbol": "BTC-USDT",
+        //           "orderId": 1651880171474731000,
+        //           "side": "SELL",
+        //           "positionSide": "LONG",
+        //           "type": "TAKE_PROFIT_MARKET",
+        //           "origQty": "0.0020",
+        //           "price": "0.0",
+        //           "executedQty": "0.0000",
+        //           "avgPrice": "0.0",
+        //           "cumQuote": "0",
+        //           "stopPrice": "35000.0",
+        //           "profit": "0.0",
+        //           "commission": "0.0",
+        //           "status": "NEW",
+        //           "time": 1682673897986,
+        //           "updateTime": 1682673897986
+        //         },
+        //         {
+        //           "symbol": "BTC-USDT",
+        //           "orderId": 1651880171445371000,
+        //           "side": "SELL",
+        //           "positionSide": "LONG",
+        //           "type": "STOP_MARKET",
+        //           "origQty": "0.0020",
+        //           "price": "0.0",
+        //           "executedQty": "0.0000",
+        //           "avgPrice": "28259.0",
+        //           "cumQuote": "0",
+        //           "stopPrice": "27000.0",
+        //           "profit": "0.0",
+        //           "commission": "0.0",
+        //           "status": "NEW",
+        //           "time": 1682673897979,
+        //           "updateTime": 1682673897979
+        //         },
+        //         {
+        //           "symbol": "BTC-USDT",
+        //           "orderId": 1651287406772699100,
+        //           "side": "BUY",
+        //           "positionSide": "LONG",
+        //           "type": "LIMIT",
+        //           "origQty": "0.0001",
+        //           "price": "25000.0",
+        //           "executedQty": "0.0000",
+        //           "avgPrice": "0.0",
+        //           "cumQuote": "0",
+        //           "stopPrice": "",
+        //           "profit": "0.0",
+        //           "commission": "0.0",
+        //           "status": "PENDING",
+        //           "time": 1682532572000,
+        //           "updateTime": 1682532571000
+        //         },
+        //         {
+        //           "symbol": "BTC-USDT",
+        //           "orderId": 1651006482122227700,
+        //           "side": "BUY",
+        //           "positionSide": "LONG",
+        //           "type": "LIMIT",
+        //           "origQty": "0.0001",
+        //           "price": "25000.0",
+        //           "executedQty": "0.0000",
+        //           "avgPrice": "0.0",
+        //           "cumQuote": "0",
+        //           "stopPrice": "",
+        //           "profit": "0.0",
+        //           "commission": "0.0",
+        //           "status": "PENDING",
+        //           "time": 1682465594000,
+        //           "updateTime": 1682465594000
+        //         }
+        //       ]
+        //     }
+        //   }
         const marketId = this.safeString (order, 'symbol');
         market = this.safeMarket (marketId);
         const symbol = market['symbol'];
         const id = this.safeString (order, 'orderId');
-        const price = this.safeFloat (order, 'entrustPrice');
-        const amount = this.safeFloat (order, 'entrustVolume');
-        const filled = this.safeFloat (order, 'filledVolume');
-        const cost = this.safeFloat (order, 'avgFilledPrice');
-        const average = this.safeFloat (order, 'avgFilledPrice');
-        const timestamp = this.parse8601 (this.safeStringUpper (order, 'entrustTm'));
-        const rawStopTrigger = this.safeString (order, 'triggerType');
-        const rawSide = this.safeStringLower (order, 'side');
-        let side = 'buy';
-        if (rawSide === 'ask') {
-            side = 'sell';
-        }
+        const price = this.safeString (order, 'price');
+        const amount = this.safeString (order, 'origQty');
+        const filled = this.safeString (order, 'executedQty');
+        const cost = this.safeString (order, 'executedQty');
+        const average = this.safeString (order, 'avgPrice');
+        const type = this.parseOrderType (this.safeStringLower (order, 'type'));
+        const timestamp = this.safeInteger (order, 'time');
+        const rawStopTrigger = this.safeString (order, 'stopPrice');
         const trigger = this.parseStopTrigger (rawStopTrigger);
+        const side = this.safeStringLower (order, 'side');
+        let reduce = this.safeValue (order, 'reduceOnly', false);
+        let close = reduce;
+        const planType = this.safeStringLower (order, 'type');
+        if (planType === 'stop_market' || planType === 'take_profit_market') {
+            reduce = true;
+            close = true;
+        }
+        if (side && side.split ('_')[0] === 'close') {
+            reduce = true;
+            close = true;
+        }
+        // order type LIMIT, MARKET, STOP_MARKET, TAKE_PROFIT_MARKET, TRIGGER_LIMIT, TRIGGER_MARKET
+        // if (rawStopTrigger) {
+        //     if (type === 'market') {
+        //         type = 'stop';
+        //     } else {
+        //         type = 'stopLimit';
+        //     }
+        // } else {
+        //     if (type === 'market') {
+        //         type = 'market';
+        //     } else {
+        //         type = 'limit';
+        //     }
+        // }
         const clientOrderId = this.safeString (order, 'orderId');
-        const fee = undefined;
-        const rawStatus = this.safeStringLower (order, 'action');
+        const fee = this.safeString (order, 'comission');
+        const rawStatus = this.safeStringLower (order, 'status');
         const status = this.parseOrderStatus (rawStatus);
-        const lastTradeTimestamp = this.parse8601 (this.safeStringUpper (order, 'updateTm'));
-        const timeInForce = undefined;
-        const postOnly = timeInForce === 'postOnly';
-        const stopPrice = this.safeNumber (order, 'stopLossPrice');
+        const lastTradeTimestamp = this.safeInteger (order, 'updateTime');
+        const timeInForce = this.safeString (order, 'timeInForce');
+        const postOnly = timeInForce === 'PostOnly';
+        const stopPrice = this.safeNumber (order, 'stopPrice');
         return this.safeOrder ({
             'info': order,
             'id': id,
@@ -735,7 +827,7 @@ export default class bingx extends Exchange {
             'datetime': this.iso8601 (timestamp),
             'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
-            'type': 'limit',
+            'type': type,
             'timeInForce': 'GTC',
             'postOnly': postOnly,
             'side': side,
@@ -749,16 +841,16 @@ export default class bingx extends Exchange {
             'status': status,
             'fee': fee,
             'trades': undefined,
-            'reduce': false,  // TEALSTREET
-            'close': false,  // TEALSTREET
+            'reduce': reduce,  // TEALSTREET
+            'close': close,  // TEALSTREET
             'trigger': trigger,  // TEALSTREET
         }, market);
     }
 
-    async fetchOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
+    async fetchOpenOrdersV2 (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
         /**
          * @method
-         * @name bybit#fetchOpenOrders
+         * @name bingx#fetchOpenOrders
          * @description fetch all unfilled currently open orders
          * @param {string|undefined} symbol unified market symbol
          * @param {int|undefined} since the earliest time in ms to fetch open orders for
@@ -767,7 +859,7 @@ export default class bingx extends Exchange {
          * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
          */
         await this.loadMarkets ();
-        const response = await (this as any).swapV1PrivatePostUserPendingOrders ();
+        const response = await (this as any).swap2OpenApiPrivateGetSwapV2TradeOpenOrders ();
         const data = this.safeValue (response, 'data', {});
         const orders = this.safeValue (data, 'orders', []);
         const result = [];
@@ -778,8 +870,7 @@ export default class bingx extends Exchange {
     }
 
     async fetchOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        const openOrders = await this.fetchOpenOrders (symbol, since, limit, params);
-        return openOrders;
+        return await this.fetchOpenOrdersV2 (symbol, since, limit, params);
     }
 
     sign (path, section = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
@@ -794,7 +885,7 @@ export default class bingx extends Exchange {
         params = this.keysort (params);
         if (access === 'private') {
             this.checkRequiredCredentials ();
-            const isOpenApi = url.indexOf ('openApi') >= 0;
+            const isOpenApi = url.indexOf ('openOrders') >= 0;
             const isUserDataStreamEp = url.indexOf ('userDataStream') >= 0;
             if (isOpenApi || isUserDataStreamEp) {
                 params = this.extend (params, {
@@ -802,7 +893,7 @@ export default class bingx extends Exchange {
                 });
                 params = this.keysort (params);
                 const paramString = this.rawencode (params);
-                const signature = this.hmac (this.encode (paramString), this.encode (this.secret), 'sha256', 'base64');
+                const signature = this.hmac (this.encode (paramString), this.encode (this.secret), 'sha256');
                 params = this.extend (params, {
                     'signature': signature,
                 });

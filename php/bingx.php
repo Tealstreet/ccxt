@@ -97,6 +97,7 @@ class bingx extends Exchange {
                                 'user/batchCancelOrders' => 1,
                                 'user/cancelAll' => 1,
                                 'user/pendingOrders' => 1,
+                                'user/pendingStopOrders' => 1,
                                 'user/queryOrderStatus' => 1,
                                 'user/setMarginMode' => 1,
                                 'user/setLeverage' => 1,
@@ -117,6 +118,9 @@ class bingx extends Exchange {
                             ),
                         ),
                         'private' => array(
+                            'get' => array(
+                                'swap/v2/trade/openOrders' => 1,
+                            ),
                             'put' => array(
                                 'user/auth/userDataStream' => 1,
                             ),
@@ -643,11 +647,8 @@ class bingx extends Exchange {
 
     public function parse_order_status($status) {
         $statuses = array(
-            'open' => 'open',
-            'init' => 'open',
-            'full_fill' => 'closed',
-            'filled' => 'closed',
-            'not_trigger' => 'untriggered',
+            'pending' => 'open',
+            'new' => 'open',
         );
         return $this->safe_string($statuses, $status, $status);
     }
@@ -661,55 +662,146 @@ class bingx extends Exchange {
         return $this->safe_string($statuses, $status, $status);
     }
 
+    public function parse_order_type($type) {
+        $types = array(
+            'limit' => 'limit',
+            'market' => 'market',
+            'stop_market' => 'stop',
+            'take_profit_market' => 'stop',
+            'trigger_limit' => 'stopLimit',
+            'trigger_market' => 'stopLimit',
+        );
+        return $this->safe_string_lower($types, $type, $type);
+    }
+
     public function parse_order($order, $market = null) {
-        // "entrustTm" => "2018-04-25T15:00:51.000Z",
-        // "side" => "Bid",
-        // "tradeType" => "Limit",
-        // "action" => "Open",
-        // "entrustPrice" => 6.021954,
-        // "entrustVolume" => 18.098,
-        // "filledVolume" => 0,
-        // "avgFilledPrice" => 0,
-        // "orderId" => "6030",
-        // "symbol" => "BTC-USDT",
-        // "profit" => 0,
-        // "commission" => 0,
-        // "updateTm" => "2018-04-25T15:00:52.000Z"
-        // ===========
-        // "entrustTm" => "2021-07-12T07:15:21.891Z",
-        // "entrustVolume" => 0.001,
-        // "orderId" => "1414483504200159232",
-        // "positionId" => "1414483266773192704",
-        // "side" => "Ask",
-        // "stopLossPrice" => 10000,
-        // "symbol" => "BTC-USDT",
-        // "takeProfitPrice" => 0,
-        // "userId" => "809519987784454146"
+        // {
+        //     "code" => 0,
+        //     "msg" => "",
+        //     "data" => {
+        //       "orders" => array(
+        //         array(
+        //           "symbol" => "BTC-USDT",
+        //           "orderId" => 1651880171474731000,
+        //           "side" => "SELL",
+        //           "positionSide" => "LONG",
+        //           "type" => "TAKE_PROFIT_MARKET",
+        //           "origQty" => "0.0020",
+        //           "price" => "0.0",
+        //           "executedQty" => "0.0000",
+        //           "avgPrice" => "0.0",
+        //           "cumQuote" => "0",
+        //           "stopPrice" => "35000.0",
+        //           "profit" => "0.0",
+        //           "commission" => "0.0",
+        //           "status" => "NEW",
+        //           "time" => 1682673897986,
+        //           "updateTime" => 1682673897986
+        //         ),
+        //         array(
+        //           "symbol" => "BTC-USDT",
+        //           "orderId" => 1651880171445371000,
+        //           "side" => "SELL",
+        //           "positionSide" => "LONG",
+        //           "type" => "STOP_MARKET",
+        //           "origQty" => "0.0020",
+        //           "price" => "0.0",
+        //           "executedQty" => "0.0000",
+        //           "avgPrice" => "28259.0",
+        //           "cumQuote" => "0",
+        //           "stopPrice" => "27000.0",
+        //           "profit" => "0.0",
+        //           "commission" => "0.0",
+        //           "status" => "NEW",
+        //           "time" => 1682673897979,
+        //           "updateTime" => 1682673897979
+        //         ),
+        //         array(
+        //           "symbol" => "BTC-USDT",
+        //           "orderId" => 1651287406772699100,
+        //           "side" => "BUY",
+        //           "positionSide" => "LONG",
+        //           "type" => "LIMIT",
+        //           "origQty" => "0.0001",
+        //           "price" => "25000.0",
+        //           "executedQty" => "0.0000",
+        //           "avgPrice" => "0.0",
+        //           "cumQuote" => "0",
+        //           "stopPrice" => "",
+        //           "profit" => "0.0",
+        //           "commission" => "0.0",
+        //           "status" => "PENDING",
+        //           "time" => 1682532572000,
+        //           "updateTime" => 1682532571000
+        //         ),
+        //         {
+        //           "symbol" => "BTC-USDT",
+        //           "orderId" => 1651006482122227700,
+        //           "side" => "BUY",
+        //           "positionSide" => "LONG",
+        //           "type" => "LIMIT",
+        //           "origQty" => "0.0001",
+        //           "price" => "25000.0",
+        //           "executedQty" => "0.0000",
+        //           "avgPrice" => "0.0",
+        //           "cumQuote" => "0",
+        //           "stopPrice" => "",
+        //           "profit" => "0.0",
+        //           "commission" => "0.0",
+        //           "status" => "PENDING",
+        //           "time" => 1682465594000,
+        //           "updateTime" => 1682465594000
+        //         }
+        //       )
+        //     }
+        //   }
         $marketId = $this->safe_string($order, 'symbol');
         $market = $this->safe_market($marketId);
         $symbol = $market['symbol'];
         $id = $this->safe_string($order, 'orderId');
-        $price = $this->safe_float($order, 'entrustPrice');
-        $amount = $this->safe_float($order, 'entrustVolume');
-        $filled = $this->safe_float($order, 'filledVolume');
-        $cost = $this->safe_float($order, 'avgFilledPrice');
-        $average = $this->safe_float($order, 'avgFilledPrice');
-        $timestamp = $this->parse8601($this->safe_string_upper($order, 'entrustTm'));
-        $rawStopTrigger = $this->safe_string($order, 'triggerType');
-        $rawSide = $this->safe_string_lower($order, 'side');
-        $side = 'buy';
-        if ($rawSide === 'ask') {
-            $side = 'sell';
-        }
+        $price = $this->safe_string($order, 'price');
+        $amount = $this->safe_string($order, 'origQty');
+        $filled = $this->safe_string($order, 'executedQty');
+        $cost = $this->safe_string($order, 'executedQty');
+        $average = $this->safe_string($order, 'avgPrice');
+        $type = $this->parse_order_type($this->safe_string_lower($order, 'type'));
+        $timestamp = $this->safe_integer($order, 'time');
+        $rawStopTrigger = $this->safe_string($order, 'stopPrice');
         $trigger = $this->parse_stop_trigger($rawStopTrigger);
+        $side = $this->safe_string_lower($order, 'side');
+        $reduce = $this->safe_value($order, 'reduceOnly', false);
+        $close = $reduce;
+        $planType = $this->safe_string_lower($order, 'type');
+        if ($planType === 'stop_market' || $planType === 'take_profit_market') {
+            $reduce = true;
+            $close = true;
+        }
+        if ($side && explode('_', $side)[0] === 'close') {
+            $reduce = true;
+            $close = true;
+        }
+        // $order $type LIMIT, MARKET, STOP_MARKET, TAKE_PROFIT_MARKET, TRIGGER_LIMIT, TRIGGER_MARKET
+        // if ($rawStopTrigger) {
+        //     if ($type === 'market') {
+        //         $type = 'stop';
+        //     } else {
+        //         $type = 'stopLimit';
+        //     }
+        // } else {
+        //     if ($type === 'market') {
+        //         $type = 'market';
+        //     } else {
+        //         $type = 'limit';
+        //     }
+        // }
         $clientOrderId = $this->safe_string($order, 'orderId');
-        $fee = null;
-        $rawStatus = $this->safe_string_lower($order, 'action');
+        $fee = $this->safe_string($order, 'comission');
+        $rawStatus = $this->safe_string_lower($order, 'status');
         $status = $this->parse_order_status($rawStatus);
-        $lastTradeTimestamp = $this->parse8601($this->safe_string_upper($order, 'updateTm'));
-        $timeInForce = null;
-        $postOnly = $timeInForce === 'postOnly';
-        $stopPrice = $this->safe_number($order, 'stopLossPrice');
+        $lastTradeTimestamp = $this->safe_integer($order, 'updateTime');
+        $timeInForce = $this->safe_string($order, 'timeInForce');
+        $postOnly = $timeInForce === 'PostOnly';
+        $stopPrice = $this->safe_number($order, 'stopPrice');
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,
@@ -718,7 +810,7 @@ class bingx extends Exchange {
             'datetime' => $this->iso8601($timestamp),
             'lastTradeTimestamp' => $lastTradeTimestamp,
             'symbol' => $symbol,
-            'type' => 'limit',
+            'type' => $type,
             'timeInForce' => 'GTC',
             'postOnly' => $postOnly,
             'side' => $side,
@@ -732,13 +824,13 @@ class bingx extends Exchange {
             'status' => $status,
             'fee' => $fee,
             'trades' => null,
-            'reduce' => false,  // TEALSTREET
-            'close' => false,  // TEALSTREET
+            'reduce' => $reduce,  // TEALSTREET
+            'close' => $close,  // TEALSTREET
             'trigger' => $trigger,  // TEALSTREET
         ), $market);
     }
 
-    public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
+    public function fetch_open_orders_v2($symbol = null, $since = null, $limit = null, $params = array ()) {
         /**
          * fetch all unfilled currently open $orders
          * @param {string|null} $symbol unified market $symbol
@@ -748,7 +840,7 @@ class bingx extends Exchange {
          * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=order-structure order structures~
          */
         $this->load_markets();
-        $response = $this->swapV1PrivatePostUserPendingOrders ();
+        $response = $this->swap2OpenApiPrivateGetSwapV2TradeOpenOrders ();
         $data = $this->safe_value($response, 'data', array());
         $orders = $this->safe_value($data, 'orders', array());
         $result = array();
@@ -759,8 +851,7 @@ class bingx extends Exchange {
     }
 
     public function fetch_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
-        $openOrders = $this->fetch_open_orders($symbol, $since, $limit, $params);
-        return $openOrders;
+        return $this->fetch_open_orders_v2($symbol, $since, $limit, $params);
     }
 
     public function sign($path, $section = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
@@ -775,7 +866,7 @@ class bingx extends Exchange {
         $params = $this->keysort($params);
         if ($access === 'private') {
             $this->check_required_credentials();
-            $isOpenApi = mb_strpos($url, 'openApi') !== false;
+            $isOpenApi = mb_strpos($url, 'openOrders') !== false;
             $isUserDataStreamEp = mb_strpos($url, 'userDataStream') !== false;
             if ($isOpenApi || $isUserDataStreamEp) {
                 $params = array_merge($params, array(
@@ -783,7 +874,7 @@ class bingx extends Exchange {
                 ));
                 $params = $this->keysort($params);
                 $paramString = $this->rawencode($params);
-                $signature = $this->hmac($this->encode($paramString), $this->encode($this->secret), 'sha256', 'base64');
+                $signature = $this->hmac($this->encode($paramString), $this->encode($this->secret), 'sha256');
                 $params = array_merge($params, array(
                     'signature' => $signature,
                 ));
