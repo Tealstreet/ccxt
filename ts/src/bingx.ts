@@ -2,7 +2,7 @@
 //  ---------------------------------------------------------------------------
 
 import { Exchange } from './base/Exchange.js';
-import { ExchangeError } from './base/errors.js';
+import { ArgumentsRequired, ExchangeError } from './base/errors.js';
 import { TICK_SIZE } from './base/functions/number.js';
 import { OHLCV } from './base/types.js';
 
@@ -126,6 +126,10 @@ export default class bingx extends Exchange {
                             },
                             'post': {
                                 'user/auth/userDataStream': 1,
+                                'swap/v2/trade/order': 1,
+                            },
+                            'delete': {
+                                'swap/v2/trade/order': 1,
                             },
                         },
                     },
@@ -476,20 +480,29 @@ export default class bingx extends Exchange {
         }, market);
     }
 
-    async cancelOrder (id, symbol: string = undefined, params = {}) {
+    async cancelOrder (id, symbol = undefined, params = {}) {
         /**
          * @method
-         * @name paymium#cancelOrder
+         * @name bingx#cancelOrder
          * @description cancels an open order
          * @param {string} id order id
-         * @param {string|undefined} symbol not used by paymium cancelOrder ()
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} An [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @param {string} symbol unified symbol of the market the order was made in
+         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @returns {object} An [order structure]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const idComponents = id.split (':');
+        const formattedId = idComponents[0];
         const request = {
-            'uuid': id,
+            'symbol': market['id'],
+            'orderId': formattedId,
         };
-        return await (this as any).privateDeleteUserOrdersUuidCancel (this.extend (request, params));
+        const response = await (this as any).swap2OpenApiPrivateDeleteSwapV2TradeOrder (request);
+        return this.parseOrder (response, market);
     }
 
     async fetchPositions (symbols: string[] = undefined, params = {}) {
@@ -884,7 +897,7 @@ export default class bingx extends Exchange {
         params = this.keysort (params);
         if (access === 'private') {
             this.checkRequiredCredentials ();
-            const isOpenApi = url.indexOf ('openOrders') >= 0;
+            const isOpenApi = url.indexOf ('/v2/') >= 0;
             const isUserDataStreamEp = url.indexOf ('userDataStream') >= 0;
             if (isOpenApi || isUserDataStreamEp) {
                 params = this.extend (params, {
@@ -899,9 +912,6 @@ export default class bingx extends Exchange {
                 headers = {
                     'X-BX-APIKEY': this.apiKey,
                 };
-                if (method !== 'GET') {
-                    body = this.urlencode (params);
-                }
             } else {
                 params = this.extend (params, {
                     'apiKey': this.apiKey,
