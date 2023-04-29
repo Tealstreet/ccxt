@@ -297,9 +297,9 @@ export default class bingx extends Exchange {
     async fetchBalance (params = {}) {
         /**
          * @method
-         * @name paymium#fetchBalance
+         * @name bingx#fetchBalance
          * @description query for balance and get the amount of funds available for trading or funds locked in orders
-         * @param {object} params extra parameters specific to the paymium api endpoint
+         * @param {object} params extra parameters specific to the bingx api endpoint
          * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
          */
         // await this.loadMarkets ();
