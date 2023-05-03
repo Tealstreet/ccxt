@@ -773,8 +773,8 @@ class bingx extends Exchange {
         $symbol = $market['symbol'];
         $id = $this->safe_string($order, 'orderId');
         $price = $this->safe_string($order, 'price');
-        $amount = $this->safe_string($order, 'origQty');
-        $filled = $this->safe_string($order, 'executedQty');
+        $amount = $this->safe_float($order, 'origQty') / $market['contractSize'];
+        $filled = $this->safe_float($order, 'executedQty') / $market['contractSize'];
         $cost = $this->safe_string($order, 'executedQty');
         $average = $this->safe_string($order, 'avgPrice');
         $type = $this->parse_order_type($this->safe_string_lower($order, 'type'));
