@@ -442,21 +442,110 @@ class bingx(Exchange):
         :param dict params: extra parameters specific to the paymium api endpoint
         :returns dict: an `order structure <https://docs.ccxt.com/#/?id=order-structure>`
         """
+        # quick order:
+        #
+        # BTC/USDT:USDT
+        # limit
+        # buy
+        # 4.0
+        # 29116.0
+        # {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        #
+        # limit order:
+        #
+        # BTC/USDT:USDT
+        # limit
+        # buy
+        # 4.0
+        # 28520.0
+        # {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        #
+        # no post = 'timeInForce': 'GTC',
+        #
+        # SL
+        #
+        # BTC/USDT:USDT
+        # stop
+        # sell
+        # 20.0
+        # None
+        # {'positionMode': 'unknown', 'stopPrice': 27663.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        #
+        # TP
+        #
+        # BTC/USDT:USDT
+        # stop
+        # sell
+        # 20.0
+        # None
+        # {'positionMode': 'unknown', 'stopPrice': 30150.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        #
+        # LIMIT TP
+        #
+        # BTC/USDT:USDT
+        # stopLimit
+        # sell
+        # 4.0
+        # 33000.0
+        # {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
         await self.load_markets()
         market = self.market(symbol)
+        #
+        triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
+        isTriggerOrder = triggerPrice is not None
+        isStopLossOrder = None
+        isTakeProfitOrder = None
+        reduceOnly = self.safe_value_2(params, 'close', 'reduceOnly', False)
+        basePrice = self.safe_value(params, 'basePrice')
+        if triggerPrice is not None and basePrice is not None:
+            # triggerOrder is NOT stopOrder
+            isTriggerOrder = not reduceOnly
+            # type = 'market'
+            if not isTriggerOrder:
+                if side == 'buy':
+                    if triggerPrice > basePrice:
+                        isStopLossOrder = True
+                    else:
+                        isTakeProfitOrder = True
+                else:
+                    if triggerPrice < basePrice:
+                        isStopLossOrder = True
+                    else:
+                        isTakeProfitOrder = True
+        #
+        convertedType = 'LIMIT'
+        if type == 'stop':
+            if isTakeProfitOrder:
+                convertedType = 'TAKE_PROFIT_MARKET'
+            elif isStopLossOrder:
+                convertedType = 'STOP_MARKET'
+            else:
+                raise ArgumentsRequired('unknown order direction for TP/SL')
+        if type == 'stopLimit':
+            convertedType = 'TRIGGER_LIMIT'
+        # symbolComponents = symbol.split(':')
+        # formattedSymbol = symbolComponents[0]
+        convertedSide = side.upper()
+        # TODO use stringMult
+        convertedAmount = amount * market['contractSize']
         request = {
-            'type': self.capitalize(type) + 'Order',
-            'currency': market['id'],
-            'direction': side,
-            'amount': amount,
+            'symbol': market['id'],
+            'type': convertedType,
+            'side': convertedSide,
+            'quantity': convertedAmount,
         }
-        if type != 'market':
-            request['price'] = price
-        response = await self.privatePostUserOrders(self.extend(request, params))
-        return self.safe_order({
-            'info': response,
-            'id': response['uuid'],
-        }, market)
+        if triggerPrice is not None:
+            request['stopPrice'] = triggerPrice
+        if (type == 'limit' or type == 'stopLimit') and (triggerPrice is None):
+            request['price'] = self.price_to_precision(symbol, price)
+        isMarketOrder = type == 'market'
+        exchangeSpecificParam = self.safe_string_2(params, 'force', 'timeInForce')
+        postOnly = self.is_post_only(isMarketOrder, exchangeSpecificParam == 'PO', params)
+        if postOnly:
+            request['timeInForce'] = 'PostOnly'
+        # response = await self.swap2OpenApiPrivatePostSwapV2TradeOrder(self.extend(request, params))
+        response = await self.swap2OpenApiPrivatePostSwapV2TradeOrder(request)
+        return self.parse_order(response, market)
 
     async def cancel_order(self, id, symbol=None, params={}):
         """

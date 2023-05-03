@@ -468,22 +468,121 @@ class bingx extends Exchange {
              * @param {array} $params extra parameters specific to the paymium api endpoint
              * @return {array} an ~@link https://docs.ccxt.com/#/?id=order-structure order structure~
              */
+            // quick order:
+            //
+            // BTC/USDT:USDT
+            // limit
+            // buy
+            // 4.0
+            // 29116.0
+            // array('positionMode' => 'unknown', 'timeInForce' => 'PO', 'reduceOnly' => False)
+            //
+            // limit order:
+            //
+            // BTC/USDT:USDT
+            // limit
+            // buy
+            // 4.0
+            // 28520.0
+            // array('positionMode' => 'unknown', 'timeInForce' => 'PO', 'reduceOnly' => False)
+            //
+            // no post = 'timeInForce' => 'GTC',
+            //
+            // SL
+            //
+            // BTC/USDT:USDT
+            // stop
+            // sell
+            // 20.0
+            // None
+            // array('positionMode' => 'unknown', 'stopPrice' => 27663.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
+            //
+            // TP
+            //
+            // BTC/USDT:USDT
+            // stop
+            // sell
+            // 20.0
+            // None
+            // array('positionMode' => 'unknown', 'stopPrice' => 30150.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
+            //
+            // LIMIT TP
+            //
+            // BTC/USDT:USDT
+            // stopLimit
+            // sell
+            // 4.0
+            // 33000.0
+            // array('positionMode' => 'unknown', 'stopPrice' => 32000.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
             Async\await($this->load_markets());
             $market = $this->market($symbol);
-            $request = array(
-                'type' => $this->capitalize($type) . 'Order',
-                'currency' => $market['id'],
-                'direction' => $side,
-                'amount' => $amount,
-            );
-            if ($type !== 'market') {
-                $request['price'] = $price;
+            //
+            $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
+            $isTriggerOrder = $triggerPrice !== null;
+            $isStopLossOrder = null;
+            $isTakeProfitOrder = null;
+            $reduceOnly = $this->safe_value_2($params, 'close', 'reduceOnly', false);
+            $basePrice = $this->safe_value($params, 'basePrice');
+            if ($triggerPrice !== null && $basePrice !== null) {
+                // triggerOrder is NOT stopOrder
+                $isTriggerOrder = !$reduceOnly;
+                // $type = 'market';
+                if (!$isTriggerOrder) {
+                    if ($side === 'buy') {
+                        if ($triggerPrice > $basePrice) {
+                            $isStopLossOrder = true;
+                        } else {
+                            $isTakeProfitOrder = true;
+                        }
+                    } else {
+                        if ($triggerPrice < $basePrice) {
+                            $isStopLossOrder = true;
+                        } else {
+                            $isTakeProfitOrder = true;
+                        }
+                    }
+                }
             }
-            $response = Async\await($this->privatePostUserOrders (array_merge($request, $params)));
-            return $this->safe_order(array(
-                'info' => $response,
-                'id' => $response['uuid'],
-            ), $market);
+            //
+            $convertedType = 'LIMIT';
+            if ($type === 'stop') {
+                if ($isTakeProfitOrder) {
+                    $convertedType = 'TAKE_PROFIT_MARKET';
+                } elseif ($isStopLossOrder) {
+                    $convertedType = 'STOP_MARKET';
+                } else {
+                    throw new ArgumentsRequired('unknown order direction for TP/SL');
+                }
+            }
+            if ($type === 'stopLimit') {
+                $convertedType = 'TRIGGER_LIMIT';
+            }
+            // $symbolComponents = explode(':', $symbol);
+            // $formattedSymbol = $symbolComponents[0];
+            $convertedSide = strtoupper($side);
+            // TODO use stringMult
+            $convertedAmount = $amount * $market['contractSize'];
+            $request = array(
+                'symbol' => $market['id'],
+                'type' => $convertedType,
+                'side' => $convertedSide,
+                'quantity' => $convertedAmount,
+            );
+            if ($triggerPrice !== null) {
+                $request['stopPrice'] = $triggerPrice;
+            }
+            if (($type === 'limit' || $type === 'stopLimit') && ($triggerPrice === null)) {
+                $request['price'] = $this->price_to_precision($symbol, $price);
+            }
+            $isMarketOrder = $type === 'market';
+            $exchangeSpecificParam = $this->safe_string_2($params, 'force', 'timeInForce');
+            $postOnly = $this->is_post_only($isMarketOrder, $exchangeSpecificParam === 'PO', $params);
+            if ($postOnly) {
+                $request['timeInForce'] = 'PostOnly';
+            }
+            // $response = Async\await($this->swap2OpenApiPrivatePostSwapV2TradeOrder (array_merge($request, $params)));
+            $response = Async\await($this->swap2OpenApiPrivatePostSwapV2TradeOrder ($request));
+            return $this->parse_order($response, $market);
         }) ();
     }
 

@@ -452,7 +452,7 @@ export default class bingx extends Exchange {
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
         /**
          * @method
-         * @name paymium#createOrder
+         * @name bingx#createOrder
          * @description create a trade order
          * @param {string} symbol unified symbol of the market to create an order in
          * @param {string} type 'market' or 'limit'
@@ -462,22 +462,121 @@ export default class bingx extends Exchange {
          * @param {object} params extra parameters specific to the paymium api endpoint
          * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
          */
+        // quick order:
+        //
+        // BTC/USDT:USDT
+        // limit
+        // buy
+        // 4.0
+        // 29116.0
+        // {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        //
+        // limit order:
+        //
+        // BTC/USDT:USDT
+        // limit
+        // buy
+        // 4.0
+        // 28520.0
+        // {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        //
+        // no post = 'timeInForce': 'GTC',
+        //
+        // SL
+        //
+        // BTC/USDT:USDT
+        // stop
+        // sell
+        // 20.0
+        // None
+        // {'positionMode': 'unknown', 'stopPrice': 27663.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        //
+        // TP
+        //
+        // BTC/USDT:USDT
+        // stop
+        // sell
+        // 20.0
+        // None
+        // {'positionMode': 'unknown', 'stopPrice': 30150.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        //
+        // LIMIT TP
+        //
+        // BTC/USDT:USDT
+        // stopLimit
+        // sell
+        // 4.0
+        // 33000.0
+        // {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request = {
-            'type': this.capitalize (type) + 'Order',
-            'currency': market['id'],
-            'direction': side,
-            'amount': amount,
-        };
-        if (type !== 'market') {
-            request['price'] = price;
+        //
+        const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
+        let isTriggerOrder = triggerPrice !== undefined;
+        let isStopLossOrder = undefined;
+        let isTakeProfitOrder = undefined;
+        const reduceOnly = this.safeValue2 (params, 'close', 'reduceOnly', false);
+        const basePrice = this.safeValue (params, 'basePrice');
+        if (triggerPrice !== undefined && basePrice !== undefined) {
+            // triggerOrder is NOT stopOrder
+            isTriggerOrder = !reduceOnly;
+            // type = 'market';
+            if (!isTriggerOrder) {
+                if (side === 'buy') {
+                    if (triggerPrice > basePrice) {
+                        isStopLossOrder = true;
+                    } else {
+                        isTakeProfitOrder = true;
+                    }
+                } else {
+                    if (triggerPrice < basePrice) {
+                        isStopLossOrder = true;
+                    } else {
+                        isTakeProfitOrder = true;
+                    }
+                }
+            }
         }
-        const response = await (this as any).privatePostUserOrders (this.extend (request, params));
-        return this.safeOrder ({
-            'info': response,
-            'id': response['uuid'],
-        }, market);
+        //
+        let convertedType = 'LIMIT';
+        if (type === 'stop') {
+            if (isTakeProfitOrder) {
+                convertedType = 'TAKE_PROFIT_MARKET';
+            } else if (isStopLossOrder) {
+                convertedType = 'STOP_MARKET';
+            } else {
+                throw new ArgumentsRequired ('unknown order direction for TP/SL');
+            }
+        }
+        if (type === 'stopLimit') {
+            convertedType = 'TRIGGER_LIMIT';
+        }
+        // const symbolComponents = symbol.split (':');
+        // const formattedSymbol = symbolComponents[0];
+        const convertedSide = side.toUpperCase ();
+        // TODO use stringMult
+        const convertedAmount = amount * market['contractSize'];
+        const request = {
+            'symbol': market['id'],
+            'type': convertedType,
+            'side': convertedSide,
+            'quantity': convertedAmount,
+        };
+        if (triggerPrice !== undefined) {
+            request['stopPrice'] = triggerPrice;
+        }
+        if ((type === 'limit' || type === 'stopLimit') && (triggerPrice === undefined)) {
+            request['price'] = this.priceToPrecision (symbol, price);
+        }
+        const isMarketOrder = type === 'market';
+        const exchangeSpecificParam = this.safeString2 (params, 'force', 'timeInForce');
+        const postOnly = this.isPostOnly (isMarketOrder, exchangeSpecificParam === 'PO', params);
+        if (postOnly) {
+            request['timeInForce'] = 'PostOnly';
+        }
+        // const response = await (this as any).swap2OpenApiPrivatePostSwapV2TradeOrder (this.extend (request, params));
+        const response = await (this as any).swap2OpenApiPrivatePostSwapV2TradeOrder (request);
+        return this.parseOrder (response, market);
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {
