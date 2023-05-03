@@ -2,7 +2,6 @@
 //  ---------------------------------------------------------------------------
 
 import { Exchange } from './base/Exchange.js';
-import Precise from './base/Precise.js';
 import { ArgumentsRequired, ExchangeError } from './base/errors.js';
 import { TICK_SIZE } from './base/functions/number.js';
 import { OHLCV } from './base/types.js';
@@ -790,8 +789,14 @@ export default class bingx extends Exchange {
         const symbol = market['symbol'];
         const id = this.safeString (order, 'orderId');
         const price = this.safeString (order, 'price');
-        const amount = this.safeFloat (order, 'origQty') / market['contractSize'];
-        const filled = this.safeFloat (order, 'executedQty') / market['contractSize'];
+        let amount = this.safeFloat (order, 'origQty');
+        if (amount !== undefined) {
+            amount = amount / market['contractSize'];
+        }
+        let filled = this.safeFloat (order, 'executedQty');
+        if (filled !== undefined) {
+            filled = filled / market['contractSize'];
+        }
         const cost = this.safeString (order, 'executedQty');
         const average = this.safeString (order, 'avgPrice');
         const type = this.parseOrderType (this.safeStringLower (order, 'type'));

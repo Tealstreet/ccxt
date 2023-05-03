@@ -743,8 +743,12 @@ class bingx(Exchange):
         symbol = market['symbol']
         id = self.safe_string(order, 'orderId')
         price = self.safe_string(order, 'price')
-        amount = self.safe_float(order, 'origQty') / market['contractSize']
-        filled = self.safe_float(order, 'executedQty') / market['contractSize']
+        amount = self.safe_float(order, 'origQty')
+        if amount is not None:
+            amount = amount / market['contractSize']
+        filled = self.safe_float(order, 'executedQty')
+        if filled is not None:
+            filled = filled / market['contractSize']
         cost = self.safe_string(order, 'executedQty')
         average = self.safe_string(order, 'avgPrice')
         type = self.parse_order_type(self.safe_string_lower(order, 'type'))
