@@ -12,20 +12,20 @@ require('./_virtual/index.cjs.js');
 require('./_virtual/mont.cjs.js');
 require('./_virtual/short.cjs.js');
 require('./_virtual/curves.cjs.js');
-require('./_virtual/index.cjs3.js');
+require('./_virtual/index.cjs2.js');
 require('./_virtual/key.cjs.js');
 require('./_virtual/signature.cjs2.js');
-require('./_virtual/index.cjs2.js');
+require('./_virtual/index.cjs3.js');
 require('./_virtual/key.cjs2.js');
 require('./_virtual/signature.cjs.js');
 require('./_virtual/secp256k1.cjs.js');
 require('./_virtual/utils.cjs.js');
 require('./_virtual/hmac-drbg.cjs.js');
 require('./_virtual/errors.cjs.js');
-require('./_virtual/index.cjs6.js');
+require('./_virtual/index.cjs4.js');
 require('./_virtual/reader.cjs.js');
 require('./_virtual/types.cjs.js');
-require('./_virtual/index.cjs4.js');
+require('./_virtual/index.cjs5.js');
 require('./_virtual/components.cjs.js');
 require('./_virtual/formats.cjs.js');
 require('./_virtual/pkcs1.cjs.js');
@@ -37,7 +37,7 @@ require('./_virtual/pkcs1.cjs2.js');
 require('./_virtual/schemes.cjs.js');
 require('./_virtual/utils.cjs2.js');
 require('./_virtual/formats.cjs2.js');
-require('./_virtual/index.cjs5.js');
+require('./_virtual/index.cjs6.js');
 require('./_virtual/parse.cjs.js');
 require('./_virtual/stringify.cjs.js');
 require('./_virtual/utils.cjs3.js');
@@ -54,6 +54,7 @@ var binance = require('./src/binance.js');
 var binancecoinm = require('./src/binancecoinm.js');
 var binanceus = require('./src/binanceus.js');
 var binanceusdm = require('./src/binanceusdm.js');
+var bingx = require('./src/bingx.js');
 var bit2c = require('./src/bit2c.js');
 var bitbank = require('./src/bitbank.js');
 var bitbay = require('./src/bitbay.js');
@@ -164,6 +165,7 @@ var binance$1 = require('./src/pro/binance.js');
 var binancecoinm$1 = require('./src/pro/binancecoinm.js');
 var binanceus$1 = require('./src/pro/binanceus.js');
 var binanceusdm$1 = require('./src/pro/binanceusdm.js');
+var bingx$1 = require('./src/pro/bingx.js');
 var bitcoincom$1 = require('./src/pro/bitcoincom.js');
 var bitfinex$1 = require('./src/pro/bitfinex.js');
 var bitfinex2$1 = require('./src/pro/bitfinex2.js');
@@ -226,6 +228,7 @@ const exchanges = {
     'binancecoinm': binancecoinm,
     'binanceus': binanceus,
     'binanceusdm': binanceusdm,
+    'bingx': bingx,
     'bit2c': bit2c,
     'bitbank': bitbank,
     'bitbay': bitbay,
@@ -338,6 +341,7 @@ const pro = {
     'binancecoinm': binancecoinm$1,
     'binanceus': binanceus$1,
     'binanceusdm': binanceusdm$1,
+    'bingx': bingx$1,
     'bitcoincom': bitcoincom$1,
     'bitfinex': bitfinex$1,
     'bitfinex2': bitfinex2$1,
@@ -435,6 +439,7 @@ exports.binance = binance;
 exports.binancecoinm = binancecoinm;
 exports.binanceus = binanceus;
 exports.binanceusdm = binanceusdm;
+exports.bingx = bingx;
 exports.bit2c = bit2c;
 exports.bitbank = bitbank;
 exports.bitbay = bitbay;

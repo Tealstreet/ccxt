@@ -1402,13 +1402,8 @@ class bitmex extends Exchange {
         //                            $timestamp => "2019-02-13T08:40:30.000Z",
         //     }
         //
-        $symbol = null;
         $marketId = $this->safe_string($ticker, 'symbol');
-        $market = $this->safe_value($this->markets_by_id, $marketId, $market);
-        if ($market !== null) {
-            // $symbol = $this->safe_symbol($marketId, $market);
-            $symbol = $market['symbol'];
-        }
+        $symbol = $this->safe_symbol($marketId, $market);
         $timestamp = $this->parse8601($this->safe_string($ticker, 'timestamp'));
         $open = $this->safe_string($ticker, 'prevPrice24h');
         $last = $this->safe_string($ticker, 'lastPrice');
@@ -1423,6 +1418,7 @@ class bitmex extends Exchange {
             'ask' => $this->safe_string($ticker, 'askPrice'),
             'askVolume' => null,
             'vwap' => $this->safe_string($ticker, 'vwap'),
+            'mark' => $this->safe_string($ticker, 'markPrice'),
             'open' => $open,
             'close' => $last,
             'last' => $last,

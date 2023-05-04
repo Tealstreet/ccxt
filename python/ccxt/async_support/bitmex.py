@@ -1331,12 +1331,8 @@ class bitmex(Exchange):
         #                            timestamp: "2019-02-13T08:40:30.000Z",
         #     }
         #
-        symbol = None
         marketId = self.safe_string(ticker, 'symbol')
-        market = self.safe_value(self.markets_by_id, marketId, market)
-        if market is not None:
-            # symbol = self.safe_symbol(marketId, market)
-            symbol = market['symbol']
+        symbol = self.safe_symbol(marketId, market)
         timestamp = self.parse8601(self.safe_string(ticker, 'timestamp'))
         open = self.safe_string(ticker, 'prevPrice24h')
         last = self.safe_string(ticker, 'lastPrice')
@@ -1351,6 +1347,7 @@ class bitmex(Exchange):
             'ask': self.safe_string(ticker, 'askPrice'),
             'askVolume': None,
             'vwap': self.safe_string(ticker, 'vwap'),
+            'mark': self.safe_string(ticker, 'markPrice'),
             'open': open,
             'close': last,
             'last': last,

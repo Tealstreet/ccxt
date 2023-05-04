@@ -1383,13 +1383,8 @@ export default class bitmex extends Exchange {
         //                            timestamp: "2019-02-13T08:40:30.000Z",
         //     }
         //
-        let symbol = undefined;
         const marketId = this.safeString(ticker, 'symbol');
-        market = this.safeValue(this.markets_by_id, marketId, market);
-        if (market !== undefined) {
-            // symbol = this.safeSymbol (marketId, market);
-            symbol = market['symbol'];
-        }
+        const symbol = this.safeSymbol(marketId, market);
         const timestamp = this.parse8601(this.safeString(ticker, 'timestamp'));
         const open = this.safeString(ticker, 'prevPrice24h');
         const last = this.safeString(ticker, 'lastPrice');
@@ -1404,6 +1399,7 @@ export default class bitmex extends Exchange {
             'ask': this.safeString(ticker, 'askPrice'),
             'askVolume': undefined,
             'vwap': this.safeString(ticker, 'vwap'),
+            'mark': this.safeString(ticker, 'markPrice'),
             'open': open,
             'close': last,
             'last': last,

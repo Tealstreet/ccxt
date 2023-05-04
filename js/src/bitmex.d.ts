@@ -77,14 +77,13 @@ export default class bitmex extends Exchange {
     fetchPositions(symbols?: string[], params?: {}): Promise<any>;
     parsePosition(position: any, market?: any): {
         info: any;
-        id: string;
+        id: any;
         symbol: any;
         timestamp: number;
         datetime: string;
         hedged: any;
-        side: any;
-        contracts: any;
-        contractSize: any;
+        side: string;
+        contracts: number;
         entryPrice: number;
         markPrice: number;
         notional: any;

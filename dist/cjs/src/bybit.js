@@ -10,6 +10,7 @@ var Precise = require('./base/Precise.js');
 class bybit extends Exchange["default"] {
     describe() {
         return this.deepExtend(super.describe(), {
+            'verbose': true,
             'id': 'bybit',
             'name': 'Bybit',
             'countries': ['VG'],
@@ -5186,10 +5187,16 @@ class bybit extends Exchange["default"] {
             request['category'] = type;
             if (type === 'swap') {
                 if (subType === 'linear') {
-                    this.checkRequiredSymbol('fetchOpenOrders', symbol);
+                    // TEALSTREET BEGIN
+                    // this.checkRequiredSymbol ('fetchOpenOrders', symbol);
+                    request['settleCoin'] = 'USDT';
+                    // TEALSTREET END
                 }
                 else if (subType === 'inverse') {
-                    throw new errors.NotSupported(this.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets');
+                    // TEALSTREET BEGIN
+                    // throw new NotSupported (this.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets');
+                    request['settleCoin'] = 'BTC';
+                    // TEALSTREET END
                 }
                 request['category'] = subType;
             }
@@ -5212,14 +5219,15 @@ class bybit extends Exchange["default"] {
         }
         const isStop = this.safeValue(params, 'stop', false);
         params = this.omit(params, ['stop']);
+        // TEALSTREET BEGIN
         if (isStop) {
-            if (market['spot']) {
-                request['orderFilter'] = 'tpslOrder';
-            }
-            else {
-                request['orderFilter'] = 'StopOrder';
-            }
+            // if (market['spot']) {
+            //     request['orderFilter'] = 'tpslOrder';
+            // } else {
+            request['orderFilter'] = 'StopOrder';
+            // }
         }
+        // TEALSTREET END
         if (limit !== undefined) {
             request['limit'] = limit;
         }
@@ -7257,6 +7265,7 @@ class bybit extends Exchange["default"] {
             }
         }
         const notional = this.safeString(position, 'positionValue');
+        const realizedPnl = this.omitZero(this.safeString(position, 'cumRealisedPnl'));
         const unrealisedPnl = this.omitZero(this.safeString(position, 'unrealisedPnl'));
         let initialMarginString = this.safeString(position, 'positionIM');
         let maintenanceMarginString = this.safeString(position, 'positionMM');
@@ -7309,9 +7318,29 @@ class bybit extends Exchange["default"] {
         const maintenanceMarginPercentage = Precise["default"].stringDiv(maintenanceMarginString, notional);
         const percentage = Precise["default"].stringMul(Precise["default"].stringDiv(unrealisedPnl, initialMarginString), '100');
         const marginRatio = Precise["default"].stringDiv(maintenanceMarginString, collateralString, 4);
+        const positionIdx = this.safeString(position, 'positionIdx');
+        // /TEALSTREET
+        let mode = 'oneway';
+        let symbolSuffix = market['symbol'];
+        if (positionIdx === '1') {
+            mode = 'hedged';
+            symbolSuffix = side;
+        }
+        let status = true;
+        if (size === '0') {
+            status = false;
+        }
+        let active = true;
+        if (this.safeString(position, 'positionStatus') !== 'Normal') {
+            active = false;
+        }
+        // \TEALSTREET
         return {
             'info': position,
-            'id': undefined,
+            // /TEALSTREET
+            'id': market['symbol'] + ':' + symbolSuffix,
+            // \TEALSTREET
+            'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
@@ -7323,6 +7352,7 @@ class bybit extends Exchange["default"] {
             'notional': this.parseNumber(notional),
             'leverage': this.parseNumber(leverage),
             'unrealizedPnl': this.parseNumber(unrealisedPnl),
+            'pnl': realizedPnl + unrealisedPnl,
             'contracts': this.parseNumber(size),
             'contractSize': this.safeNumber(market, 'contractSize'),
             'marginRatio': this.parseNumber(marginRatio),
@@ -7330,6 +7360,14 @@ class bybit extends Exchange["default"] {
             'markPrice': this.safeNumber(position, 'markPrice'),
             'collateral': this.parseNumber(collateralString),
             'marginMode': marginMode,
+            // /TEALSTREET
+            'isolated': marginMode === 'isolated',
+            'hedged': mode === 'hedged',
+            'price': this.parseNumber(entryPrice),
+            'status': status,
+            'tradeMode': mode,
+            'active': active,
+            // \TEALSTREET
             'side': side,
             'percentage': this.parseNumber(percentage),
         };
@@ -7395,11 +7433,19 @@ class bybit extends Exchange["default"] {
         const tradeMode = (marginMode === 'ISOLATED') ? 1 : 0;
         const request = {
             'symbol': market['id'],
+            // TEALSTREET
+            'category': market['linear'] ? 'linear' : 'inverse',
+            // TEALSTREET
             'tradeMode': tradeMode,
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
         };
-        const response = await this.privatePostContractV3PrivatePositionSwitchIsolated(this.extend(request, params));
+        // TEALSTREET
+        const args = this.extend(request, params);
+        args['buyLeverage'] = this.numberToString(args['buyLeverage']);
+        args['sellLeverage'] = this.numberToString(args['sellLeverage']);
+        // TEALSTREET
+        const response = await this.privatePostContractV3PrivatePositionSwitchIsolated(args);
         //
         //     {
         //         "retCode": 0,
@@ -7471,6 +7517,12 @@ class bybit extends Exchange["default"] {
             };
             method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave';
         }
+        // TEALSTREET
+        params = {
+            'buyLeverage': this.safeString(params, 'buyLeverage') || request['buyLeverage'],
+            'sellLeverage': this.safeString(params, 'sellLeverage') || request['sellLeverage'],
+        };
+        // TEALSTREET
         return await this[method](this.extend(request, params));
     }
     async setPositionMode(hedged, symbol = undefined, params = {}) {
@@ -7490,6 +7542,9 @@ class bybit extends Exchange["default"] {
         }
         else {
             const market = this.market(symbol);
+            // TEALSTREET
+            request['category'] = market['linear'] ? 'linear' : 'inverse';
+            // TEALSTREET
             request['symbol'] = market['id'];
         }
         //

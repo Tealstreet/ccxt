@@ -181,7 +181,8 @@ export default class bybit extends Exchange {
     fetchPositions(symbols?: string[], params?: {}): Promise<any>;
     parsePosition(position: any, market?: any): {
         info: any;
-        id: any;
+        id: string;
+        mode: string;
         symbol: any;
         timestamp: number;
         datetime: string;
@@ -193,6 +194,7 @@ export default class bybit extends Exchange {
         notional: number;
         leverage: number;
         unrealizedPnl: number;
+        pnl: any;
         contracts: number;
         contractSize: number;
         marginRatio: number;
@@ -200,6 +202,12 @@ export default class bybit extends Exchange {
         markPrice: number;
         collateral: number;
         marginMode: string;
+        isolated: boolean;
+        hedged: boolean;
+        price: number;
+        status: boolean;
+        tradeMode: string;
+        active: boolean;
         side: string;
         percentage: number;
     };
