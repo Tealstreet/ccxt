@@ -250,7 +250,7 @@ export default class bingx extends bingxRest {
         const m = this.safeValue (trade, 'makerSide');
         const side = m ? 'Bid' : 'Ask';
         const price = this.safeString (trade, 'price');
-        const amount = this.safeString (trade, 'volume');
+        const amount = this.safeFloat (trade, 'volume');
         return this.safeTrade ({
             'id': id,
             'info': trade,
@@ -262,7 +262,7 @@ export default class bingx extends bingxRest {
             'side': side,
             'takerOrMaker': 'taker',
             'price': price,
-            'amount': amount,
+            'amount': amount * market['contractSize'],
             'cost': undefined,
             'fee': undefined,
         }, market);

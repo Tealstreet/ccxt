@@ -232,7 +232,7 @@ class bingx(ccxt.async_support.bingx):
         m = self.safe_value(trade, 'makerSide')
         side = 'Bid' if m else 'Ask'
         price = self.safe_string(trade, 'price')
-        amount = self.safe_string(trade, 'volume')
+        amount = self.safe_float(trade, 'volume')
         return self.safe_trade({
             'id': id,
             'info': trade,
@@ -244,7 +244,7 @@ class bingx(ccxt.async_support.bingx):
             'side': side,
             'takerOrMaker': 'taker',
             'price': price,
-            'amount': amount,
+            'amount': amount * market['contractSize'],
             'cost': None,
             'fee': None,
         }, market)

@@ -255,7 +255,7 @@ class bingx extends \ccxt\async\bingx {
         $m = $this->safe_value($trade, 'makerSide');
         $side = $m ? 'Bid' : 'Ask';
         $price = $this->safe_string($trade, 'price');
-        $amount = $this->safe_string($trade, 'volume');
+        $amount = $this->safe_float($trade, 'volume');
         return $this->safe_trade(array(
             'id' => $id,
             'info' => $trade,
@@ -267,7 +267,7 @@ class bingx extends \ccxt\async\bingx {
             'side' => $side,
             'takerOrMaker' => 'taker',
             'price' => $price,
-            'amount' => $amount,
+            'amount' => $amount * $market['contractSize'],
             'cost' => null,
             'fee' => null,
         ), $market);
