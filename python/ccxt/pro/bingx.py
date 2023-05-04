@@ -163,7 +163,14 @@ class bingx(ccxt.async_support.bingx):
         trades = await self.watch_topics(url, messageHash, [topic], params)
         if self.newUpdates:
             limit = trades.getLimit(symbol, limit)
-        return self.filter_by_since_limit(trades, since, limit, 'timestamp', True)
+        # since BingX always returns duplicate set of klines via ws, and we are not sending since from
+        # ts client, emulate it
+        tradesSince = None
+        if self.options['tradesSince'] is not None:
+            tradesSince = self.options['tradesSince']
+        newTrades = self.filter_by_since_limit(trades, tradesSince, limit, 'timestamp', True)
+        self.options = self.extend(self.options, {'tradesSince': self.milliseconds() - 0})
+        return newTrades
 
     def handle_trades(self, client, message):
         #

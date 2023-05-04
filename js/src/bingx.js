@@ -753,6 +753,18 @@ export default class bingx extends Exchange {
         }
         const response = await this.swap2OpenApiPublicGetSwapV2QuoteKlines(this.extend(request, params));
         const ohlcvs = this.safeValue(response, 'data', []);
+        // if (ohlcvs.length > 0) {
+        //     /// BEGIN Patching last candle
+        //     const lastRequest = this.omit (request, [ 'startTime', 'endTime' ]);
+        //     const lastCandleResponse = await (this as any).swap2OpenApiPublicGetSwapV2QuoteKlines (this.extend (lastRequest, params));
+        //     const lastOhlcv = this.safeValue (lastCandleResponse, 'data', {});
+        //     const lastOhlcvTime = this.safeInteger (lastOhlcv, 'time');
+        //     const lastOhlcvFromArrayTime = this.safeInteger (ohlcvs[ohlcvs.length - 1], 'time');
+        //     if (lastOhlcvTime === lastOhlcvFromArrayTime) {
+        //         ohlcvs[ohlcvs.length - 1] = lastOhlcv;
+        //     }
+        //     /// END Patching last candle
+        // }
         return this.parseOHLCVs(ohlcvs, market, timeframe, since, limit);
     }
     parseOHLCVs(ohlcvs, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {

@@ -175,7 +175,15 @@ export default class bingx extends bingxRest {
         if (this.newUpdates) {
             limit = trades.getLimit (symbol, limit);
         }
-        return this.filterBySinceLimit (trades, since, limit, 'timestamp', true);
+        // since BingX always returns duplicate set of klines via ws, and we are not sending since from
+        // ts client, emulate it
+        let tradesSince = undefined;
+        if (this.options['tradesSince'] !== undefined) {
+            tradesSince = this.options['tradesSince'];
+        }
+        const newTrades = this.filterBySinceLimit (trades, tradesSince, limit, 'timestamp', true);
+        this.options = this.extend (this.options, { 'tradesSince': this.milliseconds () - 0 });
+        return newTrades;
     }
 
     handleTrades (client, message) {

@@ -179,7 +179,15 @@ class bingx extends \ccxt\async\bingx {
             if ($this->newUpdates) {
                 $limit = $trades->getLimit ($symbol, $limit);
             }
-            return $this->filter_by_since_limit($trades, $since, $limit, 'timestamp', true);
+            // $since BingX always returns duplicate set of klines via ws, and we are not sending $since from
+            // ts client, emulate it
+            $tradesSince = null;
+            if ($this->options['tradesSince'] !== null) {
+                $tradesSince = $this->options['tradesSince'];
+            }
+            $newTrades = $this->filter_by_since_limit($trades, $tradesSince, $limit, 'timestamp', true);
+            $this->options = array_merge($this->options, array( 'tradesSince' => $this->milliseconds() - 0 ));
+            return $newTrades;
         }) ();
     }
 
