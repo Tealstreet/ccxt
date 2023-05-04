@@ -17,7 +17,7 @@ export default class bingx extends Exchange {
             'countries': ['EU'],
             'rateLimit': 100,
             'version': 'v1',
-            'verbose': false,
+            'verbose': true,
             'pro': true,
             'has': {
                 'CORS': true,
@@ -240,8 +240,8 @@ export default class bingx extends Exchange {
                 'strike': undefined,
                 'optionType': undefined,
                 'precision': {
-                    'amount': this.safeNumber(market, 'volumePrecision'),
-                    'price': this.safeNumber(market, 'pricePrecision'),
+                    'amount': this.parseNumber(this.parsePrecision(this.safeString(market, 'volumePrecision'))),
+                    'price': this.parseNumber(this.parsePrecision(this.safeString(market, 'pricePrecision'))),
                 },
                 'limits': {
                     'leverage': {
@@ -356,6 +356,7 @@ export default class bingx extends Exchange {
             'open': this.safeString(ticker, 'openPrice'),
             'close': last,
             'last': last,
+            'mark': last,
             'previousClose': undefined,
             'change': undefined,
             'percentage': this.safeString(ticker, 'priceChangePercent'),
@@ -378,7 +379,7 @@ export default class bingx extends Exchange {
         const request = {
             'symbol': market['id'],
         };
-        const ticker = await this.swapV1PublicGetMarketGetTicker(this.extend(request, params));
+        const response = await this.swapV1PublicGetMarketGetTicker(this.extend(request, params));
         //
         // {
         //   "symbol": "BTC-USDT",
@@ -393,6 +394,9 @@ export default class bingx extends Exchange {
         //   "openPrice": "5828.32"
         // }
         //
+        const data = this.safeValue(response, 'data');
+        const tickers = this.safeValue(data, 'tickers');
+        const ticker = this.safeValue(tickers, 0);
         return this.parseTicker(ticker, market);
     }
     parseTrade(trade, market = undefined) {

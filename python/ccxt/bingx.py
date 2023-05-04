@@ -19,7 +19,7 @@ class bingx(Exchange):
             'countries': ['EU'],
             'rateLimit': 100,
             'version': 'v1',
-            'verbose': False,
+            'verbose': True,
             'pro': True,
             'has': {
                 'CORS': True,
@@ -243,8 +243,8 @@ class bingx(Exchange):
                 'strike': None,
                 'optionType': None,
                 'precision': {
-                    'amount': self.safe_number(market, 'volumePrecision'),
-                    'price': self.safe_number(market, 'pricePrecision'),
+                    'amount': self.parse_number(self.parse_precision(self.safe_string(market, 'volumePrecision'))),
+                    'price': self.parse_number(self.parse_precision(self.safe_string(market, 'pricePrecision'))),
                 },
                 'limits': {
                     'leverage': {
@@ -350,6 +350,7 @@ class bingx(Exchange):
             'open': self.safe_string(ticker, 'openPrice'),
             'close': last,
             'last': last,
+            'mark': last,
             'previousClose': None,
             'change': None,
             'percentage': self.safe_string(ticker, 'priceChangePercent'),
@@ -370,7 +371,7 @@ class bingx(Exchange):
         request = {
             'symbol': market['id'],
         }
-        ticker = self.swapV1PublicGetMarketGetTicker(self.extend(request, params))
+        response = self.swapV1PublicGetMarketGetTicker(self.extend(request, params))
         #
         # {
         #   "symbol": "BTC-USDT",
@@ -385,6 +386,9 @@ class bingx(Exchange):
         #   "openPrice": "5828.32"
         # }
         #
+        data = self.safe_value(response, 'data')
+        tickers = self.safe_value(data, 'tickers')
+        ticker = self.safe_value(tickers, 0)
         return self.parse_ticker(ticker, market)
 
     def parse_trade(self, trade, market=None):

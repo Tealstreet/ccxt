@@ -19,7 +19,7 @@ class bingx extends Exchange {
             'countries' => array( 'EU' ),
             'rateLimit' => 100,
             'version' => 'v1',
-            'verbose' => false,
+            'verbose' => true,
             'pro' => true,
             'has' => array(
                 'CORS' => true,
@@ -245,8 +245,8 @@ class bingx extends Exchange {
                     'strike' => null,
                     'optionType' => null,
                     'precision' => array(
-                        'amount' => $this->safe_number($market, 'volumePrecision'),
-                        'price' => $this->safe_number($market, 'pricePrecision'),
+                        'amount' => $this->parse_number($this->parse_precision($this->safe_string($market, 'volumePrecision'))),
+                        'price' => $this->parse_number($this->parse_precision($this->safe_string($market, 'pricePrecision'))),
                     ),
                     'limits' => array(
                         'leverage' => array(
@@ -367,6 +367,7 @@ class bingx extends Exchange {
             'open' => $this->safe_string($ticker, 'openPrice'),
             'close' => $last,
             'last' => $last,
+            'mark' => $last,
             'previousClose' => null,
             'change' => null,
             'percentage' => $this->safe_string($ticker, 'priceChangePercent'),
@@ -389,7 +390,7 @@ class bingx extends Exchange {
             $request = array(
                 'symbol' => $market['id'],
             );
-            $ticker = Async\await($this->swapV1PublicGetMarketGetTicker (array_merge($request, $params)));
+            $response = Async\await($this->swapV1PublicGetMarketGetTicker (array_merge($request, $params)));
             //
             // {
             //   "symbol" => "BTC-USDT",
@@ -404,6 +405,9 @@ class bingx extends Exchange {
             //   "openPrice" => "5828.32"
             // }
             //
+            $data = $this->safe_value($response, 'data');
+            $tickers = $this->safe_value($data, 'tickers');
+            $ticker = $this->safe_value($tickers, 0);
             return $this->parse_ticker($ticker, $market);
         }) ();
     }
