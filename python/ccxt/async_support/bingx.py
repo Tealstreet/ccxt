@@ -19,7 +19,7 @@ class bingx(Exchange):
             'countries': ['EU'],
             'rateLimit': 100,
             'version': 'v1',
-            'verbose': True,
+            'verbose': False,
             'pro': True,
             'has': {
                 'CORS': True,
@@ -663,7 +663,7 @@ class bingx(Exchange):
             'symbol': market['id'],
         }
         if limit is None:
-            limit = 200  # default is 200 when requested with `since`
+            limit = 200  # default is 340 when requested with `since`
         if since is not None:
             request['startTime'] = since
         klineType = self.safe_string(self.timeframes, timeframe, timeframe)
@@ -698,20 +698,26 @@ class bingx(Exchange):
                 request['endTime'] = since + limit * 30 * 24 * 60 * 60 * 1000
             else:
                 request['endTime'] = since + limit * 60 * 1000
+        # print('==========')
+        # print('fetchOHLCV', symbol, timeframe, since, limit, params, klineType)
+        # print('now', +new Date(), new Date())
+        # print('startTs', +new Date(request['startTime']), new Date(request['startTime']))
+        # print('endTs', +new Date(request['endTime']), new Date(request['endTime']))
         response = await self.swap2OpenApiPublicGetSwapV2QuoteKlines(self.extend(request, params))
+        # print('lastCandleTs', len(response.data[response.data) - +new Date(len(+response.data[response.data) - 1].time) if 1] else 'none', len(response.data[response.data) - 1] ? new Date(len(+response.data[response.data) - 1].time) : 'none')
+        # print('response', response)
         ohlcvs = self.safe_value(response, 'data', [])
-        # if len(ohlcvs) > 0:
-        #     #/ BEGIN Patching last candle
-        #     lastRequest = self.omit(request, ['startTime', 'endTime'])
-        #     lastCandleResponse = await self.swap2OpenApiPublicGetSwapV2QuoteKlines(self.extend(lastRequest, params))
-        #     lastOhlcv = self.safe_value(lastCandleResponse, 'data', {})
-        #     lastOhlcvTime = self.safe_integer(lastOhlcv, 'time')
-        #     lastOhlcvFromArrayTime = self.safe_integer(len(ohlcvs[ohlcvs) - 1], 'time')
-        #     if lastOhlcvTime == lastOhlcvFromArrayTime:
-        #         len(ohlcvs[ohlcvs) - 1] = lastOhlcv
-        #     }
-        #     #/ END Patching last candle
-        # }
+        if len(ohlcvs) > 0:
+            #/ BEGIN Patching last candle
+            lastRequest = self.omit(request, ['startTime', 'endTime'])
+            lastCandleResponse = await self.swap2OpenApiPublicGetSwapV2QuoteKlines(self.extend(lastRequest, params))
+            lastOhlcv = self.safe_value(lastCandleResponse, 'data', {})
+            lastOhlcvTime = self.safe_integer(lastOhlcv, 'time')
+            # console.log('loht', lastOhlcvTime, new Date(lastOhlcvTime))
+            lastOhlcvFromArrayTime = self.safe_integer(ohlcvs[-1:], 'time')
+            if lastOhlcvTime >= lastOhlcvFromArrayTime:
+                ohlcvs.append(lastOhlcv)
+            #/ END Patching last candle
         return self.parse_ohlcvs(ohlcvs, market, timeframe, since, limit)
 
     def parse_ohlcvs(self, ohlcvs, market=None, timeframe='1m', since=None, limit=None):

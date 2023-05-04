@@ -19,7 +19,7 @@ class bingx extends Exchange {
             'countries' => array( 'EU' ),
             'rateLimit' => 100,
             'version' => 'v1',
-            'verbose' => true,
+            'verbose' => false,
             'pro' => true,
             'has' => array(
                 'CORS' => true,
@@ -714,7 +714,7 @@ class bingx extends Exchange {
                 'symbol' => $market['id'],
             );
             if ($limit === null) {
-                $limit = 200; // default is 200 when requested with `$since`
+                $limit = 200; // default is 340 when requested with `$since`
             }
             if ($since !== null) {
                 $request['startTime'] = $since;
@@ -753,20 +753,28 @@ class bingx extends Exchange {
                     $request['endTime'] = $since . $limit * 60 * 1000;
                 }
             }
+            // var_dump ('===============');
+            // var_dump ('fetchOHLCV', $symbol, $timeframe, $since, $limit, $params, $klineType);
+            // var_dump ('now', +new Date (), new Date ());
+            // var_dump ('startTs', +new Date ($request['startTime']), new Date ($request['startTime']));
+            // var_dump ('endTs', +new Date ($request['endTime']), new Date ($request['endTime']));
             $response = Async\await($this->swap2OpenApiPublicGetSwapV2QuoteKlines (array_merge($request, $params)));
+            // var_dump ('lastCandleTs', strlen($response->data[$response->data) - 1] ? +new Date (strlen(+$response->data[$response->data) - 1].time) : 'none', strlen($response->data[$response->data) - 1] ? new Date (strlen(+$response->data[$response->data) - 1].time) : 'none');
+            // var_dump ('response', $response);
             $ohlcvs = $this->safe_value($response, 'data', array());
-            // if (strlen($ohlcvs) > 0) {
-            //     /// BEGIN Patching last candle
-            //     $lastRequest = $this->omit($request, array( 'startTime', 'endTime' ));
-            //     $lastCandleResponse = Async\await($this->swap2OpenApiPublicGetSwapV2QuoteKlines (array_merge($lastRequest, $params)));
-            //     $lastOhlcv = $this->safe_value($lastCandleResponse, 'data', array());
-            //     $lastOhlcvTime = $this->safe_integer($lastOhlcv, 'time');
-            //     $lastOhlcvFromArrayTime = $this->safe_integer(strlen($ohlcvs[ohlcvs) - 1], 'time');
-            //     if ($lastOhlcvTime === $lastOhlcvFromArrayTime) {
-            //         strlen($ohlcvs[ohlcvs) - 1] = $lastOhlcv;
-            //     }
-            //     /// END Patching last candle
-            // }
+            if (strlen($ohlcvs) > 0) {
+                /// BEGIN Patching last candle
+                $lastRequest = $this->omit($request, array( 'startTime', 'endTime' ));
+                $lastCandleResponse = Async\await($this->swap2OpenApiPublicGetSwapV2QuoteKlines (array_merge($lastRequest, $params)));
+                $lastOhlcv = $this->safe_value($lastCandleResponse, 'data', array());
+                $lastOhlcvTime = $this->safe_integer($lastOhlcv, 'time');
+                // var_dump('loht', $lastOhlcvTime, new Date ($lastOhlcvTime));
+                $lastOhlcvFromArrayTime = $this->safe_integer(mb_substr($ohlcvs, -1), 'time');
+                if ($lastOhlcvTime >= $lastOhlcvFromArrayTime) {
+                    $ohlcvs[] = $lastOhlcv;
+                }
+                /// END Patching last candle
+            }
             return $this->parse_ohlcvs($ohlcvs, $market, $timeframe, $since, $limit);
         }) ();
     }

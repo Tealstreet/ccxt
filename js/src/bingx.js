@@ -17,7 +17,7 @@ export default class bingx extends Exchange {
             'countries': ['EU'],
             'rateLimit': 100,
             'version': 'v1',
-            'verbose': true,
+            'verbose': false,
             'pro': true,
             'has': {
                 'CORS': true,
@@ -699,7 +699,7 @@ export default class bingx extends Exchange {
             'symbol': market['id'],
         };
         if (limit === undefined) {
-            limit = 200; // default is 200 when requested with `since`
+            limit = 200; // default is 340 when requested with `since`
         }
         if (since !== undefined) {
             request['startTime'] = since;
@@ -751,20 +751,28 @@ export default class bingx extends Exchange {
                 request['endTime'] = since + limit * 60 * 1000;
             }
         }
+        // console.log ('===============');
+        // console.log ('fetchOHLCV', symbol, timeframe, since, limit, params, klineType);
+        // console.log ('now', +new Date (), new Date ());
+        // console.log ('startTs', +new Date (request['startTime']), new Date (request['startTime']));
+        // console.log ('endTs', +new Date (request['endTime']), new Date (request['endTime']));
         const response = await this.swap2OpenApiPublicGetSwapV2QuoteKlines(this.extend(request, params));
+        // console.log ('lastCandleTs', response.data[response.data.length - 1] ? +new Date (+response.data[response.data.length - 1].time) : 'none', response.data[response.data.length - 1] ? new Date (+response.data[response.data.length - 1].time) : 'none');
+        // console.log ('response', response);
         const ohlcvs = this.safeValue(response, 'data', []);
-        // if (ohlcvs.length > 0) {
-        //     /// BEGIN Patching last candle
-        //     const lastRequest = this.omit (request, [ 'startTime', 'endTime' ]);
-        //     const lastCandleResponse = await (this as any).swap2OpenApiPublicGetSwapV2QuoteKlines (this.extend (lastRequest, params));
-        //     const lastOhlcv = this.safeValue (lastCandleResponse, 'data', {});
-        //     const lastOhlcvTime = this.safeInteger (lastOhlcv, 'time');
-        //     const lastOhlcvFromArrayTime = this.safeInteger (ohlcvs[ohlcvs.length - 1], 'time');
-        //     if (lastOhlcvTime === lastOhlcvFromArrayTime) {
-        //         ohlcvs[ohlcvs.length - 1] = lastOhlcv;
-        //     }
-        //     /// END Patching last candle
-        // }
+        if (ohlcvs.length > 0) {
+            /// BEGIN Patching last candle
+            const lastRequest = this.omit(request, ['startTime', 'endTime']);
+            const lastCandleResponse = await this.swap2OpenApiPublicGetSwapV2QuoteKlines(this.extend(lastRequest, params));
+            const lastOhlcv = this.safeValue(lastCandleResponse, 'data', {});
+            const lastOhlcvTime = this.safeInteger(lastOhlcv, 'time');
+            // console.log('loht', lastOhlcvTime, new Date (lastOhlcvTime));
+            const lastOhlcvFromArrayTime = this.safeInteger(ohlcvs.slice(-1), 'time');
+            if (lastOhlcvTime >= lastOhlcvFromArrayTime) {
+                ohlcvs.push(lastOhlcv);
+            }
+            /// END Patching last candle
+        }
         return this.parseOHLCVs(ohlcvs, market, timeframe, since, limit);
     }
     parseOHLCVs(ohlcvs, market = undefined, timeframe = '1m', since = undefined, limit = undefined) {
