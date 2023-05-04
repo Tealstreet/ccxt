@@ -421,7 +421,12 @@ class bitmex extends Exchange {
             $contract = !$index;
             $initMargin = $this->safe_string($market, 'initMargin', '1');
             $maxLeverage = $this->parse_number(Precise::string_div('1', $initMargin));
-            $multiplierString = Precise::string_abs($this->safe_string($market, 'multiplier'));
+            // $multiplierString = Precise::string_abs($this->safe_string($market, 'multiplier'));
+            $rawUnderlyingToPositionMultiplier = $this->safe_number($market, 'underlyingToPositionMultiplier');
+            $contractSize = 1;
+            if ($rawUnderlyingToPositionMultiplier !== null) {
+                $contractSize = 1 / $rawUnderlyingToPositionMultiplier;
+            }
             $result[] = array(
                 'id' => $id,
                 'symbol' => $symbol,
@@ -445,7 +450,8 @@ class bitmex extends Exchange {
                 'inverse' => $contract ? $inverse : null,
                 'taker' => $this->safe_number($market, 'takerFee'),
                 'maker' => $this->safe_number($market, 'makerFee'),
-                'contractSize' => $this->parse_number($multiplierString),
+                // 'contractSize' => $this->parse_number($multiplierString),
+                'contractSize' => $contractSize,
                 'expiry' => $expiry,
                 'expiryDatetime' => $expiryDatetime,
                 'strike' => $this->safe_number($market, 'optionStrikePrice'),
@@ -1363,8 +1369,13 @@ class bitmex extends Exchange {
         //                            $timestamp => "2019-02-13T08:40:30.000Z",
         //     }
         //
+        $symbol = null;
         $marketId = $this->safe_string($ticker, 'symbol');
-        $symbol = $this->safe_symbol($marketId, $market);
+        $market = $this->safe_value($this->markets_by_id, $marketId, $market);
+        if ($market !== null) {
+            // $symbol = $this->safe_symbol($marketId, $market);
+            $symbol = $market['symbol'];
+        }
         $timestamp = $this->parse8601($this->safe_string($ticker, 'timestamp'));
         $open = $this->safe_string($ticker, 'prevPrice24h');
         $last = $this->safe_string($ticker, 'lastPrice');
@@ -2170,17 +2181,17 @@ class bitmex extends Exchange {
         $maintenanceMargin = $this->safe_number($position, 'maintMargin');
         $unrealisedPnl = $this->safe_number($position, 'unrealisedPnl');
         $contracts = $this->omit_zero($this->safe_number($position, 'currentQty'));
+        $side = ($contracts > 0) ? 'long' : 'short';
         return array(
             'info' => $position,
-            'id' => $this->safe_string($position, 'account'),
+            'id' => $symbol,
             'symbol' => $symbol,
             'timestamp' => $this->parse8601($datetime),
             'datetime' => $datetime,
             'hedged' => null,
-            'side' => null,
-            'contracts' => $this->convert_value($contracts, $market),
-            'contractSize' => null,
-            'entryPrice' => $this->safe_number($position, 'avgEntryPrice'),
+            'side' => $side,
+            'contracts' => $this->parse_number($contracts),
+            'entryPrice' => $this->safe_number($position, 'avgCostPrice'),
             'markPrice' => $this->safe_number($position, 'markPrice'),
             'notional' => $notional,
             'leverage' => $this->safe_number($position, 'leverage'),
@@ -2758,9 +2769,10 @@ class bitmex extends Exchange {
                 'Content-Type' => 'application/json',
                 'api-key' => $this->apiKey,
             );
-            $expires = $this->sum($this->seconds(), (string) $expires);
-            $auth .= $expires;
-            $headers['api-expires'] = $expires;
+            $expires = $this->sum($this->seconds(), $expires);
+            $expiresStr = (string) $expires;
+            $auth .= $expiresStr;
+            $headers['api-expires'] = $expiresStr;
             if ($method === 'POST' || $method === 'PUT' || $method === 'DELETE') {
                 if ($params) {
                     $body = $this->json($params);

@@ -431,7 +431,11 @@ class bitmex(Exchange):
             contract = not index
             initMargin = self.safe_string(market, 'initMargin', '1')
             maxLeverage = self.parse_number(Precise.string_div('1', initMargin))
-            multiplierString = Precise.string_abs(self.safe_string(market, 'multiplier'))
+            # multiplierString = Precise.string_abs(self.safe_string(market, 'multiplier'))
+            rawUnderlyingToPositionMultiplier = self.safe_number(market, 'underlyingToPositionMultiplier')
+            contractSize = 1
+            if rawUnderlyingToPositionMultiplier is not None:
+                contractSize = 1 / rawUnderlyingToPositionMultiplier
             result.append({
                 'id': id,
                 'symbol': symbol,
@@ -455,7 +459,8 @@ class bitmex(Exchange):
                 'inverse': inverse if contract else None,
                 'taker': self.safe_number(market, 'takerFee'),
                 'maker': self.safe_number(market, 'makerFee'),
-                'contractSize': self.parse_number(multiplierString),
+                # 'contractSize': self.parse_number(multiplierString),
+                'contractSize': contractSize,
                 'expiry': expiry,
                 'expiryDatetime': expiryDatetime,
                 'strike': self.safe_number(market, 'optionStrikePrice'),
@@ -1326,8 +1331,12 @@ class bitmex(Exchange):
         #                            timestamp: "2019-02-13T08:40:30.000Z",
         #     }
         #
+        symbol = None
         marketId = self.safe_string(ticker, 'symbol')
-        symbol = self.safe_symbol(marketId, market)
+        market = self.safe_value(self.markets_by_id, marketId, market)
+        if market is not None:
+            # symbol = self.safe_symbol(marketId, market)
+            symbol = market['symbol']
         timestamp = self.parse8601(self.safe_string(ticker, 'timestamp'))
         open = self.safe_string(ticker, 'prevPrice24h')
         last = self.safe_string(ticker, 'lastPrice')
@@ -2093,17 +2102,17 @@ class bitmex(Exchange):
         maintenanceMargin = self.safe_number(position, 'maintMargin')
         unrealisedPnl = self.safe_number(position, 'unrealisedPnl')
         contracts = self.omit_zero(self.safe_number(position, 'currentQty'))
+        side = 'long' if (contracts > 0) else 'short'
         return {
             'info': position,
-            'id': self.safe_string(position, 'account'),
+            'id': symbol,
             'symbol': symbol,
             'timestamp': self.parse8601(datetime),
             'datetime': datetime,
             'hedged': None,
-            'side': None,
-            'contracts': self.convert_value(contracts, market),
-            'contractSize': None,
-            'entryPrice': self.safe_number(position, 'avgEntryPrice'),
+            'side': side,
+            'contracts': self.parse_number(contracts),
+            'entryPrice': self.safe_number(position, 'avgCostPrice'),
             'markPrice': self.safe_number(position, 'markPrice'),
             'notional': notional,
             'leverage': self.safe_number(position, 'leverage'),
@@ -2637,9 +2646,10 @@ class bitmex(Exchange):
                 'Content-Type': 'application/json',
                 'api-key': self.apiKey,
             }
-            expires = self.sum(self.seconds(), str(expires))
-            auth += expires
-            headers['api-expires'] = expires
+            expires = self.sum(self.seconds(), expires)
+            expiresStr = str(expires)
+            auth += expiresStr
+            headers['api-expires'] = expiresStr
             if method == 'POST' or method == 'PUT' or method == 'DELETE':
                 if params:
                     body = self.json(params)

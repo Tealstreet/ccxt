@@ -427,7 +427,12 @@ export default class bitmex extends Exchange {
             const contract = !index;
             const initMargin = this.safeString(market, 'initMargin', '1');
             const maxLeverage = this.parseNumber(Precise.stringDiv('1', initMargin));
-            const multiplierString = Precise.stringAbs(this.safeString(market, 'multiplier'));
+            // const multiplierString = Precise.stringAbs (this.safeString (market, 'multiplier'));
+            const rawUnderlyingToPositionMultiplier = this.safeNumber(market, 'underlyingToPositionMultiplier');
+            let contractSize = 1;
+            if (rawUnderlyingToPositionMultiplier !== undefined) {
+                contractSize = 1 / rawUnderlyingToPositionMultiplier;
+            }
             result.push({
                 'id': id,
                 'symbol': symbol,
@@ -451,7 +456,8 @@ export default class bitmex extends Exchange {
                 'inverse': contract ? inverse : undefined,
                 'taker': this.safeNumber(market, 'takerFee'),
                 'maker': this.safeNumber(market, 'makerFee'),
-                'contractSize': this.parseNumber(multiplierString),
+                // 'contractSize': this.parseNumber (multiplierString),
+                'contractSize': contractSize,
                 'expiry': expiry,
                 'expiryDatetime': expiryDatetime,
                 'strike': this.safeNumber(market, 'optionStrikePrice'),
@@ -1377,8 +1383,13 @@ export default class bitmex extends Exchange {
         //                            timestamp: "2019-02-13T08:40:30.000Z",
         //     }
         //
+        let symbol = undefined;
         const marketId = this.safeString(ticker, 'symbol');
-        const symbol = this.safeSymbol(marketId, market);
+        market = this.safeValue(this.markets_by_id, marketId, market);
+        if (market !== undefined) {
+            // symbol = this.safeSymbol (marketId, market);
+            symbol = market['symbol'];
+        }
         const timestamp = this.parse8601(this.safeString(ticker, 'timestamp'));
         const open = this.safeString(ticker, 'prevPrice24h');
         const last = this.safeString(ticker, 'lastPrice');
@@ -2191,17 +2202,17 @@ export default class bitmex extends Exchange {
         const maintenanceMargin = this.safeNumber(position, 'maintMargin');
         const unrealisedPnl = this.safeNumber(position, 'unrealisedPnl');
         const contracts = this.omitZero(this.safeNumber(position, 'currentQty'));
+        const side = (contracts > 0) ? 'long' : 'short';
         return {
             'info': position,
-            'id': this.safeString(position, 'account'),
+            'id': symbol,
             'symbol': symbol,
             'timestamp': this.parse8601(datetime),
             'datetime': datetime,
             'hedged': undefined,
-            'side': undefined,
-            'contracts': this.convertValue(contracts, market),
-            'contractSize': undefined,
-            'entryPrice': this.safeNumber(position, 'avgEntryPrice'),
+            'side': side,
+            'contracts': this.parseNumber(contracts),
+            'entryPrice': this.safeNumber(position, 'avgCostPrice'),
             'markPrice': this.safeNumber(position, 'markPrice'),
             'notional': notional,
             'leverage': this.safeNumber(position, 'leverage'),
@@ -2783,9 +2794,10 @@ export default class bitmex extends Exchange {
                 'Content-Type': 'application/json',
                 'api-key': this.apiKey,
             };
-            expires = this.sum(this.seconds(), expires).toString();
-            auth += expires;
-            headers['api-expires'] = expires;
+            expires = this.sum(this.seconds(), expires);
+            const expiresStr = expires.toString();
+            auth += expiresStr;
+            headers['api-expires'] = expiresStr;
             if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
                 if (Object.keys(params).length) {
                     body = this.json(params);
