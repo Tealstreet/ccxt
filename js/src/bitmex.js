@@ -2196,9 +2196,9 @@ export default class bitmex extends Exchange {
             notional = this.safeString(position, 'homeNotional');
         }
         const maintenanceMargin = this.safeNumber(position, 'maintMargin');
-        const unrealisedPnl = this.safeNumber(position, 'unrealisedPnl');
+        const unrealisedPnl = this.safeNumber(position, 'rebalancedPnl');
         const contracts = this.omitZero(this.safeNumber(position, 'currentQty'));
-        const side = (contracts > 0) ? 'long' : 'short';
+        const side = (contracts === undefined || contracts > 0) ? 'long' : 'short';
         return {
             'info': position,
             'id': symbol,

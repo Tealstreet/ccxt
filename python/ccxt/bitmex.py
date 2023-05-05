@@ -2097,9 +2097,9 @@ class bitmex(Exchange):
         else:
             notional = self.safe_string(position, 'homeNotional')
         maintenanceMargin = self.safe_number(position, 'maintMargin')
-        unrealisedPnl = self.safe_number(position, 'unrealisedPnl')
+        unrealisedPnl = self.safe_number(position, 'rebalancedPnl')
         contracts = self.omit_zero(self.safe_number(position, 'currentQty'))
-        side = 'long' if (contracts > 0) else 'short'
+        side = 'long' if (contracts is None or contracts > 0) else 'short'
         return {
             'info': position,
             'id': symbol,

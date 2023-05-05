@@ -2175,9 +2175,9 @@ class bitmex extends Exchange {
             $notional = $this->safe_string($position, 'homeNotional');
         }
         $maintenanceMargin = $this->safe_number($position, 'maintMargin');
-        $unrealisedPnl = $this->safe_number($position, 'unrealisedPnl');
+        $unrealisedPnl = $this->safe_number($position, 'rebalancedPnl');
         $contracts = $this->omit_zero($this->safe_number($position, 'currentQty'));
-        $side = ($contracts > 0) ? 'long' : 'short';
+        $side = ($contracts === null || $contracts > 0) ? 'long' : 'short';
         return array(
             'info' => $position,
             'id' => $symbol,
