@@ -580,7 +580,10 @@ export default class bingx extends Exchange {
         }
         // const response = await (this as any).swap2OpenApiPrivatePostSwapV2TradeOrder (this.extend (request, params));
         const response = await (this as any).swap2OpenApiPrivatePostSwapV2TradeOrder (request);
-        return this.parseOrder (response, market);
+        // console.log('response', response);
+        const data = this.safeValue (response, 'data');
+        const order = this.safeValue (data, 'order');
+        return this.parseOrder (order, market);
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {

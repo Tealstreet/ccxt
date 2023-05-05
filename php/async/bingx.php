@@ -463,16 +463,16 @@ class bingx extends Exchange {
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
         return Async\async(function () use ($symbol, $type, $side, $amount, $price, $params) {
             /**
-             * create a trade order
-             * @param {string} $symbol unified $symbol of the $market to create an order in
+             * create a trade $order
+             * @param {string} $symbol unified $symbol of the $market to create an $order in
              * @param {string} $type 'market' or 'limit'
              * @param {string} $side 'buy' or 'sell'
              * @param {float} $amount how much of currency you want to trade in units of base currency
-             * @param {float|null} $price the $price at which the order is to be fullfilled, in units of the quote currency, ignored in $market orders
+             * @param {float|null} $price the $price at which the $order is to be fullfilled, in units of the quote currency, ignored in $market orders
              * @param {array} $params extra parameters specific to the paymium api endpoint
-             * @return {array} an ~@link https://docs.ccxt.com/#/?id=order-structure order structure~
+             * @return {array} an ~@link https://docs.ccxt.com/#/?id=$order-structure $order structure~
              */
-            // quick order:
+            // quick $order:
             //
             // BTC/USDT:USDT
             // limit
@@ -481,7 +481,7 @@ class bingx extends Exchange {
             // 29116.0
             // array('positionMode' => 'unknown', 'timeInForce' => 'PO', 'reduceOnly' => False)
             //
-            // limit order:
+            // limit $order:
             //
             // BTC/USDT:USDT
             // limit
@@ -555,7 +555,7 @@ class bingx extends Exchange {
                 } elseif ($isStopLossOrder) {
                     $convertedType = 'STOP_MARKET';
                 } else {
-                    throw new ArgumentsRequired('unknown order direction for TP/SL');
+                    throw new ArgumentsRequired('unknown $order direction for TP/SL');
                 }
             }
             if ($type === 'stopLimit') {
@@ -586,7 +586,10 @@ class bingx extends Exchange {
             }
             // $response = Async\await($this->swap2OpenApiPrivatePostSwapV2TradeOrder (array_merge($request, $params)));
             $response = Async\await($this->swap2OpenApiPrivatePostSwapV2TradeOrder ($request));
-            return $this->parse_order($response, $market);
+            // var_dump('response', $response);
+            $data = $this->safe_value($response, 'data');
+            $order = $this->safe_value($data, 'order');
+            return $this->parse_order($order, $market);
         }) ();
     }
 

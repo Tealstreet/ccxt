@@ -549,7 +549,10 @@ class bingx(Exchange):
             request['timeInForce'] = 'PostOnly'
         # response = await self.swap2OpenApiPrivatePostSwapV2TradeOrder(self.extend(request, params))
         response = await self.swap2OpenApiPrivatePostSwapV2TradeOrder(request)
-        return self.parse_order(response, market)
+        # console.log('response', response)
+        data = self.safe_value(response, 'data')
+        order = self.safe_value(data, 'order')
+        return self.parse_order(order, market)
 
     async def cancel_order(self, id, symbol=None, params={}):
         """
