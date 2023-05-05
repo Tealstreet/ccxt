@@ -1737,13 +1737,31 @@ class bitmex(Exchange):
             if (market['type'] != 'swap') and (market['type'] != 'future'):
                 raise InvalidOrder(self.id + ' createOrder() does not support reduceOnly for ' + market['type'] + ' orders, reduceOnly orders are supported for swap and future markets only')
         brokerId = self.safe_string(self.options, 'brokerId', 'CCXT')
+        # TEALSTREET
+        timeInForce = self.safe_value(params, 'timeInForce', 'GTC')
+        trigger = self.safe_value(params, 'trigger', None)
+        closeOnTrigger = self.safe_value(params, 'closeOnTrigger', False)
+        execInstValues = []
+        if timeInForce == 'ParticipateDoNotInitiate':
+            execInstValues.append('ParticipateDoNotInitiate')
+            timeInForce = None
+        if closeOnTrigger != False:
+            execInstValues.append('Close')
+        if trigger is not None:
+            execInstValues.append(trigger)
+        if reduceOnly is not None or reduceOnly != False:
+            execInstValues.append('ReduceOnly')
+        params = self.omit(params, ['timeInForce', 'trigger', 'closeOnTrigger'])
         request = {
             'symbol': market['id'],
             'side': self.capitalize(side),
-            'orderQty': float(self.amount_to_precision(symbol, amount)),  # lot size multiplied by the number of contracts
+            'orderQty': float(self.amount_to_precision(symbol, amount)),
+            'timeInForce': timeInForce,
             'ordType': orderType,
             'text': brokerId,
+            'clOrdID': brokerId + self.uuid22(22),
         }
+        request['execInst'] = ','.join(execInstValues)
         if (orderType == 'Stop') or (orderType == 'StopLimit') or (orderType == 'MarketIfTouched') or (orderType == 'LimitIfTouched'):
             stopPrice = self.safe_number_2(params, 'stopPx', 'stopPrice')
             if stopPrice is None:
@@ -2097,7 +2115,8 @@ class bitmex(Exchange):
         else:
             notional = self.safe_string(position, 'homeNotional')
         maintenanceMargin = self.safe_number(position, 'maintMargin')
-        unrealisedPnl = self.safe_number(position, 'rebalancedPnl')
+        unrealisedPnl = self.safe_number(position, 'unrealisedPnl')
+        rebalancedPnl = self.safe_number(position, 'rebalancedPnl')
         contracts = self.omit_zero(self.safe_number(position, 'currentQty'))
         side = 'long' if (contracts is None or contracts > 0) else 'short'
         return {
@@ -2119,6 +2138,7 @@ class bitmex(Exchange):
             'maintenanceMargin': self.convert_value(maintenanceMargin, market),
             'maintenanceMarginPercentage': self.safe_number(position, 'maintMarginReq'),
             'unrealizedPnl': self.convert_value(unrealisedPnl, market),
+            'rebalancedPnl': self.convert_value(rebalancedPnl, market),
             'liquidationPrice': self.safe_number(position, 'liquidationPrice'),
             'marginMode': marginMode,
             'marginRatio': None,

@@ -1795,13 +1795,35 @@ class bitmex extends Exchange {
             }
         }
         $brokerId = $this->safe_string($this->options, 'brokerId', 'CCXT');
+        // TEALSTREET
+        $timeInForce = $this->safe_value($params, 'timeInForce', 'GTC');
+        $trigger = $this->safe_value($params, 'trigger', null);
+        $closeOnTrigger = $this->safe_value($params, 'closeOnTrigger', false);
+        $execInstValues = array();
+        if ($timeInForce === 'ParticipateDoNotInitiate') {
+            $execInstValues[] = 'ParticipateDoNotInitiate';
+            $timeInForce = null;
+        }
+        if ($closeOnTrigger !== false) {
+            $execInstValues[] = 'Close';
+        }
+        if ($trigger !== null) {
+            $execInstValues[] = $trigger;
+        }
+        if ($reduceOnly !== null || $reduceOnly !== false) {
+            $execInstValues[] = 'ReduceOnly';
+        }
+        $params = $this->omit($params, array( 'timeInForce', 'trigger', 'closeOnTrigger' ));
         $request = array(
             'symbol' => $market['id'],
             'side' => $this->capitalize($side),
-            'orderQty' => floatval($this->amount_to_precision($symbol, $amount)), // lot size multiplied by the number of contracts
+            'orderQty' => floatval($this->amount_to_precision($symbol, $amount)),
+            'timeInForce' => $timeInForce,
             'ordType' => $orderType,
             'text' => $brokerId,
+            'clOrdID' => $brokerId . $this->uuid22(22),
         );
+        $request['execInst'] = implode(',', $execInstValues);
         if (($orderType === 'Stop') || ($orderType === 'StopLimit') || ($orderType === 'MarketIfTouched') || ($orderType === 'LimitIfTouched')) {
             $stopPrice = $this->safe_number_2($params, 'stopPx', 'stopPrice');
             if ($stopPrice === null) {
@@ -2175,7 +2197,8 @@ class bitmex extends Exchange {
             $notional = $this->safe_string($position, 'homeNotional');
         }
         $maintenanceMargin = $this->safe_number($position, 'maintMargin');
-        $unrealisedPnl = $this->safe_number($position, 'rebalancedPnl');
+        $unrealisedPnl = $this->safe_number($position, 'unrealisedPnl');
+        $rebalancedPnl = $this->safe_number($position, 'rebalancedPnl');
         $contracts = $this->omit_zero($this->safe_number($position, 'currentQty'));
         $side = ($contracts === null || $contracts > 0) ? 'long' : 'short';
         return array(
@@ -2197,6 +2220,7 @@ class bitmex extends Exchange {
             'maintenanceMargin' => $this->convert_value($maintenanceMargin, $market),
             'maintenanceMarginPercentage' => $this->safe_number($position, 'maintMarginReq'),
             'unrealizedPnl' => $this->convert_value($unrealisedPnl, $market),
+            'rebalancedPnl' => $this->convert_value($rebalancedPnl, $market),
             'liquidationPrice' => $this->safe_number($position, 'liquidationPrice'),
             'marginMode' => $marginMode,
             'marginRatio' => null,

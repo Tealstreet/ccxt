@@ -1809,13 +1809,35 @@ export default class bitmex extends Exchange {
             }
         }
         const brokerId = this.safeString(this.options, 'brokerId', 'CCXT');
+        // TEALSTREET
+        let timeInForce = this.safeValue(params, 'timeInForce', 'GTC');
+        const trigger = this.safeValue(params, 'trigger', undefined);
+        const closeOnTrigger = this.safeValue(params, 'closeOnTrigger', false);
+        const execInstValues = [];
+        if (timeInForce === 'ParticipateDoNotInitiate') {
+            execInstValues.push('ParticipateDoNotInitiate');
+            timeInForce = undefined;
+        }
+        if (closeOnTrigger !== false) {
+            execInstValues.push('Close');
+        }
+        if (trigger !== undefined) {
+            execInstValues.push(trigger);
+        }
+        if (reduceOnly !== undefined || reduceOnly !== false) {
+            execInstValues.push('ReduceOnly');
+        }
+        params = this.omit(params, ['timeInForce', 'trigger', 'closeOnTrigger']);
         const request = {
             'symbol': market['id'],
             'side': this.capitalize(side),
             'orderQty': parseFloat(this.amountToPrecision(symbol, amount)),
+            'timeInForce': timeInForce,
             'ordType': orderType,
             'text': brokerId,
+            'clOrdID': brokerId + this.uuid22(22),
         };
+        request['execInst'] = execInstValues.join(',');
         if ((orderType === 'Stop') || (orderType === 'StopLimit') || (orderType === 'MarketIfTouched') || (orderType === 'LimitIfTouched')) {
             const stopPrice = this.safeNumber2(params, 'stopPx', 'stopPrice');
             if (stopPrice === undefined) {
@@ -2196,7 +2218,8 @@ export default class bitmex extends Exchange {
             notional = this.safeString(position, 'homeNotional');
         }
         const maintenanceMargin = this.safeNumber(position, 'maintMargin');
-        const unrealisedPnl = this.safeNumber(position, 'rebalancedPnl');
+        const unrealisedPnl = this.safeNumber(position, 'unrealisedPnl');
+        const rebalancedPnl = this.safeNumber(position, 'rebalancedPnl');
         const contracts = this.omitZero(this.safeNumber(position, 'currentQty'));
         const side = (contracts === undefined || contracts > 0) ? 'long' : 'short';
         return {
@@ -2218,6 +2241,7 @@ export default class bitmex extends Exchange {
             'maintenanceMargin': this.convertValue(maintenanceMargin, market),
             'maintenanceMarginPercentage': this.safeNumber(position, 'maintMarginReq'),
             'unrealizedPnl': this.convertValue(unrealisedPnl, market),
+            'rebalancedPnl': this.convertValue(rebalancedPnl, market),
             'liquidationPrice': this.safeNumber(position, 'liquidationPrice'),
             'marginMode': marginMode,
             'marginRatio': undefined,
