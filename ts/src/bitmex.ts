@@ -1915,6 +1915,10 @@ export default class bitmex extends Exchange {
         }
         const brokerId = this.safeString (this.options, 'brokerId', 'CCXT');
         request['text'] = brokerId;
+        const stopPrice = this.safeNumber2 (params, 'stopPx', 'stopPrice');
+        if (stopPrice !== undefined) {
+            request['stopPx'] = parseFloat (this.amountToPrecision (symbol, stopPrice));
+        }
         const response = await (this as any).privatePutOrder (this.extend (request, params));
         return this.parseOrder (response);
     }

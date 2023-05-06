@@ -1885,6 +1885,10 @@ class bitmex extends Exchange {
         }
         $brokerId = $this->safe_string($this->options, 'brokerId', 'CCXT');
         $request['text'] = $brokerId;
+        $stopPrice = $this->safe_number_2($params, 'stopPx', 'stopPrice');
+        if ($stopPrice !== null) {
+            $request['stopPx'] = floatval($this->amount_to_precision($symbol, $stopPrice));
+        }
         $response = $this->privatePutOrder (array_merge($request, $params));
         return $this->parse_order($response);
     }
