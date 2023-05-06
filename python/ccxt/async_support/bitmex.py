@@ -1741,16 +1741,16 @@ class bitmex(Exchange):
         # TEALSTREET
         timeInForce = self.safe_value(params, 'timeInForce', 'GTC')
         trigger = self.safe_value(params, 'trigger', None)
-        closeOnTrigger = self.safe_value(params, 'closeOnTrigger', False)
+        closeOnTrigger = self.safe_value_2(params, 'closeOnTrigger', 'close', False)
         execInstValues = []
         if timeInForce == 'ParticipateDoNotInitiate':
             execInstValues.append('ParticipateDoNotInitiate')
             timeInForce = None
+        if trigger is not None:
+            execInstValues.append(self.capitalize(trigger) + 'Price')
         if closeOnTrigger != False:
             execInstValues.append('Close')
-        if trigger is not None:
-            execInstValues.append(trigger)
-        if reduceOnly is not None or reduceOnly != False:
+        if (reduceOnly is not None or reduceOnly != False) and (orderType != 'Stop' and not closeOnTrigger):
             execInstValues.append('ReduceOnly')
         params = self.omit(params, ['timeInForce', 'trigger', 'closeOnTrigger'])
         request = {
@@ -1758,7 +1758,6 @@ class bitmex(Exchange):
             'side': self.capitalize(side),
             'orderQty': float(self.amount_to_precision(symbol, amount)),
             'timeInForce': timeInForce,
-            'ordType': orderType,
             'text': brokerId,
             'clOrdID': brokerId + self.uuid22(22),
         }
@@ -1770,12 +1769,26 @@ class bitmex(Exchange):
             else:
                 request['stopPx'] = float(self.price_to_precision(symbol, stopPrice))
                 params = self.omit(params, ['stopPx', 'stopPrice'])
+            basePrice = self.safe_value(params, 'basePrice')
+            if basePrice is None or basePrice == 0.0:
+                ticker = self.fetch_ticker(symbol)
+                basePrice = ticker['last']
+            if (side == 'Buy' and stopPrice < basePrice) or (side == 'Sell' and stopPrice > basePrice):
+                if orderType == 'Stop':
+                    orderType = 'MarketIfTouched'
+                elif orderType == 'StopLimit':
+                    orderType = 'LimitIfTouched'
+        if price is not None and orderType == 'Stop':
+            orderType = 'StopLimit'
         if (orderType == 'Limit') or (orderType == 'StopLimit') or (orderType == 'LimitIfTouched'):
             request['price'] = float(self.price_to_precision(symbol, price))
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is not None:
             request['clOrdID'] = clientOrderId
             params = self.omit(params, ['clOrdID', 'clientOrderId'])
+        request['ordType'] = orderType
+        if request['ordType'] == 'Market' and request['execInst'] == 'ReduceOnly,Close':
+            request['execInst'] = 'ReduceOnly'
         response = await self.privatePostOrder(self.extend(request, params))
         return self.parse_order(response, market)
 

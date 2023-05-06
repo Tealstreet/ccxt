@@ -1817,7 +1817,7 @@ export default class bitmex extends Exchange {
          */
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const orderType = this.capitalize (type);
+        let orderType = this.capitalize (type);
         const reduceOnly = this.safeValue (params, 'reduceOnly');
         if (reduceOnly !== undefined) {
             if ((market['type'] !== 'swap') && (market['type'] !== 'future')) {
@@ -1828,19 +1828,19 @@ export default class bitmex extends Exchange {
         // TEALSTREET
         let timeInForce = this.safeValue (params, 'timeInForce', 'GTC');
         const trigger = this.safeValue (params, 'trigger', undefined);
-        const closeOnTrigger = this.safeValue (params, 'closeOnTrigger', false);
+        const closeOnTrigger = this.safeValue2 (params, 'closeOnTrigger', 'close', false);
         const execInstValues = [];
         if (timeInForce === 'ParticipateDoNotInitiate') {
             execInstValues.push ('ParticipateDoNotInitiate');
             timeInForce = undefined;
         }
+        if (trigger !== undefined) {
+            execInstValues.push (this.capitalize (trigger) + 'Price');
+        }
         if (closeOnTrigger !== false) {
             execInstValues.push ('Close');
         }
-        if (trigger !== undefined) {
-            execInstValues.push (trigger);
-        }
-        if (reduceOnly !== undefined || reduceOnly !== false) {
+        if ((reduceOnly !== undefined || reduceOnly !== false) && (orderType !== 'Stop' && !closeOnTrigger)) {
             execInstValues.push ('ReduceOnly');
         }
         params = this.omit (params, [ 'timeInForce', 'trigger', 'closeOnTrigger' ]);
@@ -1849,7 +1849,6 @@ export default class bitmex extends Exchange {
             'side': this.capitalize (side),
             'orderQty': parseFloat (this.amountToPrecision (symbol, amount)),
             'timeInForce': timeInForce,
-            'ordType': orderType,
             'text': brokerId,
             'clOrdID': brokerId + this.uuid22 (22),
         };
@@ -1862,6 +1861,21 @@ export default class bitmex extends Exchange {
                 request['stopPx'] = parseFloat (this.priceToPrecision (symbol, stopPrice));
                 params = this.omit (params, [ 'stopPx', 'stopPrice' ]);
             }
+            let basePrice = this.safeValue (params, 'basePrice');
+            if (basePrice === undefined || basePrice === 0.0) {
+                const ticker = this.fetchTicker (symbol);
+                basePrice = ticker['last'];
+            }
+            if ((side === 'Buy' && stopPrice < basePrice) || (side === 'Sell' && stopPrice > basePrice)) {
+                if (orderType === 'Stop') {
+                    orderType = 'MarketIfTouched';
+                } else if (orderType === 'StopLimit') {
+                    orderType = 'LimitIfTouched';
+                }
+            }
+        }
+        if (price !== undefined && orderType === 'Stop') {
+            orderType = 'StopLimit';
         }
         if ((orderType === 'Limit') || (orderType === 'StopLimit') || (orderType === 'LimitIfTouched')) {
             request['price'] = parseFloat (this.priceToPrecision (symbol, price));
@@ -1870,6 +1884,10 @@ export default class bitmex extends Exchange {
         if (clientOrderId !== undefined) {
             request['clOrdID'] = clientOrderId;
             params = this.omit (params, [ 'clOrdID', 'clientOrderId' ]);
+        }
+        request['ordType'] = orderType;
+        if (request['ordType'] === 'Market' && request['execInst'] === 'ReduceOnly,Close') {
+            request['execInst'] = 'ReduceOnly';
         }
         const response = await (this as any).privatePostOrder (this.extend (request, params));
         return this.parseOrder (response, market);

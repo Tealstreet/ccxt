@@ -1798,19 +1798,19 @@ class bitmex extends Exchange {
         // TEALSTREET
         $timeInForce = $this->safe_value($params, 'timeInForce', 'GTC');
         $trigger = $this->safe_value($params, 'trigger', null);
-        $closeOnTrigger = $this->safe_value($params, 'closeOnTrigger', false);
+        $closeOnTrigger = $this->safe_value_2($params, 'closeOnTrigger', 'close', false);
         $execInstValues = array();
         if ($timeInForce === 'ParticipateDoNotInitiate') {
             $execInstValues[] = 'ParticipateDoNotInitiate';
             $timeInForce = null;
         }
+        if ($trigger !== null) {
+            $execInstValues[] = $this->capitalize($trigger) . 'Price';
+        }
         if ($closeOnTrigger !== false) {
             $execInstValues[] = 'Close';
         }
-        if ($trigger !== null) {
-            $execInstValues[] = $trigger;
-        }
-        if ($reduceOnly !== null || $reduceOnly !== false) {
+        if (($reduceOnly !== null || $reduceOnly !== false) && ($orderType !== 'Stop' && !$closeOnTrigger)) {
             $execInstValues[] = 'ReduceOnly';
         }
         $params = $this->omit($params, array( 'timeInForce', 'trigger', 'closeOnTrigger' ));
@@ -1819,7 +1819,6 @@ class bitmex extends Exchange {
             'side' => $this->capitalize($side),
             'orderQty' => floatval($this->amount_to_precision($symbol, $amount)),
             'timeInForce' => $timeInForce,
-            'ordType' => $orderType,
             'text' => $brokerId,
             'clOrdID' => $brokerId . $this->uuid22(22),
         );
@@ -1832,6 +1831,21 @@ class bitmex extends Exchange {
                 $request['stopPx'] = floatval($this->price_to_precision($symbol, $stopPrice));
                 $params = $this->omit($params, array( 'stopPx', 'stopPrice' ));
             }
+            $basePrice = $this->safe_value($params, 'basePrice');
+            if ($basePrice === null || $basePrice === 0.0) {
+                $ticker = $this->fetch_ticker($symbol);
+                $basePrice = $ticker['last'];
+            }
+            if (($side === 'Buy' && $stopPrice < $basePrice) || ($side === 'Sell' && $stopPrice > $basePrice)) {
+                if ($orderType === 'Stop') {
+                    $orderType = 'MarketIfTouched';
+                } elseif ($orderType === 'StopLimit') {
+                    $orderType = 'LimitIfTouched';
+                }
+            }
+        }
+        if ($price !== null && $orderType === 'Stop') {
+            $orderType = 'StopLimit';
         }
         if (($orderType === 'Limit') || ($orderType === 'StopLimit') || ($orderType === 'LimitIfTouched')) {
             $request['price'] = floatval($this->price_to_precision($symbol, $price));
@@ -1840,6 +1854,10 @@ class bitmex extends Exchange {
         if ($clientOrderId !== null) {
             $request['clOrdID'] = $clientOrderId;
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId' ));
+        }
+        $request['ordType'] = $orderType;
+        if ($request['ordType'] === 'Market' && $request['execInst'] === 'ReduceOnly,Close') {
+            $request['execInst'] = 'ReduceOnly';
         }
         $response = $this->privatePostOrder (array_merge($request, $params));
         return $this->parse_order($response, $market);
