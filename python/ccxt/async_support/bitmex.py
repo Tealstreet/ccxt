@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+import asyncio
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import PermissionDenied
 from ccxt.base.errors import ArgumentsRequired
@@ -2544,12 +2545,36 @@ class bitmex(Exchange):
         """
         if symbol is None:
             raise ArgumentsRequired(self.id + ' setLeverage() requires a symbol argument')
-        if (leverage < 0.01) or (leverage > 100):
-            raise BadRequest(self.id + ' leverage should be between 0.01 and 100')
+        buyLeverage = self.safe_number(params, 'buyLeverage', leverage)
+        sellLeverage = self.safe_number(params, 'sellLeverage', leverage)
+        if buyLeverage != sellLeverage:
+            raise BadRequest(self.id + ' setLeverage() requires buyLeverage and sellLeverage to match')
+        leverage = buyLeverage or sellLeverage
+        if buyLeverage is not None and sellLeverage is not None:
+            if (leverage < 0.01) or (leverage > 100):
+                raise BadRequest(self.id + ' leverage should be between 0.01 and 100')
         await self.load_markets()
         market = self.market(symbol)
         if market['type'] != 'swap' and market['type'] != 'future':
             raise BadSymbol(self.id + ' setLeverage() supports future and swap contracts only')
+        marginMode = self.safe_string(params, 'marginMode')
+        params = self.omit(params, ['marginMode', 'positionMode'])
+        if marginMode == 'isolated':
+            promises = []
+            request = {
+                'symbol': market['id'],
+            }
+            if buyLeverage is not None:
+                request['leverage'] = buyLeverage
+                promises.append(self.privatePostPositionLeverage(self.extend(request, params)))
+            if sellLeverage is not None:
+                request['leverage'] = sellLeverage
+                promises.append(self.privatePostPositionLeverage(self.extend(request, params)))
+            promises = await asyncio.gather(*promises)
+            if len(promises) == 1:
+                return promises[0]
+            else:
+                return promises
         request = {
             'symbol': market['id'],
             'leverage': leverage,

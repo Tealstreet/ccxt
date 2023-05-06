@@ -2649,13 +2649,43 @@ class bitmex extends Exchange {
         if ($symbol === null) {
             throw new ArgumentsRequired($this->id . ' setLeverage() requires a $symbol argument');
         }
-        if (($leverage < 0.01) || ($leverage > 100)) {
-            throw new BadRequest($this->id . ' $leverage should be between 0.01 and 100');
+        $buyLeverage = $this->safe_number($params, 'buyLeverage', $leverage);
+        $sellLeverage = $this->safe_number($params, 'sellLeverage', $leverage);
+        if ($buyLeverage !== $sellLeverage) {
+            throw new BadRequest($this->id . ' setLeverage() requires $buyLeverage and $sellLeverage to match');
+        }
+        $leverage = $buyLeverage || $sellLeverage;
+        if ($buyLeverage !== null && $sellLeverage !== null) {
+            if (($leverage < 0.01) || ($leverage > 100)) {
+                throw new BadRequest($this->id . ' $leverage should be between 0.01 and 100');
+            }
         }
         $this->load_markets();
         $market = $this->market($symbol);
         if ($market['type'] !== 'swap' && $market['type'] !== 'future') {
             throw new BadSymbol($this->id . ' setLeverage() supports future and swap contracts only');
+        }
+        $marginMode = $this->safe_string($params, 'marginMode');
+        $params = $this->omit($params, array( 'marginMode', 'positionMode' ));
+        if ($marginMode === 'isolated') {
+            $promises = array();
+            $request = array(
+                'symbol' => $market['id'],
+            );
+            if ($buyLeverage !== null) {
+                $request['leverage'] = $buyLeverage;
+                $promises[] = $this->privatePostPositionLeverage (array_merge($request, $params));
+            }
+            if ($sellLeverage !== null) {
+                $request['leverage'] = $sellLeverage;
+                $promises[] = $this->privatePostPositionLeverage (array_merge($request, $params));
+            }
+            $promises = $promises;
+            if (strlen($promises) === 1) {
+                return $promises[0];
+            } else {
+                return $promises;
+            }
         }
         $request = array(
             'symbol' => $market['id'],

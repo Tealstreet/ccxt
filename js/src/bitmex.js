@@ -2674,13 +2674,44 @@ export default class bitmex extends Exchange {
         if (symbol === undefined) {
             throw new ArgumentsRequired(this.id + ' setLeverage() requires a symbol argument');
         }
-        if ((leverage < 0.01) || (leverage > 100)) {
-            throw new BadRequest(this.id + ' leverage should be between 0.01 and 100');
+        const buyLeverage = this.safeNumber(params, 'buyLeverage', leverage);
+        const sellLeverage = this.safeNumber(params, 'sellLeverage', leverage);
+        if (buyLeverage !== sellLeverage) {
+            throw new BadRequest(this.id + ' setLeverage() requires buyLeverage and sellLeverage to match');
+        }
+        leverage = buyLeverage || sellLeverage;
+        if (buyLeverage !== undefined && sellLeverage !== undefined) {
+            if ((leverage < 0.01) || (leverage > 100)) {
+                throw new BadRequest(this.id + ' leverage should be between 0.01 and 100');
+            }
         }
         await this.loadMarkets();
         const market = this.market(symbol);
         if (market['type'] !== 'swap' && market['type'] !== 'future') {
             throw new BadSymbol(this.id + ' setLeverage() supports future and swap contracts only');
+        }
+        const marginMode = this.safeString(params, 'marginMode');
+        params = this.omit(params, ['marginMode', 'positionMode']);
+        if (marginMode === 'isolated') {
+            let promises = [];
+            const request = {
+                'symbol': market['id'],
+            };
+            if (buyLeverage !== undefined) {
+                request['leverage'] = buyLeverage;
+                promises.push(this.privatePostPositionLeverage(this.extend(request, params)));
+            }
+            if (sellLeverage !== undefined) {
+                request['leverage'] = sellLeverage;
+                promises.push(this.privatePostPositionLeverage(this.extend(request, params)));
+            }
+            promises = await Promise.all(promises);
+            if (promises.length === 1) {
+                return promises[0];
+            }
+            else {
+                return promises;
+            }
         }
         const request = {
             'symbol': market['id'],
