@@ -114,7 +114,8 @@ export default class bingx extends bingxRest {
         }
         const topics = [ 'market.depth.' + market['id'] + '.step0.level' + limit.toString () ];
         const orderbook = await this.watchTopics (url, messageHash, topics, params);
-        return orderbook.limit ();
+        // return orderbook.limit ();
+        return orderbook;
     }
 
     handleOrderBook (client, message) {
