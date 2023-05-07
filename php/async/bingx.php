@@ -589,6 +589,14 @@ class bingx extends Exchange {
             // var_dump('response', $response);
             $data = $this->safe_value($response, 'data');
             $order = $this->safe_value($data, 'order');
+            // $parsedOrder = $this->parse_order($order, $market);
+            // $patchedOrder = array_merge($parsedOrder, $params);
+            // $patchedOrder = array_merge($patchedOrder, array(
+            //     'price' => $price,
+            //     'amount' => $amount,
+            //     'side' => $side,
+            //     'type' => $type,
+            // ));
             return $this->parse_order($order, $market);
         }) ();
     }

@@ -578,6 +578,14 @@ export default class bingx extends Exchange {
         // console.log('response', response);
         const data = this.safeValue(response, 'data');
         const order = this.safeValue(data, 'order');
+        // const parsedOrder = this.parseOrder (order, market);
+        // let patchedOrder = this.extend (parsedOrder, params);
+        // patchedOrder = this.extend (patchedOrder, {
+        //     'price': price,
+        //     'amount': amount,
+        //     'side': side,
+        //     'type': type,
+        // });
         return this.parseOrder(order, market);
     }
     async cancelOrder(id, symbol = undefined, params = {}) {

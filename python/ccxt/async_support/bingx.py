@@ -552,6 +552,14 @@ class bingx(Exchange):
         # console.log('response', response)
         data = self.safe_value(response, 'data')
         order = self.safe_value(data, 'order')
+        # parsedOrder = self.parse_order(order, market)
+        # patchedOrder = self.extend(parsedOrder, params)
+        # patchedOrder = self.extend(patchedOrder, {
+        #     'price': price,
+        #     'amount': amount,
+        #     'side': side,
+        #     'type': type,
+        # })
         return self.parse_order(order, market)
 
     async def cancel_order(self, id, symbol=None, params={}):
