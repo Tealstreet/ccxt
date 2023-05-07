@@ -1821,13 +1821,13 @@ export default class bitmex extends Exchange {
         if (trigger !== undefined) {
             execInstValues.push(this.capitalize(trigger) + 'Price');
         }
-        if (closeOnTrigger !== false) {
+        if (closeOnTrigger) {
             execInstValues.push('Close');
         }
-        if ((reduceOnly !== undefined || reduceOnly !== false) && (orderType !== 'Stop' && !closeOnTrigger)) {
+        if (reduceOnly) {
             execInstValues.push('ReduceOnly');
         }
-        params = this.omit(params, ['timeInForce', 'trigger', 'closeOnTrigger']);
+        params = this.omit(params, ['reduceOnly', 'timeInForce', 'trigger', 'closeOnTrigger']);
         const request = {
             'symbol': market['id'],
             'side': this.capitalize(side),
@@ -1835,8 +1835,8 @@ export default class bitmex extends Exchange {
             'timeInForce': timeInForce,
             'text': brokerId,
             'clOrdID': brokerId + this.uuid22(22),
+            'execInst': execInstValues.join(','),
         };
-        request['execInst'] = execInstValues.join(',');
         if ((orderType === 'Stop') || (orderType === 'StopLimit') || (orderType === 'MarketIfTouched') || (orderType === 'LimitIfTouched')) {
             const stopPrice = this.safeNumber2(params, 'stopPx', 'stopPrice');
             if (stopPrice === undefined) {

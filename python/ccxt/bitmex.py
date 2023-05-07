@@ -1747,11 +1747,11 @@ class bitmex(Exchange):
             timeInForce = None
         if trigger is not None:
             execInstValues.append(self.capitalize(trigger) + 'Price')
-        if closeOnTrigger != False:
+        if closeOnTrigger:
             execInstValues.append('Close')
-        if (reduceOnly is not None or reduceOnly != False) and (orderType != 'Stop' and not closeOnTrigger):
+        if reduceOnly:
             execInstValues.append('ReduceOnly')
-        params = self.omit(params, ['timeInForce', 'trigger', 'closeOnTrigger'])
+        params = self.omit(params, ['reduceOnly', 'timeInForce', 'trigger', 'closeOnTrigger'])
         request = {
             'symbol': market['id'],
             'side': self.capitalize(side),
@@ -1759,8 +1759,8 @@ class bitmex(Exchange):
             'timeInForce': timeInForce,
             'text': brokerId,
             'clOrdID': brokerId + self.uuid22(22),
+            'execInst': ','.join(execInstValues),
         }
-        request['execInst'] = ','.join(execInstValues)
         if (orderType == 'Stop') or (orderType == 'StopLimit') or (orderType == 'MarketIfTouched') or (orderType == 'LimitIfTouched'):
             stopPrice = self.safe_number_2(params, 'stopPx', 'stopPrice')
             if stopPrice is None:

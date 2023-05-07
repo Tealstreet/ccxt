@@ -1807,13 +1807,13 @@ class bitmex extends Exchange {
         if ($trigger !== null) {
             $execInstValues[] = $this->capitalize($trigger) . 'Price';
         }
-        if ($closeOnTrigger !== false) {
+        if ($closeOnTrigger) {
             $execInstValues[] = 'Close';
         }
-        if (($reduceOnly !== null || $reduceOnly !== false) && ($orderType !== 'Stop' && !$closeOnTrigger)) {
+        if ($reduceOnly) {
             $execInstValues[] = 'ReduceOnly';
         }
-        $params = $this->omit($params, array( 'timeInForce', 'trigger', 'closeOnTrigger' ));
+        $params = $this->omit($params, array( 'reduceOnly', 'timeInForce', 'trigger', 'closeOnTrigger' ));
         $request = array(
             'symbol' => $market['id'],
             'side' => $this->capitalize($side),
@@ -1821,8 +1821,8 @@ class bitmex extends Exchange {
             'timeInForce' => $timeInForce,
             'text' => $brokerId,
             'clOrdID' => $brokerId . $this->uuid22(22),
+            'execInst' => implode(',', $execInstValues),
         );
-        $request['execInst'] = implode(',', $execInstValues);
         if (($orderType === 'Stop') || ($orderType === 'StopLimit') || ($orderType === 'MarketIfTouched') || ($orderType === 'LimitIfTouched')) {
             $stopPrice = $this->safe_number_2($params, 'stopPx', 'stopPrice');
             if ($stopPrice === null) {
