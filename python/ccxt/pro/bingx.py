@@ -16,8 +16,8 @@ class bingx(ccxt.async_support.bingx):
         return self.deep_extend(super(bingx, self).describe(), {
             'has': {
                 'ws': True,
-                'watchBalance': True,
-                'watchMyTrades': True,
+                'watchBalance': False,
+                'watchMyTrades': False,
                 'watchOHLCV': False,
                 'watchOrderBook': True,
                 'watchOrders': True,
@@ -29,6 +29,7 @@ class bingx(ccxt.async_support.bingx):
             'urls': {
                 'api': {
                     'ws': 'wss://ws-market-swap.we-api.com/ws',
+                    'ws2': 'wss://open-api-swap.bingx.com/swap-market',
                 },
             },
             'options': {
@@ -162,7 +163,14 @@ class bingx(ccxt.async_support.bingx):
         trades = await self.watch_topics(url, messageHash, [topic], params)
         if self.newUpdates:
             limit = trades.getLimit(symbol, limit)
-        return self.filter_by_since_limit(trades, since, limit, 'timestamp', True)
+        # since BingX always returns duplicate set of klines via ws, and we are not sending since from
+        # ts client, emulate it
+        tradesSince = None
+        if self.options['tradesSince'] is not None:
+            tradesSince = self.options['tradesSince']
+        newTrades = self.filter_by_since_limit(trades, tradesSince, limit, 'timestamp', True)
+        self.options = self.extend(self.options, {'tradesSince': self.milliseconds() - 0})
+        return newTrades
 
     def handle_trades(self, client, message):
         #
@@ -224,7 +232,7 @@ class bingx(ccxt.async_support.bingx):
         m = self.safe_value(trade, 'makerSide')
         side = 'Bid' if m else 'Ask'
         price = self.safe_string(trade, 'price')
-        amount = self.safe_string(trade, 'volume')
+        amount = self.safe_float(trade, 'volume')
         return self.safe_trade({
             'id': id,
             'info': trade,
@@ -236,7 +244,7 @@ class bingx(ccxt.async_support.bingx):
             'side': side,
             'takerOrMaker': 'taker',
             'price': price,
-            'amount': amount,
+            'amount': amount * market['contractSize'],
             'cost': None,
             'fee': None,
         }, market)
@@ -248,123 +256,6 @@ class bingx(ccxt.async_support.bingx):
             return 'unified'
         else:
             return 'usdc'
-
-    async def watch_my_trades(self, symbol=None, since=None, limit=None, params={}):
-        """
-        watches information on multiple trades made by the user
-        see https://bingx-exchange.github.io/docs/v5/websocket/private/execution
-        :param str symbol: unified market symbol of the market orders were made in
-        :param int|None since: the earliest time in ms to fetch orders for
-        :param int|None limit: the maximum number of  orde structures to retrieve
-        :param dict params: extra parameters specific to the bingx api endpoint
-        :param boolean params['unifiedMargin']: use unified margin account
-        :returns [dict]: a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
-        """
-        messageHash = 'myTrades'
-        await self.load_markets()
-        if symbol is not None:
-            symbol = self.symbol(symbol)
-            messageHash += ':' + symbol
-        url = self.urls['api']['ws']
-        await self.authenticate()
-        topicByMarket = {
-            'spot': 'ticketInfo',
-            'unified': 'execution',
-            'usdc': 'user.openapi.perp.trade',
-        }
-        topic = self.safe_value(topicByMarket, self.get_private_type(url))
-        trades = await self.watch_topics(url, messageHash, [topic], params)
-        if self.newUpdates:
-            limit = trades.getLimit(symbol, limit)
-        return self.filter_by_since_limit(trades, since, limit, 'timestamp', True)
-
-    def handle_my_trades(self, client, message):
-        #
-        # spot
-        #    {
-        #        "type": "snapshot",
-        #        "topic": "ticketInfo",
-        #        "ts": "1662348310388",
-        #        "data": [
-        #            {
-        #                "e": "ticketInfo",
-        #                "E": "1662348310386",
-        #                "s": "BTCUSDT",
-        #                "q": "0.001007",
-        #                "t": "1662348310373",
-        #                "p": "19842.02",
-        #                "T": "2100000000002220938",
-        #                "o": "1238261807653647872",
-        #                "c": "spotx008",
-        #                "O": "1238225004531834368",
-        #                "a": "533287",
-        #                "A": "642908",
-        #                "m": False,
-        #                "S": "BUY"
-        #            }
-        #        ]
-        #    }
-        # unified
-        #     {
-        #         "id": "592324803b2785-26fa-4214-9963-bdd4727f07be",
-        #         "topic": "execution",
-        #         "creationTime": 1672364174455,
-        #         "data": [
-        #             {
-        #                 "category": "linear",
-        #                 "symbol": "XRPUSDT",
-        #                 "execFee": "0.005061",
-        #                 "execId": "7e2ae69c-4edf-5800-a352-893d52b446aa",
-        #                 "execPrice": "0.3374",
-        #                 "execQty": "25",
-        #                 "execType": "Trade",
-        #                 "execValue": "8.435",
-        #                 "isMaker": False,
-        #                 "feeRate": "0.0006",
-        #                 "tradeIv": "",
-        #                 "markIv": "",
-        #                 "blockTradeId": "",
-        #                 "markPrice": "0.3391",
-        #                 "indexPrice": "",
-        #                 "underlyingPrice": "",
-        #                 "leavesQty": "0",
-        #                 "orderId": "f6e324ff-99c2-4e89-9739-3086e47f9381",
-        #                 "orderLinkId": "",
-        #                 "orderPrice": "0.3207",
-        #                 "orderQty": "25",
-        #                 "orderType": "Market",
-        #                 "stopOrderType": "UNKNOWN",
-        #                 "side": "Sell",
-        #                 "execTime": "1672364174443",
-        #                 "isLeverage": "0"
-        #             }
-        #         ]
-        #     }
-        #
-        topic = self.safe_string(message, 'topic')
-        spot = topic == 'ticketInfo'
-        data = self.safe_value(message, 'data', [])
-        if not isinstance(data, list):
-            data = self.safe_value(data, 'result', [])
-        if self.myTrades is None:
-            limit = self.safe_integer(self.options, 'tradesLimit', 1000)
-            self.myTrades = ArrayCacheBySymbolById(limit)
-        trades = self.myTrades
-        symbols = {}
-        method = 'parseWsTrade' if spot else 'parseTrade'
-        for i in range(0, len(data)):
-            rawTrade = data[i]
-            parsed = getattr(self, method)(rawTrade)
-            symbol = parsed['symbol']
-            symbols[symbol] = True
-            trades.append(parsed)
-        keys = list(symbols.keys())
-        for i in range(0, len(keys)):
-            messageHash = 'myTrades:' + keys[i]
-            client.resolve(trades, messageHash)
-        # non-symbol specific
-        messageHash = 'myTrades'
-        client.resolve(trades, messageHash)
 
     async def watch_orders(self, symbol=None, since=None, limit=None, params={}):
         """
@@ -500,275 +391,6 @@ class bingx(ccxt.async_support.bingx):
         messageHash = 'orders'
         client.resolve(orders, messageHash)
 
-    async def watch_balance(self, params={}):
-        """
-        query for balance and get the amount of funds available for trading or funds locked in orders
-        see https://bingx-exchange.github.io/docs/v5/websocket/private/wallet
-        :param dict params: extra parameters specific to the bingx api endpoint
-        :returns dict: a `balance structure <https://docs.ccxt.com/en/latest/manual.html?#balance-structure>`
-        """
-        await self.load_markets()
-        messageHash = 'balances'
-        type = None
-        type, params = self.handle_market_type_and_params('watchBalance', None, params)
-        subType = None
-        subType, params = self.handle_sub_type_and_params('watchBalance', None, params)
-        isUnifiedMargin = False
-        isUnifiedAccount = False
-        url = self.urls['api']['ws']
-        await self.authenticate()
-        topicByMarket = {
-            'spot': 'outboundAccountInfo',
-            'unified': 'wallet',
-        }
-        if isUnifiedAccount:
-            # unified account
-            if subType == 'inverse':
-                messageHash += ':contract'
-            else:
-                messageHash += ':unified'
-        if not isUnifiedMargin and not isUnifiedAccount:
-            # normal account using v5
-            if type == 'spot':
-                messageHash += ':spot'
-            else:
-                messageHash += ':contract'
-        if isUnifiedMargin:
-            # unified margin account using v5
-            if type == 'spot':
-                messageHash += ':spot'
-            else:
-                if subType == 'linear':
-                    messageHash += ':unified'
-                else:
-                    messageHash += ':contract'
-        topics = [self.safe_value(topicByMarket, self.get_private_type(url))]
-        return await self.watch_topics(url, messageHash, topics, params)
-
-    def handle_balance(self, client, message):
-        #
-        # spot
-        #    {
-        #        "type": "snapshot",
-        #        "topic": "outboundAccountInfo",
-        #        "ts": "1662107217641",
-        #        "data": [
-        #            {
-        #                "e": "outboundAccountInfo",
-        #                "E": "1662107217640",
-        #                "T": True,
-        #                "W": True,
-        #                "D": True,
-        #                "B": [
-        #                    {
-        #                        "a": "USDT",
-        #                        "f": "176.81254174",
-        #                        "l": "201.575"
-        #                    }
-        #                ]
-        #            }
-        #        ]
-        #    }
-        # unified
-        #     {
-        #         "id": "5923242c464be9-25ca-483d-a743-c60101fc656f",
-        #         "topic": "wallet",
-        #         "creationTime": 1672364262482,
-        #         "data": [
-        #             {
-        #                 "accountIMRate": "0.016",
-        #                 "accountMMRate": "0.003",
-        #                 "totalEquity": "12837.78330098",
-        #                 "totalWalletBalance": "12840.4045924",
-        #                 "totalMarginBalance": "12837.78330188",
-        #                 "totalAvailableBalance": "12632.05767702",
-        #                 "totalPerpUPL": "-2.62129051",
-        #                 "totalInitialMargin": "205.72562486",
-        #                 "totalMaintenanceMargin": "39.42876721",
-        #                 "coin": [
-        #                     {
-        #                         "coin": "USDC",
-        #                         "equity": "200.62572554",
-        #                         "usdValue": "200.62572554",
-        #                         "walletBalance": "201.34882644",
-        #                         "availableToWithdraw": "0",
-        #                         "availableToBorrow": "1500000",
-        #                         "borrowAmount": "0",
-        #                         "accruedInterest": "0",
-        #                         "totalOrderIM": "0",
-        #                         "totalPositionIM": "202.99874213",
-        #                         "totalPositionMM": "39.14289747",
-        #                         "unrealisedPnl": "74.2768991",
-        #                         "cumRealisedPnl": "-209.1544627",
-        #                         "bonus": "0"
-        #                     },
-        #                     {
-        #                         "coin": "BTC",
-        #                         "equity": "0.06488393",
-        #                         "usdValue": "1023.08402268",
-        #                         "walletBalance": "0.06488393",
-        #                         "availableToWithdraw": "0.06488393",
-        #                         "availableToBorrow": "2.5",
-        #                         "borrowAmount": "0",
-        #                         "accruedInterest": "0",
-        #                         "totalOrderIM": "0",
-        #                         "totalPositionIM": "0",
-        #                         "totalPositionMM": "0",
-        #                         "unrealisedPnl": "0",
-        #                         "cumRealisedPnl": "0",
-        #                         "bonus": "0"
-        #                     },
-        #                     {
-        #                         "coin": "ETH",
-        #                         "equity": "0",
-        #                         "usdValue": "0",
-        #                         "walletBalance": "0",
-        #                         "availableToWithdraw": "0",
-        #                         "availableToBorrow": "26",
-        #                         "borrowAmount": "0",
-        #                         "accruedInterest": "0",
-        #                         "totalOrderIM": "0",
-        #                         "totalPositionIM": "0",
-        #                         "totalPositionMM": "0",
-        #                         "unrealisedPnl": "0",
-        #                         "cumRealisedPnl": "0",
-        #                         "bonus": "0"
-        #                     },
-        #                     {
-        #                         "coin": "USDT",
-        #                         "equity": "11726.64664904",
-        #                         "usdValue": "11613.58597018",
-        #                         "walletBalance": "11728.54414904",
-        #                         "availableToWithdraw": "11723.92075829",
-        #                         "availableToBorrow": "2500000",
-        #                         "borrowAmount": "0",
-        #                         "accruedInterest": "0",
-        #                         "totalOrderIM": "0",
-        #                         "totalPositionIM": "2.72589075",
-        #                         "totalPositionMM": "0.28576575",
-        #                         "unrealisedPnl": "-1.8975",
-        #                         "cumRealisedPnl": "0.64782276",
-        #                         "bonus": "0"
-        #                     },
-        #                     {
-        #                         "coin": "EOS3L",
-        #                         "equity": "215.0570412",
-        #                         "usdValue": "0",
-        #                         "walletBalance": "215.0570412",
-        #                         "availableToWithdraw": "215.0570412",
-        #                         "availableToBorrow": "0",
-        #                         "borrowAmount": "0",
-        #                         "accruedInterest": "",
-        #                         "totalOrderIM": "0",
-        #                         "totalPositionIM": "0",
-        #                         "totalPositionMM": "0",
-        #                         "unrealisedPnl": "0",
-        #                         "cumRealisedPnl": "0",
-        #                         "bonus": "0"
-        #                     },
-        #                     {
-        #                         "coin": "BIT",
-        #                         "equity": "1.82",
-        #                         "usdValue": "0.48758257",
-        #                         "walletBalance": "1.82",
-        #                         "availableToWithdraw": "1.82",
-        #                         "availableToBorrow": "0",
-        #                         "borrowAmount": "0",
-        #                         "accruedInterest": "",
-        #                         "totalOrderIM": "0",
-        #                         "totalPositionIM": "0",
-        #                         "totalPositionMM": "0",
-        #                         "unrealisedPnl": "0",
-        #                         "cumRealisedPnl": "0",
-        #                         "bonus": "0"
-        #                     }
-        #                 ],
-        #                 "accountType": "UNIFIED"
-        #             }
-        #         ]
-        #     }
-        #
-        if self.balance is None:
-            self.balance = {}
-        messageHash = 'balance'
-        topic = self.safe_value(message, 'topic')
-        info = None
-        rawBalances = []
-        account = None
-        if topic == 'outboundAccountInfo':
-            account = 'spot'
-            data = self.safe_value(message, 'data', [])
-            for i in range(0, len(data)):
-                B = self.safe_value(data[i], 'B', [])
-                rawBalances = self.array_concat(rawBalances, B)
-            info = rawBalances
-        if topic == 'wallet':
-            data = self.safe_value(message, 'data', {})
-            for i in range(0, len(data)):
-                result = self.safe_value(data, 0, {})
-                account = self.safe_string_lower(result, 'accountType')
-                rawBalances = self.array_concat(rawBalances, self.safe_value(result, 'coin', []))
-            info = data
-        for i in range(0, len(rawBalances)):
-            self.parse_ws_balance(rawBalances[i], account)
-        if account is not None:
-            if self.safe_value(self.balance, account) is None:
-                self.balance[account] = {}
-            self.balance[account]['info'] = info
-            timestamp = self.safe_integer(message, 'ts')
-            self.balance[account]['timestamp'] = timestamp
-            self.balance[account]['datetime'] = self.iso8601(timestamp)
-            self.balance[account] = self.safe_balance(self.balance[account])
-            messageHash = 'balances:' + account
-            client.resolve(self.balance[account], messageHash)
-        else:
-            self.balance['info'] = info
-            timestamp = self.safe_integer(message, 'ts')
-            self.balance['timestamp'] = timestamp
-            self.balance['datetime'] = self.iso8601(timestamp)
-            self.balance = self.safe_balance(self.balance)
-            messageHash = 'balances'
-            client.resolve(self.balance, messageHash)
-
-    def parse_ws_balance(self, balance, accountType=None):
-        #
-        # spot
-        #    {
-        #        "a": "USDT",
-        #        "f": "176.81254174",
-        #        "l": "201.575"
-        #    }
-        # unified
-        #     {
-        #         "coin": "BTC",
-        #         "equity": "0.06488393",
-        #         "usdValue": "1023.08402268",
-        #         "walletBalance": "0.06488393",
-        #         "availableToWithdraw": "0.06488393",
-        #         "availableToBorrow": "2.5",
-        #         "borrowAmount": "0",
-        #         "accruedInterest": "0",
-        #         "totalOrderIM": "0",
-        #         "totalPositionIM": "0",
-        #         "totalPositionMM": "0",
-        #         "unrealisedPnl": "0",
-        #         "cumRealisedPnl": "0",
-        #         "bonus": "0"
-        #     }
-        #
-        account = self.account()
-        currencyId = self.safe_string_2(balance, 'a', 'coin')
-        code = self.safe_currency_code(currencyId)
-        account['free'] = self.safe_string_n(balance, ['availableToWithdraw', 'f', 'free', 'availableToWithdraw'])
-        account['used'] = self.safe_string_2(balance, 'l', 'locked')
-        account['total'] = self.safe_string(balance, 'walletBalance')
-        if accountType is not None:
-            if self.safe_value(self.balance, accountType) is None:
-                self.balance[accountType] = {}
-            self.balance[accountType][code] = account
-        else:
-            self.balance[code] = account
-
     async def watch_topics(self, url, messageHash, topics=[], params={}):
         request = {
             'id': '' + self.request_id(),
@@ -778,26 +400,72 @@ class bingx(ccxt.async_support.bingx):
         message = self.extend(request, params)
         return await self.watch(url, messageHash, message, messageHash)
 
-    def authenticate(self, params={}):
-        self.check_required_credentials()
-        messageHash = 'authenticated'
-        url = self.urls['api']['ws']
-        client = self.client(url)
-        future = self.safe_value(client.subscriptions, messageHash)
-        if future is None:
-            request = {
-                'reqType': 'req',
-                'id': self.uuid(),
-                'dataType': 'account.user.auth',
-                'data': {
-                    'token': self.apiKey + '.' + self.secret,
-                    'platformId': '30',
-                },
-            }
-            message = self.extend(request, params)
-            future = self.watch(url, messageHash, message)
-            client.subscriptions[messageHash] = future
-        return future
+    async def authenticate(self, params={}):
+        # self.check_required_credentials()
+        # messageHash = 'authenticated'
+        # url = self.urls['api']['ws']
+        # client = self.client(url)
+        # future = self.safe_value(client.subscriptions, messageHash)
+        # if future is None:
+        #     request = {
+        #         'reqType': 'req',
+        #         'id': self.uuid(),
+        #         'dataType': 'account.user.auth',
+        #         'data': {
+        #             'token': self.apiKey + '.' + self.secret,
+        #             'platformId': '30',
+        #         },
+        #     }
+        #     message = self.extend(request, params)
+        #     future = self.watch(url, messageHash, message)
+        #     client.subscriptions[messageHash] = future
+        # }
+        # return future
+        time = self.milliseconds()
+        lastAuthenticatedTime = self.safe_integer(self.options, 'lastAuthenticatedTime', 0)
+        listenKeyRefreshRate = self.safe_integer(self.options, 'listenKeyRefreshRate', 1200000)
+        delay = self.sum(listenKeyRefreshRate, 10000)
+        if time - lastAuthenticatedTime > delay:
+            method = 'swap2OpenApiPrivatePostUserAuthUserDataStream'
+            response = await getattr(self, method)(params)
+            self.options = self.extend(self.options, {
+                'listenKey': self.safe_string(response, 'listenKey'),
+                'lastAuthenticatedTime': time,
+            })
+            self.delay(listenKeyRefreshRate, self.keep_alive_listen_key, params)
+
+    async def keep_alive_listen_key(self, params={}):
+        listenKey = self.safe_string(self.options, 'listenKey')
+        if listenKey is None:
+            # A network error happened: we can't renew a listen key that does not exist.
+            return
+        method = 'swap2OpenApiPrivatePutUserAuthUserDataStream'
+        request = {
+            'listenKey': listenKey,
+        }
+        time = self.milliseconds()
+        sendParams = self.omit(params, 'type')
+        try:
+            await getattr(self, method)(self.extend(request, sendParams))
+        except Exception as error:
+            url = self.urls['api']['ws2'] + '?' + self.options['listenKey']
+            client = self.client(url)
+            messageHashes = list(client.futures.keys())
+            for i in range(0, len(messageHashes)):
+                messageHash = messageHashes[i]
+                client.reject(error, messageHash)
+            self.options = self.extend(self.options, {
+                'listenKey': None,
+                'lastAuthenticatedTime': 0,
+            })
+            return
+        self.options = self.extend(self.options, {
+            'listenKey': listenKey,
+            'lastAuthenticatedTime': time,
+        })
+        # whether or not to schedule another listenKey keepAlive request
+        listenKeyRefreshRate = self.safe_integer(self.options, 'listenKeyRefreshRate', 1200000)
+        return self.delay(listenKeyRefreshRate, self.keep_alive_listen_key, params)
 
     def handle_error_message(self, client, message):
         #
@@ -873,11 +541,11 @@ class bingx(ccxt.async_support.bingx):
             'market.depth.': self.handle_order_book,
             'market.trade.detail.': self.handle_trades,
             'market.contracts': self.handle_ticker,
-            # 'wallet': self.handle_balance,
-            # 'outboundAccountInfo': self.handle_balance,
-            # 'execution': self.handle_my_trades,
-            # 'ticketInfo': self.handle_my_trades,
-            # 'user.openapi.perp.trade': self.handle_my_trades,
+            # 'wallet': self.handleBalance,
+            # 'outboundAccountInfo': self.handleBalance,
+            # 'execution': self.handleMyTrades,
+            # 'ticketInfo': self.handleMyTrades,
+            # 'user.openapi.perp.trade': self.handleMyTrades,
         }
         keys = list(methods.keys())
         for i in range(0, len(keys)):
