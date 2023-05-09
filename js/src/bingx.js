@@ -120,6 +120,7 @@ export default class bingx extends Exchange {
                         'private': {
                             'get': {
                                 'swap/v2/trade/openOrders': 1,
+                                'swap/v2/trade/leverage': 1,
                             },
                             'put': {
                                 'user/auth/userDataStream': 1,
@@ -170,6 +171,78 @@ export default class bingx extends Exchange {
                 'listenKeyRefreshRate': 1200000, // 20 mins
             },
         });
+    }
+    async fetchAccountConfiguration(symbol, params = {}) {
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        const response = await this.swap2OpenApiPrivateGetSwapV2TradeLeverage(this.extend(request, params));
+        const data = this.safeValue(response, 'data');
+        return this.parseAccountConfiguration(data, market);
+    }
+    parseAccountConfiguration(data, market) {
+        // {
+        //     "marginCoin":"USDT",
+        //   "locked":0,
+        //   "available":13168.86110692,
+        //   "crossMaxAvailable":13168.86110692,
+        //   "fixedMaxAvailable":13168.86110692,
+        //   "maxTransferOut":13168.86110692,
+        //   "equity":13178.86110692,
+        //   "usdtEquity":13178.861106922,
+        //   "btcEquity":0.344746495477,
+        //   "crossRiskRate":0,
+        //   "crossMarginLeverage":20,
+        //   "fixedLongLeverage":20,
+        //   "fixedShortLeverage":20,
+        //   "marginMode":"crossed",
+        //   "holdMode":"double_hold"
+        // }
+        // const marginMode = this.safeString (data, 'marginMode');
+        // const isIsolated = (marginMode === 'fixed');
+        // let leverage = this.safeFloat (data, 'crossMarginLeverage');
+        // const buyLeverage = this.safeFloat (data, 'fixedLongLeverage');
+        // const sellLeverage = this.safeFloat (data, 'fixedShortLeverage');
+        // const marginCoin = this.safeString (data, 'marginCoin');
+        // const holdMode = this.safeString (data, 'holdMode');
+        // let positionMode = 'hedged';
+        // if (holdMode === 'single_hold') {
+        //     positionMode = 'oneway';
+        //     if (isIsolated) {
+        //         leverage = buyLeverage;
+        //     }
+        // }
+        // const accountConfig = {
+        //     'info': data,
+        //     'markets': {},
+        //     'positionMode': positionMode,
+        //     'marginMode': isIsolated ? 'isolated' : 'cross',
+        // };
+        // const leverageConfigs = accountConfig['markets'];
+        // leverageConfigs[market['symbol']] = {
+        //     'marginMode': isIsolated ? 'isolated' : 'cross',
+        //     'isIsolated': isIsolated,
+        //     'leverage': leverage,
+        //     'buyLeverage': buyLeverage,
+        //     'sellLeverage': sellLeverage,
+        //     'marginCoin': marginCoin,
+        //     'positionMode': positionMode,
+        // };
+        const buyLeverage = this.safeFloat(data, 'longLeverage');
+        const sellLeverage = this.safeFloat(data, 'shortLeverage');
+        const accountConfig = {
+            'marginMode': 'cross',
+            'positionMode': 'hedged',
+            'markets': {},
+        };
+        const leverageConfigs = accountConfig['markets'];
+        leverageConfigs[market['symbol']] = {
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+        };
+        return accountConfig;
     }
     async fetchContractMarkets(params = {}) {
         const response = await this.swapV1PublicGetMarketGetAllContracts(params);

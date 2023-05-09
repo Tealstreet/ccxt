@@ -120,6 +120,7 @@ class bingx extends Exchange {
                         'private' => array(
                             'get' => array(
                                 'swap/v2/trade/openOrders' => 1,
+                                'swap/v2/trade/leverage' => 1,
                             ),
                             'put' => array(
                                 'user/auth/userDataStream' => 1,
@@ -170,6 +171,80 @@ class bingx extends Exchange {
                 'listenKeyRefreshRate' => 1200000, // 20 mins
             ),
         ));
+    }
+
+    public function fetch_account_configuration($symbol, $params = array ()) {
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'symbol' => $market['id'],
+        );
+        $response = $this->swap2OpenApiPrivateGetSwapV2TradeLeverage (array_merge($request, $params));
+        $data = $this->safe_value($response, 'data');
+        return $this->parse_account_configuration($data, $market);
+    }
+
+    public function parse_account_configuration($data, $market) {
+        // {
+        //     "marginCoin":"USDT",
+        //   "locked":0,
+        //   "available":13168.86110692,
+        //   "crossMaxAvailable":13168.86110692,
+        //   "fixedMaxAvailable":13168.86110692,
+        //   "maxTransferOut":13168.86110692,
+        //   "equity":13178.86110692,
+        //   "usdtEquity":13178.861106922,
+        //   "btcEquity":0.344746495477,
+        //   "crossRiskRate":0,
+        //   "crossMarginLeverage":20,
+        //   "fixedLongLeverage":20,
+        //   "fixedShortLeverage":20,
+        //   "marginMode":"crossed",
+        //   "holdMode":"double_hold"
+        // }
+        // $marginMode = $this->safe_string($data, 'marginMode');
+        // $isIsolated = ($marginMode === 'fixed');
+        // $leverage = $this->safe_float($data, 'crossMarginLeverage');
+        // $buyLeverage = $this->safe_float($data, 'fixedLongLeverage');
+        // $sellLeverage = $this->safe_float($data, 'fixedShortLeverage');
+        // $marginCoin = $this->safe_string($data, 'marginCoin');
+        // $holdMode = $this->safe_string($data, 'holdMode');
+        // $positionMode = 'hedged';
+        // if ($holdMode === 'single_hold') {
+        //     $positionMode = 'oneway';
+        //     if ($isIsolated) {
+        //         $leverage = $buyLeverage;
+        //     }
+        // }
+        // $accountConfig = array(
+        //     'info' => $data,
+        //     'markets' => array(),
+        //     'positionMode' => $positionMode,
+        //     'marginMode' => $isIsolated ? 'isolated' : 'cross',
+        // );
+        // $leverageConfigs = $accountConfig['markets'];
+        // $leverageConfigs[$market['symbol']] = array(
+        //     'marginMode' => $isIsolated ? 'isolated' : 'cross',
+        //     'isIsolated' => $isIsolated,
+        //     'leverage' => $leverage,
+        //     'buyLeverage' => $buyLeverage,
+        //     'sellLeverage' => $sellLeverage,
+        //     'marginCoin' => $marginCoin,
+        //     'positionMode' => $positionMode,
+        // );
+        $buyLeverage = $this->safe_float($data, 'longLeverage');
+        $sellLeverage = $this->safe_float($data, 'shortLeverage');
+        $accountConfig = array(
+            'marginMode' => 'cross',
+            'positionMode' => 'hedged',
+            'markets' => array(),
+        );
+        $leverageConfigs = $accountConfig['markets'];
+        $leverageConfigs[$market['symbol']] = array(
+            'buyLeverage' => $buyLeverage,
+            'sellLeverage' => $sellLeverage,
+        );
+        return $accountConfig;
     }
 
     public function fetch_contract_markets($params = array ()) {
