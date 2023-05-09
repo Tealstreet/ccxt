@@ -1786,7 +1786,7 @@ class bitmex(Exchange):
             request['clOrdID'] = clientOrderId
             params = self.omit(params, ['clOrdID', 'clientOrderId'])
         request['ordType'] = orderType
-        if request['ordType'] == 'Market' and request['execInst'] == 'ReduceOnly,Close':
+        if request['ordType'] == 'Market' and request['execInst'] == 'Close,ReduceOnly':
             request['execInst'] = 'ReduceOnly'
         response = self.privatePostOrder(self.extend(request, params))
         return self.parse_order(response, market)

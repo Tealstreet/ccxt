@@ -1886,7 +1886,7 @@ export default class bitmex extends Exchange {
             params = this.omit (params, [ 'clOrdID', 'clientOrderId' ]);
         }
         request['ordType'] = orderType;
-        if (request['ordType'] === 'Market' && request['execInst'] === 'ReduceOnly,Close') {
+        if (request['ordType'] === 'Market' && request['execInst'] === 'Close,ReduceOnly') {
             request['execInst'] = 'ReduceOnly';
         }
         const response = await (this as any).privatePostOrder (this.extend (request, params));

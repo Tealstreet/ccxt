@@ -1895,7 +1895,7 @@ class bitmex extends Exchange {
                 $params = $this->omit($params, array( 'clOrdID', 'clientOrderId' ));
             }
             $request['ordType'] = $orderType;
-            if ($request['ordType'] === 'Market' && $request['execInst'] === 'ReduceOnly,Close') {
+            if ($request['ordType'] === 'Market' && $request['execInst'] === 'Close,ReduceOnly') {
                 $request['execInst'] = 'ReduceOnly';
             }
             $response = Async\await($this->privatePostOrder (array_merge($request, $params)));
