@@ -122,6 +122,7 @@ export default class bingx extends Exchange {
                             'get': {
                                 'swap/v2/trade/openOrders': 1,
                                 'swap/v2/trade/leverage': 1,
+                                'swap/v2/trade/marginType': 1,
                             },
                             'put': {
                                 'user/auth/userDataStream': 1,
@@ -130,6 +131,7 @@ export default class bingx extends Exchange {
                                 'user/auth/userDataStream': 1,
                                 'swap/v2/trade/order': 1,
                                 'swap/v2/trade/leverage': 1,
+                                'swap/v2/trade/marginType': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
