@@ -1798,7 +1798,7 @@ class bitmex extends Exchange["default"] {
          */
         await this.loadMarkets();
         const market = this.market(symbol);
-        const orderType = this.capitalize(type);
+        let orderType = this.capitalize(type);
         const reduceOnly = this.safeValue(params, 'reduceOnly');
         if (reduceOnly !== undefined) {
             if ((market['type'] !== 'swap') && (market['type'] !== 'future')) {
@@ -1806,12 +1806,33 @@ class bitmex extends Exchange["default"] {
             }
         }
         const brokerId = this.safeString(this.options, 'brokerId', 'CCXT');
+        // TEALSTREET
+        let timeInForce = this.safeValue(params, 'timeInForce', 'GTC');
+        const trigger = this.safeValue(params, 'trigger', undefined);
+        const closeOnTrigger = this.safeValue2(params, 'closeOnTrigger', 'close', false);
+        const execInstValues = [];
+        if (timeInForce === 'ParticipateDoNotInitiate') {
+            execInstValues.push('ParticipateDoNotInitiate');
+            timeInForce = undefined;
+        }
+        if (trigger !== undefined) {
+            execInstValues.push(this.capitalize(trigger) + 'Price');
+        }
+        if (closeOnTrigger) {
+            execInstValues.push('Close');
+        }
+        if (reduceOnly) {
+            execInstValues.push('ReduceOnly');
+        }
+        params = this.omit(params, ['reduceOnly', 'timeInForce', 'trigger', 'closeOnTrigger']);
         const request = {
             'symbol': market['id'],
             'side': this.capitalize(side),
             'orderQty': parseFloat(this.amountToPrecision(symbol, amount)),
-            'ordType': orderType,
+            'timeInForce': timeInForce,
             'text': brokerId,
+            'clOrdID': brokerId + this.uuid22(22),
+            'execInst': execInstValues.join(','),
         };
         if ((orderType === 'Stop') || (orderType === 'StopLimit') || (orderType === 'MarketIfTouched') || (orderType === 'LimitIfTouched')) {
             const stopPrice = this.safeNumber2(params, 'stopPx', 'stopPrice');
@@ -1822,6 +1843,22 @@ class bitmex extends Exchange["default"] {
                 request['stopPx'] = parseFloat(this.priceToPrecision(symbol, stopPrice));
                 params = this.omit(params, ['stopPx', 'stopPrice']);
             }
+            let basePrice = this.safeValue(params, 'basePrice');
+            if (basePrice === undefined || basePrice === 0.0) {
+                const ticker = this.fetchTicker(symbol);
+                basePrice = ticker['last'];
+            }
+            if ((side === 'Buy' && stopPrice < basePrice) || (side === 'Sell' && stopPrice > basePrice)) {
+                if (orderType === 'Stop') {
+                    orderType = 'MarketIfTouched';
+                }
+                else if (orderType === 'StopLimit') {
+                    orderType = 'LimitIfTouched';
+                }
+            }
+        }
+        if (price !== undefined && orderType === 'Stop') {
+            orderType = 'StopLimit';
         }
         if ((orderType === 'Limit') || (orderType === 'StopLimit') || (orderType === 'LimitIfTouched')) {
             request['price'] = parseFloat(this.priceToPrecision(symbol, price));
@@ -1830,6 +1867,10 @@ class bitmex extends Exchange["default"] {
         if (clientOrderId !== undefined) {
             request['clOrdID'] = clientOrderId;
             params = this.omit(params, ['clOrdID', 'clientOrderId']);
+        }
+        request['ordType'] = orderType;
+        if (request['ordType'] === 'Market' && request['execInst'] === 'ReduceOnly,Close') {
+            request['execInst'] = 'ReduceOnly';
         }
         const response = await this.privatePostOrder(this.extend(request, params));
         return this.parseOrder(response, market);
@@ -1857,6 +1898,10 @@ class bitmex extends Exchange["default"] {
         }
         const brokerId = this.safeString(this.options, 'brokerId', 'CCXT');
         request['text'] = brokerId;
+        const stopPrice = this.safeNumber2(params, 'stopPx', 'stopPrice');
+        if (stopPrice !== undefined) {
+            request['stopPx'] = parseFloat(this.amountToPrecision(symbol, stopPrice));
+        }
         const response = await this.privatePutOrder(this.extend(request, params));
         return this.parseOrder(response);
     }
@@ -2194,8 +2239,9 @@ class bitmex extends Exchange["default"] {
         }
         const maintenanceMargin = this.safeNumber(position, 'maintMargin');
         const unrealisedPnl = this.safeNumber(position, 'unrealisedPnl');
+        const rebalancedPnl = this.safeNumber(position, 'rebalancedPnl');
         const contracts = this.omitZero(this.safeNumber(position, 'currentQty'));
-        const side = (contracts > 0) ? 'long' : 'short';
+        const side = (contracts === undefined || contracts > 0) ? 'long' : 'short';
         return {
             'info': position,
             'id': symbol,
@@ -2215,6 +2261,7 @@ class bitmex extends Exchange["default"] {
             'maintenanceMargin': this.convertValue(maintenanceMargin, market),
             'maintenanceMarginPercentage': this.safeNumber(position, 'maintMarginReq'),
             'unrealizedPnl': this.convertValue(unrealisedPnl, market),
+            'rebalancedPnl': this.convertValue(rebalancedPnl, market),
             'liquidationPrice': this.safeNumber(position, 'liquidationPrice'),
             'marginMode': marginMode,
             'marginRatio': undefined,
@@ -2647,13 +2694,44 @@ class bitmex extends Exchange["default"] {
         if (symbol === undefined) {
             throw new errors.ArgumentsRequired(this.id + ' setLeverage() requires a symbol argument');
         }
-        if ((leverage < 0.01) || (leverage > 100)) {
-            throw new errors.BadRequest(this.id + ' leverage should be between 0.01 and 100');
+        const buyLeverage = this.safeNumber(params, 'buyLeverage', leverage);
+        const sellLeverage = this.safeNumber(params, 'sellLeverage', leverage);
+        if (buyLeverage !== sellLeverage) {
+            throw new errors.BadRequest(this.id + ' setLeverage() requires buyLeverage and sellLeverage to match');
+        }
+        leverage = buyLeverage || sellLeverage;
+        if (buyLeverage !== undefined && sellLeverage !== undefined) {
+            if ((leverage < 0.01) || (leverage > 100)) {
+                throw new errors.BadRequest(this.id + ' leverage should be between 0.01 and 100');
+            }
         }
         await this.loadMarkets();
         const market = this.market(symbol);
         if (market['type'] !== 'swap' && market['type'] !== 'future') {
             throw new errors.BadSymbol(this.id + ' setLeverage() supports future and swap contracts only');
+        }
+        const marginMode = this.safeString(params, 'marginMode');
+        params = this.omit(params, ['marginMode', 'positionMode']);
+        if (marginMode === 'isolated') {
+            let promises = [];
+            const request = {
+                'symbol': market['id'],
+            };
+            if (buyLeverage !== undefined) {
+                request['leverage'] = buyLeverage;
+                promises.push(this.privatePostPositionLeverage(this.extend(request, params)));
+            }
+            if (sellLeverage !== undefined) {
+                request['leverage'] = sellLeverage;
+                promises.push(this.privatePostPositionLeverage(this.extend(request, params)));
+            }
+            promises = await Promise.all(promises);
+            if (promises.length === 1) {
+                return promises[0];
+            }
+            else {
+                return promises;
+            }
         }
         const request = {
             'symbol': market['id'],

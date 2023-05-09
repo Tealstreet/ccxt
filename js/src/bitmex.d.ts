@@ -94,6 +94,7 @@ export default class bitmex extends Exchange {
         maintenanceMargin: any;
         maintenanceMarginPercentage: number;
         unrealizedPnl: any;
+        rebalancedPnl: any;
         liquidationPrice: number;
         marginMode: string;
         marginRatio: any;
