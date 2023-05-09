@@ -9,6 +9,7 @@ use Exception; // a common import
 use ccxt\ExchangeError;
 use ccxt\ArgumentsRequired;
 use React\Async;
+use React\Promise;
 
 class bingx extends Exchange {
 
@@ -131,6 +132,7 @@ class bingx extends Exchange {
                             'post' => array(
                                 'user/auth/userDataStream' => 1,
                                 'swap/v2/trade/order' => 1,
+                                'swap/v2/trade/leverage' => 1,
                             ),
                             'delete' => array(
                                 'swap/v2/trade/order' => 1,
@@ -174,6 +176,46 @@ class bingx extends Exchange {
                 'listenKeyRefreshRate' => 1200000, // 20 mins
             ),
         ));
+    }
+
+    public function set_leverage($leverage, $symbol = null, $params = array ()) {
+        return Async\async(function () use ($leverage, $symbol, $params) {
+            /**
+             * set the level of $leverage for a $market
+             * @param {float} $leverage the rate of $leverage
+             * @param {string} $symbol unified $market $symbol
+             * @param {array} $params extra parameters specific to the bitget api endpoint
+             * @return {array} response from the exchange
+             */
+            if ($symbol === null) {
+                throw new ArgumentsRequired($this->id . ' setLeverage() requires a $symbol argument');
+            }
+            $buyLeverage = $this->safe_number($params, 'buyLeverage', $leverage);
+            $sellLeverage = $this->safe_number($params, 'sellLeverage', $leverage);
+            Async\await($this->load_markets());
+            $market = $this->market($symbol);
+            $params = $this->omit($params, array( 'marginMode', 'positionMode' ));
+            $promises = array();
+            $request = array(
+                'symbol' => $market['id'],
+            );
+            if ($buyLeverage !== null) {
+                $request['leverage'] = $this->parse_to_int($buyLeverage);
+                $request['side'] = 'LONG';
+                $promises[] = $this->swap2OpenApiPrivatePostSwapV2TradeLeverage (array_merge($request, $params));
+            }
+            if ($sellLeverage !== null) {
+                $request['leverage'] = $this->parse_to_int($sellLeverage);
+                $request['side'] = 'SHORT';
+                $promises[] = $this->swap2OpenApiPrivatePostSwapV2TradeLeverage (array_merge($request, $params));
+            }
+            $promises = Async\await(Promise\all($promises));
+            if (strlen($promises) === 1) {
+                return $promises[0];
+            } else {
+                return $promises;
+            }
+        }) ();
     }
 
     public function fetch_account_configuration($symbol, $params = array ()) {
@@ -1172,7 +1214,8 @@ class bingx extends Exchange {
             return; // fallback to default error handler
         }
         $errorCode = $this->safe_integer($response, 'code');
-        if ($errorCode !== null && $errorCode > 0) {
+        // in theory 80012 is Service Unavailable, but returned on lev charges :/
+        if ($errorCode !== null && $errorCode > 0 && $errorCode !== 80012) {
             throw new ExchangeError($this->id . ' ' . $this->json($response));
         }
     }

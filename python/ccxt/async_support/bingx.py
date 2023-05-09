@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+import asyncio
 import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import ArgumentsRequired
@@ -131,6 +132,7 @@ class bingx(Exchange):
                             'post': {
                                 'user/auth/userDataStream': 1,
                                 'swap/v2/trade/order': 1,
+                                'swap/v2/trade/leverage': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
@@ -174,6 +176,39 @@ class bingx(Exchange):
                 'listenKeyRefreshRate': 1200000,  # 20 mins
             },
         })
+
+    async def set_leverage(self, leverage, symbol=None, params={}):
+        """
+        set the level of leverage for a market
+        :param float leverage: the rate of leverage
+        :param str symbol: unified market symbol
+        :param dict params: extra parameters specific to the bitget api endpoint
+        :returns dict: response from the exchange
+        """
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' setLeverage() requires a symbol argument')
+        buyLeverage = self.safe_number(params, 'buyLeverage', leverage)
+        sellLeverage = self.safe_number(params, 'sellLeverage', leverage)
+        await self.load_markets()
+        market = self.market(symbol)
+        params = self.omit(params, ['marginMode', 'positionMode'])
+        promises = []
+        request = {
+            'symbol': market['id'],
+        }
+        if buyLeverage is not None:
+            request['leverage'] = self.parse_to_int(buyLeverage)
+            request['side'] = 'LONG'
+            promises.append(self.swap2OpenApiPrivatePostSwapV2TradeLeverage(self.extend(request, params)))
+        if sellLeverage is not None:
+            request['leverage'] = self.parse_to_int(sellLeverage)
+            request['side'] = 'SHORT'
+            promises.append(self.swap2OpenApiPrivatePostSwapV2TradeLeverage(self.extend(request, params)))
+        promises = await asyncio.gather(*promises)
+        if len(promises) == 1:
+            return promises[0]
+        else:
+            return promises
 
     async def fetch_account_configuration(self, symbol, params={}):
         await self.load_markets()
@@ -1086,5 +1121,6 @@ class bingx(Exchange):
         if not response:
             return  # fallback to default error handler
         errorCode = self.safe_integer(response, 'code')
-        if errorCode is not None and errorCode > 0:
+        # in theory 80012 is Service Unavailable, but returned on lev charges :/
+        if errorCode is not None and errorCode > 0 and errorCode != 80012:
             raise ExchangeError(self.id + ' ' + self.json(response))

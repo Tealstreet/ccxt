@@ -2,6 +2,7 @@
 //  ---------------------------------------------------------------------------
 
 import { Exchange } from './base/Exchange.js';
+import Precise from './base/Precise.js';
 import { ArgumentsRequired, ExchangeError } from './base/errors.js';
 import { TICK_SIZE } from './base/functions/number.js';
 import { OHLCV } from './base/types.js';
@@ -172,6 +173,46 @@ export default class bingx extends Exchange {
                 'listenKeyRefreshRate': 1200000, // 20 mins
             },
         });
+    }
+
+    async setLeverage (leverage, symbol: string = undefined, params = {}) {
+        /**
+         * @method
+         * @name bingx#setLeverage
+         * @description set the level of leverage for a market
+         * @param {float} leverage the rate of leverage
+         * @param {string} symbol unified market symbol
+         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @returns {object} response from the exchange
+         */
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' setLeverage() requires a symbol argument');
+        }
+        const buyLeverage = this.safeNumber (params, 'buyLeverage', leverage);
+        const sellLeverage = this.safeNumber (params, 'sellLeverage', leverage);
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        params = this.omit (params, [ 'marginMode', 'positionMode' ]);
+        let promises = [];
+        const request = {
+            'symbol': market['id'],
+        };
+        if (buyLeverage !== undefined) {
+            request['leverage'] = this.parseToInt (buyLeverage);
+            request['side'] = 'LONG';
+            promises.push ((this as any).swap2OpenApiPrivatePostSwapV2TradeLeverage (this.extend (request, params)));
+        }
+        if (sellLeverage !== undefined) {
+            request['leverage'] = this.parseToInt (sellLeverage);
+            request['side'] = 'SHORT';
+            promises.push ((this as any).swap2OpenApiPrivatePostSwapV2TradeLeverage (this.extend (request, params)));
+        }
+        promises = await Promise.all (promises);
+        if (promises.length === 1) {
+            return promises[0];
+        } else {
+            return promises;
+        }
     }
 
     async fetchAccountConfiguration (symbol, params = {}) {
@@ -1162,7 +1203,8 @@ export default class bingx extends Exchange {
             return; // fallback to default error handler
         }
         const errorCode = this.safeInteger (response, 'code');
-        if (errorCode !== undefined && errorCode > 0) {
+        // in theory 80012 is Service Unavailable, but returned on lev charges :/
+        if (errorCode !== undefined && errorCode > 0 && errorCode !== 80012) {
             throw new ExchangeError (this.id + ' ' + this.json (response));
         }
     }
