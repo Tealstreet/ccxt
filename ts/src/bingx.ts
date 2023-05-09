@@ -545,9 +545,9 @@ export default class bingx extends Exchange {
         let convertedType = 'LIMIT';
         if (type === 'stop') {
             if (isTakeProfitOrder) {
-                convertedType = 'TAKE_PROFIT_MARKET';
+                convertedType = 'TRIGGER_LIMIT';
             } else if (isStopLossOrder) {
-                convertedType = 'STOP_MARKET';
+                convertedType = 'TRIGGER_LIMIT';
             } else {
                 throw new ArgumentsRequired ('unknown order direction for TP/SL');
             }
@@ -568,8 +568,13 @@ export default class bingx extends Exchange {
         };
         if (triggerPrice !== undefined) {
             request['stopPrice'] = triggerPrice;
-        }
-        if ((type === 'limit' || type === 'stopLimit') && (triggerPrice === undefined)) {
+            if (convertedType === 'TRIGGER_LIMIT') {
+                request['price'] = triggerPrice;
+            }
+        } else if (triggerPrice === undefined && convertedType === 'TRIGGER_LIMIT') {
+            request['price'] = basePrice;
+            request['stopPrice'] = basePrice;
+        } else if ((type === 'limit' || type === 'stopLimit') && (triggerPrice === undefined)) {
             request['price'] = this.priceToPrecision (symbol, price);
         }
         const isMarketOrder = type === 'market';

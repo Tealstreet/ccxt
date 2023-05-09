@@ -551,9 +551,9 @@ class bingx extends Exchange {
             $convertedType = 'LIMIT';
             if ($type === 'stop') {
                 if ($isTakeProfitOrder) {
-                    $convertedType = 'TAKE_PROFIT_MARKET';
+                    $convertedType = 'TRIGGER_LIMIT';
                 } elseif ($isStopLossOrder) {
-                    $convertedType = 'STOP_MARKET';
+                    $convertedType = 'TRIGGER_LIMIT';
                 } else {
                     throw new ArgumentsRequired('unknown $order direction for TP/SL');
                 }
@@ -574,8 +574,13 @@ class bingx extends Exchange {
             );
             if ($triggerPrice !== null) {
                 $request['stopPrice'] = $triggerPrice;
-            }
-            if (($type === 'limit' || $type === 'stopLimit') && ($triggerPrice === null)) {
+                if ($convertedType === 'TRIGGER_LIMIT') {
+                    $request['price'] = $triggerPrice;
+                }
+            } elseif ($triggerPrice === null && $convertedType === 'TRIGGER_LIMIT') {
+                $request['price'] = $basePrice;
+                $request['stopPrice'] = $basePrice;
+            } elseif (($type === 'limit' || $type === 'stopLimit') && ($triggerPrice === null)) {
                 $request['price'] = $this->price_to_precision($symbol, $price);
             }
             $isMarketOrder = $type === 'market';

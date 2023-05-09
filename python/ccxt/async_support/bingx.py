@@ -520,9 +520,9 @@ class bingx(Exchange):
         convertedType = 'LIMIT'
         if type == 'stop':
             if isTakeProfitOrder:
-                convertedType = 'TAKE_PROFIT_MARKET'
+                convertedType = 'TRIGGER_LIMIT'
             elif isStopLossOrder:
-                convertedType = 'STOP_MARKET'
+                convertedType = 'TRIGGER_LIMIT'
             else:
                 raise ArgumentsRequired('unknown order direction for TP/SL')
         if type == 'stopLimit':
@@ -540,7 +540,12 @@ class bingx(Exchange):
         }
         if triggerPrice is not None:
             request['stopPrice'] = triggerPrice
-        if (type == 'limit' or type == 'stopLimit') and (triggerPrice is None):
+            if convertedType == 'TRIGGER_LIMIT':
+                request['price'] = triggerPrice
+        elif triggerPrice is None and convertedType == 'TRIGGER_LIMIT':
+            request['price'] = basePrice
+            request['stopPrice'] = basePrice
+        elif (type == 'limit' or type == 'stopLimit') and (triggerPrice is None):
             request['price'] = self.price_to_precision(symbol, price)
         isMarketOrder = type == 'market'
         exchangeSpecificParam = self.safe_string_2(params, 'force', 'timeInForce')

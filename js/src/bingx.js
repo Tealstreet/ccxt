@@ -538,10 +538,10 @@ export default class bingx extends Exchange {
         let convertedType = 'LIMIT';
         if (type === 'stop') {
             if (isTakeProfitOrder) {
-                convertedType = 'TAKE_PROFIT_MARKET';
+                convertedType = 'TRIGGER_LIMIT';
             }
             else if (isStopLossOrder) {
-                convertedType = 'STOP_MARKET';
+                convertedType = 'TRIGGER_LIMIT';
             }
             else {
                 throw new ArgumentsRequired('unknown order direction for TP/SL');
@@ -563,8 +563,15 @@ export default class bingx extends Exchange {
         };
         if (triggerPrice !== undefined) {
             request['stopPrice'] = triggerPrice;
+            if (convertedType === 'TRIGGER_LIMIT') {
+                request['price'] = triggerPrice;
+            }
         }
-        if ((type === 'limit' || type === 'stopLimit') && (triggerPrice === undefined)) {
+        else if (triggerPrice === undefined && convertedType === 'TRIGGER_LIMIT') {
+            request['price'] = basePrice;
+            request['stopPrice'] = basePrice;
+        }
+        else if ((type === 'limit' || type === 'stopLimit') && (triggerPrice === undefined)) {
             request['price'] = this.priceToPrecision(symbol, price);
         }
         const isMarketOrder = type === 'market';
@@ -776,7 +783,7 @@ export default class bingx extends Exchange {
         // console.log ('response', response);
         const ohlcvs = this.safeValue(response, 'data', []);
         if (ohlcvs.length > 0) {
-            // BEGIN Patching last candle
+            /// BEGIN Patching last candle
             const lastRequest = this.omit(request, ['startTime', 'endTime']);
             const lastCandleResponse = await this.swap2OpenApiPublicGetSwapV2QuoteKlines(this.extend(lastRequest, params));
             const lastOhlcv = this.safeValue(lastCandleResponse, 'data', {});
@@ -786,7 +793,7 @@ export default class bingx extends Exchange {
             if (lastOhlcvTime >= lastOhlcvFromArrayTime) {
                 ohlcvs.push(lastOhlcv);
             }
-            // END Patching last candle
+            /// END Patching last candle
         }
         return this.parseOHLCVs(ohlcvs, market, timeframe, since, limit);
     }
