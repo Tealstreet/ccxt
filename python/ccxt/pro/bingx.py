@@ -111,7 +111,8 @@ class bingx(ccxt.async_support.bingx):
                 raise BadRequest(self.id + ' watchOrderBook() can only use limit 1, 50, 200 and 500.')
         topics = ['market.depth.' + market['id'] + '.step0.level' + str(limit)]
         orderbook = await self.watch_topics(url, messageHash, topics, params)
-        return orderbook.limit()
+        # return orderbook.limit()
+        return orderbook
 
     def handle_order_book(self, client, message):
         data = self.safe_value(message, 'data', {})
@@ -122,9 +123,11 @@ class bingx(ccxt.async_support.bingx):
         symbol = market['symbol']
         latestTrade = self.safe_value(data, 'latestTrade', {})
         timestamp = self.safe_integer(latestTrade, 'rawTs')
-        orderbook = self.safe_value(self.orderbooks, symbol)
-        if orderbook is None:
-            orderbook = self.order_book()
+        # orderbook = self.safe_value(self.orderbooks, symbol)
+        # if orderbook is None:
+        #     orderbook = self.order_book({}, 100)
+        # }
+        orderbook = self.order_book()
         asks = self.safe_value(data, 'asks', [])
         bids = self.safe_value(data, 'bids', [])
         self.handle_deltas(orderbook['asks'], asks)
