@@ -243,8 +243,8 @@ class bingx(Exchange):
                 'strike': None,
                 'optionType': None,
                 'precision': {
-                    'amount': self.safe_number(market, 'volumePrecision'),
-                    'price': self.safe_number(market, 'pricePrecision'),
+                    'amount': self.parse_number(self.parse_precision(self.safe_string(market, 'volumePrecision'))),
+                    'price': self.parse_number(self.parse_precision(self.safe_string(market, 'pricePrecision'))),
                 },
                 'limits': {
                     'leverage': {
@@ -350,6 +350,7 @@ class bingx(Exchange):
             'open': self.safe_string(ticker, 'openPrice'),
             'close': last,
             'last': last,
+            'mark': last,
             'previousClose': None,
             'change': None,
             'percentage': self.safe_string(ticker, 'priceChangePercent'),
@@ -370,7 +371,7 @@ class bingx(Exchange):
         request = {
             'symbol': market['id'],
         }
-        ticker = await self.swapV1PublicGetMarketGetTicker(self.extend(request, params))
+        response = await self.swapV1PublicGetMarketGetTicker(self.extend(request, params))
         #
         # {
         #   "symbol": "BTC-USDT",
@@ -385,6 +386,9 @@ class bingx(Exchange):
         #   "openPrice": "5828.32"
         # }
         #
+        data = self.safe_value(response, 'data')
+        tickers = self.safe_value(data, 'tickers')
+        ticker = self.safe_value(tickers, 0)
         return self.parse_ticker(ticker, market)
 
     def parse_trade(self, trade, market=None):
@@ -442,21 +446,121 @@ class bingx(Exchange):
         :param dict params: extra parameters specific to the paymium api endpoint
         :returns dict: an `order structure <https://docs.ccxt.com/#/?id=order-structure>`
         """
+        # quick order:
+        #
+        # BTC/USDT:USDT
+        # limit
+        # buy
+        # 4.0
+        # 29116.0
+        # {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        #
+        # limit order:
+        #
+        # BTC/USDT:USDT
+        # limit
+        # buy
+        # 4.0
+        # 28520.0
+        # {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        #
+        # no post = 'timeInForce': 'GTC',
+        #
+        # SL
+        #
+        # BTC/USDT:USDT
+        # stop
+        # sell
+        # 20.0
+        # None
+        # {'positionMode': 'unknown', 'stopPrice': 27663.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        #
+        # TP
+        #
+        # BTC/USDT:USDT
+        # stop
+        # sell
+        # 20.0
+        # None
+        # {'positionMode': 'unknown', 'stopPrice': 30150.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        #
+        # LIMIT TP
+        #
+        # BTC/USDT:USDT
+        # stopLimit
+        # sell
+        # 4.0
+        # 33000.0
+        # {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
         await self.load_markets()
         market = self.market(symbol)
+        #
+        triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
+        isTriggerOrder = triggerPrice is not None
+        isStopLossOrder = None
+        isTakeProfitOrder = None
+        reduceOnly = self.safe_value_2(params, 'close', 'reduceOnly', False)
+        basePrice = self.safe_value(params, 'basePrice')
+        if triggerPrice is not None and basePrice is not None:
+            # triggerOrder is NOT stopOrder
+            isTriggerOrder = not reduceOnly
+            # type = 'market'
+            if not isTriggerOrder:
+                if side == 'buy':
+                    if triggerPrice > basePrice:
+                        isStopLossOrder = True
+                    else:
+                        isTakeProfitOrder = True
+                else:
+                    if triggerPrice < basePrice:
+                        isStopLossOrder = True
+                    else:
+                        isTakeProfitOrder = True
+        #
+        convertedType = 'LIMIT'
+        if type == 'stop':
+            if isTakeProfitOrder:
+                convertedType = 'TAKE_PROFIT_MARKET'
+            elif isStopLossOrder:
+                convertedType = 'STOP_MARKET'
+            else:
+                raise ArgumentsRequired('unknown order direction for TP/SL')
+        if type == 'stopLimit':
+            convertedType = 'TRIGGER_LIMIT'
+        # symbolComponents = symbol.split(':')
+        # formattedSymbol = symbolComponents[0]
+        convertedSide = side.upper()
+        # TODO use stringMult
+        convertedAmount = amount * market['contractSize']
         request = {
-            'type': self.capitalize(type) + 'Order',
-            'currency': market['id'],
-            'direction': side,
-            'amount': amount,
+            'symbol': market['id'],
+            'type': convertedType,
+            'side': convertedSide,
+            'quantity': convertedAmount,
         }
-        if type != 'market':
-            request['price'] = price
-        response = await self.privatePostUserOrders(self.extend(request, params))
-        return self.safe_order({
-            'info': response,
-            'id': response['uuid'],
-        }, market)
+        if triggerPrice is not None:
+            request['stopPrice'] = triggerPrice
+        if (type == 'limit' or type == 'stopLimit') and (triggerPrice is None):
+            request['price'] = self.price_to_precision(symbol, price)
+        isMarketOrder = type == 'market'
+        exchangeSpecificParam = self.safe_string_2(params, 'force', 'timeInForce')
+        postOnly = self.is_post_only(isMarketOrder, exchangeSpecificParam == 'PO', params)
+        if postOnly:
+            request['timeInForce'] = 'PostOnly'
+        # response = await self.swap2OpenApiPrivatePostSwapV2TradeOrder(self.extend(request, params))
+        response = await self.swap2OpenApiPrivatePostSwapV2TradeOrder(request)
+        # console.log('response', response)
+        data = self.safe_value(response, 'data')
+        order = self.safe_value(data, 'order')
+        # parsedOrder = self.parse_order(order, market)
+        # patchedOrder = self.extend(parsedOrder, params)
+        # patchedOrder = self.extend(patchedOrder, {
+        #     'price': price,
+        #     'amount': amount,
+        #     'side': side,
+        #     'type': type,
+        # })
+        return self.parse_order(order, market)
 
     async def cancel_order(self, id, symbol=None, params={}):
         """
@@ -574,7 +678,7 @@ class bingx(Exchange):
             'symbol': market['id'],
         }
         if limit is None:
-            limit = 200  # default is 200 when requested with `since`
+            limit = 200  # default is 340 when requested with `since`
         if since is not None:
             request['startTime'] = since
         klineType = self.safe_string(self.timeframes, timeframe, timeframe)
@@ -609,8 +713,26 @@ class bingx(Exchange):
                 request['endTime'] = since + limit * 30 * 24 * 60 * 60 * 1000
             else:
                 request['endTime'] = since + limit * 60 * 1000
+        # print('==========')
+        # print('fetchOHLCV', symbol, timeframe, since, limit, params, klineType)
+        # print('now', +new Date(), new Date())
+        # print('startTs', +new Date(request['startTime']), new Date(request['startTime']))
+        # print('endTs', +new Date(request['endTime']), new Date(request['endTime']))
         response = await self.swap2OpenApiPublicGetSwapV2QuoteKlines(self.extend(request, params))
+        # print('lastCandleTs', len(response.data[response.data) - +new Date(len(+response.data[response.data) - 1].time) if 1] else 'none', len(response.data[response.data) - 1] ? new Date(len(+response.data[response.data) - 1].time) : 'none')
+        # print('response', response)
         ohlcvs = self.safe_value(response, 'data', [])
+        if len(ohlcvs) > 0:
+            #/ BEGIN Patching last candle
+            lastRequest = self.omit(request, ['startTime', 'endTime'])
+            lastCandleResponse = await self.swap2OpenApiPublicGetSwapV2QuoteKlines(self.extend(lastRequest, params))
+            lastOhlcv = self.safe_value(lastCandleResponse, 'data', {})
+            lastOhlcvTime = self.safe_integer(lastOhlcv, 'time')
+            # console.log('loht', lastOhlcvTime, new Date(lastOhlcvTime))
+            lastOhlcvFromArrayTime = self.safe_integer(ohlcvs[-1:], 'time')
+            if lastOhlcvTime >= lastOhlcvFromArrayTime:
+                ohlcvs.append(lastOhlcv)
+            #/ END Patching last candle
         return self.parse_ohlcvs(ohlcvs, market, timeframe, since, limit)
 
     def parse_ohlcvs(self, ohlcvs, market=None, timeframe='1m', since=None, limit=None):
@@ -743,8 +865,12 @@ class bingx(Exchange):
         symbol = market['symbol']
         id = self.safe_string(order, 'orderId')
         price = self.safe_string(order, 'price')
-        amount = self.safe_string(order, 'origQty')
-        filled = self.safe_string(order, 'executedQty')
+        amount = self.safe_float(order, 'origQty')
+        if amount is not None:
+            amount = amount / market['contractSize']
+        filled = self.safe_float(order, 'executedQty')
+        if filled is not None:
+            filled = filled / market['contractSize']
         cost = self.safe_string(order, 'executedQty')
         average = self.safe_string(order, 'avgPrice')
         type = self.parse_order_type(self.safe_string_lower(order, 'type'))

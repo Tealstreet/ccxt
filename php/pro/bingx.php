@@ -179,7 +179,15 @@ class bingx extends \ccxt\async\bingx {
             if ($this->newUpdates) {
                 $limit = $trades->getLimit ($symbol, $limit);
             }
-            return $this->filter_by_since_limit($trades, $since, $limit, 'timestamp', true);
+            // $since BingX always returns duplicate set of klines via ws, and we are not sending $since from
+            // ts client, emulate it
+            $tradesSince = null;
+            if ($this->options['tradesSince'] !== null) {
+                $tradesSince = $this->options['tradesSince'];
+            }
+            $newTrades = $this->filter_by_since_limit($trades, $tradesSince, $limit, 'timestamp', true);
+            $this->options = array_merge($this->options, array( 'tradesSince' => $this->milliseconds() - 0 ));
+            return $newTrades;
         }) ();
     }
 
@@ -247,7 +255,7 @@ class bingx extends \ccxt\async\bingx {
         $m = $this->safe_value($trade, 'makerSide');
         $side = $m ? 'Bid' : 'Ask';
         $price = $this->safe_string($trade, 'price');
-        $amount = $this->safe_string($trade, 'volume');
+        $amount = $this->safe_float($trade, 'volume');
         return $this->safe_trade(array(
             'id' => $id,
             'info' => $trade,
@@ -259,7 +267,7 @@ class bingx extends \ccxt\async\bingx {
             'side' => $side,
             'takerOrMaker' => 'taker',
             'price' => $price,
-            'amount' => $amount,
+            'amount' => $amount * $market['contractSize'],
             'cost' => null,
             'fee' => null,
         ), $market);

@@ -3035,7 +3035,19 @@ export default class Exchange {
         }
         // TEALSTREET patch for backwards compatability
         // this.marketHelper (symbol.split (':')[0]);
-        const foundMarket = this.marketHelper(symbol) || this.marketHelper(symbol + ':USDT') || this.marketHelper(symbol + ':BTC');
+        let foundMarket = this.marketHelper(symbol);
+        if (foundMarket) {
+            return foundMarket;
+        }
+        const marketStem = symbol.split(':')[0];
+        const marketParts = marketStem.split('/');
+        if (marketParts.length === 2) {
+            foundMarket = this.marketHelper(marketParts[0] + '/' + marketParts[1] + ':' + marketParts[1]);
+        }
+        if (foundMarket) {
+            return foundMarket;
+        }
+        foundMarket = this.marketHelper(marketStem + ':USDT') || this.marketHelper(marketStem + ':BTC') || this.marketHelper(marketStem);
         if (foundMarket) {
             return foundMarket;
         }

@@ -2209,7 +2209,8 @@ export default class phemex extends Exchange {
         const market = this.market(symbol);
         side = this.capitalize(side);
         type = this.capitalize(type);
-        const reduceOnly = this.safeValue(params, 'reduceOnly');
+        const reduceOnly = this.safeValue2(params, 'reduce', 'reduceOnly');
+        const closeOnTrigger = this.safeValue2(params, 'close', 'closeOnTrigger');
         const request = {
             // common
             'symbol': market['id'],
@@ -2298,23 +2299,7 @@ export default class phemex extends Exchange {
             }
         }
         else if (market['swap']) {
-            let posSide = this.safeStringLower2(params, 'positionMode', 'posSide');
-            if (posSide === 'oneway') {
-                posSide = 'Merged';
-            }
-            else if (posSide === 'hedged' || posSide === 'hedge') {
-                if (side === 'Buy') {
-                    posSide = reduceOnly ? 'Short' : 'Long';
-                }
-                else {
-                    posSide = reduceOnly ? 'Long' : 'Short';
-                }
-            }
-            if (posSide === undefined) {
-                posSide = 'Merged';
-            }
-            posSide = this.capitalize(posSide);
-            request['posSide'] = posSide;
+            request['posSide'] = this.formatPosSide(side, params);
             if (reduceOnly !== undefined) {
                 request['reduceOnly'] = reduceOnly;
             }
@@ -2327,7 +2312,6 @@ export default class phemex extends Exchange {
             if (formattedStopPrice !== undefined) {
                 const triggerType = this.formatTriggerType(this.safeString2(params, 'trigger', 'triggerType', 'ByMarkPrice'));
                 request['triggerType'] = triggerType;
-                const closeOnTrigger = this.safeValue2(params, 'close', 'closeOnTrigger');
                 if (closeOnTrigger !== undefined) {
                     request['closeOnTrigger'] = closeOnTrigger;
                 }
@@ -2463,6 +2447,37 @@ export default class phemex extends Exchange {
         const data = this.safeValue(response, 'data', {});
         return this.parseOrder(data, market);
     }
+    formatPosSide(side, params = {}) {
+        side = this.capitalize(side);
+        let posSide = this.safeStringLower2(params, 'positionMode', 'posSide');
+        const reduceOnly = this.safeValue2(params, 'reduce', 'reduceOnly');
+        const closeOnTrigger = this.safeValue2(params, 'close', 'closeOnTrigger');
+        if (posSide === 'oneway') {
+            posSide = 'Merged';
+        }
+        else if (posSide === 'hedged' || posSide === 'hedge') {
+            if (side === 'Buy') {
+                if (reduceOnly || closeOnTrigger) {
+                    posSide = 'Short';
+                }
+                else {
+                    posSide = 'Long';
+                }
+            }
+            else {
+                if (reduceOnly || closeOnTrigger) {
+                    posSide = 'Long';
+                }
+                else {
+                    posSide = 'Short';
+                }
+            }
+        }
+        if (posSide === undefined) {
+            posSide = 'Merged';
+        }
+        return this.capitalize(posSide);
+    }
     async editOrder(id, symbol, type = undefined, side = undefined, amount = undefined, price = undefined, params = {}) {
         /**
          * @method
@@ -2535,12 +2550,9 @@ export default class phemex extends Exchange {
         }
         else if (isUSDTSettled) {
             method = 'privatePutGOrdersReplace';
-            const posSide = this.safeString(params, 'posSide');
-            if (posSide === undefined) {
-                request['posSide'] = 'Merged';
-            }
+            request['posSide'] = this.formatPosSide(side, params);
         }
-        params = this.omit(params, ['reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice']);
+        params = this.omit(params, ['reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice', 'positionSide']);
         const response = await this[method](this.extend(request, params));
         const data = this.safeValue(response, 'data', {});
         return this.parseOrder(data, market);
@@ -2579,11 +2591,10 @@ export default class phemex extends Exchange {
         }
         else if (market['settle'] === 'USDT') {
             method = 'privateDeleteGOrdersCancel';
-            const posSide = this.safeStringLower2(params, 'positionMode', 'posSide');
-            if (posSide !== undefined) {
-                request['posSide'] = posSide;
-            }
+            const side = this.safeString(params, 'side');
+            request['posSide'] = this.formatPosSide(side, params);
         }
+        params = this.omit(params, ['side']);
         const response = await this[method](this.extend(request, params));
         const data = this.safeValue(response, 'data', {});
         return this.parseOrder(data, market);
@@ -3462,10 +3473,6 @@ export default class phemex extends Exchange {
         }
         else {
             id = symbol;
-        }
-        const term = this.safeString(position, 'term');
-        if (term) {
-            id += ':' + term;
         }
         let priceDiff = undefined;
         const currency = this.safeString(position, 'currency');

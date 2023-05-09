@@ -2140,7 +2140,8 @@ class phemex(Exchange):
         market = self.market(symbol)
         side = self.capitalize(side)
         type = self.capitalize(type)
-        reduceOnly = self.safe_value(params, 'reduceOnly')
+        reduceOnly = self.safe_value_2(params, 'reduce', 'reduceOnly')
+        closeOnTrigger = self.safe_value_2(params, 'close', 'closeOnTrigger')
         request = {
             # common
             'symbol': market['id'],
@@ -2214,18 +2215,7 @@ class phemex(Exchange):
                 amountString = str(amount)
                 request['baseQtyEv'] = self.to_ev(amountString, market)
         elif market['swap']:
-            posSide = self.safe_string_lower_2(params, 'positionMode', 'posSide')
-            if posSide == 'oneway':
-                posSide = 'Merged'
-            elif posSide == 'hedged' or posSide == 'hedge':
-                if side == 'Buy':
-                    posSide = 'Short' if reduceOnly else 'Long'
-                else:
-                    posSide = 'Long' if reduceOnly else 'Short'
-            if posSide is None:
-                posSide = 'Merged'
-            posSide = self.capitalize(posSide)
-            request['posSide'] = posSide
+            request['posSide'] = self.format_pos_side(side, params)
             if reduceOnly is not None:
                 request['reduceOnly'] = reduceOnly
             if market['settle'] == 'USDT':
@@ -2235,7 +2225,6 @@ class phemex(Exchange):
             if formattedStopPrice is not None:
                 triggerType = self.format_trigger_type(self.safe_string_2(params, 'trigger', 'triggerType', 'ByMarkPrice'))
                 request['triggerType'] = triggerType
-                closeOnTrigger = self.safe_value_2(params, 'close', 'closeOnTrigger')
                 if closeOnTrigger is not None:
                     request['closeOnTrigger'] = closeOnTrigger
                 basePrice = self.safe_float(params, 'basePrice')
@@ -2353,6 +2342,28 @@ class phemex(Exchange):
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
 
+    def format_pos_side(self, side, params={}):
+        side = self.capitalize(side)
+        posSide = self.safe_string_lower_2(params, 'positionMode', 'posSide')
+        reduceOnly = self.safe_value_2(params, 'reduce', 'reduceOnly')
+        closeOnTrigger = self.safe_value_2(params, 'close', 'closeOnTrigger')
+        if posSide == 'oneway':
+            posSide = 'Merged'
+        elif posSide == 'hedged' or posSide == 'hedge':
+            if side == 'Buy':
+                if reduceOnly or closeOnTrigger:
+                    posSide = 'Short'
+                else:
+                    posSide = 'Long'
+            else:
+                if reduceOnly or closeOnTrigger:
+                    posSide = 'Long'
+                else:
+                    posSide = 'Short'
+        if posSide is None:
+            posSide = 'Merged'
+        return self.capitalize(posSide)
+
     async def edit_order(self, id, symbol, type=None, side=None, amount=None, price=None, params={}):
         """
         edit a trade order
@@ -2409,10 +2420,8 @@ class phemex(Exchange):
             method = 'privatePutOrdersReplace'
         elif isUSDTSettled:
             method = 'privatePutGOrdersReplace'
-            posSide = self.safe_string(params, 'posSide')
-            if posSide is None:
-                request['posSide'] = 'Merged'
-        params = self.omit(params, ['reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice'])
+            request['posSide'] = self.format_pos_side(side, params)
+        params = self.omit(params, ['reduceOnly', 'timeInForce', 'closeOnTrigger', 'close', 'basePrice', 'positionSide'])
         response = await getattr(self, method)(self.extend(request, params))
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
@@ -2445,9 +2454,9 @@ class phemex(Exchange):
             method = 'privateDeleteOrdersCancel'
         elif market['settle'] == 'USDT':
             method = 'privateDeleteGOrdersCancel'
-            posSide = self.safe_string_lower_2(params, 'positionMode', 'posSide')
-            if posSide is not None:
-                request['posSide'] = posSide
+            side = self.safe_string(params, 'side')
+            request['posSide'] = self.format_pos_side(side, params)
+        params = self.omit(params, ['side'])
         response = await getattr(self, method)(self.extend(request, params))
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
@@ -3245,9 +3254,6 @@ class phemex(Exchange):
             id = symbol + ':' + side
         else:
             id = symbol
-        term = self.safe_string(position, 'term')
-        if term:
-            id += ':' + term
         priceDiff = None
         currency = self.safe_string(position, 'currency')
         if currency == 'USD':

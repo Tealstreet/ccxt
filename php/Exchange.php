@@ -4531,7 +4531,19 @@ class Exchange {
         }
         // TEALSTREET patch for backwards compatability
         // $this->marketHelper (explode(':', $symbol)[0]);
-        $foundMarket = $this->marketHelper ($symbol) || $this->marketHelper ($symbol . ':USDT') || $this->marketHelper ($symbol . ':BTC');
+        $foundMarket = $this->marketHelper ($symbol);
+        if ($foundMarket) {
+            return $foundMarket;
+        }
+        $marketStem = explode(':', $symbol)[0];
+        $marketParts = explode('/', $marketStem);
+        if (strlen($marketParts) === 2) {
+            $foundMarket = $this->marketHelper ($marketParts[0] . '/' . $marketParts[1] . ':' . $marketParts[1]);
+        }
+        if ($foundMarket) {
+            return $foundMarket;
+        }
+        $foundMarket = $this->marketHelper ($marketStem . ':USDT') || $this->marketHelper ($marketStem . ':BTC') || $this->marketHelper ($marketStem);
         if ($foundMarket) {
             return $foundMarket;
         }

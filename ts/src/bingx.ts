@@ -241,8 +241,8 @@ export default class bingx extends Exchange {
                 'strike': undefined,
                 'optionType': undefined,
                 'precision': {
-                    'amount': this.safeNumber (market, 'volumePrecision'),
-                    'price': this.safeNumber (market, 'pricePrecision'),
+                    'amount': this.parseNumber (this.parsePrecision (this.safeString (market, 'volumePrecision'))),
+                    'price': this.parseNumber (this.parsePrecision (this.safeString (market, 'pricePrecision'))),
                 },
                 'limits': {
                     'leverage': {
@@ -362,6 +362,7 @@ export default class bingx extends Exchange {
             'open': this.safeString (ticker, 'openPrice'),
             'close': last,
             'last': last,
+            'mark': last,
             'previousClose': undefined,
             'change': undefined,
             'percentage': this.safeString (ticker, 'priceChangePercent'),
@@ -385,7 +386,7 @@ export default class bingx extends Exchange {
         const request = {
             'symbol': market['id'],
         };
-        const ticker = await (this as any).swapV1PublicGetMarketGetTicker (this.extend (request, params));
+        const response = await (this as any).swapV1PublicGetMarketGetTicker (this.extend (request, params));
         //
         // {
         //   "symbol": "BTC-USDT",
@@ -400,6 +401,9 @@ export default class bingx extends Exchange {
         //   "openPrice": "5828.32"
         // }
         //
+        const data = this.safeValue (response, 'data');
+        const tickers = this.safeValue (data, 'tickers');
+        const ticker = this.safeValue (tickers, 0);
         return this.parseTicker (ticker, market);
     }
 
@@ -452,7 +456,7 @@ export default class bingx extends Exchange {
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
         /**
          * @method
-         * @name paymium#createOrder
+         * @name bingx#createOrder
          * @description create a trade order
          * @param {string} symbol unified symbol of the market to create an order in
          * @param {string} type 'market' or 'limit'
@@ -462,22 +466,132 @@ export default class bingx extends Exchange {
          * @param {object} params extra parameters specific to the paymium api endpoint
          * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
          */
+        // quick order:
+        //
+        // BTC/USDT:USDT
+        // limit
+        // buy
+        // 4.0
+        // 29116.0
+        // {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        //
+        // limit order:
+        //
+        // BTC/USDT:USDT
+        // limit
+        // buy
+        // 4.0
+        // 28520.0
+        // {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        //
+        // no post = 'timeInForce': 'GTC',
+        //
+        // SL
+        //
+        // BTC/USDT:USDT
+        // stop
+        // sell
+        // 20.0
+        // None
+        // {'positionMode': 'unknown', 'stopPrice': 27663.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        //
+        // TP
+        //
+        // BTC/USDT:USDT
+        // stop
+        // sell
+        // 20.0
+        // None
+        // {'positionMode': 'unknown', 'stopPrice': 30150.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        //
+        // LIMIT TP
+        //
+        // BTC/USDT:USDT
+        // stopLimit
+        // sell
+        // 4.0
+        // 33000.0
+        // {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request = {
-            'type': this.capitalize (type) + 'Order',
-            'currency': market['id'],
-            'direction': side,
-            'amount': amount,
-        };
-        if (type !== 'market') {
-            request['price'] = price;
+        //
+        const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
+        let isTriggerOrder = triggerPrice !== undefined;
+        let isStopLossOrder = undefined;
+        let isTakeProfitOrder = undefined;
+        const reduceOnly = this.safeValue2 (params, 'close', 'reduceOnly', false);
+        const basePrice = this.safeValue (params, 'basePrice');
+        if (triggerPrice !== undefined && basePrice !== undefined) {
+            // triggerOrder is NOT stopOrder
+            isTriggerOrder = !reduceOnly;
+            // type = 'market';
+            if (!isTriggerOrder) {
+                if (side === 'buy') {
+                    if (triggerPrice > basePrice) {
+                        isStopLossOrder = true;
+                    } else {
+                        isTakeProfitOrder = true;
+                    }
+                } else {
+                    if (triggerPrice < basePrice) {
+                        isStopLossOrder = true;
+                    } else {
+                        isTakeProfitOrder = true;
+                    }
+                }
+            }
         }
-        const response = await (this as any).privatePostUserOrders (this.extend (request, params));
-        return this.safeOrder ({
-            'info': response,
-            'id': response['uuid'],
-        }, market);
+        //
+        let convertedType = 'LIMIT';
+        if (type === 'stop') {
+            if (isTakeProfitOrder) {
+                convertedType = 'TAKE_PROFIT_MARKET';
+            } else if (isStopLossOrder) {
+                convertedType = 'STOP_MARKET';
+            } else {
+                throw new ArgumentsRequired ('unknown order direction for TP/SL');
+            }
+        }
+        if (type === 'stopLimit') {
+            convertedType = 'TRIGGER_LIMIT';
+        }
+        // const symbolComponents = symbol.split (':');
+        // const formattedSymbol = symbolComponents[0];
+        const convertedSide = side.toUpperCase ();
+        // TODO use stringMult
+        const convertedAmount = amount * market['contractSize'];
+        const request = {
+            'symbol': market['id'],
+            'type': convertedType,
+            'side': convertedSide,
+            'quantity': convertedAmount,
+        };
+        if (triggerPrice !== undefined) {
+            request['stopPrice'] = triggerPrice;
+        }
+        if ((type === 'limit' || type === 'stopLimit') && (triggerPrice === undefined)) {
+            request['price'] = this.priceToPrecision (symbol, price);
+        }
+        const isMarketOrder = type === 'market';
+        const exchangeSpecificParam = this.safeString2 (params, 'force', 'timeInForce');
+        const postOnly = this.isPostOnly (isMarketOrder, exchangeSpecificParam === 'PO', params);
+        if (postOnly) {
+            request['timeInForce'] = 'PostOnly';
+        }
+        // const response = await (this as any).swap2OpenApiPrivatePostSwapV2TradeOrder (this.extend (request, params));
+        const response = await (this as any).swap2OpenApiPrivatePostSwapV2TradeOrder (request);
+        // console.log('response', response);
+        const data = this.safeValue (response, 'data');
+        const order = this.safeValue (data, 'order');
+        // const parsedOrder = this.parseOrder (order, market);
+        // let patchedOrder = this.extend (parsedOrder, params);
+        // patchedOrder = this.extend (patchedOrder, {
+        //     'price': price,
+        //     'amount': amount,
+        //     'side': side,
+        //     'type': type,
+        // });
+        return this.parseOrder (order, market);
     }
 
     async cancelOrder (id, symbol = undefined, params = {}) {
@@ -609,7 +723,7 @@ export default class bingx extends Exchange {
             'symbol': market['id'],
         };
         if (limit === undefined) {
-            limit = 200; // default is 200 when requested with `since`
+            limit = 200; // default is 340 when requested with `since`
         }
         if (since !== undefined) {
             request['startTime'] = since;
@@ -648,8 +762,28 @@ export default class bingx extends Exchange {
                 request['endTime'] = since + limit * 60 * 1000;
             }
         }
+        // console.log ('===============');
+        // console.log ('fetchOHLCV', symbol, timeframe, since, limit, params, klineType);
+        // console.log ('now', +new Date (), new Date ());
+        // console.log ('startTs', +new Date (request['startTime']), new Date (request['startTime']));
+        // console.log ('endTs', +new Date (request['endTime']), new Date (request['endTime']));
         const response = await (this as any).swap2OpenApiPublicGetSwapV2QuoteKlines (this.extend (request, params));
+        // console.log ('lastCandleTs', response.data[response.data.length - 1] ? +new Date (+response.data[response.data.length - 1].time) : 'none', response.data[response.data.length - 1] ? new Date (+response.data[response.data.length - 1].time) : 'none');
+        // console.log ('response', response);
         const ohlcvs = this.safeValue (response, 'data', []);
+        if (ohlcvs.length > 0) {
+            /// BEGIN Patching last candle
+            const lastRequest = this.omit (request, [ 'startTime', 'endTime' ]);
+            const lastCandleResponse = await (this as any).swap2OpenApiPublicGetSwapV2QuoteKlines (this.extend (lastRequest, params));
+            const lastOhlcv = this.safeValue (lastCandleResponse, 'data', {});
+            const lastOhlcvTime = this.safeInteger (lastOhlcv, 'time');
+            // console.log('loht', lastOhlcvTime, new Date (lastOhlcvTime));
+            const lastOhlcvFromArrayTime = this.safeInteger (ohlcvs.slice (-1), 'time');
+            if (lastOhlcvTime >= lastOhlcvFromArrayTime) {
+                ohlcvs.push (lastOhlcv);
+            }
+            /// END Patching last candle
+        }
         return this.parseOHLCVs (ohlcvs, market, timeframe, since, limit);
     }
 
@@ -789,8 +923,14 @@ export default class bingx extends Exchange {
         const symbol = market['symbol'];
         const id = this.safeString (order, 'orderId');
         const price = this.safeString (order, 'price');
-        const amount = this.safeString (order, 'origQty');
-        const filled = this.safeString (order, 'executedQty');
+        let amount = this.safeFloat (order, 'origQty');
+        if (amount !== undefined) {
+            amount = amount / market['contractSize'];
+        }
+        let filled = this.safeFloat (order, 'executedQty');
+        if (filled !== undefined) {
+            filled = filled / market['contractSize'];
+        }
         const cost = this.safeString (order, 'executedQty');
         const average = this.safeString (order, 'avgPrice');
         const type = this.parseOrderType (this.safeStringLower (order, 'type'));
