@@ -3401,7 +3401,16 @@ class Exchange(object):
             raise ExchangeError(self.id + ' markets not loaded')
         # TEALSTREET patch for backwards compatability
         # self.marketHelper(symbol.split(':')[0])
-        foundMarket = self.marketHelper(symbol) or self.marketHelper(symbol + ':USDT') or self.marketHelper(symbol + ':BTC')
+        foundMarket = self.marketHelper(symbol)
+        if foundMarket:
+            return foundMarket
+        marketStem = symbol.split(':')[0]
+        marketParts = marketStem.split('/')
+        if len(marketParts) == 2:
+            foundMarket = self.marketHelper(marketParts[0] + '/' + marketParts[1] + ':' + marketParts[1])
+        if foundMarket:
+            return foundMarket
+        foundMarket = self.marketHelper(marketStem + ':USDT') or self.marketHelper(marketStem + ':BTC') or self.marketHelper(marketStem)
         if foundMarket:
             return foundMarket
         # eslint-disable-next-line no-console
