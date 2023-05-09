@@ -520,8 +520,10 @@ class bingx(Exchange):
         convertedType = 'LIMIT'
         if type == 'stop':
             if isTakeProfitOrder:
+                # convertedType = 'TAKE_PROFIT_MARKET'
                 convertedType = 'TRIGGER_LIMIT'
             elif isStopLossOrder:
+                # convertedType = 'STOP_MARKET'
                 convertedType = 'TRIGGER_LIMIT'
             else:
                 raise ArgumentsRequired('unknown order direction for TP/SL')

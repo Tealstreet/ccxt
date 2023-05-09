@@ -551,8 +551,10 @@ class bingx extends Exchange {
             $convertedType = 'LIMIT';
             if ($type === 'stop') {
                 if ($isTakeProfitOrder) {
+                    // $convertedType = 'TAKE_PROFIT_MARKET';
                     $convertedType = 'TRIGGER_LIMIT';
                 } elseif ($isStopLossOrder) {
+                    // $convertedType = 'STOP_MARKET';
                     $convertedType = 'TRIGGER_LIMIT';
                 } else {
                     throw new ArgumentsRequired('unknown $order direction for TP/SL');

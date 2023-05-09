@@ -538,9 +538,11 @@ export default class bingx extends Exchange {
         let convertedType = 'LIMIT';
         if (type === 'stop') {
             if (isTakeProfitOrder) {
+                // convertedType = 'TAKE_PROFIT_MARKET';
                 convertedType = 'TRIGGER_LIMIT';
             }
             else if (isStopLossOrder) {
+                // convertedType = 'STOP_MARKET';
                 convertedType = 'TRIGGER_LIMIT';
             }
             else {
