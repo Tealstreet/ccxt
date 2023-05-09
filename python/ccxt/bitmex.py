@@ -1811,7 +1811,7 @@ class bitmex(Exchange):
         request['text'] = brokerId
         stopPrice = self.safe_number_2(params, 'stopPx', 'stopPrice')
         if stopPrice is not None:
-            request['stopPx'] = float(self.amount_to_precision(symbol, stopPrice))
+            request['stopPx'] = float(self.price_to_precision(symbol, stopPrice))
         response = self.privatePutOrder(self.extend(request, params))
         return self.parse_order(response)
 
