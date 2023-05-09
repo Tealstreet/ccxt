@@ -128,6 +128,7 @@ export default class bingx extends Exchange {
                             'post': {
                                 'user/auth/userDataStream': 1,
                                 'swap/v2/trade/order': 1,
+                                'swap/v2/trade/leverage': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
