@@ -6,7 +6,7 @@
 
 //  ---------------------------------------------------------------------------
 import { Exchange } from './base/Exchange.js';
-import { ExchangeError } from './base/errors.js';
+import { ArgumentsRequired, ExchangeError } from './base/errors.js';
 import { TICK_SIZE } from './base/functions/number.js';
 //  ---------------------------------------------------------------------------
 export default class bingx extends Exchange {
@@ -126,6 +126,10 @@ export default class bingx extends Exchange {
                             },
                             'post': {
                                 'user/auth/userDataStream': 1,
+                                'swap/v2/trade/order': 1,
+                            },
+                            'delete': {
+                                'swap/v2/trade/order': 1,
                             },
                         },
                     },
@@ -468,17 +472,26 @@ export default class bingx extends Exchange {
     async cancelOrder(id, symbol = undefined, params = {}) {
         /**
          * @method
-         * @name paymium#cancelOrder
+         * @name bingx#cancelOrder
          * @description cancels an open order
          * @param {string} id order id
-         * @param {string|undefined} symbol not used by paymium cancelOrder ()
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} An [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
+         * @param {string} symbol unified symbol of the market the order was made in
+         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @returns {object} An [order structure]{@link https://docs.ccxt.com/en/latest/manual.html#order-structure}
          */
+        if (symbol === undefined) {
+            throw new ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument for spot orders');
+        }
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const idComponents = id.split(':');
+        const formattedId = idComponents[0];
         const request = {
-            'uuid': id,
+            'symbol': market['id'],
+            'orderId': formattedId,
         };
-        return await this.privateDeleteUserOrdersUuidCancel(this.extend(request, params));
+        const response = await this.swap2OpenApiPrivateDeleteSwapV2TradeOrder(this.extend(request, params));
+        return this.parseOrder(response, market);
     }
     async fetchPositions(symbols = undefined, params = {}) {
         /**

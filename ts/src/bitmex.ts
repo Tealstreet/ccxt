@@ -1866,7 +1866,7 @@ export default class bitmex extends Exchange {
                 const ticker = this.fetchTicker (symbol);
                 basePrice = ticker['last'];
             }
-            if ((side === 'Buy' && stopPrice < basePrice) || (side === 'Sell' && stopPrice > basePrice)) {
+            if ((side === 'buy' && stopPrice < basePrice) || (side === 'sell' && stopPrice > basePrice)) {
                 if (orderType === 'Stop') {
                     orderType = 'MarketIfTouched';
                 } else if (orderType === 'StopLimit') {

@@ -6,6 +6,7 @@
 from ccxt.async_support.base.exchange import Exchange
 import hashlib
 from ccxt.base.errors import ExchangeError
+from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.decimal_to_precision import TICK_SIZE
 
 
@@ -128,6 +129,10 @@ class bingx(Exchange):
                             },
                             'post': {
                                 'user/auth/userDataStream': 1,
+                                'swap/v2/trade/order': 1,
+                            },
+                            'delete': {
+                                'swap/v2/trade/order': 1,
                             },
                         },
                     },
@@ -457,14 +462,22 @@ class bingx(Exchange):
         """
         cancels an open order
         :param str id: order id
-        :param str|None symbol: not used by paymium cancelOrder()
-        :param dict params: extra parameters specific to the paymium api endpoint
-        :returns dict: An `order structure <https://docs.ccxt.com/#/?id=order-structure>`
+        :param str symbol: unified symbol of the market the order was made in
+        :param dict params: extra parameters specific to the bitget api endpoint
+        :returns dict: An `order structure <https://docs.ccxt.com/en/latest/manual.html#order-structure>`
         """
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
+        await self.load_markets()
+        market = self.market(symbol)
+        idComponents = id.split(':')
+        formattedId = idComponents[0]
         request = {
-            'uuid': id,
+            'symbol': market['id'],
+            'orderId': formattedId,
         }
-        return await self.privateDeleteUserOrdersUuidCancel(self.extend(request, params))
+        response = await self.swap2OpenApiPrivateDeleteSwapV2TradeOrder(request)
+        return self.parse_order(response, market)
 
     async def fetch_positions(self, symbols=None, params={}):
         """
@@ -830,7 +843,7 @@ class bingx(Exchange):
         params = self.keysort(params)
         if access == 'private':
             self.check_required_credentials()
-            isOpenApi = url.find('openOrders') >= 0
+            isOpenApi = url.find('/v2/') >= 0
             isUserDataStreamEp = url.find('userDataStream') >= 0
             if isOpenApi or isUserDataStreamEp:
                 params = self.extend(params, {
@@ -845,8 +858,6 @@ class bingx(Exchange):
                 headers = {
                     'X-BX-APIKEY': self.apiKey,
                 }
-                if method != 'GET':
-                    body = self.urlencode(params)
             else:
                 params = self.extend(params, {
                     'apiKey': self.apiKey,

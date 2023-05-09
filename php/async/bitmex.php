@@ -1875,7 +1875,7 @@ class bitmex extends Exchange {
                     $ticker = $this->fetch_ticker($symbol);
                     $basePrice = $ticker['last'];
                 }
-                if (($side === 'Buy' && $stopPrice < $basePrice) || ($side === 'Sell' && $stopPrice > $basePrice)) {
+                if (($side === 'buy' && $stopPrice < $basePrice) || ($side === 'sell' && $stopPrice > $basePrice)) {
                     if ($orderType === 'Stop') {
                         $orderType = 'MarketIfTouched';
                     } elseif ($orderType === 'StopLimit') {

@@ -1773,7 +1773,7 @@ class bitmex(Exchange):
             if basePrice is None or basePrice == 0.0:
                 ticker = self.fetch_ticker(symbol)
                 basePrice = ticker['last']
-            if (side == 'Buy' and stopPrice < basePrice) or (side == 'Sell' and stopPrice > basePrice):
+            if (side == 'buy' and stopPrice < basePrice) or (side == 'sell' and stopPrice > basePrice):
                 if orderType == 'Stop':
                     orderType = 'MarketIfTouched'
                 elif orderType == 'StopLimit':

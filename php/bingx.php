@@ -126,6 +126,10 @@ class bingx extends Exchange {
                             ),
                             'post' => array(
                                 'user/auth/userDataStream' => 1,
+                                'swap/v2/trade/order' => 1,
+                            ),
+                            'delete' => array(
+                                'swap/v2/trade/order' => 1,
                             ),
                         ),
                     ),
@@ -470,14 +474,23 @@ class bingx extends Exchange {
         /**
          * cancels an open order
          * @param {string} $id order $id
-         * @param {string|null} $symbol not used by paymium cancelOrder ()
-         * @param {array} $params extra parameters specific to the paymium api endpoint
-         * @return {array} An ~@link https://docs.ccxt.com/#/?$id=order-structure order structure~
+         * @param {string} $symbol unified $symbol of the $market the order was made in
+         * @param {array} $params extra parameters specific to the bitget api endpoint
+         * @return {array} An {@link https://docs.ccxt.com/en/latest/manual.html#order-structure order structure}
          */
+        if ($symbol === null) {
+            throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
+        }
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $idComponents = explode(':', $id);
+        $formattedId = $idComponents[0];
         $request = array(
-            'uuid' => $id,
+            'symbol' => $market['id'],
+            'orderId' => $formattedId,
         );
-        return $this->privateDeleteUserOrdersUuidCancel (array_merge($request, $params));
+        $response = $this->swap2OpenApiPrivateDeleteSwapV2TradeOrder ($request);
+        return $this->parse_order($response, $market);
     }
 
     public function fetch_positions($symbols = null, $params = array ()) {
@@ -866,7 +879,7 @@ class bingx extends Exchange {
         $params = $this->keysort($params);
         if ($access === 'private') {
             $this->check_required_credentials();
-            $isOpenApi = mb_strpos($url, 'openOrders') !== false;
+            $isOpenApi = mb_strpos($url, '/v2/') !== false;
             $isUserDataStreamEp = mb_strpos($url, 'userDataStream') !== false;
             if ($isOpenApi || $isUserDataStreamEp) {
                 $params = array_merge($params, array(
@@ -881,9 +894,6 @@ class bingx extends Exchange {
                 $headers = array(
                     'X-BX-APIKEY' => $this->apiKey,
                 );
-                if ($method !== 'GET') {
-                    $body = $this->urlencode($params);
-                }
             } else {
                 $params = array_merge($params, array(
                     'apiKey' => $this->apiKey,
