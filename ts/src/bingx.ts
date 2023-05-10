@@ -2,7 +2,6 @@
 //  ---------------------------------------------------------------------------
 
 import { Exchange } from './base/Exchange.js';
-import Precise from './base/Precise.js';
 import { ArgumentsRequired, ExchangeError } from './base/errors.js';
 import { TICK_SIZE } from './base/functions/number.js';
 import { OHLCV } from './base/types.js';
@@ -952,7 +951,7 @@ export default class bingx extends Exchange {
         // console.log ('response', response);
         const ohlcvs = this.safeValue (response, 'data', []);
         if (ohlcvs.length > 0) {
-            /// BEGIN Patching last candle
+            // BEGIN Patching last candle
             const lastRequest = this.omit (request, [ 'startTime', 'endTime' ]);
             const lastCandleResponse = await (this as any).swap2OpenApiPublicGetSwapV2QuoteKlines (this.extend (lastRequest, params));
             const lastOhlcv = this.safeValue (lastCandleResponse, 'data', {});
@@ -962,7 +961,7 @@ export default class bingx extends Exchange {
             if (lastOhlcvTime >= lastOhlcvFromArrayTime) {
                 ohlcvs.push (lastOhlcv);
             }
-            /// END Patching last candle
+            // END Patching last candle
         }
         return this.parseOHLCVs (ohlcvs, market, timeframe, since, limit);
     }

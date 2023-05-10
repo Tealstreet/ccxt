@@ -10,6 +10,7 @@ var Precise = require('./base/Precise.js');
 class bybit extends Exchange["default"] {
     describe() {
         return this.deepExtend(super.describe(), {
+            'verbose': true,
             'id': 'bybit',
             'name': 'Bybit',
             'countries': ['VG'],
@@ -7432,11 +7433,19 @@ class bybit extends Exchange["default"] {
         const tradeMode = (marginMode === 'ISOLATED') ? 1 : 0;
         const request = {
             'symbol': market['id'],
+            // TEALSTREET
+            'category': market['linear'] ? 'linear' : 'inverse',
+            // TEALSTREET
             'tradeMode': tradeMode,
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
         };
-        const response = await this.privatePostContractV3PrivatePositionSwitchIsolated(this.extend(request, params));
+        // TEALSTREET
+        const args = this.extend(request, params);
+        args['buyLeverage'] = this.numberToString(args['buyLeverage']);
+        args['sellLeverage'] = this.numberToString(args['sellLeverage']);
+        // TEALSTREET
+        const response = await this.privatePostContractV3PrivatePositionSwitchIsolated(args);
         //
         //     {
         //         "retCode": 0,
@@ -7508,6 +7517,12 @@ class bybit extends Exchange["default"] {
             };
             method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave';
         }
+        // TEALSTREET
+        params = {
+            'buyLeverage': this.safeString(params, 'buyLeverage') || request['buyLeverage'],
+            'sellLeverage': this.safeString(params, 'sellLeverage') || request['sellLeverage'],
+        };
+        // TEALSTREET
         return await this[method](this.extend(request, params));
     }
     async setPositionMode(hedged, symbol = undefined, params = {}) {
@@ -7527,6 +7542,9 @@ class bybit extends Exchange["default"] {
         }
         else {
             const market = this.market(symbol);
+            // TEALSTREET
+            request['category'] = market['linear'] ? 'linear' : 'inverse';
+            // TEALSTREET
             request['symbol'] = market['id'];
         }
         //

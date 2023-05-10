@@ -783,7 +783,7 @@ class bitget extends Exchange["default"] {
                 'defaultSubType': 'linear',
                 'subTypes': ['umcbl', 'dmcbl', 'cmcbl'],
                 'createMarketBuyOrderRequiresPrice': true,
-                'broker': {
+                'brokerId': {
                 // 'spot': 'CCXT#',
                 // 'swap': 'CCXT#',
                 },
@@ -2494,7 +2494,7 @@ class bitget extends Exchange["default"] {
         }
         let clientOrderId = this.safeString2(params, 'client_oid', 'clientOrderId');
         if (clientOrderId === undefined) {
-            const broker = this.safeValue(this.options, 'broker');
+            const broker = this.safeValue(this.options, 'brokerId');
             if (broker !== undefined) {
                 const brokerId = this.safeString(broker, market['type']);
                 if (brokerId !== undefined) {

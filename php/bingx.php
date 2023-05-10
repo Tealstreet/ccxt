@@ -931,7 +931,7 @@ class bingx extends Exchange {
         // var_dump ('response', $response);
         $ohlcvs = $this->safe_value($response, 'data', array());
         if (strlen($ohlcvs) > 0) {
-            /// BEGIN Patching last candle
+            // BEGIN Patching last candle
             $lastRequest = $this->omit($request, array( 'startTime', 'endTime' ));
             $lastCandleResponse = $this->swap2OpenApiPublicGetSwapV2QuoteKlines (array_merge($lastRequest, $params));
             $lastOhlcv = $this->safe_value($lastCandleResponse, 'data', array());
@@ -941,7 +941,7 @@ class bingx extends Exchange {
             if ($lastOhlcvTime >= $lastOhlcvFromArrayTime) {
                 $ohlcvs[] = $lastOhlcv;
             }
-            /// END Patching last candle
+            // END Patching last candle
         }
         return $this->parse_ohlcvs($ohlcvs, $market, $timeframe, $since, $limit);
     }
