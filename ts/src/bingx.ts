@@ -177,6 +177,56 @@ export default class bingx extends Exchange {
         });
     }
 
+    async switchIsolated (symbol, isIsolated, buyLeverage, sellLeverage, params = {}) {
+        if (isIsolated) {
+            await this.setMarginMode ('ISOLATED', symbol, params);
+        } else {
+            await this.setMarginMode ('CROSSED', symbol, params);
+        }
+    }
+
+    async setMarginMode (marginMode, symbol = undefined, params = {}) {
+        /**
+         * @method
+         * @name bingx#setMarginMode
+         * @description set margin mode to 'cross' or 'isolated'
+         * @param {string} marginMode 'cross' or 'isolated'
+         * @param {string} symbol unified market symbol
+         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @returns {object} response from the exchange
+         */
+        marginMode = marginMode.toLowerCase ();
+        if (marginMode === 'cross') {
+            marginMode = 'CROSSED';
+        }
+        if (marginMode === 'isolated') {
+            marginMode = 'ISOLATED';
+        }
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' setMarginMode() requires a symbol argument');
+        }
+        if ((marginMode !== 'ISOLATED') && (marginMode !== 'CROSSED')) {
+            throw new ArgumentsRequired (this.id + ' (' + marginMode + ') ' + ' setMarginMode() marginMode must be "isolated" or "crossed"');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'symbol': market['id'],
+            'marginType': marginMode,
+        };
+        params = this.omit (params, [ 'leverage', 'buyLeverage', 'sellLeverage' ]);
+        try {
+            return await (this as any).swap2OpenApiPrivatePostSwapV2TradeMarginType (this.extend (request, params));
+        } catch (e) {
+            if (e instanceof ExchangeError) {
+                if (e.toString ().indexOf ('80001') >= 0) {
+                    throw new ExchangeError (this.id + ' ' + this.json ({ 'code': 80001, 'msg': 'Cannot switch Margin Type for market with open positions or orders.' }));
+                }
+            }
+            throw e;
+        }
+    }
+
     async setLeverage (leverage, symbol: string = undefined, params = {}) {
         /**
          * @method

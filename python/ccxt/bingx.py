@@ -178,6 +178,44 @@ class bingx(Exchange):
             },
         })
 
+    def switch_isolated(self, symbol, isIsolated, buyLeverage, sellLeverage, params={}):
+        if isIsolated:
+            self.set_margin_mode('ISOLATED', symbol, params)
+        else:
+            self.set_margin_mode('CROSSED', symbol, params)
+
+    def set_margin_mode(self, marginMode, symbol=None, params={}):
+        """
+        set margin mode to 'cross' or 'isolated'
+        :param str marginMode: 'cross' or 'isolated'
+        :param str symbol: unified market symbol
+        :param dict params: extra parameters specific to the bitget api endpoint
+        :returns dict: response from the exchange
+        """
+        marginMode = marginMode.lower()
+        if marginMode == 'cross':
+            marginMode = 'CROSSED'
+        if marginMode == 'isolated':
+            marginMode = 'ISOLATED'
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' setMarginMode() requires a symbol argument')
+        if (marginMode != 'ISOLATED') and (marginMode != 'CROSSED'):
+            raise ArgumentsRequired(self.id + '(' + marginMode + ') ' + ' setMarginMode() marginMode must be "isolated" or "crossed"')
+        self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+            'marginType': marginMode,
+        }
+        params = self.omit(params, ['leverage', 'buyLeverage', 'sellLeverage'])
+        try:
+            return self.swap2OpenApiPrivatePostSwapV2TradeMarginType(self.extend(request, params))
+        except Exception as e:
+            if isinstance(e, ExchangeError):
+                if str(e).find('80001') >= 0:
+                    raise ExchangeError(self.id + ' ' + self.json({'code': 80001, 'msg': 'Cannot switch Margin Type for market with open positions or orders.'}))
+            raise e
+
     def set_leverage(self, leverage, symbol=None, params={}):
         """
         set the level of leverage for a market

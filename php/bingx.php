@@ -176,6 +176,54 @@ class bingx extends Exchange {
         ));
     }
 
+    public function switch_isolated($symbol, $isIsolated, $buyLeverage, $sellLeverage, $params = array ()) {
+        if ($isIsolated) {
+            $this->set_margin_mode('ISOLATED', $symbol, $params);
+        } else {
+            $this->set_margin_mode('CROSSED', $symbol, $params);
+        }
+    }
+
+    public function set_margin_mode($marginMode, $symbol = null, $params = array ()) {
+        /**
+         * set margin mode to 'cross' or 'isolated'
+         * @param {string} $marginMode 'cross' or 'isolated'
+         * @param {string} $symbol unified $market $symbol
+         * @param {array} $params extra parameters specific to the bitget api endpoint
+         * @return {array} response from the exchange
+         */
+        $marginMode = strtolower($marginMode);
+        if ($marginMode === 'cross') {
+            $marginMode = 'CROSSED';
+        }
+        if ($marginMode === 'isolated') {
+            $marginMode = 'ISOLATED';
+        }
+        if ($symbol === null) {
+            throw new ArgumentsRequired($this->id . ' setMarginMode() requires a $symbol argument');
+        }
+        if (($marginMode !== 'ISOLATED') && ($marginMode !== 'CROSSED')) {
+            throw new ArgumentsRequired($this->id . ' (' . $marginMode . ') ' . ' setMarginMode() $marginMode must be "isolated" or "crossed"');
+        }
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'symbol' => $market['id'],
+            'marginType' => $marginMode,
+        );
+        $params = $this->omit($params, array( 'leverage', 'buyLeverage', 'sellLeverage' ));
+        try {
+            return $this->swap2OpenApiPrivatePostSwapV2TradeMarginType (array_merge($request, $params));
+        } catch (Exception $e) {
+            if ($e instanceof ExchangeError) {
+                if (string) (mb_strpos($e, '80001') !== false) {
+                    throw new ExchangeError($this->id . ' ' . $this->json(array( 'code' => 80001, 'msg' => 'Cannot switch Margin Type for $market with open positions or orders.' )));
+                }
+            }
+            throw $e;
+        }
+    }
+
     public function set_leverage($leverage, $symbol = null, $params = array ()) {
         /**
          * set the level of $leverage for a $market
