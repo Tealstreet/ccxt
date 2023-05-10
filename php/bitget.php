@@ -784,7 +784,7 @@ class bitget extends Exchange {
                 'defaultSubType' => 'linear', // 'linear', 'inverse'
                 'subTypes' => array( 'umcbl', 'dmcbl', 'cmcbl' ),
                 'createMarketBuyOrderRequiresPrice' => true,
-                'broker' => array(
+                'brokerId' => array(
                     // 'spot' => 'CCXT#',
                     // 'swap' => 'CCXT#',
                 ),
@@ -2476,7 +2476,7 @@ class bitget extends Exchange {
         }
         $clientOrderId = $this->safe_string_2($params, 'client_oid', 'clientOrderId');
         if ($clientOrderId === null) {
-            $broker = $this->safe_value($this->options, 'broker');
+            $broker = $this->safe_value($this->options, 'brokerId');
             if ($broker !== null) {
                 $brokerId = $this->safe_string($broker, $market['type']);
                 if ($brokerId !== null) {

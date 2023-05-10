@@ -118,7 +118,8 @@ class bingx extends \ccxt\async\bingx {
             }
             $topics = [ 'market.depth.' . $market['id'] . '.step0.level' . (string) $limit ];
             $orderbook = Async\await($this->watch_topics($url, $messageHash, $topics, $params));
-            return $orderbook->limit ();
+            // return $orderbook->limit ();
+            return $orderbook;
         }) ();
     }
 

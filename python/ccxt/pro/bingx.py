@@ -111,7 +111,8 @@ class bingx(ccxt.async_support.bingx):
                 raise BadRequest(self.id + ' watchOrderBook() can only use limit 1, 50, 200 and 500.')
         topics = ['market.depth.' + market['id'] + '.step0.level' + str(limit)]
         orderbook = await self.watch_topics(url, messageHash, topics, params)
-        return orderbook.limit()
+        # return orderbook.limit()
+        return orderbook
 
     def handle_order_book(self, client, message):
         data = self.safe_value(message, 'data', {})
