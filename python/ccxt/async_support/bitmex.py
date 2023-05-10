@@ -1638,10 +1638,15 @@ class bitmex(Exchange):
         clientOrderId = self.safe_string(order, 'clOrdID')
         timeInForce = self.parse_time_in_force(self.safe_string(order, 'timeInForce'))
         stopPrice = self.safe_number(order, 'stopPx')
-        execInst = self.safe_string(order, 'execInst')
-        postOnly = None
-        if execInst is not None:
-            postOnly = (execInst == 'ParticipateDoNotInitiate')
+        execInst = self.safe_string(order, 'execInst', '')
+        reduceOnly = False
+        close = False
+        postOnly = False
+        if (execInst.find('ReduceOnly') >= 0) or (execInst.find('Close') >= 0):
+            reduceOnly = True
+            close = True
+        if execInst.find('ParticipateDoNotInitiate') >= 0:
+            postOnly = True
         return self.safe_order({
             'info': order,
             'id': id,
@@ -1664,6 +1669,8 @@ class bitmex(Exchange):
             'remaining': None,
             'status': status,
             'fee': None,
+            'close': close,
+            'reduceOnly': reduceOnly,
             'trades': None,
         }, market)
 

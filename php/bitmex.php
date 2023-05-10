@@ -1688,10 +1688,16 @@ class bitmex extends Exchange {
         $clientOrderId = $this->safe_string($order, 'clOrdID');
         $timeInForce = $this->parse_time_in_force($this->safe_string($order, 'timeInForce'));
         $stopPrice = $this->safe_number($order, 'stopPx');
-        $execInst = $this->safe_string($order, 'execInst');
-        $postOnly = null;
-        if ($execInst !== null) {
-            $postOnly = ($execInst === 'ParticipateDoNotInitiate');
+        $execInst = $this->safe_string($order, 'execInst', '');
+        $reduceOnly = false;
+        $close = false;
+        $postOnly = false;
+        if ((mb_strpos($execInst, 'ReduceOnly') !== false) || (mb_strpos($execInst, 'Close') !== false)) {
+            $reduceOnly = true;
+            $close = true;
+        }
+        if (mb_strpos($execInst, 'ParticipateDoNotInitiate') !== false) {
+            $postOnly = true;
         }
         return $this->safe_order(array(
             'info' => $order,
@@ -1715,6 +1721,8 @@ class bitmex extends Exchange {
             'remaining' => null,
             'status' => $status,
             'fee' => null,
+            'close' => $close,
+            'reduceOnly' => $reduceOnly,
             'trades' => null,
         ), $market);
     }

@@ -1,6 +1,7 @@
 
 //  ---------------------------------------------------------------------------
 
+import { exec } from 'child_process';
 import { Exchange } from './base/Exchange.js';
 import { TICK_SIZE } from './base/functions/number.js';
 import { AuthenticationError, BadRequest, DDoSProtection, ExchangeError, ExchangeNotAvailable, InsufficientFunds, InvalidOrder, OrderNotFound, PermissionDenied, ArgumentsRequired, BadSymbol } from './base/errors.js';
@@ -1714,10 +1715,16 @@ export default class bitmex extends Exchange {
         const clientOrderId = this.safeString (order, 'clOrdID');
         const timeInForce = this.parseTimeInForce (this.safeString (order, 'timeInForce'));
         const stopPrice = this.safeNumber (order, 'stopPx');
-        const execInst = this.safeString (order, 'execInst');
-        let postOnly = undefined;
-        if (execInst !== undefined) {
-            postOnly = (execInst === 'ParticipateDoNotInitiate');
+        const execInst = this.safeString (order, 'execInst', '');
+        let reduceOnly = false;
+        let close = false;
+        let postOnly = false;
+        if ((execInst.indexOf ('ReduceOnly') >= 0) || (execInst.indexOf ('Close') >= 0)) {
+            reduceOnly = true;
+            close = true;
+        }
+        if (execInst.indexOf ('ParticipateDoNotInitiate') >= 0) {
+            postOnly = true;
         }
         return this.safeOrder ({
             'info': order,
@@ -1741,6 +1748,8 @@ export default class bitmex extends Exchange {
             'remaining': undefined,
             'status': status,
             'fee': undefined,
+            'close': close,
+            'reduceOnly': reduceOnly,
             'trades': undefined,
         }, market);
     }
