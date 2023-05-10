@@ -719,10 +719,10 @@ export default class bingx extends Exchange {
         if (type === 'stop') {
             if (isTakeProfitOrder) {
                 // convertedType = 'TAKE_PROFIT_MARKET';
-                convertedType = 'TRIGGER_LIMIT';
+                convertedType = 'TRIGGER_MARKET';
             } else if (isStopLossOrder) {
                 // convertedType = 'STOP_MARKET';
-                convertedType = 'TRIGGER_LIMIT';
+                convertedType = 'TRIGGER_MARKET';
             } else {
                 throw new ArgumentsRequired ('unknown order direction for TP/SL');
             }
