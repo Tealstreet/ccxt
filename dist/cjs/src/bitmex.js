@@ -1848,7 +1848,7 @@ class bitmex extends Exchange["default"] {
                 const ticker = this.fetchTicker(symbol);
                 basePrice = ticker['last'];
             }
-            if ((side === 'Buy' && stopPrice < basePrice) || (side === 'Sell' && stopPrice > basePrice)) {
+            if ((side === 'buy' && stopPrice < basePrice) || (side === 'sell' && stopPrice > basePrice)) {
                 if (orderType === 'Stop') {
                     orderType = 'MarketIfTouched';
                 }
@@ -1869,7 +1869,7 @@ class bitmex extends Exchange["default"] {
             params = this.omit(params, ['clOrdID', 'clientOrderId']);
         }
         request['ordType'] = orderType;
-        if (request['ordType'] === 'Market' && request['execInst'] === 'ReduceOnly,Close') {
+        if (request['ordType'] === 'Market' && request['execInst'] === 'Close,ReduceOnly') {
             request['execInst'] = 'ReduceOnly';
         }
         const response = await this.privatePostOrder(this.extend(request, params));
@@ -1900,7 +1900,7 @@ class bitmex extends Exchange["default"] {
         request['text'] = brokerId;
         const stopPrice = this.safeNumber2(params, 'stopPx', 'stopPrice');
         if (stopPrice !== undefined) {
-            request['stopPx'] = parseFloat(this.amountToPrecision(symbol, stopPrice));
+            request['stopPx'] = parseFloat(this.priceToPrecision(symbol, stopPrice));
         }
         const response = await this.privatePutOrder(this.extend(request, params));
         return this.parseOrder(response);

@@ -723,7 +723,7 @@ class bingx(Exchange):
         # print('response', response)
         ohlcvs = self.safe_value(response, 'data', [])
         if len(ohlcvs) > 0:
-            #/ BEGIN Patching last candle
+            # BEGIN Patching last candle
             lastRequest = self.omit(request, ['startTime', 'endTime'])
             lastCandleResponse = await self.swap2OpenApiPublicGetSwapV2QuoteKlines(self.extend(lastRequest, params))
             lastOhlcv = self.safe_value(lastCandleResponse, 'data', {})
@@ -732,7 +732,7 @@ class bingx(Exchange):
             lastOhlcvFromArrayTime = self.safe_integer(ohlcvs[-1:], 'time')
             if lastOhlcvTime >= lastOhlcvFromArrayTime:
                 ohlcvs.append(lastOhlcv)
-            #/ END Patching last candle
+            # END Patching last candle
         return self.parse_ohlcvs(ohlcvs, market, timeframe, since, limit)
 
     def parse_ohlcvs(self, ohlcvs, market=None, timeframe='1m', since=None, limit=None):

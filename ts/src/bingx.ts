@@ -772,7 +772,7 @@ export default class bingx extends Exchange {
         // console.log ('response', response);
         const ohlcvs = this.safeValue (response, 'data', []);
         if (ohlcvs.length > 0) {
-            /// BEGIN Patching last candle
+            // BEGIN Patching last candle
             const lastRequest = this.omit (request, [ 'startTime', 'endTime' ]);
             const lastCandleResponse = await (this as any).swap2OpenApiPublicGetSwapV2QuoteKlines (this.extend (lastRequest, params));
             const lastOhlcv = this.safeValue (lastCandleResponse, 'data', {});
@@ -782,7 +782,7 @@ export default class bingx extends Exchange {
             if (lastOhlcvTime >= lastOhlcvFromArrayTime) {
                 ohlcvs.push (lastOhlcv);
             }
-            /// END Patching last candle
+            // END Patching last candle
         }
         return this.parseOHLCVs (ohlcvs, market, timeframe, since, limit);
     }

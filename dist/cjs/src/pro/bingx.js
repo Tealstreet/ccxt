@@ -110,7 +110,8 @@ class bingx extends bingx$1 {
         }
         const topics = ['market.depth.' + market['id'] + '.step0.level' + limit.toString()];
         const orderbook = await this.watchTopics(url, messageHash, topics, params);
-        return orderbook.limit();
+        // return orderbook.limit ();
+        return orderbook;
     }
     handleOrderBook(client, message) {
         const data = this.safeValue(message, 'data', {});
@@ -167,7 +168,15 @@ class bingx extends bingx$1 {
         if (this.newUpdates) {
             limit = trades.getLimit(symbol, limit);
         }
-        return this.filterBySinceLimit(trades, since, limit, 'timestamp', true);
+        // since BingX always returns duplicate set of klines via ws, and we are not sending since from
+        // ts client, emulate it
+        let tradesSince = undefined;
+        if (this.options['tradesSince'] !== undefined) {
+            tradesSince = this.options['tradesSince'];
+        }
+        const newTrades = this.filterBySinceLimit(trades, tradesSince, limit, 'timestamp', true);
+        this.options = this.extend(this.options, { 'tradesSince': this.milliseconds() - 0 });
+        return newTrades;
     }
     handleTrades(client, message) {
         //
@@ -232,7 +241,7 @@ class bingx extends bingx$1 {
         const m = this.safeValue(trade, 'makerSide');
         const side = m ? 'Bid' : 'Ask';
         const price = this.safeString(trade, 'price');
-        const amount = this.safeString(trade, 'volume');
+        const amount = this.safeFloat(trade, 'volume');
         return this.safeTrade({
             'id': id,
             'info': trade,
@@ -244,7 +253,7 @@ class bingx extends bingx$1 {
             'side': side,
             'takerOrMaker': 'taker',
             'price': price,
-            'amount': amount,
+            'amount': amount * market['contractSize'],
             'cost': undefined,
             'fee': undefined,
         }, market);
