@@ -132,10 +132,11 @@ class bingx extends \ccxt\async\bingx {
         $symbol = $market['symbol'];
         $latestTrade = $this->safe_value($data, 'latestTrade', array());
         $timestamp = $this->safe_integer($latestTrade, 'rawTs');
-        $orderbook = $this->safe_value($this->orderbooks, $symbol);
-        if ($orderbook === null) {
-            $orderbook = $this->order_book();
-        }
+        // $orderbook = $this->safe_value($this->orderbooks, $symbol);
+        // if ($orderbook === null) {
+        //     $orderbook = $this->order_book(array(), 100);
+        // }
+        $orderbook = $this->order_book();
         $asks = $this->safe_value($data, 'asks', array());
         $bids = $this->safe_value($data, 'bids', array());
         $this->handle_deltas($orderbook['asks'], $asks);

@@ -120,6 +120,8 @@ class bingx extends Exchange {
                         'private' => array(
                             'get' => array(
                                 'swap/v2/trade/openOrders' => 1,
+                                'swap/v2/trade/leverage' => 1,
+                                'swap/v2/trade/marginType' => 1,
                             ),
                             'put' => array(
                                 'user/auth/userDataStream' => 1,
@@ -127,6 +129,8 @@ class bingx extends Exchange {
                             'post' => array(
                                 'user/auth/userDataStream' => 1,
                                 'swap/v2/trade/order' => 1,
+                                'swap/v2/trade/leverage' => 1,
+                                'swap/v2/trade/marginType' => 1,
                             ),
                             'delete' => array(
                                 'swap/v2/trade/order' => 1,
@@ -170,6 +174,170 @@ class bingx extends Exchange {
                 'listenKeyRefreshRate' => 1200000, // 20 mins
             ),
         ));
+    }
+
+    public function switch_isolated($symbol, $isIsolated, $buyLeverage, $sellLeverage, $params = array ()) {
+        if ($isIsolated) {
+            $this->set_margin_mode('ISOLATED', $symbol, $params);
+        } else {
+            $this->set_margin_mode('CROSSED', $symbol, $params);
+        }
+    }
+
+    public function set_margin_mode($marginMode, $symbol = null, $params = array ()) {
+        /**
+         * set margin mode to 'cross' or 'isolated'
+         * @param {string} $marginMode 'cross' or 'isolated'
+         * @param {string} $symbol unified $market $symbol
+         * @param {array} $params extra parameters specific to the bitget api endpoint
+         * @return {array} response from the exchange
+         */
+        $marginMode = strtolower($marginMode);
+        if ($marginMode === 'cross') {
+            $marginMode = 'CROSSED';
+        }
+        if ($marginMode === 'isolated') {
+            $marginMode = 'ISOLATED';
+        }
+        if ($symbol === null) {
+            throw new ArgumentsRequired($this->id . ' setMarginMode() requires a $symbol argument');
+        }
+        if (($marginMode !== 'ISOLATED') && ($marginMode !== 'CROSSED')) {
+            throw new ArgumentsRequired($this->id . ' (' . $marginMode . ') ' . ' setMarginMode() $marginMode must be "isolated" or "crossed"');
+        }
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'symbol' => $market['id'],
+            'marginType' => $marginMode,
+        );
+        $params = $this->omit($params, array( 'leverage', 'buyLeverage', 'sellLeverage' ));
+        try {
+            return $this->swap2OpenApiPrivatePostSwapV2TradeMarginType (array_merge($request, $params));
+        } catch (Exception $e) {
+            if ($e instanceof ExchangeError) {
+                if (string) (mb_strpos($e, '80001') !== false) {
+                    throw new ExchangeError($this->id . ' ' . $this->json(array( 'code' => 80001, 'msg' => 'Cannot switch Margin Type for $market with open positions or orders.' )));
+                }
+            }
+            throw $e;
+        }
+    }
+
+    public function set_leverage($leverage, $symbol = null, $params = array ()) {
+        /**
+         * set the level of $leverage for a $market
+         * @param {float} $leverage the rate of $leverage
+         * @param {string} $symbol unified $market $symbol
+         * @param {array} $params extra parameters specific to the bitget api endpoint
+         * @return {array} response from the exchange
+         */
+        if ($symbol === null) {
+            throw new ArgumentsRequired($this->id . ' setLeverage() requires a $symbol argument');
+        }
+        $buyLeverage = $this->safe_number($params, 'buyLeverage', $leverage);
+        $sellLeverage = $this->safe_number($params, 'sellLeverage', $leverage);
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $params = $this->omit($params, array( 'marginMode', 'positionMode' ));
+        $promises = array();
+        $request = array(
+            'symbol' => $market['id'],
+        );
+        if ($buyLeverage !== null) {
+            $request['leverage'] = $this->parse_to_int($buyLeverage);
+            $request['side'] = 'LONG';
+            $promises[] = $this->swap2OpenApiPrivatePostSwapV2TradeLeverage (array_merge($request, $params));
+        }
+        if ($sellLeverage !== null) {
+            $request['leverage'] = $this->parse_to_int($sellLeverage);
+            $request['side'] = 'SHORT';
+            $promises[] = $this->swap2OpenApiPrivatePostSwapV2TradeLeverage (array_merge($request, $params));
+        }
+        $promises = $promises;
+        if (strlen($promises) === 1) {
+            return $promises[0];
+        } else {
+            return $promises;
+        }
+    }
+
+    public function fetch_account_configuration($symbol, $params = array ()) {
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'symbol' => $market['id'],
+        );
+        $leverageResponse = $this->swap2OpenApiPrivateGetSwapV2TradeLeverage (array_merge($request, $params));
+        $leverageData = $this->safe_value($leverageResponse, 'data');
+        $marginTypeResponse = $this->swap2OpenApiPrivateGetSwapV2TradeLeverage (array_merge($request, $params));
+        $marginTypeData = $this->safe_value($marginTypeResponse, 'data');
+        return $this->parse_account_configuration($leverageData, $marginTypeData, $market);
+    }
+
+    public function parse_account_configuration($leverageData, $marginTypeData, $market) {
+        // {
+        //     "marginCoin":"USDT",
+        //   "locked":0,
+        //   "available":13168.86110692,
+        //   "crossMaxAvailable":13168.86110692,
+        //   "fixedMaxAvailable":13168.86110692,
+        //   "maxTransferOut":13168.86110692,
+        //   "equity":13178.86110692,
+        //   "usdtEquity":13178.861106922,
+        //   "btcEquity":0.344746495477,
+        //   "crossRiskRate":0,
+        //   "crossMarginLeverage":20,
+        //   "fixedLongLeverage":20,
+        //   "fixedShortLeverage":20,
+        //   "marginMode":"crossed",
+        //   "holdMode":"double_hold"
+        // }
+        // $marginMode = $this->safe_string(data, 'marginMode');
+        // $isIsolated = ($marginMode === 'fixed');
+        // $leverage = $this->safe_float(data, 'crossMarginLeverage');
+        // $buyLeverage = $this->safe_float(data, 'fixedLongLeverage');
+        // $sellLeverage = $this->safe_float(data, 'fixedShortLeverage');
+        // $marginCoin = $this->safe_string(data, 'marginCoin');
+        // $holdMode = $this->safe_string(data, 'holdMode');
+        // $positionMode = 'hedged';
+        // if ($holdMode === 'single_hold') {
+        //     $positionMode = 'oneway';
+        //     if ($isIsolated) {
+        //         $leverage = $buyLeverage;
+        //     }
+        // }
+        // $accountConfig = array(
+        //     'info' => data,
+        //     'markets' => array(),
+        //     'positionMode' => $positionMode,
+        //     'marginMode' => $isIsolated ? 'isolated' : 'cross',
+        // );
+        // $leverageConfigs = $accountConfig['markets'];
+        // $leverageConfigs[$market['symbol']] = array(
+        //     'marginMode' => $isIsolated ? 'isolated' : 'cross',
+        //     'isIsolated' => $isIsolated,
+        //     'leverage' => $leverage,
+        //     'buyLeverage' => $buyLeverage,
+        //     'sellLeverage' => $sellLeverage,
+        //     'marginCoin' => $marginCoin,
+        //     'positionMode' => $positionMode,
+        // );
+        $buyLeverage = $this->safe_float($leverageData, 'longLeverage');
+        $sellLeverage = $this->safe_float($leverageData, 'shortLeverage');
+        $marginType = $this->safe_string($marginTypeData, 'marginType');
+        $isIsolated = ($marginType === 'CROSSED');
+        $accountConfig = array(
+            'marginMode' => $isIsolated ? 'isolated' : 'cross',
+            'positionMode' => 'hedged',
+            'markets' => array(),
+        );
+        $leverageConfigs = $accountConfig['markets'];
+        $leverageConfigs[$market['symbol']] = array(
+            'buyLeverage' => $buyLeverage,
+            'sellLeverage' => $sellLeverage,
+        );
+        return $accountConfig;
     }
 
     public function fetch_contract_markets($params = array ()) {
@@ -535,9 +703,11 @@ class bingx extends Exchange {
         $convertedType = 'LIMIT';
         if ($type === 'stop') {
             if ($isTakeProfitOrder) {
-                $convertedType = 'TAKE_PROFIT_MARKET';
+                // $convertedType = 'TAKE_PROFIT_MARKET';
+                $convertedType = 'TRIGGER_MARKET';
             } elseif ($isStopLossOrder) {
-                $convertedType = 'STOP_MARKET';
+                // $convertedType = 'STOP_MARKET';
+                $convertedType = 'TRIGGER_MARKET';
             } else {
                 throw new ArgumentsRequired('unknown $order direction for TP/SL');
             }
@@ -558,8 +728,13 @@ class bingx extends Exchange {
         );
         if ($triggerPrice !== null) {
             $request['stopPrice'] = $triggerPrice;
-        }
-        if (($type === 'limit' || $type === 'stopLimit') && ($triggerPrice === null)) {
+            if ($convertedType === 'TRIGGER_LIMIT') {
+                $request['price'] = $triggerPrice;
+            }
+        } elseif ($triggerPrice === null && $convertedType === 'TRIGGER_LIMIT') {
+            $request['price'] = $basePrice;
+            $request['stopPrice'] = $basePrice;
+        } elseif (($type === 'limit' || $type === 'stopLimit') && ($triggerPrice === null)) {
             $request['price'] = $this->price_to_precision($symbol, $price);
         }
         $isMarketOrder = $type === 'market';
@@ -1061,7 +1236,8 @@ class bingx extends Exchange {
             return; // fallback to default error handler
         }
         $errorCode = $this->safe_integer($response, 'code');
-        if ($errorCode !== null && $errorCode > 0) {
+        // in theory 80012 is Service Unavailable, but returned on lev charges :/
+        if ($errorCode !== null && $errorCode > 0 && $errorCode !== 80012) {
             throw new ExchangeError($this->id . ' ' . $this->json($response));
         }
     }
