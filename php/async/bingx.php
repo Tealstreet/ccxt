@@ -125,6 +125,7 @@ class bingx extends Exchange {
                             'get' => array(
                                 'swap/v2/trade/openOrders' => 1,
                                 'swap/v2/trade/leverage' => 1,
+                                'swap/v2/trade/marginType' => 1,
                             ),
                             'put' => array(
                                 'user/auth/userDataStream' => 1,
@@ -133,6 +134,7 @@ class bingx extends Exchange {
                                 'user/auth/userDataStream' => 1,
                                 'swap/v2/trade/order' => 1,
                                 'swap/v2/trade/leverage' => 1,
+                                'swap/v2/trade/marginType' => 1,
                             ),
                             'delete' => array(
                                 'swap/v2/trade/order' => 1,
@@ -225,13 +227,15 @@ class bingx extends Exchange {
             $request = array(
                 'symbol' => $market['id'],
             );
-            $response = Async\await($this->swap2OpenApiPrivateGetSwapV2TradeLeverage (array_merge($request, $params)));
-            $data = $this->safe_value($response, 'data');
-            return $this->parse_account_configuration($data, $market);
+            $leverageResponse = Async\await($this->swap2OpenApiPrivateGetSwapV2TradeLeverage (array_merge($request, $params)));
+            $leverageData = $this->safe_value($leverageResponse, 'data');
+            $marginTypeResponse = Async\await($this->swap2OpenApiPrivateGetSwapV2TradeLeverage (array_merge($request, $params)));
+            $marginTypeData = $this->safe_value($marginTypeResponse, 'data');
+            return $this->parse_account_configuration($leverageData, $marginTypeData, $market);
         }) ();
     }
 
-    public function parse_account_configuration($data, $market) {
+    public function parse_account_configuration($leverageData, $marginTypeData, $market) {
         // {
         //     "marginCoin":"USDT",
         //   "locked":0,
@@ -249,13 +253,13 @@ class bingx extends Exchange {
         //   "marginMode":"crossed",
         //   "holdMode":"double_hold"
         // }
-        // $marginMode = $this->safe_string($data, 'marginMode');
+        // $marginMode = $this->safe_string(data, 'marginMode');
         // $isIsolated = ($marginMode === 'fixed');
-        // $leverage = $this->safe_float($data, 'crossMarginLeverage');
-        // $buyLeverage = $this->safe_float($data, 'fixedLongLeverage');
-        // $sellLeverage = $this->safe_float($data, 'fixedShortLeverage');
-        // $marginCoin = $this->safe_string($data, 'marginCoin');
-        // $holdMode = $this->safe_string($data, 'holdMode');
+        // $leverage = $this->safe_float(data, 'crossMarginLeverage');
+        // $buyLeverage = $this->safe_float(data, 'fixedLongLeverage');
+        // $sellLeverage = $this->safe_float(data, 'fixedShortLeverage');
+        // $marginCoin = $this->safe_string(data, 'marginCoin');
+        // $holdMode = $this->safe_string(data, 'holdMode');
         // $positionMode = 'hedged';
         // if ($holdMode === 'single_hold') {
         //     $positionMode = 'oneway';
@@ -264,7 +268,7 @@ class bingx extends Exchange {
         //     }
         // }
         // $accountConfig = array(
-        //     'info' => $data,
+        //     'info' => data,
         //     'markets' => array(),
         //     'positionMode' => $positionMode,
         //     'marginMode' => $isIsolated ? 'isolated' : 'cross',
@@ -279,10 +283,12 @@ class bingx extends Exchange {
         //     'marginCoin' => $marginCoin,
         //     'positionMode' => $positionMode,
         // );
-        $buyLeverage = $this->safe_float($data, 'longLeverage');
-        $sellLeverage = $this->safe_float($data, 'shortLeverage');
+        $buyLeverage = $this->safe_float($leverageData, 'longLeverage');
+        $sellLeverage = $this->safe_float($leverageData, 'shortLeverage');
+        $marginType = $this->safe_string($marginTypeData, 'marginType');
+        $isIsolated = ($marginType === 'CROSSED');
         $accountConfig = array(
-            'marginMode' => 'cross',
+            'marginMode' => $isIsolated ? 'isolated' : 'cross',
             'positionMode' => 'hedged',
             'markets' => array(),
         );

@@ -124,6 +124,7 @@ class bingx(Exchange):
                             'get': {
                                 'swap/v2/trade/openOrders': 1,
                                 'swap/v2/trade/leverage': 1,
+                                'swap/v2/trade/marginType': 1,
                             },
                             'put': {
                                 'user/auth/userDataStream': 1,
@@ -132,6 +133,7 @@ class bingx(Exchange):
                                 'user/auth/userDataStream': 1,
                                 'swap/v2/trade/order': 1,
                                 'swap/v2/trade/leverage': 1,
+                                'swap/v2/trade/marginType': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
@@ -215,11 +217,13 @@ class bingx(Exchange):
         request = {
             'symbol': market['id'],
         }
-        response = self.swap2OpenApiPrivateGetSwapV2TradeLeverage(self.extend(request, params))
-        data = self.safe_value(response, 'data')
-        return self.parse_account_configuration(data, market)
+        leverageResponse = self.swap2OpenApiPrivateGetSwapV2TradeLeverage(self.extend(request, params))
+        leverageData = self.safe_value(leverageResponse, 'data')
+        marginTypeResponse = self.swap2OpenApiPrivateGetSwapV2TradeLeverage(self.extend(request, params))
+        marginTypeData = self.safe_value(marginTypeResponse, 'data')
+        return self.parse_account_configuration(leverageData, marginTypeData, market)
 
-    def parse_account_configuration(self, data, market):
+    def parse_account_configuration(self, leverageData, marginTypeData, market):
         # {
         #     "marginCoin":"USDT",
         #   "locked":0,
@@ -267,10 +271,12 @@ class bingx(Exchange):
         #     'marginCoin': marginCoin,
         #     'positionMode': positionMode,
         # }
-        buyLeverage = self.safe_float(data, 'longLeverage')
-        sellLeverage = self.safe_float(data, 'shortLeverage')
+        buyLeverage = self.safe_float(leverageData, 'longLeverage')
+        sellLeverage = self.safe_float(leverageData, 'shortLeverage')
+        marginType = self.safe_string(marginTypeData, 'marginType')
+        isIsolated = (marginType == 'CROSSED')
         accountConfig = {
-            'marginMode': 'cross',
+            'marginMode': 'isolated' if isIsolated else 'cross',
             'positionMode': 'hedged',
             'markets': {},
         }

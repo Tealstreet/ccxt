@@ -223,12 +223,14 @@ export default class bingx extends Exchange {
         const request = {
             'symbol': market['id'],
         };
-        const response = await (this as any).swap2OpenApiPrivateGetSwapV2TradeLeverage (this.extend (request, params));
-        const data = this.safeValue (response, 'data');
-        return this.parseAccountConfiguration (data, market);
+        const leverageResponse = await (this as any).swap2OpenApiPrivateGetSwapV2TradeLeverage (this.extend (request, params));
+        const leverageData = this.safeValue (leverageResponse, 'data');
+        const marginTypeResponse = await (this as any).swap2OpenApiPrivateGetSwapV2TradeLeverage (this.extend (request, params));
+        const marginTypeData = this.safeValue (marginTypeResponse, 'data');
+        return this.parseAccountConfiguration (leverageData, marginTypeData, market);
     }
 
-    parseAccountConfiguration (data, market) {
+    parseAccountConfiguration (leverageData, marginTypeData, market) {
         // {
         //     "marginCoin":"USDT",
         //   "locked":0,
@@ -276,10 +278,12 @@ export default class bingx extends Exchange {
         //     'marginCoin': marginCoin,
         //     'positionMode': positionMode,
         // };
-        const buyLeverage = this.safeFloat (data, 'longLeverage');
-        const sellLeverage = this.safeFloat (data, 'shortLeverage');
+        const buyLeverage = this.safeFloat (leverageData, 'longLeverage');
+        const sellLeverage = this.safeFloat (leverageData, 'shortLeverage');
+        const marginType = this.safeString (marginTypeData, 'marginType');
+        const isIsolated = (marginType === 'CROSSED');
         const accountConfig = {
-            'marginMode': 'cross',
+            'marginMode': isIsolated ? 'isolated' : 'cross',
             'positionMode': 'hedged',
             'markets': {},
         };
