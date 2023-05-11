@@ -15,6 +15,7 @@ use ccxt\OrderNotFound;
 use ccxt\DDoSProtection;
 use ccxt\Precise;
 use React\Async;
+use React\Promise;
 
 class bitmex extends Exchange {
 
@@ -431,7 +432,12 @@ class bitmex extends Exchange {
                 $contract = !$index;
                 $initMargin = $this->safe_string($market, 'initMargin', '1');
                 $maxLeverage = $this->parse_number(Precise::string_div('1', $initMargin));
-                $multiplierString = Precise::string_abs($this->safe_string($market, 'multiplier'));
+                // $multiplierString = Precise::string_abs($this->safe_string($market, 'multiplier'));
+                $rawUnderlyingToPositionMultiplier = $this->safe_number($market, 'underlyingToPositionMultiplier');
+                $contractSize = 1;
+                if ($rawUnderlyingToPositionMultiplier !== null) {
+                    $contractSize = 1 / $rawUnderlyingToPositionMultiplier;
+                }
                 $result[] = array(
                     'id' => $id,
                     'symbol' => $symbol,
@@ -455,7 +461,8 @@ class bitmex extends Exchange {
                     'inverse' => $contract ? $inverse : null,
                     'taker' => $this->safe_number($market, 'takerFee'),
                     'maker' => $this->safe_number($market, 'makerFee'),
-                    'contractSize' => $this->parse_number($multiplierString),
+                    // 'contractSize' => $this->parse_number($multiplierString),
+                    'contractSize' => $contractSize,
                     'expiry' => $expiry,
                     'expiryDatetime' => $expiryDatetime,
                     'strike' => $this->safe_number($market, 'optionStrikePrice'),
@@ -1412,6 +1419,7 @@ class bitmex extends Exchange {
             'ask' => $this->safe_string($ticker, 'askPrice'),
             'askVolume' => null,
             'vwap' => $this->safe_string($ticker, 'vwap'),
+            'mark' => $this->safe_string($ticker, 'markPrice'),
             'open' => $open,
             'close' => $last,
             'last' => $last,
@@ -1716,10 +1724,16 @@ class bitmex extends Exchange {
         $clientOrderId = $this->safe_string($order, 'clOrdID');
         $timeInForce = $this->parse_time_in_force($this->safe_string($order, 'timeInForce'));
         $stopPrice = $this->safe_number($order, 'stopPx');
-        $execInst = $this->safe_string($order, 'execInst');
-        $postOnly = null;
-        if ($execInst !== null) {
-            $postOnly = ($execInst === 'ParticipateDoNotInitiate');
+        $execInst = $this->safe_string($order, 'execInst', '');
+        $reduceOnly = false;
+        $close = false;
+        $postOnly = false;
+        if ((mb_strpos($execInst, 'ReduceOnly') !== false) || (mb_strpos($execInst, 'Close') !== false)) {
+            $reduceOnly = true;
+            $close = true;
+        }
+        if (mb_strpos($execInst, 'ParticipateDoNotInitiate') !== false) {
+            $postOnly = true;
         }
         return $this->safe_order(array(
             'info' => $order,
@@ -1743,6 +1757,8 @@ class bitmex extends Exchange {
             'remaining' => null,
             'status' => $status,
             'fee' => null,
+            'close' => $close,
+            'reduceOnly' => $reduceOnly,
             'trades' => null,
         ), $market);
     }
@@ -1826,12 +1842,33 @@ class bitmex extends Exchange {
                 }
             }
             $brokerId = $this->safe_string($this->options, 'brokerId', 'CCXT');
+            // TEALSTREET
+            $timeInForce = $this->safe_value($params, 'timeInForce', 'GTC');
+            $trigger = $this->safe_value($params, 'trigger', null);
+            $closeOnTrigger = $this->safe_value_2($params, 'closeOnTrigger', 'close', false);
+            $execInstValues = array();
+            if ($timeInForce === 'ParticipateDoNotInitiate') {
+                $execInstValues[] = 'ParticipateDoNotInitiate';
+                $timeInForce = null;
+            }
+            if ($trigger !== null) {
+                $execInstValues[] = $this->capitalize($trigger) . 'Price';
+            }
+            if ($closeOnTrigger) {
+                $execInstValues[] = 'Close';
+            }
+            if ($reduceOnly) {
+                $execInstValues[] = 'ReduceOnly';
+            }
+            $params = $this->omit($params, array( 'reduceOnly', 'timeInForce', 'trigger', 'closeOnTrigger' ));
             $request = array(
                 'symbol' => $market['id'],
                 'side' => $this->capitalize($side),
-                'orderQty' => floatval($this->amount_to_precision($symbol, $amount)), // lot size multiplied by the number of contracts
-                'ordType' => $orderType,
+                'orderQty' => floatval($this->amount_to_precision($symbol, $amount)),
+                'timeInForce' => $timeInForce,
                 'text' => $brokerId,
+                'clOrdID' => $brokerId . $this->uuid22(22),
+                'execInst' => implode(',', $execInstValues),
             );
             if (($orderType === 'Stop') || ($orderType === 'StopLimit') || ($orderType === 'MarketIfTouched') || ($orderType === 'LimitIfTouched')) {
                 $stopPrice = $this->safe_number_2($params, 'stopPx', 'stopPrice');
@@ -1841,6 +1878,21 @@ class bitmex extends Exchange {
                     $request['stopPx'] = floatval($this->price_to_precision($symbol, $stopPrice));
                     $params = $this->omit($params, array( 'stopPx', 'stopPrice' ));
                 }
+                $basePrice = $this->safe_value($params, 'basePrice');
+                if ($basePrice === null || $basePrice === 0.0) {
+                    $ticker = $this->fetch_ticker($symbol);
+                    $basePrice = $ticker['last'];
+                }
+                if (($side === 'buy' && $stopPrice < $basePrice) || ($side === 'sell' && $stopPrice > $basePrice)) {
+                    if ($orderType === 'Stop') {
+                        $orderType = 'MarketIfTouched';
+                    } elseif ($orderType === 'StopLimit') {
+                        $orderType = 'LimitIfTouched';
+                    }
+                }
+            }
+            if ($price !== null && $orderType === 'Stop') {
+                $orderType = 'StopLimit';
             }
             if (($orderType === 'Limit') || ($orderType === 'StopLimit') || ($orderType === 'LimitIfTouched')) {
                 $request['price'] = floatval($this->price_to_precision($symbol, $price));
@@ -1849,6 +1901,10 @@ class bitmex extends Exchange {
             if ($clientOrderId !== null) {
                 $request['clOrdID'] = $clientOrderId;
                 $params = $this->omit($params, array( 'clOrdID', 'clientOrderId' ));
+            }
+            $request['ordType'] = $orderType;
+            if ($request['ordType'] === 'Market' && $request['execInst'] === 'Close,ReduceOnly') {
+                $request['execInst'] = 'ReduceOnly';
             }
             $response = Async\await($this->privatePostOrder (array_merge($request, $params)));
             return $this->parse_order($response, $market);
@@ -1878,6 +1934,10 @@ class bitmex extends Exchange {
             }
             $brokerId = $this->safe_string($this->options, 'brokerId', 'CCXT');
             $request['text'] = $brokerId;
+            $stopPrice = $this->safe_number_2($params, 'stopPx', 'stopPrice');
+            if ($stopPrice !== null) {
+                $request['stopPx'] = floatval($this->price_to_precision($symbol, $stopPrice));
+            }
             $response = Async\await($this->privatePutOrder (array_merge($request, $params)));
             return $this->parse_order($response);
         }) ();
@@ -2218,18 +2278,19 @@ class bitmex extends Exchange {
         }
         $maintenanceMargin = $this->safe_number($position, 'maintMargin');
         $unrealisedPnl = $this->safe_number($position, 'unrealisedPnl');
+        $rebalancedPnl = $this->safe_number($position, 'rebalancedPnl');
         $contracts = $this->omit_zero($this->safe_number($position, 'currentQty'));
+        $side = ($contracts === null || $contracts > 0) ? 'long' : 'short';
         return array(
             'info' => $position,
-            'id' => $this->safe_string($position, 'account'),
+            'id' => $symbol,
             'symbol' => $symbol,
             'timestamp' => $this->parse8601($datetime),
             'datetime' => $datetime,
             'hedged' => null,
-            'side' => null,
-            'contracts' => $this->convert_value($contracts, $market),
-            'contractSize' => null,
-            'entryPrice' => $this->safe_number($position, 'avgEntryPrice'),
+            'side' => $side,
+            'contracts' => $this->parse_number($contracts),
+            'entryPrice' => $this->safe_number($position, 'avgCostPrice'),
             'markPrice' => $this->safe_number($position, 'markPrice'),
             'notional' => $notional,
             'leverage' => $this->safe_number($position, 'leverage'),
@@ -2239,6 +2300,7 @@ class bitmex extends Exchange {
             'maintenanceMargin' => $this->convert_value($maintenanceMargin, $market),
             'maintenanceMarginPercentage' => $this->safe_number($position, 'maintMarginReq'),
             'unrealizedPnl' => $this->convert_value($unrealisedPnl, $market),
+            'rebalancedPnl' => $this->convert_value($rebalancedPnl, $market),
             'liquidationPrice' => $this->safe_number($position, 'liquidationPrice'),
             'marginMode' => $marginMode,
             'marginRatio' => null,
@@ -2674,13 +2736,43 @@ class bitmex extends Exchange {
             if ($symbol === null) {
                 throw new ArgumentsRequired($this->id . ' setLeverage() requires a $symbol argument');
             }
-            if (($leverage < 0.01) || ($leverage > 100)) {
-                throw new BadRequest($this->id . ' $leverage should be between 0.01 and 100');
+            $buyLeverage = $this->safe_number($params, 'buyLeverage', $leverage);
+            $sellLeverage = $this->safe_number($params, 'sellLeverage', $leverage);
+            if ($buyLeverage !== $sellLeverage) {
+                throw new BadRequest($this->id . ' setLeverage() requires $buyLeverage and $sellLeverage to match');
+            }
+            $leverage = $buyLeverage || $sellLeverage;
+            if ($buyLeverage !== null && $sellLeverage !== null) {
+                if (($leverage < 0.01) || ($leverage > 100)) {
+                    throw new BadRequest($this->id . ' $leverage should be between 0.01 and 100');
+                }
             }
             Async\await($this->load_markets());
             $market = $this->market($symbol);
             if ($market['type'] !== 'swap' && $market['type'] !== 'future') {
                 throw new BadSymbol($this->id . ' setLeverage() supports future and swap contracts only');
+            }
+            $marginMode = $this->safe_string($params, 'marginMode');
+            $params = $this->omit($params, array( 'marginMode', 'positionMode' ));
+            if ($marginMode === 'isolated') {
+                $promises = array();
+                $request = array(
+                    'symbol' => $market['id'],
+                );
+                if ($buyLeverage !== null) {
+                    $request['leverage'] = $buyLeverage;
+                    $promises[] = $this->privatePostPositionLeverage (array_merge($request, $params));
+                }
+                if ($sellLeverage !== null) {
+                    $request['leverage'] = $sellLeverage;
+                    $promises[] = $this->privatePostPositionLeverage (array_merge($request, $params));
+                }
+                $promises = Async\await(Promise\all($promises));
+                if (strlen($promises) === 1) {
+                    return $promises[0];
+                } else {
+                    return $promises;
+                }
             }
             $request = array(
                 'symbol' => $market['id'],
@@ -2819,9 +2911,10 @@ class bitmex extends Exchange {
                 'Content-Type' => 'application/json',
                 'api-key' => $this->apiKey,
             );
-            $expires = $this->sum($this->seconds(), (string) $expires);
-            $auth .= $expires;
-            $headers['api-expires'] = $expires;
+            $expires = $this->sum($this->seconds(), $expires);
+            $expiresStr = (string) $expires;
+            $auth .= $expiresStr;
+            $headers['api-expires'] = $expiresStr;
             if ($method === 'POST' || $method === 'PUT' || $method === 'DELETE') {
                 if ($params) {
                     $body = $this->json($params);

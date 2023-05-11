@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+import asyncio
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import PermissionDenied
 from ccxt.base.errors import ArgumentsRequired
@@ -431,7 +432,11 @@ class bitmex(Exchange):
             contract = not index
             initMargin = self.safe_string(market, 'initMargin', '1')
             maxLeverage = self.parse_number(Precise.string_div('1', initMargin))
-            multiplierString = Precise.string_abs(self.safe_string(market, 'multiplier'))
+            # multiplierString = Precise.string_abs(self.safe_string(market, 'multiplier'))
+            rawUnderlyingToPositionMultiplier = self.safe_number(market, 'underlyingToPositionMultiplier')
+            contractSize = 1
+            if rawUnderlyingToPositionMultiplier is not None:
+                contractSize = 1 / rawUnderlyingToPositionMultiplier
             result.append({
                 'id': id,
                 'symbol': symbol,
@@ -455,7 +460,8 @@ class bitmex(Exchange):
                 'inverse': inverse if contract else None,
                 'taker': self.safe_number(market, 'takerFee'),
                 'maker': self.safe_number(market, 'makerFee'),
-                'contractSize': self.parse_number(multiplierString),
+                # 'contractSize': self.parse_number(multiplierString),
+                'contractSize': contractSize,
                 'expiry': expiry,
                 'expiryDatetime': expiryDatetime,
                 'strike': self.safe_number(market, 'optionStrikePrice'),
@@ -1342,6 +1348,7 @@ class bitmex(Exchange):
             'ask': self.safe_string(ticker, 'askPrice'),
             'askVolume': None,
             'vwap': self.safe_string(ticker, 'vwap'),
+            'mark': self.safe_string(ticker, 'markPrice'),
             'open': open,
             'close': last,
             'last': last,
@@ -1631,10 +1638,15 @@ class bitmex(Exchange):
         clientOrderId = self.safe_string(order, 'clOrdID')
         timeInForce = self.parse_time_in_force(self.safe_string(order, 'timeInForce'))
         stopPrice = self.safe_number(order, 'stopPx')
-        execInst = self.safe_string(order, 'execInst')
-        postOnly = None
-        if execInst is not None:
-            postOnly = (execInst == 'ParticipateDoNotInitiate')
+        execInst = self.safe_string(order, 'execInst', '')
+        reduceOnly = False
+        close = False
+        postOnly = False
+        if (execInst.find('ReduceOnly') >= 0) or (execInst.find('Close') >= 0):
+            reduceOnly = True
+            close = True
+        if execInst.find('ParticipateDoNotInitiate') >= 0:
+            postOnly = True
         return self.safe_order({
             'info': order,
             'id': id,
@@ -1657,6 +1669,8 @@ class bitmex(Exchange):
             'remaining': None,
             'status': status,
             'fee': None,
+            'close': close,
+            'reduceOnly': reduceOnly,
             'trades': None,
         }, market)
 
@@ -1731,12 +1745,29 @@ class bitmex(Exchange):
             if (market['type'] != 'swap') and (market['type'] != 'future'):
                 raise InvalidOrder(self.id + ' createOrder() does not support reduceOnly for ' + market['type'] + ' orders, reduceOnly orders are supported for swap and future markets only')
         brokerId = self.safe_string(self.options, 'brokerId', 'CCXT')
+        # TEALSTREET
+        timeInForce = self.safe_value(params, 'timeInForce', 'GTC')
+        trigger = self.safe_value(params, 'trigger', None)
+        closeOnTrigger = self.safe_value_2(params, 'closeOnTrigger', 'close', False)
+        execInstValues = []
+        if timeInForce == 'ParticipateDoNotInitiate':
+            execInstValues.append('ParticipateDoNotInitiate')
+            timeInForce = None
+        if trigger is not None:
+            execInstValues.append(self.capitalize(trigger) + 'Price')
+        if closeOnTrigger:
+            execInstValues.append('Close')
+        if reduceOnly:
+            execInstValues.append('ReduceOnly')
+        params = self.omit(params, ['reduceOnly', 'timeInForce', 'trigger', 'closeOnTrigger'])
         request = {
             'symbol': market['id'],
             'side': self.capitalize(side),
-            'orderQty': float(self.amount_to_precision(symbol, amount)),  # lot size multiplied by the number of contracts
-            'ordType': orderType,
+            'orderQty': float(self.amount_to_precision(symbol, amount)),
+            'timeInForce': timeInForce,
             'text': brokerId,
+            'clOrdID': brokerId + self.uuid22(22),
+            'execInst': ','.join(execInstValues),
         }
         if (orderType == 'Stop') or (orderType == 'StopLimit') or (orderType == 'MarketIfTouched') or (orderType == 'LimitIfTouched'):
             stopPrice = self.safe_number_2(params, 'stopPx', 'stopPrice')
@@ -1745,12 +1776,26 @@ class bitmex(Exchange):
             else:
                 request['stopPx'] = float(self.price_to_precision(symbol, stopPrice))
                 params = self.omit(params, ['stopPx', 'stopPrice'])
+            basePrice = self.safe_value(params, 'basePrice')
+            if basePrice is None or basePrice == 0.0:
+                ticker = self.fetch_ticker(symbol)
+                basePrice = ticker['last']
+            if (side == 'buy' and stopPrice < basePrice) or (side == 'sell' and stopPrice > basePrice):
+                if orderType == 'Stop':
+                    orderType = 'MarketIfTouched'
+                elif orderType == 'StopLimit':
+                    orderType = 'LimitIfTouched'
+        if price is not None and orderType == 'Stop':
+            orderType = 'StopLimit'
         if (orderType == 'Limit') or (orderType == 'StopLimit') or (orderType == 'LimitIfTouched'):
             request['price'] = float(self.price_to_precision(symbol, price))
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is not None:
             request['clOrdID'] = clientOrderId
             params = self.omit(params, ['clOrdID', 'clientOrderId'])
+        request['ordType'] = orderType
+        if request['ordType'] == 'Market' and request['execInst'] == 'Close,ReduceOnly':
+            request['execInst'] = 'ReduceOnly'
         response = await self.privatePostOrder(self.extend(request, params))
         return self.parse_order(response, market)
 
@@ -1772,6 +1817,9 @@ class bitmex(Exchange):
             request['price'] = price
         brokerId = self.safe_string(self.options, 'brokerId', 'CCXT')
         request['text'] = brokerId
+        stopPrice = self.safe_number_2(params, 'stopPx', 'stopPrice')
+        if stopPrice is not None:
+            request['stopPx'] = float(self.price_to_precision(symbol, stopPrice))
         response = await self.privatePutOrder(self.extend(request, params))
         return self.parse_order(response)
 
@@ -2092,18 +2140,19 @@ class bitmex(Exchange):
             notional = self.safe_string(position, 'homeNotional')
         maintenanceMargin = self.safe_number(position, 'maintMargin')
         unrealisedPnl = self.safe_number(position, 'unrealisedPnl')
+        rebalancedPnl = self.safe_number(position, 'rebalancedPnl')
         contracts = self.omit_zero(self.safe_number(position, 'currentQty'))
+        side = 'long' if (contracts is None or contracts > 0) else 'short'
         return {
             'info': position,
-            'id': self.safe_string(position, 'account'),
+            'id': symbol,
             'symbol': symbol,
             'timestamp': self.parse8601(datetime),
             'datetime': datetime,
             'hedged': None,
-            'side': None,
-            'contracts': self.convert_value(contracts, market),
-            'contractSize': None,
-            'entryPrice': self.safe_number(position, 'avgEntryPrice'),
+            'side': side,
+            'contracts': self.parse_number(contracts),
+            'entryPrice': self.safe_number(position, 'avgCostPrice'),
             'markPrice': self.safe_number(position, 'markPrice'),
             'notional': notional,
             'leverage': self.safe_number(position, 'leverage'),
@@ -2113,6 +2162,7 @@ class bitmex(Exchange):
             'maintenanceMargin': self.convert_value(maintenanceMargin, market),
             'maintenanceMarginPercentage': self.safe_number(position, 'maintMarginReq'),
             'unrealizedPnl': self.convert_value(unrealisedPnl, market),
+            'rebalancedPnl': self.convert_value(rebalancedPnl, market),
             'liquidationPrice': self.safe_number(position, 'liquidationPrice'),
             'marginMode': marginMode,
             'marginRatio': None,
@@ -2518,12 +2568,36 @@ class bitmex(Exchange):
         """
         if symbol is None:
             raise ArgumentsRequired(self.id + ' setLeverage() requires a symbol argument')
-        if (leverage < 0.01) or (leverage > 100):
-            raise BadRequest(self.id + ' leverage should be between 0.01 and 100')
+        buyLeverage = self.safe_number(params, 'buyLeverage', leverage)
+        sellLeverage = self.safe_number(params, 'sellLeverage', leverage)
+        if buyLeverage != sellLeverage:
+            raise BadRequest(self.id + ' setLeverage() requires buyLeverage and sellLeverage to match')
+        leverage = buyLeverage or sellLeverage
+        if buyLeverage is not None and sellLeverage is not None:
+            if (leverage < 0.01) or (leverage > 100):
+                raise BadRequest(self.id + ' leverage should be between 0.01 and 100')
         await self.load_markets()
         market = self.market(symbol)
         if market['type'] != 'swap' and market['type'] != 'future':
             raise BadSymbol(self.id + ' setLeverage() supports future and swap contracts only')
+        marginMode = self.safe_string(params, 'marginMode')
+        params = self.omit(params, ['marginMode', 'positionMode'])
+        if marginMode == 'isolated':
+            promises = []
+            request = {
+                'symbol': market['id'],
+            }
+            if buyLeverage is not None:
+                request['leverage'] = buyLeverage
+                promises.append(self.privatePostPositionLeverage(self.extend(request, params)))
+            if sellLeverage is not None:
+                request['leverage'] = sellLeverage
+                promises.append(self.privatePostPositionLeverage(self.extend(request, params)))
+            promises = await asyncio.gather(*promises)
+            if len(promises) == 1:
+                return promises[0]
+            else:
+                return promises
         request = {
             'symbol': market['id'],
             'leverage': leverage,
@@ -2637,9 +2711,10 @@ class bitmex(Exchange):
                 'Content-Type': 'application/json',
                 'api-key': self.apiKey,
             }
-            expires = self.sum(self.seconds(), str(expires))
-            auth += expires
-            headers['api-expires'] = expires
+            expires = self.sum(self.seconds(), expires)
+            expiresStr = str(expires)
+            auth += expiresStr
+            headers['api-expires'] = expiresStr
             if method == 'POST' or method == 'PUT' or method == 'DELETE':
                 if params:
                     body = self.json(params)
