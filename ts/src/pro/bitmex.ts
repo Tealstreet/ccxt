@@ -10,6 +10,8 @@ import { ArrayCache, ArrayCacheByTimestamp, ArrayCacheBySymbolById } from '../ba
 export default class bitmex extends bitmexRest {
     describe () {
         return this.deepExtend (super.describe (), {
+            'userAgent': null,
+            'origin': 'https://www.bitmex.com',
             'has': {
                 'ws': true,
                 'watchBalance': true,
