@@ -14,6 +14,8 @@ class bitmex(ccxt.async_support.bitmex):
 
     def describe(self):
         return self.deep_extend(super(bitmex, self).describe(), {
+            'userAgent': None,
+            'origin': 'https://www.bitmex.com',
             'has': {
                 'ws': True,
                 'watchBalance': True,

@@ -9,6 +9,8 @@ var Cache = require('../base/ws/Cache.js');
 class bitmex extends bitmex$1 {
     describe() {
         return this.deepExtend(super.describe(), {
+            'userAgent': null,
+            'origin': 'https://www.bitmex.com',
             'has': {
                 'ws': true,
                 'watchBalance': true,

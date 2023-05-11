@@ -14,6 +14,8 @@ class bitmex extends \ccxt\async\bitmex {
 
     public function describe() {
         return $this->deep_extend(parent::describe(), array(
+            'userAgent' => null,
+            'origin' => 'https://www.bitmex.com',
             'has' => array(
                 'ws' => true,
                 'watchBalance' => true,
