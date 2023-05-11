@@ -15,6 +15,7 @@ export default class bitmex extends Exchange {
             'countries': [ 'SC' ], // Seychelles
             'version': 'v1',
             'userAgent': undefined,
+            'origin': 'https://www.bitmex.com',
             // cheapest endpoints are 10 requests per second (trading)
             // 10 per second => rateLimit = 1000ms / 10 = 100ms
             // 120 per minute => 2 per second => weight = 5 (authenticated)
