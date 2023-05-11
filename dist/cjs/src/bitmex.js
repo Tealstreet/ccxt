@@ -1696,10 +1696,16 @@ class bitmex extends Exchange["default"] {
         const clientOrderId = this.safeString(order, 'clOrdID');
         const timeInForce = this.parseTimeInForce(this.safeString(order, 'timeInForce'));
         const stopPrice = this.safeNumber(order, 'stopPx');
-        const execInst = this.safeString(order, 'execInst');
-        let postOnly = undefined;
-        if (execInst !== undefined) {
-            postOnly = (execInst === 'ParticipateDoNotInitiate');
+        const execInst = this.safeString(order, 'execInst', '');
+        let reduceOnly = false;
+        let close = false;
+        let postOnly = false;
+        if ((execInst.indexOf('ReduceOnly') >= 0) || (execInst.indexOf('Close') >= 0)) {
+            reduceOnly = true;
+            close = true;
+        }
+        if (execInst.indexOf('ParticipateDoNotInitiate') >= 0) {
+            postOnly = true;
         }
         return this.safeOrder({
             'info': order,
@@ -1723,6 +1729,8 @@ class bitmex extends Exchange["default"] {
             'remaining': undefined,
             'status': status,
             'fee': undefined,
+            'close': close,
+            'reduceOnly': reduceOnly,
             'trades': undefined,
         }, market);
     }

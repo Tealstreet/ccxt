@@ -4,6 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 from ccxt.async_support.base.exchange import Exchange
+import asyncio
 import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import ArgumentsRequired
@@ -123,6 +124,8 @@ class bingx(Exchange):
                         'private': {
                             'get': {
                                 'swap/v2/trade/openOrders': 1,
+                                'swap/v2/trade/leverage': 1,
+                                'swap/v2/trade/marginType': 1,
                             },
                             'put': {
                                 'user/auth/userDataStream': 1,
@@ -130,6 +133,8 @@ class bingx(Exchange):
                             'post': {
                                 'user/auth/userDataStream': 1,
                                 'swap/v2/trade/order': 1,
+                                'swap/v2/trade/leverage': 1,
+                                'swap/v2/trade/marginType': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
@@ -173,6 +178,153 @@ class bingx(Exchange):
                 'listenKeyRefreshRate': 1200000,  # 20 mins
             },
         })
+
+    async def switch_isolated(self, symbol, isIsolated, buyLeverage, sellLeverage, params={}):
+        if isIsolated:
+            await self.set_margin_mode('ISOLATED', symbol, params)
+        else:
+            await self.set_margin_mode('CROSSED', symbol, params)
+
+    async def set_margin_mode(self, marginMode, symbol=None, params={}):
+        """
+        set margin mode to 'cross' or 'isolated'
+        :param str marginMode: 'cross' or 'isolated'
+        :param str symbol: unified market symbol
+        :param dict params: extra parameters specific to the bitget api endpoint
+        :returns dict: response from the exchange
+        """
+        marginMode = marginMode.lower()
+        if marginMode == 'cross':
+            marginMode = 'CROSSED'
+        if marginMode == 'isolated':
+            marginMode = 'ISOLATED'
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' setMarginMode() requires a symbol argument')
+        if (marginMode != 'ISOLATED') and (marginMode != 'CROSSED'):
+            raise ArgumentsRequired(self.id + '(' + marginMode + ') ' + ' setMarginMode() marginMode must be "isolated" or "crossed"')
+        await self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+            'marginType': marginMode,
+        }
+        params = self.omit(params, ['leverage', 'buyLeverage', 'sellLeverage'])
+        try:
+            return await self.swap2OpenApiPrivatePostSwapV2TradeMarginType(self.extend(request, params))
+        except Exception as e:
+            if isinstance(e, ExchangeError):
+                if str(e).find('80001') >= 0:
+                    raise ExchangeError(self.id + ' ' + self.json({'code': 80001, 'msg': 'Cannot switch Margin Type for market with open positions or orders.'}))
+            raise e
+
+    async def set_leverage(self, leverage, symbol=None, params={}):
+        """
+        set the level of leverage for a market
+        :param float leverage: the rate of leverage
+        :param str symbol: unified market symbol
+        :param dict params: extra parameters specific to the bitget api endpoint
+        :returns dict: response from the exchange
+        """
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' setLeverage() requires a symbol argument')
+        buyLeverage = self.safe_number(params, 'buyLeverage', leverage)
+        sellLeverage = self.safe_number(params, 'sellLeverage', leverage)
+        await self.load_markets()
+        market = self.market(symbol)
+        params = self.omit(params, ['marginMode', 'positionMode'])
+        promises = []
+        request = {
+            'symbol': market['id'],
+        }
+        if buyLeverage is not None:
+            request['leverage'] = self.parse_to_int(buyLeverage)
+            request['side'] = 'LONG'
+            promises.append(self.swap2OpenApiPrivatePostSwapV2TradeLeverage(self.extend(request, params)))
+        if sellLeverage is not None:
+            request['leverage'] = self.parse_to_int(sellLeverage)
+            request['side'] = 'SHORT'
+            promises.append(self.swap2OpenApiPrivatePostSwapV2TradeLeverage(self.extend(request, params)))
+        promises = await asyncio.gather(*promises)
+        if len(promises) == 1:
+            return promises[0]
+        else:
+            return promises
+
+    async def fetch_account_configuration(self, symbol, params={}):
+        await self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+        }
+        leverageResponse = await self.swap2OpenApiPrivateGetSwapV2TradeLeverage(self.extend(request, params))
+        leverageData = self.safe_value(leverageResponse, 'data')
+        marginTypeResponse = await self.swap2OpenApiPrivateGetSwapV2TradeLeverage(self.extend(request, params))
+        marginTypeData = self.safe_value(marginTypeResponse, 'data')
+        return self.parse_account_configuration(leverageData, marginTypeData, market)
+
+    def parse_account_configuration(self, leverageData, marginTypeData, market):
+        # {
+        #     "marginCoin":"USDT",
+        #   "locked":0,
+        #   "available":13168.86110692,
+        #   "crossMaxAvailable":13168.86110692,
+        #   "fixedMaxAvailable":13168.86110692,
+        #   "maxTransferOut":13168.86110692,
+        #   "equity":13178.86110692,
+        #   "usdtEquity":13178.861106922,
+        #   "btcEquity":0.344746495477,
+        #   "crossRiskRate":0,
+        #   "crossMarginLeverage":20,
+        #   "fixedLongLeverage":20,
+        #   "fixedShortLeverage":20,
+        #   "marginMode":"crossed",
+        #   "holdMode":"double_hold"
+        # }
+        # marginMode = self.safe_string(data, 'marginMode')
+        # isIsolated = (marginMode == 'fixed')
+        # leverage = self.safe_float(data, 'crossMarginLeverage')
+        # buyLeverage = self.safe_float(data, 'fixedLongLeverage')
+        # sellLeverage = self.safe_float(data, 'fixedShortLeverage')
+        # marginCoin = self.safe_string(data, 'marginCoin')
+        # holdMode = self.safe_string(data, 'holdMode')
+        # positionMode = 'hedged'
+        # if holdMode == 'single_hold':
+        #     positionMode = 'oneway'
+        #     if isIsolated:
+        #         leverage = buyLeverage
+        #     }
+        # }
+        # accountConfig = {
+        #     'info': data,
+        #     'markets': {},
+        #     'positionMode': positionMode,
+        #     'marginMode': 'isolated' if isIsolated else 'cross',
+        # }
+        # leverageConfigs = accountConfig['markets']
+        # leverageConfigs[market['symbol']] = {
+        #     'marginMode': 'isolated' if isIsolated else 'cross',
+        #     'isIsolated': isIsolated,
+        #     'leverage': leverage,
+        #     'buyLeverage': buyLeverage,
+        #     'sellLeverage': sellLeverage,
+        #     'marginCoin': marginCoin,
+        #     'positionMode': positionMode,
+        # }
+        buyLeverage = self.safe_float(leverageData, 'longLeverage')
+        sellLeverage = self.safe_float(leverageData, 'shortLeverage')
+        marginType = self.safe_string(marginTypeData, 'marginType')
+        isIsolated = (marginType == 'CROSSED')
+        accountConfig = {
+            'marginMode': 'isolated' if isIsolated else 'cross',
+            'positionMode': 'hedged',
+            'markets': {},
+        }
+        leverageConfigs = accountConfig['markets']
+        leverageConfigs[market['symbol']] = {
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+        }
+        return accountConfig
 
     async def fetch_contract_markets(self, params={}):
         response = await self.swapV1PublicGetMarketGetAllContracts(params)
@@ -520,9 +672,11 @@ class bingx(Exchange):
         convertedType = 'LIMIT'
         if type == 'stop':
             if isTakeProfitOrder:
-                convertedType = 'TAKE_PROFIT_MARKET'
+                # convertedType = 'TAKE_PROFIT_MARKET'
+                convertedType = 'TRIGGER_MARKET'
             elif isStopLossOrder:
-                convertedType = 'STOP_MARKET'
+                # convertedType = 'STOP_MARKET'
+                convertedType = 'TRIGGER_MARKET'
             else:
                 raise ArgumentsRequired('unknown order direction for TP/SL')
         if type == 'stopLimit':
@@ -540,7 +694,12 @@ class bingx(Exchange):
         }
         if triggerPrice is not None:
             request['stopPrice'] = triggerPrice
-        if (type == 'limit' or type == 'stopLimit') and (triggerPrice is None):
+            if convertedType == 'TRIGGER_LIMIT':
+                request['price'] = triggerPrice
+        elif triggerPrice is None and convertedType == 'TRIGGER_LIMIT':
+            request['price'] = basePrice
+            request['stopPrice'] = basePrice
+        elif (type == 'limit' or type == 'stopLimit') and (triggerPrice is None):
             request['price'] = self.price_to_precision(symbol, price)
         isMarketOrder = type == 'market'
         exchangeSpecificParam = self.safe_string_2(params, 'force', 'timeInForce')
@@ -1006,5 +1165,6 @@ class bingx(Exchange):
         if not response:
             return  # fallback to default error handler
         errorCode = self.safe_integer(response, 'code')
-        if errorCode is not None and errorCode > 0:
+        # in theory 80012 is Service Unavailable, but returned on lev charges :/
+        if errorCode is not None and errorCode > 0 and errorCode != 80012:
             raise ExchangeError(self.id + ' ' + self.json(response))

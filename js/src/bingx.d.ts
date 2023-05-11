@@ -2,6 +2,19 @@ import { Exchange } from './base/Exchange.js';
 import { OHLCV } from './base/types.js';
 export default class bingx extends Exchange {
     describe(): any;
+    switchIsolated(symbol: any, isIsolated: any, buyLeverage: any, sellLeverage: any, params?: {}): Promise<void>;
+    setMarginMode(marginMode: any, symbol?: any, params?: {}): Promise<any>;
+    setLeverage(leverage: any, symbol?: string, params?: {}): Promise<any>;
+    fetchAccountConfiguration(symbol: any, params?: {}): Promise<{
+        marginMode: string;
+        positionMode: string;
+        markets: {};
+    }>;
+    parseAccountConfiguration(leverageData: any, marginTypeData: any, market: any): {
+        marginMode: string;
+        positionMode: string;
+        markets: {};
+    };
     fetchContractMarkets(params?: {}): Promise<any[]>;
     fetchMarkets(params?: {}): Promise<any[]>;
     parseBalance(response: any): import("./base/types.js").Balances;

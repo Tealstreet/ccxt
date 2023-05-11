@@ -123,9 +123,11 @@ class bingx(ccxt.async_support.bingx):
         symbol = market['symbol']
         latestTrade = self.safe_value(data, 'latestTrade', {})
         timestamp = self.safe_integer(latestTrade, 'rawTs')
-        orderbook = self.safe_value(self.orderbooks, symbol)
-        if orderbook is None:
-            orderbook = self.order_book()
+        # orderbook = self.safe_value(self.orderbooks, symbol)
+        # if orderbook is None:
+        #     orderbook = self.order_book({}, 100)
+        # }
+        orderbook = self.order_book()
         asks = self.safe_value(data, 'asks', [])
         bids = self.safe_value(data, 'bids', [])
         self.handle_deltas(orderbook['asks'], asks)

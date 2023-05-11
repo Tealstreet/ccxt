@@ -122,10 +122,11 @@ class bingx extends bingx$1 {
         const symbol = market['symbol'];
         const latestTrade = this.safeValue(data, 'latestTrade', {});
         const timestamp = this.safeInteger(latestTrade, 'rawTs');
-        let orderbook = this.safeValue(this.orderbooks, symbol);
-        if (orderbook === undefined) {
-            orderbook = this.orderBook();
-        }
+        // let orderbook = this.safeValue (this.orderbooks, symbol);
+        // if (orderbook === undefined) {
+        //     orderbook = this.orderBook ({}, 100);
+        // }
+        const orderbook = this.orderBook();
         const asks = this.safeValue(data, 'asks', []);
         const bids = this.safeValue(data, 'bids', []);
         this.handleDeltas(orderbook['asks'], asks);

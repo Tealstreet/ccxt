@@ -120,6 +120,8 @@ export default class bingx extends Exchange {
                         'private': {
                             'get': {
                                 'swap/v2/trade/openOrders': 1,
+                                'swap/v2/trade/leverage': 1,
+                                'swap/v2/trade/marginType': 1,
                             },
                             'put': {
                                 'user/auth/userDataStream': 1,
@@ -127,6 +129,8 @@ export default class bingx extends Exchange {
                             'post': {
                                 'user/auth/userDataStream': 1,
                                 'swap/v2/trade/order': 1,
+                                'swap/v2/trade/leverage': 1,
+                                'swap/v2/trade/marginType': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
@@ -170,6 +174,174 @@ export default class bingx extends Exchange {
                 'listenKeyRefreshRate': 1200000, // 20 mins
             },
         });
+    }
+
+    async switchIsolated (symbol, isIsolated, buyLeverage, sellLeverage, params = {}) {
+        if (isIsolated) {
+            await this.setMarginMode ('ISOLATED', symbol, params);
+        } else {
+            await this.setMarginMode ('CROSSED', symbol, params);
+        }
+    }
+
+    async setMarginMode (marginMode, symbol = undefined, params = {}) {
+        /**
+         * @method
+         * @name bingx#setMarginMode
+         * @description set margin mode to 'cross' or 'isolated'
+         * @param {string} marginMode 'cross' or 'isolated'
+         * @param {string} symbol unified market symbol
+         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @returns {object} response from the exchange
+         */
+        marginMode = marginMode.toLowerCase ();
+        if (marginMode === 'cross') {
+            marginMode = 'CROSSED';
+        }
+        if (marginMode === 'isolated') {
+            marginMode = 'ISOLATED';
+        }
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' setMarginMode() requires a symbol argument');
+        }
+        if ((marginMode !== 'ISOLATED') && (marginMode !== 'CROSSED')) {
+            throw new ArgumentsRequired (this.id + ' (' + marginMode + ') ' + ' setMarginMode() marginMode must be "isolated" or "crossed"');
+        }
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'symbol': market['id'],
+            'marginType': marginMode,
+        };
+        params = this.omit (params, [ 'leverage', 'buyLeverage', 'sellLeverage' ]);
+        try {
+            return await (this as any).swap2OpenApiPrivatePostSwapV2TradeMarginType (this.extend (request, params));
+        } catch (e) {
+            if (e instanceof ExchangeError) {
+                if (e.toString ().indexOf ('80001') >= 0) {
+                    throw new ExchangeError (this.id + ' ' + this.json ({ 'code': 80001, 'msg': 'Cannot switch Margin Type for market with open positions or orders.' }));
+                }
+            }
+            throw e;
+        }
+    }
+
+    async setLeverage (leverage, symbol: string = undefined, params = {}) {
+        /**
+         * @method
+         * @name bingx#setLeverage
+         * @description set the level of leverage for a market
+         * @param {float} leverage the rate of leverage
+         * @param {string} symbol unified market symbol
+         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @returns {object} response from the exchange
+         */
+        if (symbol === undefined) {
+            throw new ArgumentsRequired (this.id + ' setLeverage() requires a symbol argument');
+        }
+        const buyLeverage = this.safeNumber (params, 'buyLeverage', leverage);
+        const sellLeverage = this.safeNumber (params, 'sellLeverage', leverage);
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        params = this.omit (params, [ 'marginMode', 'positionMode' ]);
+        let promises = [];
+        const request = {
+            'symbol': market['id'],
+        };
+        if (buyLeverage !== undefined) {
+            request['leverage'] = this.parseToInt (buyLeverage);
+            request['side'] = 'LONG';
+            promises.push ((this as any).swap2OpenApiPrivatePostSwapV2TradeLeverage (this.extend (request, params)));
+        }
+        if (sellLeverage !== undefined) {
+            request['leverage'] = this.parseToInt (sellLeverage);
+            request['side'] = 'SHORT';
+            promises.push ((this as any).swap2OpenApiPrivatePostSwapV2TradeLeverage (this.extend (request, params)));
+        }
+        promises = await Promise.all (promises);
+        if (promises.length === 1) {
+            return promises[0];
+        } else {
+            return promises;
+        }
+    }
+
+    async fetchAccountConfiguration (symbol, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        const leverageResponse = await (this as any).swap2OpenApiPrivateGetSwapV2TradeLeverage (this.extend (request, params));
+        const leverageData = this.safeValue (leverageResponse, 'data');
+        const marginTypeResponse = await (this as any).swap2OpenApiPrivateGetSwapV2TradeLeverage (this.extend (request, params));
+        const marginTypeData = this.safeValue (marginTypeResponse, 'data');
+        return this.parseAccountConfiguration (leverageData, marginTypeData, market);
+    }
+
+    parseAccountConfiguration (leverageData, marginTypeData, market) {
+        // {
+        //     "marginCoin":"USDT",
+        //   "locked":0,
+        //   "available":13168.86110692,
+        //   "crossMaxAvailable":13168.86110692,
+        //   "fixedMaxAvailable":13168.86110692,
+        //   "maxTransferOut":13168.86110692,
+        //   "equity":13178.86110692,
+        //   "usdtEquity":13178.861106922,
+        //   "btcEquity":0.344746495477,
+        //   "crossRiskRate":0,
+        //   "crossMarginLeverage":20,
+        //   "fixedLongLeverage":20,
+        //   "fixedShortLeverage":20,
+        //   "marginMode":"crossed",
+        //   "holdMode":"double_hold"
+        // }
+        // const marginMode = this.safeString (data, 'marginMode');
+        // const isIsolated = (marginMode === 'fixed');
+        // let leverage = this.safeFloat (data, 'crossMarginLeverage');
+        // const buyLeverage = this.safeFloat (data, 'fixedLongLeverage');
+        // const sellLeverage = this.safeFloat (data, 'fixedShortLeverage');
+        // const marginCoin = this.safeString (data, 'marginCoin');
+        // const holdMode = this.safeString (data, 'holdMode');
+        // let positionMode = 'hedged';
+        // if (holdMode === 'single_hold') {
+        //     positionMode = 'oneway';
+        //     if (isIsolated) {
+        //         leverage = buyLeverage;
+        //     }
+        // }
+        // const accountConfig = {
+        //     'info': data,
+        //     'markets': {},
+        //     'positionMode': positionMode,
+        //     'marginMode': isIsolated ? 'isolated' : 'cross',
+        // };
+        // const leverageConfigs = accountConfig['markets'];
+        // leverageConfigs[market['symbol']] = {
+        //     'marginMode': isIsolated ? 'isolated' : 'cross',
+        //     'isIsolated': isIsolated,
+        //     'leverage': leverage,
+        //     'buyLeverage': buyLeverage,
+        //     'sellLeverage': sellLeverage,
+        //     'marginCoin': marginCoin,
+        //     'positionMode': positionMode,
+        // };
+        const buyLeverage = this.safeFloat (leverageData, 'longLeverage');
+        const sellLeverage = this.safeFloat (leverageData, 'shortLeverage');
+        const marginType = this.safeString (marginTypeData, 'marginType');
+        const isIsolated = (marginType === 'CROSSED');
+        const accountConfig = {
+            'marginMode': isIsolated ? 'isolated' : 'cross',
+            'positionMode': 'hedged',
+            'markets': {},
+        };
+        const leverageConfigs = accountConfig['markets'];
+        leverageConfigs[market['symbol']] = {
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+        };
+        return accountConfig;
     }
 
     async fetchContractMarkets (params = {}) {
@@ -545,9 +717,11 @@ export default class bingx extends Exchange {
         let convertedType = 'LIMIT';
         if (type === 'stop') {
             if (isTakeProfitOrder) {
-                convertedType = 'TAKE_PROFIT_MARKET';
+                // convertedType = 'TAKE_PROFIT_MARKET';
+                convertedType = 'TRIGGER_MARKET';
             } else if (isStopLossOrder) {
-                convertedType = 'STOP_MARKET';
+                // convertedType = 'STOP_MARKET';
+                convertedType = 'TRIGGER_MARKET';
             } else {
                 throw new ArgumentsRequired ('unknown order direction for TP/SL');
             }
@@ -568,8 +742,13 @@ export default class bingx extends Exchange {
         };
         if (triggerPrice !== undefined) {
             request['stopPrice'] = triggerPrice;
-        }
-        if ((type === 'limit' || type === 'stopLimit') && (triggerPrice === undefined)) {
+            if (convertedType === 'TRIGGER_LIMIT') {
+                request['price'] = triggerPrice;
+            }
+        } else if (triggerPrice === undefined && convertedType === 'TRIGGER_LIMIT') {
+            request['price'] = basePrice;
+            request['stopPrice'] = basePrice;
+        } else if ((type === 'limit' || type === 'stopLimit') && (triggerPrice === undefined)) {
             request['price'] = this.priceToPrecision (symbol, price);
         }
         const isMarketOrder = type === 'market';
@@ -1079,7 +1258,8 @@ export default class bingx extends Exchange {
             return; // fallback to default error handler
         }
         const errorCode = this.safeInteger (response, 'code');
-        if (errorCode !== undefined && errorCode > 0) {
+        // in theory 80012 is Service Unavailable, but returned on lev charges :/
+        if (errorCode !== undefined && errorCode > 0 && errorCode !== 80012) {
             throw new ExchangeError (this.id + ' ' + this.json (response));
         }
     }

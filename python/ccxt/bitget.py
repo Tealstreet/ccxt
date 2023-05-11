@@ -805,7 +805,7 @@ class bitget(Exchange):
                 'defaultSubType': 'linear',  # 'linear', 'inverse'
                 'subTypes': ['umcbl', 'dmcbl', 'cmcbl'],
                 'createMarketBuyOrderRequiresPrice': True,
-                'broker': {
+                'brokerId': {
                     # 'spot': 'CCXT#',
                     # 'swap': 'CCXT#',
                 },
@@ -2396,7 +2396,7 @@ class bitget(Exchange):
             request['price'] = self.price_to_precision(symbol, price)
         clientOrderId = self.safe_string_2(params, 'client_oid', 'clientOrderId')
         if clientOrderId is None:
-            broker = self.safe_value(self.options, 'broker')
+            broker = self.safe_value(self.options, 'brokerId')
             if broker is not None:
                 brokerId = self.safe_string(broker, market['type'])
                 if brokerId is not None:
