@@ -89,11 +89,17 @@ class bitmex(Exchange):
                 'transfer': False,
                 'withdraw': True,
             },
+            # 'timeframes': {
+            #     '1m': '1m',
+            #     '5m': '5m',
+            #     '1h': '1h',
+            #     '1d': '1d',
+            # },
             'timeframes': {
-                '1m': '1m',
-                '5m': '5m',
-                '1h': '1h',
-                '1d': '1d',
+                '1m': '1',
+                '5m': '5',
+                '1h': '60',
+                '1d': '1440',
             },
             'urls': {
                 'test': {
@@ -141,6 +147,7 @@ class bitmex(Exchange):
                         'trade/bucketed': 5,
                         'wallet/assets': 5,
                         'wallet/networks': 5,
+                        'udf/history': 5,
                     },
                 },
                 'private': {
@@ -1389,62 +1396,33 @@ class bitmex(Exchange):
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
-        """
-        fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
-        :param str symbol: unified symbol of the market to fetch OHLCV data for
-        :param str timeframe: the length of time each candle represents
-        :param int|None since: timestamp in ms of the earliest candle to fetch
-        :param int|None limit: the maximum amount of candles to fetch
-        :param dict params: extra parameters specific to the bitmex api endpoint
-        :returns [[int]]: A list of candles ordered, open, high, low, close, volume
-        """
         self.load_markets()
-        # send JSON key/value pairs, such as {"key": "value"}
-        # filter by individual fields and do advanced queries on timestamps
-        # filter = {'key': 'value'}
-        # send a bare series(e.g. XBU) to nearest expiring contract in that series
-        # you can also send a timeframe, e.g. XBU:monthly
-        # timeframes: daily, weekly, monthly, quarterly, and biquarterly
         market = self.market(symbol)
         request = {
             'symbol': market['id'],
-            'binSize': self.safe_string(self.timeframes, timeframe, timeframe),
-            'partial': True,     # True == include yet-incomplete current bins
-            # 'filter': filter,  # filter by individual fields and do advanced queries
-            # 'columns': [],    # will return all columns if omitted
-            # 'start': 0,       # starting point for results(wtf?)
-            # 'reverse': False,  # True == newest first
-            # 'endTime': '',    # ending date filter for results
+            'resolution': self.timeframes[timeframe],
+            'from': since / 1000,
         }
-        if limit is not None:
-            request['count'] = limit  # default 100, max 500
-        duration = self.parse_timeframe(timeframe) * 1000
-        fetchOHLCVOpenTimestamp = self.safe_value(self.options, 'fetchOHLCVOpenTimestamp', True)
-        # if since is not set, they will return candles starting from 2017-01-01
-        if since is not None:
-            timestamp = since
-            if fetchOHLCVOpenTimestamp:
-                timestamp = self.sum(timestamp, duration)
-            ymdhms = self.ymdhms(timestamp)
-            request['startTime'] = ymdhms  # starting date filter for results
+        parsedTimeFrame = self.parse_timeframe(timeframe)
+        duration = parsedTimeFrame * 1000 * limit
+        to = self.sum(since, duration)
+        request['to'] = to / 1000
+        response = self.publicGetUdfHistory(self.extend(request, params))
+        res = []
+        if response.s == 'ok':
+            length = len(response.t)
+            for i in range(0, length):
+                res.append([
+                    response.t[i] * 1000,
+                    response.o[i],
+                    response.h[i],
+                    response.l[i],
+                    response.c[i],
+                    response.v[i],
+                ])
         else:
-            request['reverse'] = True
-        response = self.publicGetTradeBucketed(self.extend(request, params))
-        #
-        #     [
-        #         {"timestamp":"2015-09-25T13:38:00.000Z","symbol":"XBTUSD","open":237.45,"high":237.45,"low":237.45,"close":237.45,"trades":0,"volume":0,"vwap":null,"lastSize":null,"turnover":0,"homeNotional":0,"foreignNotional":0},
-        #         {"timestamp":"2015-09-25T13:39:00.000Z","symbol":"XBTUSD","open":237.45,"high":237.45,"low":237.45,"close":237.45,"trades":0,"volume":0,"vwap":null,"lastSize":null,"turnover":0,"homeNotional":0,"foreignNotional":0},
-        #         {"timestamp":"2015-09-25T13:40:00.000Z","symbol":"XBTUSD","open":237.45,"high":237.45,"low":237.45,"close":237.45,"trades":0,"volume":0,"vwap":null,"lastSize":null,"turnover":0,"homeNotional":0,"foreignNotional":0}
-        #     ]
-        #
-        result = self.parse_ohlcvs(response, market, timeframe, since, limit)
-        if fetchOHLCVOpenTimestamp:
-            # bitmex returns the candle's close timestamp - https://github.com/ccxt/ccxt/issues/4446
-            # we can emulate the open timestamp by shifting all the timestamps one place
-            # so the previous close becomes the current open, and we drop the first candle
-            for i in range(0, len(result)):
-                result[i][0] = result[i][0] - duration
-        return result
+            raise(response.s)
+        return res
 
     def parse_trade(self, trade, market=None):
         #
@@ -2693,6 +2671,8 @@ class bitmex(Exchange):
 
     def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
         query = '/api/' + self.version + '/' + path
+        if path.find('udf') == 0:
+            query = '/api/' + path
         if method == 'GET':
             if params:
                 query += '?' + self.urlencode(params)
