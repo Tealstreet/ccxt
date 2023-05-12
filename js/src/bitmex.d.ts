@@ -63,7 +63,7 @@ export default class bitmex extends Exchange {
     fetchTickers(symbols?: string[], params?: {}): Promise<any>;
     parseTicker(ticker: any, market?: any): import("./base/types.js").Ticker;
     parseOHLCV(ohlcv: any, market?: any): number[];
-    fetchOHLCV(symbol: any, timeframe?: string, since?: any, limit?: any, params?: {}): Promise<import("./base/types.js").OHLCV[]>;
+    fetchOHLCV(symbol: any, timeframe?: string, since?: any, limit?: any, params?: {}): Promise<any[]>;
     parseTrade(trade: any, market?: any): import("./base/types.js").Trade;
     parseOrderStatus(status: any): string;
     parseTimeInForce(timeInForce: any): string;
