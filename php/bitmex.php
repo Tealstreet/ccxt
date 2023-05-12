@@ -77,11 +77,17 @@ class bitmex extends Exchange {
                 'transfer' => false,
                 'withdraw' => true,
             ),
+            // 'timeframes' => array(
+            //     '1m' => '1m',
+            //     '5m' => '5m',
+            //     '1h' => '1h',
+            //     '1d' => '1d',
+            // ),
             'timeframes' => array(
-                '1m' => '1m',
-                '5m' => '5m',
-                '1h' => '1h',
-                '1d' => '1d',
+                '1m' => '1',
+                '5m' => '5',
+                '1h' => '60',
+                '1d' => '1440',
             ),
             'urls' => array(
                 'test' => array(
@@ -129,6 +135,7 @@ class bitmex extends Exchange {
                         'trade/bucketed' => 5,
                         'wallet/assets' => 5,
                         'wallet/networks' => 5,
+                        'udf/history' => 5,
                     ),
                 ),
                 'private' => array(
@@ -1429,67 +1436,35 @@ class bitmex extends Exchange {
     }
 
     public function fetch_ohlcv($symbol, $timeframe = '1m', $since = null, $limit = null, $params = array ()) {
-        /**
-         * fetches historical candlestick data containing the open, high, low, and close price, and the volume of a $market
-         * @param {string} $symbol unified $symbol of the $market to fetch OHLCV data for
-         * @param {string} $timeframe the length of time each candle represents
-         * @param {int|null} $since $timestamp in ms of the earliest candle to fetch
-         * @param {int|null} $limit the maximum amount of candles to fetch
-         * @param {array} $params extra parameters specific to the bitmex api endpoint
-         * @return {[[int]]} A list of candles ordered, open, high, low, close, volume
-         */
         $this->load_markets();
-        // send JSON key/value pairs, such as array("key" => "value")
-        // $filter by individual fields and do advanced queries on timestamps
-        // $filter = array( 'key' => 'value' );
-        // send a bare series (e.g. XBU) to nearest expiring contract in that series
-        // you can also send a $timeframe, e.g. XBU:monthly
-        // timeframes => daily, weekly, monthly, quarterly, and biquarterly
         $market = $this->market($symbol);
         $request = array(
             'symbol' => $market['id'],
-            'binSize' => $this->safe_string($this->timeframes, $timeframe, $timeframe),
-            'partial' => true,     // true == include yet-incomplete current bins
-            // 'filter' => $filter, // $filter by individual fields and do advanced queries
-            // 'columns' => array(),    // will return all columns if omitted
-            // 'start' => 0,       // starting point for results (wtf?)
-            // 'reverse' => false, // true == newest first
-            // 'endTime' => '',    // ending date $filter for results
+            'resolution' => $this->timeframes[$timeframe],
+            'from' => $since / 1000,
         );
-        if ($limit !== null) {
-            $request['count'] = $limit; // default 100, max 500
-        }
-        $duration = $this->parse_timeframe($timeframe) * 1000;
-        $fetchOHLCVOpenTimestamp = $this->safe_value($this->options, 'fetchOHLCVOpenTimestamp', true);
-        // if $since is not set, they will return candles starting from 2017-01-01
-        if ($since !== null) {
-            $timestamp = $since;
-            if ($fetchOHLCVOpenTimestamp) {
-                $timestamp = $this->sum($timestamp, $duration);
+        $parsedTimeFrame = $this->parse_timeframe($timeframe);
+        $duration = $parsedTimeFrame * 1000 * $limit;
+        $to = $this->sum($since, $duration);
+        $request['to'] = $to / 1000;
+        $response = $this->publicGetUdfHistory (array_merge($request, $params));
+        $res = array();
+        if ($response->s === 'ok') {
+            $length = count($response->t);
+            for ($i = 0; $i < $length; $i++) {
+                $res[] = [
+                    $response->t[$i] * 1000,
+                    $response->o[$i],
+                    $response->h[$i],
+                    $response->l[$i],
+                    $response->c[$i],
+                    $response->v[$i],
+                ];
             }
-            $ymdhms = $this->ymdhms($timestamp);
-            $request['startTime'] = $ymdhms; // starting date $filter for results
         } else {
-            $request['reverse'] = true;
+            throw $($response->s);
         }
-        $response = $this->publicGetTradeBucketed (array_merge($request, $params));
-        //
-        //     array(
-        //         array("timestamp":"2015-09-25T13:38:00.000Z","symbol":"XBTUSD","open":237.45,"high":237.45,"low":237.45,"close":237.45,"trades":0,"volume":0,"vwap":null,"lastSize":null,"turnover":0,"homeNotional":0,"foreignNotional":0),
-        //         array("timestamp":"2015-09-25T13:39:00.000Z","symbol":"XBTUSD","open":237.45,"high":237.45,"low":237.45,"close":237.45,"trades":0,"volume":0,"vwap":null,"lastSize":null,"turnover":0,"homeNotional":0,"foreignNotional":0),
-        //         array("timestamp":"2015-09-25T13:40:00.000Z","symbol":"XBTUSD","open":237.45,"high":237.45,"low":237.45,"close":237.45,"trades":0,"volume":0,"vwap":null,"lastSize":null,"turnover":0,"homeNotional":0,"foreignNotional":0)
-        //     )
-        //
-        $result = $this->parse_ohlcvs($response, $market, $timeframe, $since, $limit);
-        if ($fetchOHLCVOpenTimestamp) {
-            // bitmex returns the candle's close $timestamp - https://github.com/ccxt/ccxt/issues/4446
-            // we can emulate the open $timestamp by shifting all the timestamps one place
-            // so the previous close becomes the current open, and we drop the first candle
-            for ($i = 0; $i < count($result); $i++) {
-                $result[$i][0] = $result[$i][0] - $duration;
-            }
-        }
-        return $result;
+        return $res;
     }
 
     public function parse_trade($trade, $market = null) {
@@ -2829,6 +2804,9 @@ class bitmex extends Exchange {
 
     public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
         $query = '/api/' . $this->version . '/' . $path;
+        if (mb_strpos($path, 'udf') === 0) {
+            $query = '/api/' . $path;
+        }
         if ($method === 'GET') {
             if ($params) {
                 $query .= '?' . $this->urlencode($params);
