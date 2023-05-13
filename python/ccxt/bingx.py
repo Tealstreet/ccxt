@@ -19,7 +19,6 @@ class bingx(Exchange):
             'countries': ['EU'],
             'rateLimit': 100,
             'version': 'v1',
-            # 'verbose': True,
             'pro': True,
             'has': {
                 'CORS': True,

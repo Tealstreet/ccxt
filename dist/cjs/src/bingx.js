@@ -14,7 +14,6 @@ class bingx extends Exchange["default"] {
             'countries': ['EU'],
             'rateLimit': 100,
             'version': 'v1',
-            // 'verbose': true,
             'pro': true,
             'has': {
                 'CORS': true,
