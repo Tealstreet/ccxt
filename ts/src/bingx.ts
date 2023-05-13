@@ -691,16 +691,29 @@ export default class bingx extends Exchange {
         const market = this.market (symbol);
         //
         const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
-        let isTriggerOrder = triggerPrice !== undefined;
+        // const isTriggerOrder = triggerPrice !== undefined;
         let isStopLossOrder = undefined;
         let isTakeProfitOrder = undefined;
         const reduceOnly = this.safeValue2 (params, 'close', 'reduceOnly', false);
         const basePrice = this.safeValue (params, 'basePrice');
+        let positionSide = undefined;
+        if (reduceOnly) {
+            if (side === 'buy') {
+                positionSide = 'LONG';
+            } else {
+                positionSide = 'SHORT';
+            }
+        } else {
+            if (side === 'buy') {
+                positionSide = 'SHORT';
+            } else {
+                positionSide = 'LONG';
+            }
+        }
         if (triggerPrice !== undefined && basePrice !== undefined) {
             // triggerOrder is NOT stopOrder
-            isTriggerOrder = !reduceOnly;
             // type = 'market';
-            if (!isTriggerOrder) {
+            if (reduceOnly) {
                 if (side === 'buy') {
                     if (triggerPrice > basePrice) {
                         isStopLossOrder = true;
@@ -709,6 +722,20 @@ export default class bingx extends Exchange {
                     }
                 } else {
                     if (triggerPrice < basePrice) {
+                        isStopLossOrder = true;
+                    } else {
+                        isTakeProfitOrder = true;
+                    }
+                }
+            } else {
+                if (side === 'buy') {
+                    if (triggerPrice < basePrice) {
+                        isStopLossOrder = true;
+                    } else {
+                        isTakeProfitOrder = true;
+                    }
+                } else {
+                    if (triggerPrice > basePrice) {
                         isStopLossOrder = true;
                     } else {
                         isTakeProfitOrder = true;
@@ -742,6 +769,7 @@ export default class bingx extends Exchange {
             'type': convertedType,
             'side': convertedSide,
             'quantity': convertedAmount,
+            'positionSide': positionSide,
         };
         if (triggerPrice !== undefined) {
             request['stopPrice'] = triggerPrice;
@@ -1013,8 +1041,9 @@ export default class bingx extends Exchange {
             'market': 'market',
             'stop_market': 'stop',
             'take_profit_market': 'stop',
+            'take_profit_limit': 'stopLimit',
             'trigger_limit': 'stopLimit',
-            'trigger_market': 'stopLimit',
+            'trigger_market': 'stop',
         };
         return this.safeStringLower (types, type, type);
     }
@@ -1117,7 +1146,7 @@ export default class bingx extends Exchange {
         const average = this.safeString (order, 'avgPrice');
         const type = this.parseOrderType (this.safeStringLower (order, 'type'));
         const timestamp = this.safeInteger (order, 'time');
-        const rawStopTrigger = this.safeString (order, 'stopPrice');
+        const rawStopTrigger = this.safeString (order, 'trigger');
         const trigger = this.parseStopTrigger (rawStopTrigger);
         const side = this.safeStringLower (order, 'side');
         let reduce = this.safeValue (order, 'reduceOnly', false);

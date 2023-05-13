@@ -650,16 +650,26 @@ class bingx(Exchange):
         market = self.market(symbol)
         #
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        isTriggerOrder = triggerPrice is not None
+        # isTriggerOrder = triggerPrice is not None
         isStopLossOrder = None
         isTakeProfitOrder = None
         reduceOnly = self.safe_value_2(params, 'close', 'reduceOnly', False)
         basePrice = self.safe_value(params, 'basePrice')
+        positionSide = None
+        if reduceOnly:
+            if side == 'buy':
+                positionSide = 'LONG'
+            else:
+                positionSide = 'SHORT'
+        else:
+            if side == 'buy':
+                positionSide = 'SHORT'
+            else:
+                positionSide = 'LONG'
         if triggerPrice is not None and basePrice is not None:
             # triggerOrder is NOT stopOrder
-            isTriggerOrder = not reduceOnly
             # type = 'market'
-            if not isTriggerOrder:
+            if reduceOnly:
                 if side == 'buy':
                     if triggerPrice > basePrice:
                         isStopLossOrder = True
@@ -667,6 +677,17 @@ class bingx(Exchange):
                         isTakeProfitOrder = True
                 else:
                     if triggerPrice < basePrice:
+                        isStopLossOrder = True
+                    else:
+                        isTakeProfitOrder = True
+            else:
+                if side == 'buy':
+                    if triggerPrice < basePrice:
+                        isStopLossOrder = True
+                    else:
+                        isTakeProfitOrder = True
+                else:
+                    if triggerPrice > basePrice:
                         isStopLossOrder = True
                     else:
                         isTakeProfitOrder = True
@@ -693,6 +714,7 @@ class bingx(Exchange):
             'type': convertedType,
             'side': convertedSide,
             'quantity': convertedAmount,
+            'positionSide': positionSide,
         }
         if triggerPrice is not None:
             request['stopPrice'] = triggerPrice
@@ -935,8 +957,9 @@ class bingx(Exchange):
             'market': 'market',
             'stop_market': 'stop',
             'take_profit_market': 'stop',
+            'take_profit_limit': 'stopLimit',
             'trigger_limit': 'stopLimit',
-            'trigger_market': 'stopLimit',
+            'trigger_market': 'stop',
         }
         return self.safe_string_lower(types, type, type)
 
@@ -1036,7 +1059,7 @@ class bingx(Exchange):
         average = self.safe_string(order, 'avgPrice')
         type = self.parse_order_type(self.safe_string_lower(order, 'type'))
         timestamp = self.safe_integer(order, 'time')
-        rawStopTrigger = self.safe_string(order, 'stopPrice')
+        rawStopTrigger = self.safe_string(order, 'trigger')
         trigger = self.parse_stop_trigger(rawStopTrigger)
         side = self.safe_string_lower(order, 'side')
         reduce = self.safe_value(order, 'reduceOnly', False)

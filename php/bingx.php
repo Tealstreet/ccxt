@@ -677,16 +677,29 @@ class bingx extends Exchange {
         $market = $this->market($symbol);
         //
         $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-        $isTriggerOrder = $triggerPrice !== null;
+        // $isTriggerOrder = $triggerPrice !== null;
         $isStopLossOrder = null;
         $isTakeProfitOrder = null;
         $reduceOnly = $this->safe_value_2($params, 'close', 'reduceOnly', false);
         $basePrice = $this->safe_value($params, 'basePrice');
+        $positionSide = null;
+        if ($reduceOnly) {
+            if ($side === 'buy') {
+                $positionSide = 'LONG';
+            } else {
+                $positionSide = 'SHORT';
+            }
+        } else {
+            if ($side === 'buy') {
+                $positionSide = 'SHORT';
+            } else {
+                $positionSide = 'LONG';
+            }
+        }
         if ($triggerPrice !== null && $basePrice !== null) {
             // triggerOrder is NOT stopOrder
-            $isTriggerOrder = !$reduceOnly;
             // $type = 'market';
-            if (!$isTriggerOrder) {
+            if ($reduceOnly) {
                 if ($side === 'buy') {
                     if ($triggerPrice > $basePrice) {
                         $isStopLossOrder = true;
@@ -695,6 +708,20 @@ class bingx extends Exchange {
                     }
                 } else {
                     if ($triggerPrice < $basePrice) {
+                        $isStopLossOrder = true;
+                    } else {
+                        $isTakeProfitOrder = true;
+                    }
+                }
+            } else {
+                if ($side === 'buy') {
+                    if ($triggerPrice < $basePrice) {
+                        $isStopLossOrder = true;
+                    } else {
+                        $isTakeProfitOrder = true;
+                    }
+                } else {
+                    if ($triggerPrice > $basePrice) {
                         $isStopLossOrder = true;
                     } else {
                         $isTakeProfitOrder = true;
@@ -728,6 +755,7 @@ class bingx extends Exchange {
             'type' => $convertedType,
             'side' => $convertedSide,
             'quantity' => $convertedAmount,
+            'positionSide' => $positionSide,
         );
         if ($triggerPrice !== null) {
             $request['stopPrice'] = $triggerPrice;
@@ -993,8 +1021,9 @@ class bingx extends Exchange {
             'market' => 'market',
             'stop_market' => 'stop',
             'take_profit_market' => 'stop',
+            'take_profit_limit' => 'stopLimit',
             'trigger_limit' => 'stopLimit',
-            'trigger_market' => 'stopLimit',
+            'trigger_market' => 'stop',
         );
         return $this->safe_string_lower($types, $type, $type);
     }
@@ -1097,7 +1126,7 @@ class bingx extends Exchange {
         $average = $this->safe_string($order, 'avgPrice');
         $type = $this->parse_order_type($this->safe_string_lower($order, 'type'));
         $timestamp = $this->safe_integer($order, 'time');
-        $rawStopTrigger = $this->safe_string($order, 'stopPrice');
+        $rawStopTrigger = $this->safe_string($order, 'trigger');
         $trigger = $this->parse_stop_trigger($rawStopTrigger);
         $side = $this->safe_string_lower($order, 'side');
         $reduce = $this->safe_value($order, 'reduceOnly', false);
