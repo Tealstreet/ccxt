@@ -14,7 +14,7 @@ class bingx extends Exchange["default"] {
             'countries': ['EU'],
             'rateLimit': 100,
             'version': 'v1',
-            'verbose': true,
+            // 'verbose': true,
             'pro': true,
             'has': {
                 'CORS': true,
@@ -168,7 +168,9 @@ class bingx extends Exchange["default"] {
                 '1M': '1M',
             },
             'options': {
-                'listenKeyRefreshRate': 1200000, // 20 mins
+                'listenKeyRefreshRate': 1200000,
+                'defaultType': 'swap',
+                'defaultSubType': 'linear',
             },
         });
     }
@@ -382,8 +384,8 @@ class bingx extends Exchange["default"] {
             const settle = this.safeCurrencyCode(settleId);
             const symbol = base + '/' + quote + ':' + settle;
             const status = this.safeNumber(market, 'status');
-            const contractValue = this.safeNumber(market, 'size', 1);
-            const hasContracts = contractValue === 1;
+            const contractSize = this.safeNumber(market, 'size', 1);
+            const hasContracts = contractSize !== 1;
             result.push({
                 'id': marketId,
                 'symbol': symbol,
@@ -403,7 +405,7 @@ class bingx extends Exchange["default"] {
                 'contract': true,
                 'linear': true,
                 'inverse': undefined,
-                'contractValue': contractValue,
+                'contractSize': contractSize,
                 'expiry': undefined,
                 'expiryDatetime': undefined,
                 'strike': undefined,

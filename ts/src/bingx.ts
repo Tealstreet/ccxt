@@ -16,7 +16,7 @@ export default class bingx extends Exchange {
             'countries': [ 'EU' ],
             'rateLimit': 100,
             'version': 'v1',
-            'verbose': true,
+            // 'verbose': true,
             'pro': true,
             'has': {
                 'CORS': true,
@@ -172,6 +172,8 @@ export default class bingx extends Exchange {
             },
             'options': {
                 'listenKeyRefreshRate': 1200000, // 20 mins
+                'defaultType': 'swap',
+                'defaultSubType': 'linear',
             },
         });
     }

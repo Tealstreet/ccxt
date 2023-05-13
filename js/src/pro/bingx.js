@@ -7,7 +7,7 @@
 //  ---------------------------------------------------------------------------
 import bingxRest from '../bingx.js';
 import { AuthenticationError, ExchangeError, BadRequest } from '../base/errors.js';
-import { ArrayCache, ArrayCacheBySymbolById } from '../base/ws/Cache.js';
+import { ArrayCache, ArrayCacheBySymbolById, ArrayCacheByTimestamp } from '../base/ws/Cache.js';
 //  ---------------------------------------------------------------------------
 export default class bingx extends bingxRest {
     describe() {
@@ -31,6 +31,21 @@ export default class bingx extends bingxRest {
                 },
             },
             'options': {
+                'wsTimeFrames': {
+                    '1m': '1min',
+                    '3m': '3min',
+                    '5m': '5min',
+                    '15m': '15min',
+                    '30m': '30min',
+                    '1h': '1hour',
+                    '2h': '2hour',
+                    '4h': '4hour',
+                    '6h': '6hour',
+                    '12h': '12hour',
+                    '1d': '1day',
+                    '1w': '1week',
+                    '1M': '1month',
+                },
                 'spot': {
                     'timeframes': {
                         '1m': '1m',
@@ -148,6 +163,78 @@ export default class bingx extends bingxRest {
         for (let i = 0; i < deltas.length; i++) {
             this.handleDelta(bookside, deltas[i]);
         }
+    }
+    handleOHLCV(client, message) {
+        // {
+        //     "code": 0,
+        //     "dataType": "market.kline.1INCH-USDT.1hour.trade.utc+8",
+        //     "data": {
+        //     "klineInfosVo": [
+        //         {
+        //             "time": 1683982800000,
+        //             "statDate": "2023-05-13T21:00:00.000+0800",
+        //             "open": 0.4107,
+        //             "close": 0.4089,
+        //             "high": 0.4119,
+        //             "low": 0.4077,
+        //             "volume": 936484,
+        //             "fairPrice": 0
+        //         }
+        //     ]
+        // }
+        // }
+        const data = this.safeValue(message, 'data', {});
+        const topic = this.safeString(message, 'dataType');
+        const parts = topic.split('.');
+        const marketId = this.safeString(parts, 2);
+        const market = this.safeMarket(marketId);
+        const symbol = market['symbol'];
+        const candles = this.safeValue(data, 'klineInfosVo', []);
+        const wsTimeFrame = this.safeString(parts, 3);
+        const wsTimeFrames = this.safeValue(this.options, 'wsTimeFrames', {});
+        const timeframe = this.findTimeframe(wsTimeFrame, wsTimeFrames);
+        if (timeframe !== undefined) {
+            const messageHash = 'ohlcv' + ':' + wsTimeFrame + ':' + symbol;
+            const ohlcvs = this.parseOHLCVs(candles, market);
+            this.ohlcvs[symbol] = this.safeValue(this.ohlcvs, symbol, {});
+            let stored = this.safeValue(this.ohlcvs[symbol], timeframe);
+            if (stored === undefined) {
+                const limit = this.safeInteger(this.options, 'OHLCVLimit', 1000);
+                stored = new ArrayCacheByTimestamp(limit);
+                this.ohlcvs[symbol][timeframe] = stored;
+            }
+            for (let i = 0; i < ohlcvs.length; i++) {
+                const candle = ohlcvs[i];
+                stored.append(candle);
+            }
+            client.resolve(stored, messageHash);
+        }
+    }
+    async watchOHLCV(symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
+        /**
+         * @method
+         * @name bingx#watchTrades
+         * @description watches information on multiple trades made in a market
+         * @see https://bingx-exchange.github.io/docs/v5/websocket/public/trade
+         * @param {string} symbol unified market symbol of the market orders were made in
+         * @param {int|undefined} since the earliest time in ms to fetch orders for
+         * @param {int|undefined} limit the maximum number of  orde structures to retrieve
+         * @param {object} params extra parameters specific to the bingx api endpoint
+         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
+         */
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        symbol = market['symbol'];
+        const url = this.urls['api']['ws'];
+        params = this.cleanParams(params);
+        const wsTimeframe = this.safeValue(this.options['wsTimeFrames'], timeframe, '1hour');
+        const messageHash = 'ohlcv' + ':' + wsTimeframe + ':' + symbol;
+        const topic = 'market.kline.' + market['id'] + '.' + wsTimeframe + '.trade.utc+8';
+        const ohlcv = await this.watchTopics(url, messageHash, [topic], params);
+        if (this.newUpdates) {
+            limit = ohlcv.getLimit(symbol, limit);
+        }
+        return this.filterBySinceLimit(ohlcv, since, limit, 0, true);
     }
     async watchTrades(symbol, since = undefined, limit = undefined, params = {}) {
         /**
@@ -581,6 +668,7 @@ export default class bingx extends bingxRest {
             'market.depth.': this.handleOrderBook,
             'market.trade.detail.': this.handleTrades,
             'market.contracts': this.handleTicker,
+            'market.kline': this.handleOHLCV,
             // 'wallet': this.handleBalance,
             // 'outboundAccountInfo': this.handleBalance,
             // 'execution': this.handleMyTrades,

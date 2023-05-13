@@ -34,6 +34,21 @@ class bingx extends \ccxt\async\bingx {
                 ),
             ),
             'options' => array(
+                'wsTimeFrames' => array(
+                    '1m' => '1min',
+                    '3m' => '3min',
+                    '5m' => '5min',
+                    '15m' => '15min',
+                    '30m' => '30min',
+                    '1h' => '1hour',
+                    '2h' => '2hour',
+                    '4h' => '4hour',
+                    '6h' => '6hour',
+                    '12h' => '12hour',
+                    '1d' => '1day',
+                    '1w' => '1week',
+                    '1M' => '1month',
+                ),
                 'spot' => array(
                     'timeframes' => array(
                         '1m' => '1m',
@@ -157,6 +172,80 @@ class bingx extends \ccxt\async\bingx {
         for ($i = 0; $i < count($deltas); $i++) {
             $this->handle_delta($bookside, $deltas[$i]);
         }
+    }
+
+    public function handle_ohlcv($client, $message) {
+        // {
+        //     "code" => 0,
+        //     "dataType" => "market.kline.1INCH-USDT.1hour.trade.utc+8",
+        //     "data" => {
+        //     "klineInfosVo" => array(
+        //         {
+        //             "time" => 1683982800000,
+        //             "statDate" => "2023-05-13T21:00:00.000+0800",
+        //             "open" => 0.4107,
+        //             "close" => 0.4089,
+        //             "high" => 0.4119,
+        //             "low" => 0.4077,
+        //             "volume" => 936484,
+        //             "fairPrice" => 0
+        //         }
+        //     )
+        // }
+        // }
+        $data = $this->safe_value($message, 'data', array());
+        $topic = $this->safe_string($message, 'dataType');
+        $parts = explode('.', $topic);
+        $marketId = $this->safe_string($parts, 2);
+        $market = $this->safe_market($marketId);
+        $symbol = $market['symbol'];
+        $candles = $this->safe_value($data, 'klineInfosVo', array());
+        $wsTimeFrame = $this->safe_string($parts, 3);
+        $wsTimeFrames = $this->safe_value($this->options, 'wsTimeFrames', array());
+        $timeframe = $this->find_timeframe($wsTimeFrame, $wsTimeFrames);
+        if ($timeframe !== null) {
+            $messageHash = 'ohlcv' . ':' . $wsTimeFrame . ':' . $symbol;
+            $ohlcvs = $this->parse_ohlcvs($candles, $market);
+            $this->ohlcvs[$symbol] = $this->safe_value($this->ohlcvs, $symbol, array());
+            $stored = $this->safe_value($this->ohlcvs[$symbol], $timeframe);
+            if ($stored === null) {
+                $limit = $this->safe_integer($this->options, 'OHLCVLimit', 1000);
+                $stored = new ArrayCacheByTimestamp ($limit);
+                $this->ohlcvs[$symbol][$timeframe] = $stored;
+            }
+            for ($i = 0; $i < count($ohlcvs); $i++) {
+                $candle = $ohlcvs[$i];
+                $stored->append ($candle);
+            }
+            $client->resolve ($stored, $messageHash);
+        }
+    }
+
+    public function watch_ohlcv($symbol, $timeframe = '1m', $since = null, $limit = null, $params = array ()) {
+        return Async\async(function () use ($symbol, $timeframe, $since, $limit, $params) {
+            /**
+             * watches information on multiple trades made in a $market
+             * @see https://bingx-exchange.github.io/docs/v5/websocket/public/trade
+             * @param {string} $symbol unified $market $symbol of the $market orders were made in
+             * @param {int|null} $since the earliest time in ms to fetch orders for
+             * @param {int|null} $limit the maximum number of  orde structures to retrieve
+             * @param {array} $params extra parameters specific to the bingx api endpoint
+             * @return {[array]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
+             */
+            Async\await($this->load_markets());
+            $market = $this->market($symbol);
+            $symbol = $market['symbol'];
+            $url = $this->urls['api']['ws'];
+            $params = $this->clean_params($params);
+            $wsTimeframe = $this->safe_value($this->options['wsTimeFrames'], $timeframe, '1hour');
+            $messageHash = 'ohlcv' . ':' . $wsTimeframe . ':' . $symbol;
+            $topic = 'market.kline.' . $market['id'] . '.' . $wsTimeframe . '.trade.utc+8';
+            $ohlcv = Async\await($this->watch_topics($url, $messageHash, array( $topic ), $params));
+            if ($this->newUpdates) {
+                $limit = $ohlcv->getLimit ($symbol, $limit);
+            }
+            return $this->filter_by_since_limit($ohlcv, $since, $limit, 0, true);
+        }) ();
     }
 
     public function watch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -601,6 +690,7 @@ class bingx extends \ccxt\async\bingx {
             'market.depth.' => array($this, 'handle_order_book'),
             'market.trade.detail.' => array($this, 'handle_trades'),
             'market.contracts' => array($this, 'handle_ticker'),
+            'market.kline' => array($this, 'handle_ohlcv'),
             // 'wallet' => $this->handleBalance,
             // 'outboundAccountInfo' => $this->handleBalance,
             // 'execution' => $this->handleMyTrades,

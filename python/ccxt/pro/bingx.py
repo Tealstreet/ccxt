@@ -4,7 +4,7 @@
 # https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 import ccxt.async_support
-from ccxt.async_support.base.ws.cache import ArrayCache, ArrayCacheBySymbolById
+from ccxt.async_support.base.ws.cache import ArrayCache, ArrayCacheBySymbolById, ArrayCacheByTimestamp
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import BadRequest
 from ccxt.base.errors import AuthenticationError
@@ -33,6 +33,21 @@ class bingx(ccxt.async_support.bingx):
                 },
             },
             'options': {
+                'wsTimeFrames': {
+                    '1m': '1min',
+                    '3m': '3min',
+                    '5m': '5min',
+                    '15m': '15min',
+                    '30m': '30min',
+                    '1h': '1hour',
+                    '2h': '2hour',
+                    '4h': '4hour',
+                    '6h': '6hour',
+                    '12h': '12hour',
+                    '1d': '1day',
+                    '1w': '1week',
+                    '1M': '1month',
+                },
                 'spot': {
                     'timeframes': {
                         '1m': '1m',
@@ -145,6 +160,72 @@ class bingx(ccxt.async_support.bingx):
     def handle_deltas(self, bookside, deltas):
         for i in range(0, len(deltas)):
             self.handle_delta(bookside, deltas[i])
+
+    def handle_ohlcv(self, client, message):
+        # {
+        #     "code": 0,
+        #     "dataType": "market.kline.1INCH-USDT.1hour.trade.utc+8",
+        #     "data": {
+        #     "klineInfosVo": [
+        #         {
+        #             "time": 1683982800000,
+        #             "statDate": "2023-05-13T21:00:00.000+0800",
+        #             "open": 0.4107,
+        #             "close": 0.4089,
+        #             "high": 0.4119,
+        #             "low": 0.4077,
+        #             "volume": 936484,
+        #             "fairPrice": 0
+        #         }
+        #     ]
+        # }
+        # }
+        data = self.safe_value(message, 'data', {})
+        topic = self.safe_string(message, 'dataType')
+        parts = topic.split('.')
+        marketId = self.safe_string(parts, 2)
+        market = self.safe_market(marketId)
+        symbol = market['symbol']
+        candles = self.safe_value(data, 'klineInfosVo', [])
+        wsTimeFrame = self.safe_string(parts, 3)
+        wsTimeFrames = self.safe_value(self.options, 'wsTimeFrames', {})
+        timeframe = self.find_timeframe(wsTimeFrame, wsTimeFrames)
+        if timeframe is not None:
+            messageHash = 'ohlcv' + ':' + wsTimeFrame + ':' + symbol
+            ohlcvs = self.parse_ohlcvs(candles, market)
+            self.ohlcvs[symbol] = self.safe_value(self.ohlcvs, symbol, {})
+            stored = self.safe_value(self.ohlcvs[symbol], timeframe)
+            if stored is None:
+                limit = self.safe_integer(self.options, 'OHLCVLimit', 1000)
+                stored = ArrayCacheByTimestamp(limit)
+                self.ohlcvs[symbol][timeframe] = stored
+            for i in range(0, len(ohlcvs)):
+                candle = ohlcvs[i]
+                stored.append(candle)
+            client.resolve(stored, messageHash)
+
+    async def watch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
+        """
+        watches information on multiple trades made in a market
+        see https://bingx-exchange.github.io/docs/v5/websocket/public/trade
+        :param str symbol: unified market symbol of the market orders were made in
+        :param int|None since: the earliest time in ms to fetch orders for
+        :param int|None limit: the maximum number of  orde structures to retrieve
+        :param dict params: extra parameters specific to the bingx api endpoint
+        :returns [dict]: a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure
+        """
+        await self.load_markets()
+        market = self.market(symbol)
+        symbol = market['symbol']
+        url = self.urls['api']['ws']
+        params = self.clean_params(params)
+        wsTimeframe = self.safe_value(self.options['wsTimeFrames'], timeframe, '1hour')
+        messageHash = 'ohlcv' + ':' + wsTimeframe + ':' + symbol
+        topic = 'market.kline.' + market['id'] + '.' + wsTimeframe + '.trade.utc+8'
+        ohlcv = await self.watch_topics(url, messageHash, [topic], params)
+        if self.newUpdates:
+            limit = ohlcv.getLimit(symbol, limit)
+        return self.filter_by_since_limit(ohlcv, since, limit, 0, True)
 
     async def watch_trades(self, symbol, since=None, limit=None, params={}):
         """
@@ -544,6 +625,7 @@ class bingx(ccxt.async_support.bingx):
             'market.depth.': self.handle_order_book,
             'market.trade.detail.': self.handle_trades,
             'market.contracts': self.handle_ticker,
+            'market.kline': self.handle_ohlcv,
             # 'wallet': self.handleBalance,
             # 'outboundAccountInfo': self.handleBalance,
             # 'execution': self.handleMyTrades,

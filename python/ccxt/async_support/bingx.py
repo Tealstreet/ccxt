@@ -20,7 +20,7 @@ class bingx(Exchange):
             'countries': ['EU'],
             'rateLimit': 100,
             'version': 'v1',
-            'verbose': True,
+            # 'verbose': True,
             'pro': True,
             'has': {
                 'CORS': True,
@@ -176,6 +176,8 @@ class bingx(Exchange):
             },
             'options': {
                 'listenKeyRefreshRate': 1200000,  # 20 mins
+                'defaultType': 'swap',
+                'defaultSubType': 'linear',
             },
         })
 
