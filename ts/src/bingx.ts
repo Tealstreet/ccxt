@@ -388,6 +388,8 @@ export default class bingx extends Exchange {
             const settle = this.safeCurrencyCode (settleId);
             const symbol = base + '/' + quote + ':' + settle;
             const status = this.safeNumber (market, 'status');
+            const contractSize = this.safeNumber (market, 'size', 1);
+            const hasContracts = contractSize !== 1;
             result.push ({
                 'id': marketId,
                 'symbol': symbol,
@@ -407,13 +409,13 @@ export default class bingx extends Exchange {
                 'contract': true,
                 'linear': true,
                 'inverse': undefined,
-                'contractSize': this.safeNumber (market, 'size'),
+                'contractSize': contractSize,
                 'expiry': undefined,
                 'expiryDatetime': undefined,
                 'strike': undefined,
                 'optionType': undefined,
                 'precision': {
-                    'amount': this.parseNumber (this.parsePrecision (this.safeString (market, 'volumePrecision'))),
+                    'amount': hasContracts ? 1 : this.parseNumber (this.parsePrecision (this.safeString (market, 'volumePrecision'))),
                     'price': this.parseNumber (this.parsePrecision (this.safeString (market, 'pricePrecision'))),
                 },
                 'limits': {

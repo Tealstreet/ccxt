@@ -397,6 +397,8 @@ class bingx extends Exchange {
                 $settle = $this->safe_currency_code($settleId);
                 $symbol = $base . '/' . $quote . ':' . $settle;
                 $status = $this->safe_number($market, 'status');
+                $contractSize = $this->safe_number($market, 'size', 1);
+                $hasContracts = $contractSize !== 1;
                 $result[] = array(
                     'id' => $marketId,
                     'symbol' => $symbol,
@@ -416,13 +418,13 @@ class bingx extends Exchange {
                     'contract' => true,
                     'linear' => true,
                     'inverse' => null,
-                    'contractSize' => $this->safe_number($market, 'size'),
+                    'contractSize' => $contractSize,
                     'expiry' => null,
                     'expiryDatetime' => null,
                     'strike' => null,
                     'optionType' => null,
                     'precision' => array(
-                        'amount' => $this->parse_number($this->parse_precision($this->safe_string($market, 'volumePrecision'))),
+                        'amount' => $hasContracts ? 1 : $this->parse_number($this->parse_precision($this->safe_string($market, 'volumePrecision'))),
                         'price' => $this->parse_number($this->parse_precision($this->safe_string($market, 'pricePrecision'))),
                     ),
                     'limits' => array(

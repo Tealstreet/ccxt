@@ -369,6 +369,8 @@ class bingx(Exchange):
             settle = self.safe_currency_code(settleId)
             symbol = base + '/' + quote + ':' + settle
             status = self.safe_number(market, 'status')
+            contractSize = self.safe_number(market, 'size', 1)
+            hasContracts = contractSize != 1
             result.append({
                 'id': marketId,
                 'symbol': symbol,
@@ -388,13 +390,13 @@ class bingx(Exchange):
                 'contract': True,
                 'linear': True,
                 'inverse': None,
-                'contractSize': self.safe_number(market, 'size'),
+                'contractSize': contractSize,
                 'expiry': None,
                 'expiryDatetime': None,
                 'strike': None,
                 'optionType': None,
                 'precision': {
-                    'amount': self.parse_number(self.parse_precision(self.safe_string(market, 'volumePrecision'))),
+                    'amount': 1 if hasContracts else self.parse_number(self.parse_precision(self.safe_string(market, 'volumePrecision'))),
                     'price': self.parse_number(self.parse_precision(self.safe_string(market, 'pricePrecision'))),
                 },
                 'limits': {
