@@ -745,7 +745,7 @@ export default class bingx extends Exchange {
             }
         }
         //
-        let convertedType = 'LIMIT';
+        let convertedType = type.toUpperCase ();
         if (type === 'stop') {
             if (isTakeProfitOrder) {
                 convertedType = 'TRIGGER_MARKET';

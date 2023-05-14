@@ -693,7 +693,7 @@ class bingx(Exchange):
                     else:
                         isTakeProfitOrder = True
         #
-        convertedType = 'LIMIT'
+        convertedType = type.upper()
         if type == 'stop':
             if isTakeProfitOrder:
                 convertedType = 'TRIGGER_MARKET'

@@ -731,7 +731,7 @@ class bingx extends Exchange {
             }
         }
         //
-        $convertedType = 'LIMIT';
+        $convertedType = strtoupper($type);
         if ($type === 'stop') {
             if ($isTakeProfitOrder) {
                 $convertedType = 'TRIGGER_MARKET';
