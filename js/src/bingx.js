@@ -133,6 +133,7 @@ export default class bingx extends Exchange {
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
+                                'swap/v2/trade/allOpenOrders': 1,
                             },
                         },
                     },
@@ -685,7 +686,7 @@ export default class bingx extends Exchange {
         const reduceOnly = this.safeValue2(params, 'close', 'reduceOnly', false);
         const basePrice = this.safeValue(params, 'basePrice');
         let positionSide = undefined;
-        if (reduceOnly) {
+        if (!reduceOnly) {
             if (side === 'buy') {
                 positionSide = 'LONG';
             }
@@ -742,14 +743,12 @@ export default class bingx extends Exchange {
             }
         }
         //
-        let convertedType = 'LIMIT';
+        let convertedType = type.toUpperCase();
         if (type === 'stop') {
             if (isTakeProfitOrder) {
-                // convertedType = 'TAKE_PROFIT_MARKET';
                 convertedType = 'TRIGGER_MARKET';
             }
             else if (isStopLossOrder) {
-                // convertedType = 'STOP_MARKET';
                 convertedType = 'TRIGGER_MARKET';
             }
             else {
@@ -759,10 +758,7 @@ export default class bingx extends Exchange {
         if (type === 'stopLimit') {
             convertedType = 'TRIGGER_LIMIT';
         }
-        // const symbolComponents = symbol.split (':');
-        // const formattedSymbol = symbolComponents[0];
         const convertedSide = side.toUpperCase();
-        // TODO use stringMult
         const request = {
             'symbol': market['id'],
             'type': convertedType,
@@ -771,9 +767,9 @@ export default class bingx extends Exchange {
             'positionSide': positionSide,
         };
         if (triggerPrice !== undefined) {
-            request['stopPrice'] = triggerPrice;
+            request['stopPrice'] = this.priceToPrecision(symbol, triggerPrice);
             if (convertedType === 'TRIGGER_LIMIT') {
-                request['price'] = triggerPrice;
+                request['price'] = this.priceToPrecision(symbol, price);
             }
         }
         else if (triggerPrice === undefined && convertedType === 'TRIGGER_LIMIT') {
@@ -804,6 +800,31 @@ export default class bingx extends Exchange {
         // });
         return this.parseOrder(order, market);
     }
+    async cancelAllOrders(symbol = undefined, params = {}) {
+        /**
+         * @method
+         * @name phemex#cancelAllOrders
+         * @description cancel all open orders in a market
+         * @see https://github.com/phemex/phemex-api-docs/blob/master/Public-Hedged-Perpetual-API.md#cancelall
+         * @param {string} symbol unified market symbol of the market to cancel orders in
+         * @param {object} params extra parameters specific to the phemex api endpoint
+         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
+         */
+        if (symbol === undefined) {
+            throw new ArgumentsRequired(this.id + ' cancelAllOrders() requires a symbol argument');
+        }
+        await this.loadMarkets();
+        if (symbol === undefined) {
+            throw new ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument');
+        }
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        const response = await this.swap2OpenApiPrivateDeleteSwapV2TradeAllOpenOrders(request);
+        return response;
+    }
     async cancelOrder(id, symbol = undefined, params = {}) {
         /**
          * @method
@@ -819,11 +840,9 @@ export default class bingx extends Exchange {
         }
         await this.loadMarkets();
         const market = this.market(symbol);
-        const idComponents = id.split(':');
-        const formattedId = idComponents[0];
         const request = {
             'symbol': market['id'],
-            'orderId': formattedId,
+            'orderId': id,
         };
         const response = await this.swap2OpenApiPrivateDeleteSwapV2TradeOrder(request);
         return this.parseOrder(response, market);
@@ -1147,17 +1166,25 @@ export default class bingx extends Exchange {
         const rawStopTrigger = this.safeString(order, 'trigger');
         const trigger = this.parseStopTrigger(rawStopTrigger);
         const side = this.safeStringLower(order, 'side');
-        let reduce = this.safeValue(order, 'reduceOnly', false);
-        let close = reduce;
-        const planType = this.safeStringLower(order, 'type');
-        if (planType === 'stop_market' || planType === 'take_profit_market') {
-            reduce = true;
-            close = true;
+        const positionSide = this.safeStringLower(order, 'positionSide');
+        let reduceOnly = false;
+        if (side === 'buy') {
+            if (positionSide === 'long') {
+                reduceOnly = false;
+            }
+            else {
+                reduceOnly = true;
+            }
         }
-        if (side && side.split('_')[0] === 'close') {
-            reduce = true;
-            close = true;
+        else {
+            if (positionSide === 'long') {
+                reduceOnly = true;
+            }
+            else {
+                reduceOnly = false;
+            }
         }
+        const close = reduceOnly;
         // order type LIMIT, MARKET, STOP_MARKET, TAKE_PROFIT_MARKET, TRIGGER_LIMIT, TRIGGER_MARKET
         // if (rawStopTrigger) {
         //     if (type === 'market') {
@@ -1202,7 +1229,7 @@ export default class bingx extends Exchange {
             'status': status,
             'fee': fee,
             'trades': undefined,
-            'reduce': reduce,
+            'reduceOnly': reduceOnly,
             'close': close,
             'trigger': trigger, // TEALSTREET
         }, market);
