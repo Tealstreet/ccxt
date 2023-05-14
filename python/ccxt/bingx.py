@@ -136,6 +136,7 @@ class bingx(Exchange):
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
+                                'swap/v2/trade/allOpenOrders': 1,
                             },
                         },
                     },
@@ -370,8 +371,8 @@ class bingx(Exchange):
             settle = self.safe_currency_code(settleId)
             symbol = base + '/' + quote + ':' + settle
             status = self.safe_number(market, 'status')
-            contractSize = self.safe_number(market, 'size', 1)
-            hasContracts = contractSize != 1
+            # contractSize = self.safe_number(market, 'size', 1)
+            contractSize = 1
             result.append({
                 'id': marketId,
                 'symbol': symbol,
@@ -397,7 +398,7 @@ class bingx(Exchange):
                 'strike': None,
                 'optionType': None,
                 'precision': {
-                    'amount': 1 if hasContracts else self.parse_number(self.parse_precision(self.safe_string(market, 'volumePrecision'))),
+                    'amount': self.parse_number(self.parse_precision(self.safe_string(market, 'volumePrecision'))),
                     'price': self.parse_number(self.parse_precision(self.safe_string(market, 'pricePrecision'))),
                 },
                 'limits': {
@@ -406,7 +407,7 @@ class bingx(Exchange):
                         'max': self.safe_number(market, 'maxLongLeverage'),
                     },
                     'amount': {
-                        'min': self.safe_number(market, 'tradeMinLimit'),
+                        'min': self.safe_number(market, 'size'),
                         'max': None,
                     },
                     'price': {
@@ -656,7 +657,7 @@ class bingx(Exchange):
         reduceOnly = self.safe_value_2(params, 'close', 'reduceOnly', False)
         basePrice = self.safe_value(params, 'basePrice')
         positionSide = None
-        if reduceOnly:
+        if not reduceOnly:
             if side == 'buy':
                 positionSide = 'LONG'
             else:
@@ -695,31 +696,25 @@ class bingx(Exchange):
         convertedType = 'LIMIT'
         if type == 'stop':
             if isTakeProfitOrder:
-                # convertedType = 'TAKE_PROFIT_MARKET'
                 convertedType = 'TRIGGER_MARKET'
             elif isStopLossOrder:
-                # convertedType = 'STOP_MARKET'
                 convertedType = 'TRIGGER_MARKET'
             else:
                 raise ArgumentsRequired('unknown order direction for TP/SL')
         if type == 'stopLimit':
             convertedType = 'TRIGGER_LIMIT'
-        # symbolComponents = symbol.split(':')
-        # formattedSymbol = symbolComponents[0]
         convertedSide = side.upper()
-        # TODO use stringMult
-        convertedAmount = amount * market['contractSize']
         request = {
             'symbol': market['id'],
             'type': convertedType,
             'side': convertedSide,
-            'quantity': convertedAmount,
+            'quantity': amount,
             'positionSide': positionSide,
         }
         if triggerPrice is not None:
-            request['stopPrice'] = triggerPrice
+            request['stopPrice'] = self.price_to_precision(symbol, triggerPrice)
             if convertedType == 'TRIGGER_LIMIT':
-                request['price'] = triggerPrice
+                request['price'] = self.price_to_precision(symbol, price)
         elif triggerPrice is None and convertedType == 'TRIGGER_LIMIT':
             request['price'] = basePrice
             request['stopPrice'] = basePrice
@@ -745,6 +740,27 @@ class bingx(Exchange):
         # })
         return self.parse_order(order, market)
 
+    def cancel_all_orders(self, symbol=None, params={}):
+        """
+        cancel all open orders in a market
+        see https://github.com/phemex/phemex-api-docs/blob/master/Public-Hedged-Perpetual-API.md#cancelall
+        :param str symbol: unified market symbol of the market to cancel orders in
+        :param dict params: extra parameters specific to the phemex api endpoint
+        :returns [dict]: a list of `order structures <https://docs.ccxt.com/#/?id=order-structure>`
+        """
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' cancelAllOrders() requires a symbol argument')
+        self.load_markets()
+        if symbol is None:
+            raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
+        self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+        }
+        response = self.swap2OpenApiPrivateDeleteSwapV2TradeAllOpenOrders(request)
+        return response
+
     def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order
@@ -757,11 +773,9 @@ class bingx(Exchange):
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         self.load_markets()
         market = self.market(symbol)
-        idComponents = id.split(':')
-        formattedId = idComponents[0]
         request = {
             'symbol': market['id'],
-            'orderId': formattedId,
+            'orderId': id,
         }
         response = self.swap2OpenApiPrivateDeleteSwapV2TradeOrder(request)
         return self.parse_order(response, market)
@@ -807,7 +821,7 @@ class bingx(Exchange):
         marginMode = self.safe_string_lower(position, 'marginMode')
         hedged = True
         side = self.safe_string_lower(position, 'positionSide')
-        contracts = self.safe_float(position, 'volume') / self.safe_number(market, 'contractSize')
+        contracts = self.safe_float(position, 'volume')
         liquidation = self.safe_number(position, 'liquidatedPrice')
         if side == 'short':
             contracts = -1 * contracts
@@ -1050,11 +1064,7 @@ class bingx(Exchange):
         id = self.safe_string(order, 'orderId')
         price = self.safe_string(order, 'price')
         amount = self.safe_float(order, 'origQty')
-        if amount is not None:
-            amount = amount / market['contractSize']
         filled = self.safe_float(order, 'executedQty')
-        if filled is not None:
-            filled = filled / market['contractSize']
         cost = self.safe_string(order, 'executedQty')
         average = self.safe_string(order, 'avgPrice')
         type = self.parse_order_type(self.safe_string_lower(order, 'type'))
@@ -1062,15 +1072,19 @@ class bingx(Exchange):
         rawStopTrigger = self.safe_string(order, 'trigger')
         trigger = self.parse_stop_trigger(rawStopTrigger)
         side = self.safe_string_lower(order, 'side')
-        reduce = self.safe_value(order, 'reduceOnly', False)
-        close = reduce
-        planType = self.safe_string_lower(order, 'type')
-        if planType == 'stop_market' or planType == 'take_profit_market':
-            reduce = True
-            close = True
-        if side and side.split('_')[0] == 'close':
-            reduce = True
-            close = True
+        positionSide = self.safe_string_lower(order, 'positionSide')
+        reduceOnly = False
+        if side == 'buy':
+            if positionSide == 'long':
+                reduceOnly = False
+            else:
+                reduceOnly = True
+        else:
+            if positionSide == 'long':
+                reduceOnly = True
+            else:
+                reduceOnly = False
+        close = reduceOnly
         # order type LIMIT, MARKET, STOP_MARKET, TAKE_PROFIT_MARKET, TRIGGER_LIMIT, TRIGGER_MARKET
         # if rawStopTrigger:
         #     if type == 'market':
@@ -1115,7 +1129,7 @@ class bingx(Exchange):
             'status': status,
             'fee': fee,
             'trades': None,
-            'reduce': reduce,  # TEALSTREET
+            'reduceOnly': reduceOnly,  # TEALSTREET
             'close': close,  # TEALSTREET
             'trigger': trigger,  # TEALSTREET
         }, market)

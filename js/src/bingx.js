@@ -386,8 +386,8 @@ export default class bingx extends Exchange {
             const settle = this.safeCurrencyCode(settleId);
             const symbol = base + '/' + quote + ':' + settle;
             const status = this.safeNumber(market, 'status');
-            const contractSize = this.safeNumber(market, 'size', 1);
-            const hasContracts = contractSize !== 1;
+            // const contractSize = this.safeNumber (market, 'size', 1);
+            const contractSize = 1;
             result.push({
                 'id': marketId,
                 'symbol': symbol,
@@ -413,7 +413,7 @@ export default class bingx extends Exchange {
                 'strike': undefined,
                 'optionType': undefined,
                 'precision': {
-                    'amount': hasContracts ? 1 : this.parseNumber(this.parsePrecision(this.safeString(market, 'volumePrecision'))),
+                    'amount': this.parseNumber(this.parsePrecision(this.safeString(market, 'volumePrecision'))),
                     'price': this.parseNumber(this.parsePrecision(this.safeString(market, 'pricePrecision'))),
                 },
                 'limits': {
@@ -422,7 +422,7 @@ export default class bingx extends Exchange {
                         'max': this.safeNumber(market, 'maxLongLeverage'),
                     },
                     'amount': {
-                        'min': this.safeNumber(market, 'tradeMinLimit'),
+                        'min': this.safeNumber(market, 'size'),
                         'max': undefined,
                     },
                     'price': {
@@ -679,16 +679,32 @@ export default class bingx extends Exchange {
         const market = this.market(symbol);
         //
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-        let isTriggerOrder = triggerPrice !== undefined;
+        // const isTriggerOrder = triggerPrice !== undefined;
         let isStopLossOrder = undefined;
         let isTakeProfitOrder = undefined;
         const reduceOnly = this.safeValue2(params, 'close', 'reduceOnly', false);
         const basePrice = this.safeValue(params, 'basePrice');
+        let positionSide = undefined;
+        if (reduceOnly) {
+            if (side === 'buy') {
+                positionSide = 'LONG';
+            }
+            else {
+                positionSide = 'SHORT';
+            }
+        }
+        else {
+            if (side === 'buy') {
+                positionSide = 'SHORT';
+            }
+            else {
+                positionSide = 'LONG';
+            }
+        }
         if (triggerPrice !== undefined && basePrice !== undefined) {
             // triggerOrder is NOT stopOrder
-            isTriggerOrder = !reduceOnly;
             // type = 'market';
-            if (!isTriggerOrder) {
+            if (reduceOnly) {
                 if (side === 'buy') {
                     if (triggerPrice > basePrice) {
                         isStopLossOrder = true;
@@ -699,6 +715,24 @@ export default class bingx extends Exchange {
                 }
                 else {
                     if (triggerPrice < basePrice) {
+                        isStopLossOrder = true;
+                    }
+                    else {
+                        isTakeProfitOrder = true;
+                    }
+                }
+            }
+            else {
+                if (side === 'buy') {
+                    if (triggerPrice < basePrice) {
+                        isStopLossOrder = true;
+                    }
+                    else {
+                        isTakeProfitOrder = true;
+                    }
+                }
+                else {
+                    if (triggerPrice > basePrice) {
                         isStopLossOrder = true;
                     }
                     else {
@@ -729,12 +763,12 @@ export default class bingx extends Exchange {
         // const formattedSymbol = symbolComponents[0];
         const convertedSide = side.toUpperCase();
         // TODO use stringMult
-        const convertedAmount = amount * market['contractSize'];
         const request = {
             'symbol': market['id'],
             'type': convertedType,
             'side': convertedSide,
-            'quantity': convertedAmount,
+            'quantity': amount,
+            'positionSide': positionSide,
         };
         if (triggerPrice !== undefined) {
             request['stopPrice'] = triggerPrice;
@@ -838,7 +872,7 @@ export default class bingx extends Exchange {
         const marginMode = this.safeStringLower(position, 'marginMode');
         const hedged = true;
         const side = this.safeStringLower(position, 'positionSide');
-        let contracts = this.safeFloat(position, 'volume') / this.safeNumber(market, 'contractSize');
+        let contracts = this.safeFloat(position, 'volume');
         let liquidation = this.safeNumber(position, 'liquidatedPrice');
         if (side === 'short') {
             contracts = -1 * contracts;
@@ -1012,8 +1046,9 @@ export default class bingx extends Exchange {
             'market': 'market',
             'stop_market': 'stop',
             'take_profit_market': 'stop',
+            'take_profit_limit': 'stopLimit',
             'trigger_limit': 'stopLimit',
-            'trigger_market': 'stopLimit',
+            'trigger_market': 'stop',
         };
         return this.safeStringLower(types, type, type);
     }
@@ -1103,19 +1138,13 @@ export default class bingx extends Exchange {
         const symbol = market['symbol'];
         const id = this.safeString(order, 'orderId');
         const price = this.safeString(order, 'price');
-        let amount = this.safeFloat(order, 'origQty');
-        if (amount !== undefined) {
-            amount = amount / market['contractSize'];
-        }
-        let filled = this.safeFloat(order, 'executedQty');
-        if (filled !== undefined) {
-            filled = filled / market['contractSize'];
-        }
+        const amount = this.safeFloat(order, 'origQty');
+        const filled = this.safeFloat(order, 'executedQty');
         const cost = this.safeString(order, 'executedQty');
         const average = this.safeString(order, 'avgPrice');
         const type = this.parseOrderType(this.safeStringLower(order, 'type'));
         const timestamp = this.safeInteger(order, 'time');
-        const rawStopTrigger = this.safeString(order, 'stopPrice');
+        const rawStopTrigger = this.safeString(order, 'trigger');
         const trigger = this.parseStopTrigger(rawStopTrigger);
         const side = this.safeStringLower(order, 'side');
         let reduce = this.safeValue(order, 'reduceOnly', false);

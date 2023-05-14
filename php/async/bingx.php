@@ -137,6 +137,7 @@ class bingx extends Exchange {
                             ),
                             'delete' => array(
                                 'swap/v2/trade/order' => 1,
+                                'swap/v2/trade/allOpenOrders' => 1,
                             ),
                         ),
                     ),
@@ -398,8 +399,8 @@ class bingx extends Exchange {
                 $settle = $this->safe_currency_code($settleId);
                 $symbol = $base . '/' . $quote . ':' . $settle;
                 $status = $this->safe_number($market, 'status');
-                $contractSize = $this->safe_number($market, 'size', 1);
-                $hasContracts = $contractSize !== 1;
+                // $contractSize = $this->safe_number($market, 'size', 1);
+                $contractSize = 1;
                 $result[] = array(
                     'id' => $marketId,
                     'symbol' => $symbol,
@@ -425,7 +426,7 @@ class bingx extends Exchange {
                     'strike' => null,
                     'optionType' => null,
                     'precision' => array(
-                        'amount' => $hasContracts ? 1 : $this->parse_number($this->parse_precision($this->safe_string($market, 'volumePrecision'))),
+                        'amount' => $this->parse_number($this->parse_precision($this->safe_string($market, 'volumePrecision'))),
                         'price' => $this->parse_number($this->parse_precision($this->safe_string($market, 'pricePrecision'))),
                     ),
                     'limits' => array(
@@ -434,7 +435,7 @@ class bingx extends Exchange {
                             'max' => $this->safe_number($market, 'maxLongLeverage'),
                         ),
                         'amount' => array(
-                            'min' => $this->safe_number($market, 'tradeMinLimit'),
+                            'min' => $this->safe_number($market, 'size'),
                             'max' => null,
                         ),
                         'price' => array(
@@ -708,7 +709,7 @@ class bingx extends Exchange {
             $reduceOnly = $this->safe_value_2($params, 'close', 'reduceOnly', false);
             $basePrice = $this->safe_value($params, 'basePrice');
             $positionSide = null;
-            if ($reduceOnly) {
+            if (!$reduceOnly) {
                 if ($side === 'buy') {
                     $positionSide = 'LONG';
                 } else {
@@ -758,10 +759,8 @@ class bingx extends Exchange {
             $convertedType = 'LIMIT';
             if ($type === 'stop') {
                 if ($isTakeProfitOrder) {
-                    // $convertedType = 'TAKE_PROFIT_MARKET';
                     $convertedType = 'TRIGGER_MARKET';
                 } elseif ($isStopLossOrder) {
-                    // $convertedType = 'STOP_MARKET';
                     $convertedType = 'TRIGGER_MARKET';
                 } else {
                     throw new ArgumentsRequired('unknown $order direction for TP/SL');
@@ -770,22 +769,18 @@ class bingx extends Exchange {
             if ($type === 'stopLimit') {
                 $convertedType = 'TRIGGER_LIMIT';
             }
-            // $symbolComponents = explode(':', $symbol);
-            // $formattedSymbol = $symbolComponents[0];
             $convertedSide = strtoupper($side);
-            // TODO use stringMult
-            $convertedAmount = $amount * $market['contractSize'];
             $request = array(
                 'symbol' => $market['id'],
                 'type' => $convertedType,
                 'side' => $convertedSide,
-                'quantity' => $convertedAmount,
+                'quantity' => $amount,
                 'positionSide' => $positionSide,
             );
             if ($triggerPrice !== null) {
-                $request['stopPrice'] = $triggerPrice;
+                $request['stopPrice'] = $this->price_to_precision($symbol, $triggerPrice);
                 if ($convertedType === 'TRIGGER_LIMIT') {
-                    $request['price'] = $triggerPrice;
+                    $request['price'] = $this->price_to_precision($symbol, $price);
                 }
             } elseif ($triggerPrice === null && $convertedType === 'TRIGGER_LIMIT') {
                 $request['price'] = $basePrice;
@@ -816,6 +811,32 @@ class bingx extends Exchange {
         }) ();
     }
 
+    public function cancel_all_orders($symbol = null, $params = array ()) {
+        return Async\async(function () use ($symbol, $params) {
+            /**
+             * cancel all open orders in a $market
+             * @see https://github.com/phemex/phemex-api-docs/blob/master/Public-Hedged-Perpetual-API.md#cancelall
+             * @param {string} $symbol unified $market $symbol of the $market to cancel orders in
+             * @param {array} $params extra parameters specific to the phemex api endpoint
+             * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=order-structure order structures~
+             */
+            if ($symbol === null) {
+                throw new ArgumentsRequired($this->id . ' cancelAllOrders() requires a $symbol argument');
+            }
+            Async\await($this->load_markets());
+            if ($symbol === null) {
+                throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
+            }
+            Async\await($this->load_markets());
+            $market = $this->market($symbol);
+            $request = array(
+                'symbol' => $market['id'],
+            );
+            $response = Async\await($this->swap2OpenApiPrivateDeleteSwapV2TradeAllOpenOrders ($request));
+            return $response;
+        }) ();
+    }
+
     public function cancel_order($id, $symbol = null, $params = array ()) {
         return Async\async(function () use ($id, $symbol, $params) {
             /**
@@ -830,11 +851,9 @@ class bingx extends Exchange {
             }
             Async\await($this->load_markets());
             $market = $this->market($symbol);
-            $idComponents = explode(':', $id);
-            $formattedId = $idComponents[0];
             $request = array(
                 'symbol' => $market['id'],
-                'orderId' => $formattedId,
+                'orderId' => $id,
             );
             $response = Async\await($this->swap2OpenApiPrivateDeleteSwapV2TradeOrder ($request));
             return $this->parse_order($response, $market);
@@ -886,7 +905,7 @@ class bingx extends Exchange {
         $marginMode = $this->safe_string_lower($position, 'marginMode');
         $hedged = true;
         $side = $this->safe_string_lower($position, 'positionSide');
-        $contracts = $this->safe_float($position, 'volume') / $this->safe_number($market, 'contractSize');
+        $contracts = $this->safe_float($position, 'volume');
         $liquidation = $this->safe_number($position, 'liquidatedPrice');
         if ($side === 'short') {
             $contracts = -1 * $contracts;
@@ -1147,13 +1166,7 @@ class bingx extends Exchange {
         $id = $this->safe_string($order, 'orderId');
         $price = $this->safe_string($order, 'price');
         $amount = $this->safe_float($order, 'origQty');
-        if ($amount !== null) {
-            $amount = $amount / $market['contractSize'];
-        }
         $filled = $this->safe_float($order, 'executedQty');
-        if ($filled !== null) {
-            $filled = $filled / $market['contractSize'];
-        }
         $cost = $this->safe_string($order, 'executedQty');
         $average = $this->safe_string($order, 'avgPrice');
         $type = $this->parse_order_type($this->safe_string_lower($order, 'type'));
@@ -1161,17 +1174,22 @@ class bingx extends Exchange {
         $rawStopTrigger = $this->safe_string($order, 'trigger');
         $trigger = $this->parse_stop_trigger($rawStopTrigger);
         $side = $this->safe_string_lower($order, 'side');
-        $reduce = $this->safe_value($order, 'reduceOnly', false);
-        $close = $reduce;
-        $planType = $this->safe_string_lower($order, 'type');
-        if ($planType === 'stop_market' || $planType === 'take_profit_market') {
-            $reduce = true;
-            $close = true;
+        $positionSide = $this->safe_string_lower($order, 'positionSide');
+        $reduceOnly = false;
+        if ($side === 'buy') {
+            if ($positionSide === 'long') {
+                $reduceOnly = false;
+            } else {
+                $reduceOnly = true;
+            }
+        } else {
+            if ($positionSide === 'long') {
+                $reduceOnly = true;
+            } else {
+                $reduceOnly = false;
+            }
         }
-        if ($side && explode('_', $side)[0] === 'close') {
-            $reduce = true;
-            $close = true;
-        }
+        $close = $reduceOnly;
         // $order $type LIMIT, MARKET, STOP_MARKET, TAKE_PROFIT_MARKET, TRIGGER_LIMIT, TRIGGER_MARKET
         // if ($rawStopTrigger) {
         //     if ($type === 'market') {
@@ -1216,7 +1234,7 @@ class bingx extends Exchange {
             'status' => $status,
             'fee' => $fee,
             'trades' => null,
-            'reduce' => $reduce,  // TEALSTREET
+            'reduceOnly' => $reduceOnly,  // TEALSTREET
             'close' => $close,  // TEALSTREET
             'trigger' => $trigger,  // TEALSTREET
         ), $market);
