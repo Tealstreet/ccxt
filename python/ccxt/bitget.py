@@ -39,6 +39,8 @@ class bitget(Exchange):
             'rateLimit': 50,  # up to 3000 requests per 5 minutes ≈ 600 requests per minute ≈ 10 requests per second ≈ 100 ms
             'certified': True,
             'pro': True,
+            'userAgent': None,
+            'origin': 'https://open-api.bingx.com',
             'has': {
                 'CORS': None,
                 'spot': True,

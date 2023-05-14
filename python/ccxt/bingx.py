@@ -20,6 +20,8 @@ class bingx(Exchange):
             'rateLimit': 100,
             'version': 'v1',
             'pro': True,
+            'userAgent': None,
+            'origin': 'https://open-api.bingx.com',
             'has': {
                 'CORS': True,
                 'spot': True,

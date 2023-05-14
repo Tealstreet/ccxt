@@ -17,6 +17,8 @@ class bitget extends Exchange["default"] {
             'rateLimit': 50,
             'certified': true,
             'pro': true,
+            'userAgent': undefined,
+            'origin': 'https://open-api.bingx.com',
             'has': {
                 'CORS': undefined,
                 'spot': true,
