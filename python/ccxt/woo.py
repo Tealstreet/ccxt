@@ -2201,3 +2201,80 @@ class woo(Exchange):
                 return network
         # if it was not returned according to above options, then return the first network of currency
         return self.safe_value(networkKeys, 0)
+
+    def fetch_ticker(self, symbol, params={}):
+        """
+        fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+        :param str symbol: unified symbol of the market to fetch the ticker for
+        :param dict params: extra parameters specific to the paymium api endpoint
+        :returns dict: a `ticker structure <https://docs.ccxt.com/#/?id=ticker-structure>`
+        """
+        self.load_markets()
+        market = self.market(symbol)
+        request = {
+            'symbol': market['id'],
+        }
+        response = self.v1PublicGetFuturesSymbol(self.extend(request, params))
+        #
+        # {
+        #   "symbol": "BTC-USDT",
+        #   "priceChange": "10.00",
+        #   "priceChangePercent": "10",
+        #   "lastPrice": "5738.23",
+        #   "lastVolume": "31.21",
+        #   "highPrice": "5938.23",
+        #   "lowPrice": "5238.23",
+        #   "volume": "23211231.13",
+        #   "dayVolume": "213124412412.47",
+        #   "openPrice": "5828.32"
+        # }
+        #
+        ticker = self.safe_value(response, 'info')
+        return self.parse_ticker(ticker, market)
+
+    def parse_ticker(self, ticker, market=None):
+        #
+        # {
+        #   "symbol": "PERP_BTC_USDT",
+        #   "index_price": 56727.31344564,
+        #   "mark_price": 56727.31344564,
+        #   "est_funding_rate": 0.12345689,
+        #   "last_funding_rate": 0.12345689,
+        #   "next_funding_time": 1567411795000,
+        #   "open_interest": 0.12345689,
+        #   "24h_open": 0.16112,
+        #   "24h_close": 0.32206,
+        #   "24h_high": 0.33000,
+        #   "24h_low": 0.14251,
+        #   "24h_volume": 89040821.98,
+        #   "24h_amount": 22493062.21
+        # }
+        #
+        symbol = self.safe_symbol(None, market)
+        timestamp = self.milliseconds()
+        baseVolume = self.safe_string(ticker, '24h_volume')
+        openFloat = self.safe_float(ticker, '24h_open')
+        currentFloat = self.safe_float(ticker, 'index_price')
+        percentage = currentFloat / openFloat * 100
+        last = self.safe_string(ticker, 'index_price')
+        return self.safe_ticker({
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'high': self.safe_string(ticker, '24h_high'),
+            'low': self.safe_string(ticker, '24h_low'),
+            'bid': self.safe_string(ticker, 'index_price'),
+            'bidVolume': None,
+            'ask': self.safe_string(ticker, 'index_price'),
+            'askVolume': None,
+            'open': self.safe_string(ticker, '24h_open'),
+            'close': last,
+            'last': last,
+            'mark': last,
+            'previousClose': None,
+            'change': None,
+            'percentage': self.number_to_string(percentage),
+            'average': None,
+            'baseVolume': baseVolume,
+            'info': ticker,
+        }, market)

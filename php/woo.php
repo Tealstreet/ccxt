@@ -2320,4 +2320,83 @@ class woo extends Exchange {
         // if it was not returned according to above options, then return the first $network of currency
         return $this->safe_value($networkKeys, 0);
     }
+
+    public function fetch_ticker($symbol, $params = array ()) {
+        /**
+         * fetches a price $ticker, a statistical calculation with the information calculated over the past 24 hours for a specific $market
+         * @param {string} $symbol unified $symbol of the $market to fetch the $ticker for
+         * @param {array} $params extra parameters specific to the paymium api endpoint
+         * @return {array} a ~@link https://docs.ccxt.com/#/?id=$ticker-structure $ticker structure~
+         */
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'symbol' => $market['id'],
+        );
+        $response = $this->v1PublicGetFuturesSymbol (array_merge($request, $params));
+        //
+        // {
+        //   "symbol" => "BTC-USDT",
+        //   "priceChange" => "10.00",
+        //   "priceChangePercent" => "10",
+        //   "lastPrice" => "5738.23",
+        //   "lastVolume" => "31.21",
+        //   "highPrice" => "5938.23",
+        //   "lowPrice" => "5238.23",
+        //   "volume" => "23211231.13",
+        //   "dayVolume" => "213124412412.47",
+        //   "openPrice" => "5828.32"
+        // }
+        //
+        $ticker = $this->safe_value($response, 'info');
+        return $this->parse_ticker($ticker, $market);
+    }
+
+    public function parse_ticker($ticker, $market = null) {
+        //
+        // {
+        //   "symbol" => "PERP_BTC_USDT",
+        //   "index_price" => 56727.31344564,
+        //   "mark_price" => 56727.31344564,
+        //   "est_funding_rate" => 0.12345689,
+        //   "last_funding_rate" => 0.12345689,
+        //   "next_funding_time" => 1567411795000,
+        //   "open_interest" => 0.12345689,
+        //   "24h_open" => 0.16112,
+        //   "24h_close" => 0.32206,
+        //   "24h_high" => 0.33000,
+        //   "24h_low" => 0.14251,
+        //   "24h_volume" => 89040821.98,
+        //   "24h_amount" => 22493062.21
+        // }
+        //
+        $symbol = $this->safe_symbol(null, $market);
+        $timestamp = $this->milliseconds();
+        $baseVolume = $this->safe_string($ticker, '24h_volume');
+        $openFloat = $this->safe_float($ticker, '24h_open');
+        $currentFloat = $this->safe_float($ticker, 'index_price');
+        $percentage = $currentFloat / $openFloat * 100;
+        $last = $this->safe_string($ticker, 'index_price');
+        return $this->safe_ticker(array(
+            'symbol' => $symbol,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'high' => $this->safe_string($ticker, '24h_high'),
+            'low' => $this->safe_string($ticker, '24h_low'),
+            'bid' => $this->safe_string($ticker, 'index_price'),
+            'bidVolume' => null,
+            'ask' => $this->safe_string($ticker, 'index_price'),
+            'askVolume' => null,
+            'open' => $this->safe_string($ticker, '24h_open'),
+            'close' => $last,
+            'last' => $last,
+            'mark' => $last,
+            'previousClose' => null,
+            'change' => null,
+            'percentage' => $this->number_to_string($percentage),
+            'average' => null,
+            'baseVolume' => $baseVolume,
+            'info' => $ticker,
+        ), $market);
+    }
 }

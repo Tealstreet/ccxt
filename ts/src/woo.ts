@@ -2370,4 +2370,85 @@ export default class woo extends Exchange {
         // if it was not returned according to above options, then return the first network of currency
         return this.safeValue (networkKeys, 0);
     }
+
+    async fetchTicker (symbol, params = {}) {
+        /**
+         * @method
+         * @name woo#fetchTicker
+         * @description fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+         * @param {string} symbol unified symbol of the market to fetch the ticker for
+         * @param {object} params extra parameters specific to the paymium api endpoint
+         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         */
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        const response = await (this as any).v1PublicGetFuturesSymbol (this.extend (request, params));
+        //
+        // {
+        //   "symbol": "BTC-USDT",
+        //   "priceChange": "10.00",
+        //   "priceChangePercent": "10",
+        //   "lastPrice": "5738.23",
+        //   "lastVolume": "31.21",
+        //   "highPrice": "5938.23",
+        //   "lowPrice": "5238.23",
+        //   "volume": "23211231.13",
+        //   "dayVolume": "213124412412.47",
+        //   "openPrice": "5828.32"
+        // }
+        //
+        const ticker = this.safeValue (response, 'info');
+        return this.parseTicker (ticker, market);
+    }
+
+    parseTicker (ticker, market = undefined) {
+        //
+        // {
+        //   "symbol": "PERP_BTC_USDT",
+        //   "index_price": 56727.31344564,
+        //   "mark_price": 56727.31344564,
+        //   "est_funding_rate": 0.12345689,
+        //   "last_funding_rate": 0.12345689,
+        //   "next_funding_time": 1567411795000,
+        //   "open_interest": 0.12345689,
+        //   "24h_open": 0.16112,
+        //   "24h_close": 0.32206,
+        //   "24h_high": 0.33000,
+        //   "24h_low": 0.14251,
+        //   "24h_volume": 89040821.98,
+        //   "24h_amount": 22493062.21
+        // }
+        //
+        const symbol = this.safeSymbol (undefined, market);
+        const timestamp = this.milliseconds ();
+        const baseVolume = this.safeString (ticker, '24h_volume');
+        const openFloat = this.safeFloat (ticker, '24h_open');
+        const currentFloat = this.safeFloat (ticker, 'index_price');
+        const percentage = currentFloat / openFloat * 100;
+        const last = this.safeString (ticker, 'index_price');
+        return this.safeTicker ({
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'high': this.safeString (ticker, '24h_high'),
+            'low': this.safeString (ticker, '24h_low'),
+            'bid': this.safeString (ticker, 'index_price'),
+            'bidVolume': undefined,
+            'ask': this.safeString (ticker, 'index_price'),
+            'askVolume': undefined,
+            'open': this.safeString (ticker, '24h_open'),
+            'close': last,
+            'last': last,
+            'mark': last,
+            'previousClose': undefined,
+            'change': undefined,
+            'percentage': this.numberToString (percentage),
+            'average': undefined,
+            'baseVolume': baseVolume,
+            'info': ticker,
+        }, market);
+    }
 }
