@@ -62,7 +62,8 @@ export default class woo extends wooRest {
 
     async watchPublic (messageHash, message) {
         this.checkRequiredUid ();
-        const url = this.urls['api']['ws']['public'] + '/' + this.uid;
+        // const url = this.urls['api']['ws']['public'] + '/' + this.uid;
+        const url = this.urls['api']['ws']['public'] + '/' + 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY';
         const requestId = this.requestId (url);
         const subscribe = {
             'id': requestId,
@@ -410,14 +411,15 @@ export default class woo extends wooRest {
     }
 
     checkRequiredUid (error = true) {
-        if (!this.uid) {
-            if (error) {
-                throw new AuthenticationError (this.id + ' requires `uid` credential');
-            } else {
-                return false;
-            }
-        }
         return true;
+        // if (!this.uid) {
+        //     if (error) {
+        //         throw new AuthenticationError (this.id + ' requires `uid` credential');
+        //     } else {
+        //         return false;
+        //     }
+        // }
+        // return true;
     }
 
     authenticate (params = {}) {
