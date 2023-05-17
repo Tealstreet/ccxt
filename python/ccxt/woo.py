@@ -141,6 +141,7 @@ class woo(Exchange):
                             'info': 1,
                             'info/{symbol}': 1,
                             'system_info': 1,
+                            'kline': 1,
                             'market_trades': 1,
                             'token': 1,
                             'token_network': 1,
@@ -158,7 +159,6 @@ class woo(Exchange):
                             'client/order/{client_order_id}': 1,
                             'orders': 1,
                             'orderbook/{symbol}': 1,
-                            'kline': 1,
                             'client/trade/{tid}': 1,
                             'order/{oid}/trades': 1,
                             'client/trades': 1,
@@ -335,6 +335,8 @@ class woo(Exchange):
             symbol = base + '/' + quote
             contractSize = None
             linear = None
+            if isSpot:
+                continue
             if isSwap:
                 settleId = self.safe_string(parts, 2)
                 settle = self.safe_currency_code(settleId)
@@ -1115,7 +1117,7 @@ class woo(Exchange):
         }
         if limit is not None:
             request['limit'] = min(limit, 1000)
-        response = self.v1PrivateGetKline(self.extend(request, params))
+        response = self.v1PublicGetKline(self.extend(request, params))
         # {
         #     success: True,
         #     rows: [

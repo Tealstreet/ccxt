@@ -410,7 +410,8 @@ export default class woo extends wooRest {
         }, market);
     }
 
-    checkRequiredUid (error = true) {
+    checkRequiredUid () {
+        // checkRequiredUid (error = true) {
         return true;
         // if (!this.uid) {
         //     if (error) {

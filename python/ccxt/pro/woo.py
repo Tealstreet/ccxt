@@ -65,7 +65,8 @@ class woo(ccxt.async_support.woo):
 
     async def watch_public(self, messageHash, message):
         self.check_required_uid()
-        url = self.urls['api']['ws']['public'] + '/' + self.uid
+        # url = self.urls['api']['ws']['public'] + '/' + self.uid
+        url = self.urls['api']['ws']['public'] + '/' + 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY'
         requestId = self.request_id(url)
         subscribe = {
             'id': requestId,
@@ -392,13 +393,17 @@ class woo(ccxt.async_support.woo):
             'info': trade,
         }, market)
 
-    def check_required_uid(self, error=True):
-        if not self.uid:
-            if error:
-                raise AuthenticationError(self.id + ' requires `uid` credential')
-            else:
-                return False
+    def check_required_uid(self):
+        # checkRequiredUid(error = True) {
         return True
+        # if not self.uid:
+        #     if error:
+        #         raise AuthenticationError(self.id + ' requires `uid` credential')
+        #     else:
+        #         return False
+        #     }
+        # }
+        # return True
 
     def authenticate(self, params={}):
         self.check_required_credentials()

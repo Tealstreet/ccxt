@@ -133,6 +133,7 @@ export default class woo extends Exchange {
                             'info': 1,
                             'info/{symbol}': 1,
                             'system_info': 1,
+                            'kline': 1,
                             'market_trades': 1,
                             'token': 1,
                             'token_network': 1,
@@ -150,7 +151,6 @@ export default class woo extends Exchange {
                             'client/order/{client_order_id}': 1,
                             'orders': 1,
                             'orderbook/{symbol}': 1,
-                            'kline': 1,
                             'client/trade/{tid}': 1,
                             'order/{oid}/trades': 1,
                             'client/trades': 1,
@@ -330,6 +330,9 @@ export default class woo extends Exchange {
             let symbol = base + '/' + quote;
             let contractSize = undefined;
             let linear = undefined;
+            if (isSpot) {
+                continue;
+            }
             if (isSwap) {
                 settleId = this.safeString (parts, 2);
                 settle = this.safeCurrencyCode (settleId);
@@ -1182,7 +1185,7 @@ export default class woo extends Exchange {
         if (limit !== undefined) {
             request['limit'] = Math.min (limit, 1000);
         }
-        const response = await (this as any).v1PrivateGetKline (this.extend (request, params));
+        const response = await (this as any).v1PublicGetKline (this.extend (request, params));
         // {
         //     success: true,
         //     rows: [

@@ -138,6 +138,7 @@ class woo extends Exchange {
                             'info' => 1,
                             'info/{symbol}' => 1,
                             'system_info' => 1,
+                            'kline' => 1,
                             'market_trades' => 1,
                             'token' => 1,
                             'token_network' => 1,
@@ -155,7 +156,6 @@ class woo extends Exchange {
                             'client/order/{client_order_id}' => 1,
                             'orders' => 1,
                             'orderbook/{symbol}' => 1,
-                            'kline' => 1,
                             'client/trade/{tid}' => 1,
                             'order/{oid}/trades' => 1,
                             'client/trades' => 1,
@@ -334,6 +334,9 @@ class woo extends Exchange {
                 $symbol = $base . '/' . $quote;
                 $contractSize = null;
                 $linear = null;
+                if ($isSpot) {
+                    continue;
+                }
                 if ($isSwap) {
                     $settleId = $this->safe_string($parts, 2);
                     $settle = $this->safe_currency_code($settleId);
@@ -1186,7 +1189,7 @@ class woo extends Exchange {
             if ($limit !== null) {
                 $request['limit'] = min ($limit, 1000);
             }
-            $response = Async\await($this->v1PrivateGetKline (array_merge($request, $params)));
+            $response = Async\await($this->v1PublicGetKline (array_merge($request, $params)));
             // {
             //     success => true,
             //     rows => array(

@@ -68,7 +68,8 @@ class woo extends \ccxt\async\woo {
     public function watch_public($messageHash, $message) {
         return Async\async(function () use ($messageHash, $message) {
             $this->check_required_uid();
-            $url = $this->urls['api']['ws']['public'] . '/' . $this->uid;
+            // $url = $this->urls['api']['ws']['public'] . '/' . $this->uid;
+            $url = $this->urls['api']['ws']['public'] . '/' . 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY';
             $requestId = $this->request_id($url);
             $subscribe = array(
                 'id' => $requestId,
@@ -426,15 +427,17 @@ class woo extends \ccxt\async\woo {
         ), $market);
     }
 
-    public function check_required_uid($error = true) {
-        if (!$this->uid) {
-            if ($error) {
-                throw new AuthenticationError($this->id . ' requires `uid` credential');
-            } else {
-                return false;
-            }
-        }
+    public function check_required_uid() {
+        // checkRequiredUid (error = true) {
         return true;
+        // if (!$this->uid) {
+        //     if (error) {
+        //         throw new AuthenticationError($this->id . ' requires `uid` credential');
+        //     } else {
+        //         return false;
+        //     }
+        // }
+        // return true;
     }
 
     public function authenticate($params = array ()) {
