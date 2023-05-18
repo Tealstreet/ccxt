@@ -411,7 +411,7 @@ class woo extends \ccxt\async\woo {
         $side = $this->safe_string_lower($trade, 'side');
         $timestamp = $this->safe_integer($trade, 'timestamp');
         return $this->safe_trade(array(
-            'id' => null,
+            'id' => $timestamp,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
             'symbol' => $symbol,

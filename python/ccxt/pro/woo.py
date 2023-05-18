@@ -378,7 +378,7 @@ class woo(ccxt.async_support.woo):
         side = self.safe_string_lower(trade, 'side')
         timestamp = self.safe_integer(trade, 'timestamp')
         return self.safe_trade({
-            'id': None,
+            'id': timestamp,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'symbol': symbol,

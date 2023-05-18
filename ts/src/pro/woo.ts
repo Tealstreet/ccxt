@@ -394,7 +394,7 @@ export default class woo extends wooRest {
         const side = this.safeStringLower (trade, 'side');
         const timestamp = this.safeInteger (trade, 'timestamp');
         return this.safeTrade ({
-            'id': undefined,
+            'id': timestamp,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'symbol': symbol,
