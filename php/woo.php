@@ -2402,4 +2402,18 @@ class woo extends Exchange {
             'info' => $ticker,
         ), $market);
     }
+
+    public function fetch_account_configuration($symbol, $params = array ()) {
+        $this->load_markets();
+        // $market = $this->market($symbol);
+        // $request = array(
+        //     'symbol' => $market['id'],
+        // );
+        $accountConfig = array(
+            'marginMode' => 'cross',
+            'positionMode' => 'oneway',
+            'markets' => array(),
+        );
+        return $accountConfig;
+    }
 }

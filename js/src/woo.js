@@ -2411,4 +2411,17 @@ export default class woo extends Exchange {
             'info': ticker,
         }, market);
     }
+    async fetchAccountConfiguration(symbol, params = {}) {
+        await this.loadMarkets();
+        // const market = this.market (symbol);
+        // const request = {
+        //     'symbol': market['id'],
+        // };
+        const accountConfig = {
+            'marginMode': 'cross',
+            'positionMode': 'oneway',
+            'markets': {},
+        };
+        return accountConfig;
+    }
 }

@@ -2280,3 +2280,16 @@ class woo(Exchange):
             'baseVolume': baseVolume,
             'info': ticker,
         }, market)
+
+    def fetch_account_configuration(self, symbol, params={}):
+        self.load_markets()
+        # market = self.market(symbol)
+        # request = {
+        #     'symbol': market['id'],
+        # }
+        accountConfig = {
+            'marginMode': 'cross',
+            'positionMode': 'oneway',
+            'markets': {},
+        }
+        return accountConfig
