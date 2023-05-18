@@ -1859,13 +1859,15 @@ class bitget extends Exchange {
         $id = $this->safe_string_2($trade, 'tradeId', 'fillId');
         $order = $this->safe_string($trade, 'orderId');
         $side = $this->safe_string($trade, 'side');
+        $side = $this->safe_string($trade, 'posSide');
         $price = $this->safe_string_2($trade, 'fillPrice', 'price');
+        $price = $this->safe_string($trade, 'priceAvg');
         $amount = $this->safe_string_2($trade, 'fillQuantity', 'size');
         $amount = $this->safe_string($trade, 'sizeQty', $amount);
         $timestamp = $this->safe_integer_2($trade, 'fillTime', 'timestamp');
         $timestamp = $this->safe_integer($trade, 'cTime', $timestamp);
         $fee = null;
-        $feeAmount = $this->safe_string($trade, 'fees');
+        $feeAmount = $this->safe_string_2($trade, 'fees', 'fee');
         $type = $this->safe_string($trade, 'orderType');
         if ($feeAmount !== null) {
             $currencyCode = $this->safe_currency_code($this->safe_string($trade, 'feeCcy'));
@@ -1886,7 +1888,7 @@ class bitget extends Exchange {
             'takerOrMaker' => null,
             'price' => $price,
             'amount' => $amount,
-            'cost' => null,
+            'cost' => $this->safe_string($fee, 'cost'),
             'fee' => $fee,
             'timestamp' => $timestamp,
             'datetime' => $datetime,
@@ -3177,43 +3179,50 @@ class bitget extends Exchange {
         if ($symbol === null) {
             throw new ArgumentsRequired($this->id . ' fetchMyTrades() requires a $symbol argument');
         }
+        $this->check_required_symbol('fetchMyTrades', $symbol);
         $this->load_markets();
         $market = $this->market($symbol);
-        if ($market['swap']) {
-            throw new BadSymbol($this->id . ' fetchMyTrades() only supports spot markets');
-        }
         $request = array(
             'symbol' => $market['id'],
+            'pageSize' => 20,
         );
         if ($limit !== null) {
             $request['limit'] = $limit;
         }
-        $response = $this->privateSpotPostTradeFills (array_merge($request, $params));
-        //
-        //     {
-        //       code => '00000',
-        //       msg => 'success',
-        //       requestTime => '1645918954082',
-        //       $data => array(
-        //         {
-        //           accountId => '6394957606',
-        //           $symbol => 'LTCUSDT_SPBL',
-        //           orderId => '864752115272552448',
-        //           fillId => '864752115685969921',
-        //           orderType => 'limit',
-        //           side => 'buy',
-        //           fillPrice => '127.92000000',
-        //           fillQuantity => '0.10000000',
-        //           fillTotalAmount => '12.79200000',
-        //           feeCcy => 'LTC',
-        //           fees => '0.00000000',
-        //           cTime => '1641898891373'
-        //         }
-        //       )
-        //     }
-        //
+        if ($since !== null) {
+            $request['startTime'] = $since;
+        }
+        $request['endTime'] = (string) $this->milliseconds();
+        $response = $this->privateMixGetOrderHistory (array_merge($request, $params));
+        // {
+        //     "symbol" => "SOLUSDT_UMCBL",
+        //     "size" => 1,
+        //     "orderId" => "963544804144852112",
+        //     "clientOid" => "963544804144852113",
+        //     "filledQty" => 1,
+        //     "fee" => -0.00629204,
+        //     "price" => 31.4602,
+        //     "priceAvg" => 31.4602,
+        //     "state" => "filled",
+        //     "side" => "close_short",
+        //     "timeInForce" => "normal",
+        //     "totalProfits" => 0.00760000,
+        //     "posSide" => "short",
+        //     "marginCoin" => "USDT",
+        //     "filledAmount" => 31.4602,
+        //     "orderType" => "limit",
+        //     "leverage" => "5",
+        //     "marginMode" => "crossed",
+        //     "reduceOnly" => false,
+        //     "enterPointSource" => "WEB",
+        //     "tradeSide" => "open_long",
+        //     "holdMode" => "double_hold",
+        //     "cTime" => "1665452903781",
+        //     "uTime" => "1665452917467"
+        // }
         $data = $this->safe_value($response, 'data');
-        return $this->parse_trades($data, $market, $since, $limit);
+        $orderList = $this->safe_value($data, 'orderList', array());
+        return $this->parse_trades($orderList, $market, $since, $limit);
     }
 
     public function fetch_order_trades($id, $symbol = null, $since = null, $limit = null, $params = array ()) {

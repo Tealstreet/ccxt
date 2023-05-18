@@ -1818,13 +1818,15 @@ class bitget(Exchange):
         id = self.safe_string_2(trade, 'tradeId', 'fillId')
         order = self.safe_string(trade, 'orderId')
         side = self.safe_string(trade, 'side')
+        side = self.safe_string(trade, 'posSide')
         price = self.safe_string_2(trade, 'fillPrice', 'price')
+        price = self.safe_string(trade, 'priceAvg')
         amount = self.safe_string_2(trade, 'fillQuantity', 'size')
         amount = self.safe_string(trade, 'sizeQty', amount)
         timestamp = self.safe_integer_2(trade, 'fillTime', 'timestamp')
         timestamp = self.safe_integer(trade, 'cTime', timestamp)
         fee = None
-        feeAmount = self.safe_string(trade, 'fees')
+        feeAmount = self.safe_string_2(trade, 'fees', 'fee')
         type = self.safe_string(trade, 'orderType')
         if feeAmount is not None:
             currencyCode = self.safe_currency_code(self.safe_string(trade, 'feeCcy'))
@@ -1844,7 +1846,7 @@ class bitget(Exchange):
             'takerOrMaker': None,
             'price': price,
             'amount': amount,
-            'cost': None,
+            'cost': self.safe_string(fee, 'cost'),
             'fee': fee,
             'timestamp': timestamp,
             'datetime': datetime,
@@ -3042,41 +3044,48 @@ class bitget(Exchange):
         """
         if symbol is None:
             raise ArgumentsRequired(self.id + ' fetchMyTrades() requires a symbol argument')
+        self.check_required_symbol('fetchMyTrades', symbol)
         self.load_markets()
         market = self.market(symbol)
-        if market['swap']:
-            raise BadSymbol(self.id + ' fetchMyTrades() only supports spot markets')
         request = {
             'symbol': market['id'],
+            'pageSize': 20,
         }
         if limit is not None:
             request['limit'] = limit
-        response = self.privateSpotPostTradeFills(self.extend(request, params))
-        #
-        #     {
-        #       code: '00000',
-        #       msg: 'success',
-        #       requestTime: '1645918954082',
-        #       data: [
-        #         {
-        #           accountId: '6394957606',
-        #           symbol: 'LTCUSDT_SPBL',
-        #           orderId: '864752115272552448',
-        #           fillId: '864752115685969921',
-        #           orderType: 'limit',
-        #           side: 'buy',
-        #           fillPrice: '127.92000000',
-        #           fillQuantity: '0.10000000',
-        #           fillTotalAmount: '12.79200000',
-        #           feeCcy: 'LTC',
-        #           fees: '0.00000000',
-        #           cTime: '1641898891373'
-        #         }
-        #       ]
-        #     }
-        #
+        if since is not None:
+            request['startTime'] = since
+        request['endTime'] = str(self.milliseconds())
+        response = self.privateMixGetOrderHistory(self.extend(request, params))
+        # {
+        #     "symbol": "SOLUSDT_UMCBL",
+        #     "size": 1,
+        #     "orderId": "963544804144852112",
+        #     "clientOid": "963544804144852113",
+        #     "filledQty": 1,
+        #     "fee": -0.00629204,
+        #     "price": 31.4602,
+        #     "priceAvg": 31.4602,
+        #     "state": "filled",
+        #     "side": "close_short",
+        #     "timeInForce": "normal",
+        #     "totalProfits": 0.00760000,
+        #     "posSide": "short",
+        #     "marginCoin": "USDT",
+        #     "filledAmount": 31.4602,
+        #     "orderType": "limit",
+        #     "leverage": "5",
+        #     "marginMode": "crossed",
+        #     "reduceOnly": False,
+        #     "enterPointSource": "WEB",
+        #     "tradeSide": "open_long",
+        #     "holdMode": "double_hold",
+        #     "cTime": "1665452903781",
+        #     "uTime": "1665452917467"
+        # }
         data = self.safe_value(response, 'data')
-        return self.parse_trades(data, market, since, limit)
+        orderList = self.safe_value(data, 'orderList', [])
+        return self.parse_trades(orderList, market, since, limit)
 
     def fetch_order_trades(self, id, symbol=None, since=None, limit=None, params={}):
         """
