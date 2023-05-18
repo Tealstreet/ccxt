@@ -2405,14 +2405,19 @@ class woo extends Exchange {
 
     public function fetch_account_configuration($symbol, $params = array ()) {
         $this->load_markets();
-        // $market = $this->market($symbol);
-        // $request = array(
-        //     'symbol' => $market['id'],
-        // );
+        $market = $this->market($symbol);
+        $leverageInfo = $this->fetch_leverage($market['id']);
+        $leverage = $this->safe_integer($leverageInfo, 'leverage');
         $accountConfig = array(
             'marginMode' => 'cross',
             'positionMode' => 'oneway',
             'markets' => array(),
+        );
+        $leverageConfigs = $accountConfig['markets'];
+        $leverageConfigs[$market['symbol']] = array(
+            'leverage' => $leverage,
+            'buyLeverage' => $leverage,
+            'sellLeverage' => $leverage,
         );
         return $accountConfig;
     }

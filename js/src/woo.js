@@ -2413,14 +2413,19 @@ export default class woo extends Exchange {
     }
     async fetchAccountConfiguration(symbol, params = {}) {
         await this.loadMarkets();
-        // const market = this.market (symbol);
-        // const request = {
-        //     'symbol': market['id'],
-        // };
+        const market = this.market(symbol);
+        const leverageInfo = await this.fetchLeverage(market['id']);
+        const leverage = this.safeInteger(leverageInfo, 'leverage');
         const accountConfig = {
             'marginMode': 'cross',
             'positionMode': 'oneway',
             'markets': {},
+        };
+        const leverageConfigs = accountConfig['markets'];
+        leverageConfigs[market['symbol']] = {
+            'leverage': leverage,
+            'buyLeverage': leverage,
+            'sellLeverage': leverage,
         };
         return accountConfig;
     }

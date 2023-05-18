@@ -2283,13 +2283,18 @@ class woo(Exchange):
 
     def fetch_account_configuration(self, symbol, params={}):
         self.load_markets()
-        # market = self.market(symbol)
-        # request = {
-        #     'symbol': market['id'],
-        # }
+        market = self.market(symbol)
+        leverageInfo = self.fetch_leverage(market['id'])
+        leverage = self.safe_integer(leverageInfo, 'leverage')
         accountConfig = {
             'marginMode': 'cross',
             'positionMode': 'oneway',
             'markets': {},
+        }
+        leverageConfigs = accountConfig['markets']
+        leverageConfigs[market['symbol']] = {
+            'leverage': leverage,
+            'buyLeverage': leverage,
+            'sellLeverage': leverage,
         }
         return accountConfig
