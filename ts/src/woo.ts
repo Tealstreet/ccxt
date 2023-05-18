@@ -1935,7 +1935,7 @@ export default class woo extends Exchange {
             if (Object.keys (params).length) {
                 url += '?' + this.urlencode (params);
             }
-        } else {
+        } else if (access !== 'pub') {
             this.checkRequiredCredentials ();
             let auth = '';
             const ts = this.nonce ().toString ();
