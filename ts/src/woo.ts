@@ -2335,7 +2335,7 @@ export default class woo extends Exchange {
         const notional = Precise.stringMul (size, markPrice);
         return {
             'info': position,
-            'id': undefined,
+            'id': market['symbol'] + ':' + side,
             'symbol': this.safeString (market, 'symbol'),
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),

@@ -2285,7 +2285,7 @@ class woo extends Exchange {
         $notional = Precise::string_mul($size, $markPrice);
         return array(
             'info' => $position,
-            'id' => null,
+            'id' => $market['symbol'] . ':' . $side,
             'symbol' => $this->safe_string($market, 'symbol'),
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
