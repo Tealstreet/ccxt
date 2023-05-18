@@ -1878,18 +1878,29 @@ export default class bitget extends Exchange {
         //
         const marketId = this.safeString (trade, 'symbol');
         const symbol = this.safeSymbol (marketId, market);
-        const id = this.safeString2 (trade, 'tradeId', 'fillId');
+        const id = this.safeStringN (trade, [ 'tradeId', 'fillId', 'orderId' ], '');
         const order = this.safeString (trade, 'orderId');
-        const side = this.safeString (trade, 'side');
-        const price = this.safeString2 (trade, 'fillPrice', 'price');
+        const rawSide = this.safeString (trade, 'side', '');
+        let side = undefined;
+        if (rawSide === 'open_long' || rawSide === 'close_short' || rawSide === 'buy_single' || rawSide.indexOf ('buy') !== -1) {
+            side = 'buy';
+        } else if (rawSide === 'open_short' || rawSide === 'close_long' || rawSide.indexOf ('sell') !== -1) {
+            side = 'sell';
+        }
+        let close = undefined;
+        if (rawSide === 'close_long' || rawSide === 'close_short') {
+            close = true;
+        }
+        const price = this.safeString2 (trade, 'price', 'priceAvg');
         let amount = this.safeString2 (trade, 'fillQuantity', 'size');
         amount = this.safeString (trade, 'sizeQty', amount);
         let timestamp = this.safeInteger2 (trade, 'fillTime', 'timestamp');
         timestamp = this.safeInteger (trade, 'cTime', timestamp);
         let fee = undefined;
-        const feeAmount = this.safeString (trade, 'fees');
+        let feeAmount = this.safeString2 (trade, 'fees', 'fee');
         const type = this.safeString (trade, 'orderType');
         if (feeAmount !== undefined) {
+            feeAmount = Precise.stringNeg (feeAmount);
             const currencyCode = this.safeCurrencyCode (this.safeString (trade, 'feeCcy'));
             fee = {
                 'code': currencyCode, // kept here for backward-compatibility, but will be removed soon
@@ -1908,10 +1919,11 @@ export default class bitget extends Exchange {
             'takerOrMaker': undefined,
             'price': price,
             'amount': amount,
-            'cost': undefined,
+            'cost': this.safeString (fee, 'cost'),
             'fee': fee,
             'timestamp': timestamp,
             'datetime': datetime,
+            'close': close,
         }, market);
     }
 
@@ -3227,43 +3239,50 @@ export default class bitget extends Exchange {
         if (symbol === undefined) {
             throw new ArgumentsRequired (this.id + ' fetchMyTrades() requires a symbol argument');
         }
+        this.checkRequiredSymbol ('fetchMyTrades', symbol);
         await this.loadMarkets ();
         const market = this.market (symbol);
-        if (market['swap']) {
-            throw new BadSymbol (this.id + ' fetchMyTrades() only supports spot markets');
-        }
         const request = {
             'symbol': market['id'],
+            'pageSize': 20,
         };
         if (limit !== undefined) {
             request['limit'] = limit;
         }
-        const response = await (this as any).privateSpotPostTradeFills (this.extend (request, params));
-        //
-        //     {
-        //       code: '00000',
-        //       msg: 'success',
-        //       requestTime: '1645918954082',
-        //       data: [
-        //         {
-        //           accountId: '6394957606',
-        //           symbol: 'LTCUSDT_SPBL',
-        //           orderId: '864752115272552448',
-        //           fillId: '864752115685969921',
-        //           orderType: 'limit',
-        //           side: 'buy',
-        //           fillPrice: '127.92000000',
-        //           fillQuantity: '0.10000000',
-        //           fillTotalAmount: '12.79200000',
-        //           feeCcy: 'LTC',
-        //           fees: '0.00000000',
-        //           cTime: '1641898891373'
-        //         }
-        //       ]
-        //     }
-        //
+        if (since !== undefined) {
+            request['startTime'] = since;
+        }
+        request['endTime'] = this.milliseconds ().toString ();
+        const response = await (this as any).privateMixGetOrderHistory (this.extend (request, params));
+        // {
+        //     "symbol": "SOLUSDT_UMCBL",
+        //     "size": 1,
+        //     "orderId": "963544804144852112",
+        //     "clientOid": "963544804144852113",
+        //     "filledQty": 1,
+        //     "fee": -0.00629204,
+        //     "price": 31.4602,
+        //     "priceAvg": 31.4602,
+        //     "state": "filled",
+        //     "side": "close_short",
+        //     "timeInForce": "normal",
+        //     "totalProfits": 0.00760000,
+        //     "posSide": "short",
+        //     "marginCoin": "USDT",
+        //     "filledAmount": 31.4602,
+        //     "orderType": "limit",
+        //     "leverage": "5",
+        //     "marginMode": "crossed",
+        //     "reduceOnly": false,
+        //     "enterPointSource": "WEB",
+        //     "tradeSide": "open_long",
+        //     "holdMode": "double_hold",
+        //     "cTime": "1665452903781",
+        //     "uTime": "1665452917467"
+        // }
         const data = this.safeValue (response, 'data');
-        return this.parseTrades (data, market, since, limit);
+        const orderList = this.safeValue (data, 'orderList', []);
+        return this.parseTrades (orderList, market, since, limit);
     }
 
     async fetchOrderTrades (id, symbol = undefined, since = undefined, limit = undefined, params = {}) {
