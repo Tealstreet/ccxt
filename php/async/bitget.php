@@ -1891,12 +1891,20 @@ class bitget extends Exchange {
         //
         $marketId = $this->safe_string($trade, 'symbol');
         $symbol = $this->safe_symbol($marketId, $market);
-        $id = $this->safe_string_2($trade, 'tradeId', 'fillId');
+        $id = $this->safe_string_n($trade, array( 'tradeId', 'fillId', 'orderId' ), '');
         $order = $this->safe_string($trade, 'orderId');
-        $side = $this->safe_string($trade, 'side');
-        $side = $this->safe_string($trade, 'posSide');
-        $price = $this->safe_string_2($trade, 'fillPrice', 'price');
-        $price = $this->safe_string($trade, 'priceAvg');
+        $rawSide = $this->safe_string($trade, 'side', '');
+        $side = null;
+        if ($rawSide === 'open_long' || $rawSide === 'close_short' || $rawSide === 'buy_single' || mb_strpos($rawSide, 'buy') !== -1) {
+            $side = 'buy';
+        } elseif ($rawSide === 'open_short' || $rawSide === 'close_long' || mb_strpos($rawSide, 'sell') !== -1) {
+            $side = 'sell';
+        }
+        $close = null;
+        if ($rawSide === 'close_long' || $rawSide === 'close_short') {
+            $close = true;
+        }
+        $price = $this->safe_string_2($trade, 'price', 'priceAvg');
         $amount = $this->safe_string_2($trade, 'fillQuantity', 'size');
         $amount = $this->safe_string($trade, 'sizeQty', $amount);
         $timestamp = $this->safe_integer_2($trade, 'fillTime', 'timestamp');
@@ -1905,6 +1913,7 @@ class bitget extends Exchange {
         $feeAmount = $this->safe_string_2($trade, 'fees', 'fee');
         $type = $this->safe_string($trade, 'orderType');
         if ($feeAmount !== null) {
+            $feeAmount = Precise::string_neg($feeAmount);
             $currencyCode = $this->safe_currency_code($this->safe_string($trade, 'feeCcy'));
             $fee = array(
                 'code' => $currencyCode, // kept here for backward-compatibility, but will be removed soon
@@ -1927,6 +1936,7 @@ class bitget extends Exchange {
             'fee' => $fee,
             'timestamp' => $timestamp,
             'datetime' => $datetime,
+            'close' => $close,
         ), $market);
     }
 

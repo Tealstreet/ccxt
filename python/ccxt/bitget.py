@@ -1815,12 +1815,18 @@ class bitget(Exchange):
         #
         marketId = self.safe_string(trade, 'symbol')
         symbol = self.safe_symbol(marketId, market)
-        id = self.safe_string_2(trade, 'tradeId', 'fillId')
+        id = self.safe_string_n(trade, ['tradeId', 'fillId', 'orderId'], '')
         order = self.safe_string(trade, 'orderId')
-        side = self.safe_string(trade, 'side')
-        side = self.safe_string(trade, 'posSide')
-        price = self.safe_string_2(trade, 'fillPrice', 'price')
-        price = self.safe_string(trade, 'priceAvg')
+        rawSide = self.safe_string(trade, 'side', '')
+        side = None
+        if rawSide == 'open_long' or rawSide == 'close_short' or rawSide == 'buy_single' or rawSide.find('buy') != -1:
+            side = 'buy'
+        elif rawSide == 'open_short' or rawSide == 'close_long' or rawSide.find('sell') != -1:
+            side = 'sell'
+        close = None
+        if rawSide == 'close_long' or rawSide == 'close_short':
+            close = True
+        price = self.safe_string_2(trade, 'price', 'priceAvg')
         amount = self.safe_string_2(trade, 'fillQuantity', 'size')
         amount = self.safe_string(trade, 'sizeQty', amount)
         timestamp = self.safe_integer_2(trade, 'fillTime', 'timestamp')
@@ -1829,6 +1835,7 @@ class bitget(Exchange):
         feeAmount = self.safe_string_2(trade, 'fees', 'fee')
         type = self.safe_string(trade, 'orderType')
         if feeAmount is not None:
+            feeAmount = Precise.string_neg(feeAmount)
             currencyCode = self.safe_currency_code(self.safe_string(trade, 'feeCcy'))
             fee = {
                 'code': currencyCode,  # kept here for backward-compatibility, but will be removed soon
@@ -1850,6 +1857,7 @@ class bitget(Exchange):
             'fee': fee,
             'timestamp': timestamp,
             'datetime': datetime,
+            'close': close,
         }, market)
 
     def fetch_trades(self, symbol, limit=None, since=None, params={}):
