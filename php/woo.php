@@ -87,10 +87,10 @@ class woo extends Exchange {
                 'withdraw' => true, // exchange have that endpoint disabled atm, but was once implemented in ccxt per old docs => https://kronosresearch.github.io/wootrade-documents/#token-withdraw
             ),
             'timeframes' => array(
-                '1m' => '1m',
-                '5m' => '5m',
-                '15m' => '15m',
-                '30m' => '30m',
+                '1m' => '1',
+                '5m' => '5',
+                '15m' => '15',
+                '30m' => '30',
                 '1h' => '1h',
                 '4h' => '4h',
                 '12h' => '12h',
@@ -142,6 +142,7 @@ class woo extends Exchange {
                             'funding_rate_history' => 1,
                             'futures' => 1,
                             'futures/{symbol}' => 1,
+                            'tv/history' => 1,
                         ),
                     ),
                     'private' => array(
@@ -1143,57 +1144,35 @@ class woo extends Exchange {
     }
 
     public function fetch_ohlcv($symbol, $timeframe = '1m', $since = null, $limit = null, $params = array ()) {
-        /**
-         * fetches historical candlestick $data containing the open, high, low, and close price, and the volume of a $market
-         * @param {string} $symbol unified $symbol of the $market to fetch OHLCV $data for
-         * @param {string} $timeframe the length of time each candle represents
-         * @param {int|null} $since timestamp in ms of the earliest candle to fetch
-         * @param {int|null} $limit the maximum amount of candles to fetch
-         * @param {array} $params extra parameters specific to the woo api endpoint
-         * @return {[[int]]} A list of candles ordered, open, high, low, close, volume
-         */
         $this->load_markets();
         $market = $this->market($symbol);
         $request = array(
             'symbol' => $market['id'],
-            'type' => $this->safe_string($this->timeframes, $timeframe, $timeframe),
+            'resolution' => $this->timeframes[$timeframe],
+            'from' => $since / 1000,
         );
-        if ($limit !== null) {
-            $request['limit'] = min ($limit, 1000);
+        $parsedTimeFrame = $this->parse_timeframe($timeframe);
+        $duration = $parsedTimeFrame * 1000 * $limit;
+        $to = $this->sum($since, $duration);
+        $request['to'] = $to / 1000;
+        $response = $this->v1PublicGetTvHistory (array_merge($request, $params));
+        $res = array();
+        if ($response->s === 'ok') {
+            $length = count($response->t);
+            for ($i = 0; $i < $length; $i++) {
+                $res[] = [
+                    $response->t[$i] * 1000,
+                    $response->o[$i],
+                    $response->h[$i],
+                    $response->l[$i],
+                    $response->c[$i],
+                    $response->v[$i],
+                ];
+            }
+        } else {
+            throw $($response->s);
         }
-        $response = $this->v1PublicGetKline (array_merge($request, $params));
-        // {
-        //     success => true,
-        //     rows => array(
-        //       array(
-        //         open => '0.94238',
-        //         close => '0.94271',
-        //         low => '0.94238',
-        //         high => '0.94296',
-        //         volume => '73.55',
-        //         amount => '69.32040520',
-        //         $symbol => 'SPOT_WOO_USDT',
-        //         type => '1m',
-        //         start_timestamp => '1641584700000',
-        //         end_timestamp => '1641584760000'
-        //       ),
-        //       array(
-        //         open => '0.94186',
-        //         close => '0.94186',
-        //         low => '0.94186',
-        //         high => '0.94186',
-        //         volume => '64.00',
-        //         amount => '60.27904000',
-        //         $symbol => 'SPOT_WOO_USDT',
-        //         type => '1m',
-        //         start_timestamp => '1641584640000',
-        //         end_timestamp => '1641584700000'
-        //       ),
-        //       ...
-        //     )
-        // }
-        $data = $this->safe_value($response, 'rows', array());
-        return $this->parse_ohlcvs($data, $market, $timeframe, $since, $limit);
+        return $res;
     }
 
     public function parse_ohlcv($ohlcv, $market = null) {
@@ -1875,13 +1854,27 @@ class woo extends Exchange {
     public function sign($path, $section = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
         $version = $section[0];
         $access = $section[1];
+        $isUdfPath = $path === 'tv/history';
         $pathWithParams = $this->implode_params($path, $params);
         $url = $this->implode_hostname($this->urls['api'][$access]);
-        $url .= '/' . $version . '/';
+        if ($isUdfPath) {
+            $url .= '/';
+        } else {
+            $url .= '/' . $version . '/';
+        }
         $params = $this->omit($params, $this->extract_params($path));
         $params = $this->keysort($params);
         if ($access === 'public') {
-            $url .= $access . '/' . $pathWithParams;
+            if ($isUdfPath) {
+                $url .= $pathWithParams;
+            } else {
+                $url .= $access . '/' . $pathWithParams;
+            }
+            if ($params) {
+                $url .= '?' . $this->urlencode($params);
+            }
+        } elseif ($access === 'pub') {
+            $url .= $pathWithParams;
             if ($params) {
                 $url .= '?' . $this->urlencode($params);
             }

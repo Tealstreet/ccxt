@@ -95,10 +95,10 @@ class woo(Exchange):
                 'withdraw': True,  # exchange have that endpoint disabled atm, but was once implemented in ccxt per old docs: https://kronosresearch.github.io/wootrade-documents/#token-withdraw
             },
             'timeframes': {
-                '1m': '1m',
-                '5m': '5m',
-                '15m': '15m',
-                '30m': '30m',
+                '1m': '1',
+                '5m': '5',
+                '15m': '15',
+                '30m': '30',
                 '1h': '1h',
                 '4h': '4h',
                 '12h': '12h',
@@ -150,6 +150,7 @@ class woo(Exchange):
                             'funding_rate_history': 1,
                             'futures': 1,
                             'futures/{symbol}': 1,
+                            'tv/history': 1,
                         },
                     },
                     'private': {
@@ -1100,56 +1101,33 @@ class woo(Exchange):
         return self.parse_order_book(response, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
 
     async def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
-        """
-        fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
-        :param str symbol: unified symbol of the market to fetch OHLCV data for
-        :param str timeframe: the length of time each candle represents
-        :param int|None since: timestamp in ms of the earliest candle to fetch
-        :param int|None limit: the maximum amount of candles to fetch
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns [[int]]: A list of candles ordered, open, high, low, close, volume
-        """
         await self.load_markets()
         market = self.market(symbol)
         request = {
             'symbol': market['id'],
-            'type': self.safe_string(self.timeframes, timeframe, timeframe),
+            'resolution': self.timeframes[timeframe],
+            'from': since / 1000,
         }
-        if limit is not None:
-            request['limit'] = min(limit, 1000)
-        response = await self.v1PublicGetKline(self.extend(request, params))
-        # {
-        #     success: True,
-        #     rows: [
-        #       {
-        #         open: '0.94238',
-        #         close: '0.94271',
-        #         low: '0.94238',
-        #         high: '0.94296',
-        #         volume: '73.55',
-        #         amount: '69.32040520',
-        #         symbol: 'SPOT_WOO_USDT',
-        #         type: '1m',
-        #         start_timestamp: '1641584700000',
-        #         end_timestamp: '1641584760000'
-        #       },
-        #       {
-        #         open: '0.94186',
-        #         close: '0.94186',
-        #         low: '0.94186',
-        #         high: '0.94186',
-        #         volume: '64.00',
-        #         amount: '60.27904000',
-        #         symbol: 'SPOT_WOO_USDT',
-        #         type: '1m',
-        #         start_timestamp: '1641584640000',
-        #         end_timestamp: '1641584700000'
-        #       },
-        #       ...
-        #     ]
-        # }
-        data = self.safe_value(response, 'rows', [])
-        return self.parse_ohlcvs(data, market, timeframe, since, limit)
+        parsedTimeFrame = self.parse_timeframe(timeframe)
+        duration = parsedTimeFrame * 1000 * limit
+        to = self.sum(since, duration)
+        request['to'] = to / 1000
+        response = await self.v1PublicGetTvHistory(self.extend(request, params))
+        res = []
+        if response.s == 'ok':
+            length = len(response.t)
+            for i in range(0, length):
+                res.append([
+                    response.t[i] * 1000,
+                    response.o[i],
+                    response.h[i],
+                    response.l[i],
+                    response.c[i],
+                    response.v[i],
+                ])
+        else:
+            raise(response.s)
+        return res
 
     def parse_ohlcv(self, ohlcv, market=None):
         # example response in fetchOHLCV
@@ -1786,13 +1764,24 @@ class woo(Exchange):
     def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
         version = section[0]
         access = section[1]
+        isUdfPath = path == 'tv/history'
         pathWithParams = self.implode_params(path, params)
         url = self.implode_hostname(self.urls['api'][access])
-        url += '/' + version + '/'
+        if isUdfPath:
+            url += '/'
+        else:
+            url += '/' + version + '/'
         params = self.omit(params, self.extract_params(path))
         params = self.keysort(params)
         if access == 'public':
-            url += access + '/' + pathWithParams
+            if isUdfPath:
+                url += pathWithParams
+            else:
+                url += access + '/' + pathWithParams
+            if params:
+                url += '?' + self.urlencode(params)
+        elif access == 'pub':
+            url += pathWithParams
             if params:
                 url += '?' + self.urlencode(params)
         else:
