@@ -987,10 +987,20 @@ class woo(Exchange):
         #     }
         #
         ordersData = self.safe_value(ordersResponse, 'rows')
-        request['size'] = 25
-        algoOrdersResponse = self.v3PrivateGetAlgoOrders(self.extend(request, params))
-        algoOrdersData = self.safe_value(algoOrdersResponse, 'data')
-        algoOrdersRows = self.safe_value(algoOrdersData, 'rows')
+        total = 0
+        algoOrdersRows = []
+        for i in range(0, 25):
+            request['size'] = 25
+            request['page'] = i + 1
+            algoOrdersResponse = self.v3PrivateGetAlgoOrders(self.extend(request, params))
+            algoOrdersData = self.safe_value(algoOrdersResponse, 'data')
+            algoOrdersMeta = self.safe_value(algoOrdersData, 'meta')
+            newRows = self.safe_value(algoOrdersData, 'rows')
+            total = total + len(newRows)
+            algoOrdersRows = self.array_concat(algoOrdersRows, newRows)
+            knownTotal = self.safe_integer(algoOrdersMeta, 'total')
+            if total >= knownTotal:
+                break
         allOrdersData = self.array_concat(ordersData, algoOrdersRows)
         return self.parse_orders(allOrdersData, market, since, limit, params)
 

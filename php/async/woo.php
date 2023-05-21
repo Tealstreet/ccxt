@@ -1047,10 +1047,22 @@ class woo extends Exchange {
             //     }
             //
             $ordersData = $this->safe_value($ordersResponse, 'rows');
-            $request['size'] = 25;
-            $algoOrdersResponse = Async\await($this->v3PrivateGetAlgoOrders (array_merge($request, $params)));
-            $algoOrdersData = $this->safe_value($algoOrdersResponse, 'data');
-            $algoOrdersRows = $this->safe_value($algoOrdersData, 'rows');
+            $total = 0;
+            $algoOrdersRows = array();
+            for ($i = 0; $i < 25; $i++) {
+                $request['size'] = 25;
+                $request['page'] = $i + 1;
+                $algoOrdersResponse = Async\await($this->v3PrivateGetAlgoOrders (array_merge($request, $params)));
+                $algoOrdersData = $this->safe_value($algoOrdersResponse, 'data');
+                $algoOrdersMeta = $this->safe_value($algoOrdersData, 'meta');
+                $newRows = $this->safe_value($algoOrdersData, 'rows');
+                $total = $total . count($newRows);
+                $algoOrdersRows = $this->array_concat($algoOrdersRows, $newRows);
+                $knownTotal = $this->safe_integer($algoOrdersMeta, 'total');
+                if ($total >= $knownTotal) {
+                    break;
+                }
+            }
             $allOrdersData = $this->array_concat($ordersData, $algoOrdersRows);
             return $this->parse_orders($allOrdersData, $market, $since, $limit, $params);
         }) ();

@@ -1043,10 +1043,22 @@ export default class woo extends Exchange {
         //     }
         //
         const ordersData = this.safeValue (ordersResponse, 'rows');
-        request['size'] = 25;
-        const algoOrdersResponse = await (this as any).v3PrivateGetAlgoOrders (this.extend (request, params));
-        const algoOrdersData = this.safeValue (algoOrdersResponse, 'data');
-        const algoOrdersRows = this.safeValue (algoOrdersData, 'rows');
+        let total = 0;
+        let algoOrdersRows = [];
+        for (let i = 0; i < 25; i++) {
+            request['size'] = 25;
+            request['page'] = i + 1;
+            const algoOrdersResponse = await (this as any).v3PrivateGetAlgoOrders (this.extend (request, params));
+            const algoOrdersData = this.safeValue (algoOrdersResponse, 'data');
+            const algoOrdersMeta = this.safeValue (algoOrdersData, 'meta');
+            const newRows = this.safeValue (algoOrdersData, 'rows');
+            total = total + newRows.length;
+            algoOrdersRows = this.arrayConcat (algoOrdersRows, newRows);
+            const knownTotal = this.safeInteger (algoOrdersMeta, 'total');
+            if (total >= knownTotal) {
+                break;
+            }
+        }
         const allOrdersData = this.arrayConcat (ordersData, algoOrdersRows);
         return this.parseOrders (allOrdersData, market, since, limit, params);
     }
