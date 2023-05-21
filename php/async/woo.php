@@ -93,16 +93,19 @@ class woo extends Exchange {
             ),
             'timeframes' => array(
                 '1m' => '1',
+                '3m' => '3',
                 '5m' => '5',
                 '15m' => '15',
                 '30m' => '30',
-                '1h' => '1h',
+                '1h' => '60',
+                '2h' => '2h',
                 '4h' => '4h',
+                '8h' => '8h',
                 '12h' => '12h',
-                '1d' => '1d',
-                '1w' => '1w',
-                '1M' => '1mon',
-                '1y' => '1y',
+                '1d' => '1D',
+                '3d' => '3D',
+                '1w' => '1W',
+                '1M' => '1M',
             ),
             'urls' => array(
                 'logo' => 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
@@ -1056,6 +1059,24 @@ class woo extends Exchange {
         return $this->safe_string($timeInForces, $timeInForce, null);
     }
 
+    public function parse_order_type($type) {
+        // LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
+        $types = array(
+            'limit' => 'limit',
+            'market' => 'market',
+            'post_only' => 'limit',
+            'ioc' => 'limit',
+            'fok' => 'limit',
+            'liquidate' => 'limit',
+            // 'stop_market' => 'stop',
+            // 'take_profit_market' => 'stop',
+            // 'take_profit_limit' => 'stopLimit',
+            // 'trigger_limit' => 'stopLimit',
+            // 'trigger_market' => 'stop',
+        );
+        return $this->safe_string_lower($types, $type, $type);
+    }
+
     public function parse_order($order, $market = null) {
         //
         // Possible input functions:
@@ -1073,7 +1094,7 @@ class woo extends Exchange {
         $price = $this->safe_string_2($order, 'order_price', 'price');
         $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
         $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
-        $orderType = $this->safe_string_lower_2($order, 'order_type', 'type');
+        $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'));
         $status = $this->safe_value($order, 'status');
         $side = $this->safe_string_lower($order, 'side');
         $filled = $this->safe_value($order, 'executed');

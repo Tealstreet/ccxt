@@ -90,16 +90,19 @@ export default class woo extends Exchange {
             },
             'timeframes': {
                 '1m': '1',
+                '3m': '3',
                 '5m': '5',
                 '15m': '15',
                 '30m': '30',
-                '1h': '1h',
+                '1h': '60',
+                '2h': '2h',
                 '4h': '4h',
+                '8h': '8h',
                 '12h': '12h',
-                '1d': '1d',
-                '1w': '1w',
-                '1M': '1mon',
-                '1y': '1y',
+                '1d': '1D',
+                '3d': '3D',
+                '1w': '1W',
+                '1M': '1M',
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
@@ -1046,6 +1049,23 @@ export default class woo extends Exchange {
         };
         return this.safeString(timeInForces, timeInForce, undefined);
     }
+    parseOrderType(type) {
+        // LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
+        const types = {
+            'limit': 'limit',
+            'market': 'market',
+            'post_only': 'limit',
+            'ioc': 'limit',
+            'fok': 'limit',
+            'liquidate': 'limit',
+            // 'stop_market': 'stop',
+            // 'take_profit_market': 'stop',
+            // 'take_profit_limit': 'stopLimit',
+            // 'trigger_limit': 'stopLimit',
+            // 'trigger_market': 'stop',
+        };
+        return this.safeStringLower(types, type, type);
+    }
     parseOrder(order, market = undefined) {
         //
         // Possible input functions:
@@ -1063,7 +1083,7 @@ export default class woo extends Exchange {
         const price = this.safeString2(order, 'order_price', 'price');
         const amount = this.safeString2(order, 'order_quantity', 'quantity'); // This is base amount
         const cost = this.safeString2(order, 'order_amount', 'amount'); // This is quote amount
-        const orderType = this.safeStringLower2(order, 'order_type', 'type');
+        const orderType = this.parseOrderType(this.safeStringLower2(order, 'order_type', 'type'));
         const status = this.safeValue(order, 'status');
         const side = this.safeStringLower(order, 'side');
         const filled = this.safeValue(order, 'executed');

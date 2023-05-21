@@ -1054,6 +1054,24 @@ export default class woo extends Exchange {
         return this.safeString (timeInForces, timeInForce, undefined);
     }
 
+    parseOrderType (type) {
+        // LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
+        const types = {
+            'limit': 'limit',
+            'market': 'market',
+            'post_only': 'limit',
+            'ioc': 'limit',
+            'fok': 'limit',
+            'liquidate': 'limit',
+            // 'stop_market': 'stop',
+            // 'take_profit_market': 'stop',
+            // 'take_profit_limit': 'stopLimit',
+            // 'trigger_limit': 'stopLimit',
+            // 'trigger_market': 'stop',
+        };
+        return this.safeStringLower (types, type, type);
+    }
+
     parseOrder (order, market = undefined) {
         //
         // Possible input functions:
@@ -1071,7 +1089,7 @@ export default class woo extends Exchange {
         const price = this.safeString2 (order, 'order_price', 'price');
         const amount = this.safeString2 (order, 'order_quantity', 'quantity'); // This is base amount
         const cost = this.safeString2 (order, 'order_amount', 'amount'); // This is quote amount
-        const orderType = this.safeStringLower2 (order, 'order_type', 'type');
+        const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'));
         const status = this.safeValue (order, 'status');
         const side = this.safeStringLower (order, 'side');
         const filled = this.safeValue (order, 'executed');
