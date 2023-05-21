@@ -1192,8 +1192,8 @@ class woo extends Exchange {
         $marketId = $this->safe_string($order, 'symbol');
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
-        $price = $this->safe_string_2($order, 'triggerPrice', 'price');
-        $stopPrice = $this->safe_string_2($order, 'price', 'triggerPrice');
+        $price = $this->safe_string_2($order, 'price', 'triggerPrice');
+        $stopPrice = $this->safe_string_2($order, 'triggerPrice', 'price');
         $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
         $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
         $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algoType'), $this->safe_string_lower($order, 'triggerPriceType'));

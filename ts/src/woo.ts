@@ -1212,8 +1212,8 @@ export default class woo extends Exchange {
         const marketId = this.safeString (order, 'symbol');
         market = this.safeMarket (marketId, market);
         const symbol = market['symbol'];
-        const price = this.safeString2 (order, 'triggerPrice', 'price');
-        const stopPrice = this.safeString2 (order, 'price', 'triggerPrice');
+        const price = this.safeString2 (order, 'price', 'triggerPrice');
+        const stopPrice = this.safeString2 (order, 'triggerPrice', 'price');
         const amount = this.safeString2 (order, 'order_quantity', 'quantity'); // This is base amount
         const cost = this.safeString2 (order, 'order_amount', 'amount'); // This is quote amount
         const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'), this.safeStringLower (order, 'algoType'), this.safeStringLower (order, 'triggerPriceType'));
