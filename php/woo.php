@@ -989,7 +989,8 @@ class woo extends Exchange {
         if ($since !== null) {
             $request['start_t'] = $since;
         }
-        $response = $this->v1PrivateGetOrders (array_merge($request, $params));
+        $request['size'] = 500;
+        $ordersResponse = $this->v1PrivateGetOrders (array_merge($request, $params));
         //
         //     {
         //         "success":true,
@@ -1021,8 +1022,13 @@ class woo extends Exchange {
         //         )
         //     }
         //
-        $data = $this->safe_value($response, 'rows');
-        return $this->parse_orders($data, $market, $since, $limit, $params);
+        $ordersData = $this->safe_value($ordersResponse, 'rows');
+        $request['size'] = 25;
+        $algoOrdersResponse = $this->v3PrivateGetAlgoOrders (array_merge($request, $params));
+        $algoOrdersData = $this->safe_value($algoOrdersResponse, 'data');
+        $algoOrdersRows = $this->safe_value($algoOrdersData, 'rows');
+        $allOrdersData = $this->array_concat($ordersData, $algoOrdersRows);
+        return $this->parse_orders($allOrdersData, $market, $since, $limit, $params);
     }
 
     public function parse_time_in_force($timeInForce) {
@@ -1034,7 +1040,16 @@ class woo extends Exchange {
         return $this->safe_string($timeInForces, $timeInForce, null);
     }
 
-    public function parse_order_type($type) {
+    public function parse_order_type($type, $algoType = null, $algoTriggerType = null) {
+        if ($algoType !== null) {
+            if ($algoType === 'take_profit') {
+                if ($algoTriggerType === 'market_price') {
+                    return 'stop';
+                } else {
+                    return 'stopLimit';
+                }
+            }
+        }
         // LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
         $types = array(
             'limit' => 'limit',
@@ -1053,6 +1068,15 @@ class woo extends Exchange {
     }
 
     public function parse_order($order, $market = null) {
+        $isAlgoOrder = 'algoType' in $order;
+        if ($isAlgoOrder) {
+            return $this->parse_algo_order($order, $market);
+        } else {
+            return $this->parse_regular_order($order, $market);
+        }
+    }
+
+    public function parse_regular_order($order, $market = null) {
         //
         // Possible input functions:
         // * createOrder
@@ -1093,6 +1117,63 @@ class woo extends Exchange {
             'side' => $side,
             'price' => $price,
             'stopPrice' => null,
+            'triggerPrice' => null,
+            'average' => $average,
+            'amount' => $amount,
+            'filled' => $filled,
+            'remaining' => $remaining, // TO_DO
+            'cost' => $cost,
+            'trades' => $transactions,
+            'fee' => array(
+                'cost' => $fee,
+                'currency' => $feeCurrency,
+            ),
+            'info' => $order,
+        ), $market);
+    }
+
+    public function parse_algo_order($order, $market = null) {
+        //
+        // Possible input functions:
+        // * createOrder
+        // * cancelOrder
+        // * fetchOrder
+        // * fetchOrders
+        // $isFromFetchOrder = (is_array($order) && array_key_exists('order_tag', $order)); TO_DO
+        $timestamp = $this->safe_timestamp_2($order, 'timestamp', 'createdTime');
+        $orderId = $this->safe_string($order, 'algoOrderId');
+        $clientOrderId = $this->safe_string($order, 'clientOrderId'); // Somehow, this always returns 0 for limit $order
+        $marketId = $this->safe_string($order, 'symbol');
+        $market = $this->safe_market($marketId, $market);
+        $symbol = $market['symbol'];
+        $price = $this->safe_string_2($order, 'triggerPrice', 'price');
+        $stopPrice = $this->safe_string($order, 'triggerPrice');
+        $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
+        $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
+        $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algoType'), $this->safe_string_lower($order, 'triggerPriceType'));
+        $status = $this->safe_value($order, 'algoStatus');
+        $side = $this->safe_string_lower($order, 'side');
+        $filled = $this->safe_value($order, 'executed');
+        $average = $this->safe_string($order, 'average_executed_price');
+        $remaining = Precise::string_sub($cost, $filled);
+        $fee = $this->safe_value($order, 'totalFee');
+        $feeCurrency = $this->safe_string($order, 'feeAsset');
+        $transactions = $this->safe_value($order, 'Transactions');
+        return $this->safe_order(array(
+            'id' => $orderId,
+            'clientOrderId' => $clientOrderId,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'lastTradeTimestamp' => null,
+            'status' => $this->parse_order_status($status),
+            'symbol' => $symbol,
+            'type' => $orderType,
+            'timeInForce' => $this->parse_time_in_force($orderType),
+            'postOnly' => null, // TO_DO
+            'reduceOnly' => $this->safe_value($order, 'reduceOnly'),
+            'side' => $side,
+            'price' => $price,
+            'stopPrice' => $stopPrice,
             'triggerPrice' => null,
             'average' => $average,
             'amount' => $amount,

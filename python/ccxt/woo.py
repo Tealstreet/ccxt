@@ -953,7 +953,8 @@ class woo(Exchange):
             request['symbol'] = market['id']
         if since is not None:
             request['start_t'] = since
-        response = self.v1PrivateGetOrders(self.extend(request, params))
+        request['size'] = 500
+        ordersResponse = self.v1PrivateGetOrders(self.extend(request, params))
         #
         #     {
         #         "success":true,
@@ -985,8 +986,13 @@ class woo(Exchange):
         #         ]
         #     }
         #
-        data = self.safe_value(response, 'rows')
-        return self.parse_orders(data, market, since, limit, params)
+        ordersData = self.safe_value(ordersResponse, 'rows')
+        request['size'] = 25
+        algoOrdersResponse = self.v3PrivateGetAlgoOrders(self.extend(request, params))
+        algoOrdersData = self.safe_value(algoOrdersResponse, 'data')
+        algoOrdersRows = self.safe_value(algoOrdersData, 'rows')
+        allOrdersData = self.array_concat(ordersData, algoOrdersRows)
+        return self.parse_orders(allOrdersData, market, since, limit, params)
 
     def parse_time_in_force(self, timeInForce):
         timeInForces = {
@@ -996,7 +1002,13 @@ class woo(Exchange):
         }
         return self.safe_string(timeInForces, timeInForce, None)
 
-    def parse_order_type(self, type):
+    def parse_order_type(self, type, algoType=None, algoTriggerType=None):
+        if algoType is not None:
+            if algoType == 'take_profit':
+                if algoTriggerType == 'market_price':
+                    return 'stop'
+                else:
+                    return 'stopLimit'
         # LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
         types = {
             'limit': 'limit',
@@ -1014,6 +1026,13 @@ class woo(Exchange):
         return self.safe_string_lower(types, type, type)
 
     def parse_order(self, order, market=None):
+        isAlgoOrder = 'algoType' in order
+        if isAlgoOrder:
+            return self.parse_algo_order(order, market)
+        else:
+            return self.parse_regular_order(order, market)
+
+    def parse_regular_order(self, order, market=None):
         #
         # Possible input functions:
         # * createOrder
@@ -1054,6 +1073,62 @@ class woo(Exchange):
             'side': side,
             'price': price,
             'stopPrice': None,
+            'triggerPrice': None,
+            'average': average,
+            'amount': amount,
+            'filled': filled,
+            'remaining': remaining,  # TO_DO
+            'cost': cost,
+            'trades': transactions,
+            'fee': {
+                'cost': fee,
+                'currency': feeCurrency,
+            },
+            'info': order,
+        }, market)
+
+    def parse_algo_order(self, order, market=None):
+        #
+        # Possible input functions:
+        # * createOrder
+        # * cancelOrder
+        # * fetchOrder
+        # * fetchOrders
+        # isFromFetchOrder = ('order_tag' in order); TO_DO
+        timestamp = self.safe_timestamp_2(order, 'timestamp', 'createdTime')
+        orderId = self.safe_string(order, 'algoOrderId')
+        clientOrderId = self.safe_string(order, 'clientOrderId')  # Somehow, self always returns 0 for limit order
+        marketId = self.safe_string(order, 'symbol')
+        market = self.safe_market(marketId, market)
+        symbol = market['symbol']
+        price = self.safe_string_2(order, 'triggerPrice', 'price')
+        stopPrice = self.safe_string(order, 'triggerPrice')
+        amount = self.safe_string_2(order, 'order_quantity', 'quantity')  # This is base amount
+        cost = self.safe_string_2(order, 'order_amount', 'amount')  # This is quote amount
+        orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'), self.safe_string_lower(order, 'algoType'), self.safe_string_lower(order, 'triggerPriceType'))
+        status = self.safe_value(order, 'algoStatus')
+        side = self.safe_string_lower(order, 'side')
+        filled = self.safe_value(order, 'executed')
+        average = self.safe_string(order, 'average_executed_price')
+        remaining = Precise.string_sub(cost, filled)
+        fee = self.safe_value(order, 'totalFee')
+        feeCurrency = self.safe_string(order, 'feeAsset')
+        transactions = self.safe_value(order, 'Transactions')
+        return self.safe_order({
+            'id': orderId,
+            'clientOrderId': clientOrderId,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'lastTradeTimestamp': None,
+            'status': self.parse_order_status(status),
+            'symbol': symbol,
+            'type': orderType,
+            'timeInForce': self.parse_time_in_force(orderType),
+            'postOnly': None,  # TO_DO
+            'reduceOnly': self.safe_value(order, 'reduceOnly'),
+            'side': side,
+            'price': price,
+            'stopPrice': stopPrice,
             'triggerPrice': None,
             'average': average,
             'amount': amount,
