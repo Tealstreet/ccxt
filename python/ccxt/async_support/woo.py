@@ -822,6 +822,12 @@ class woo(Exchange):
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
 
+    def maybe_algo_order_id(self, id):
+        stringId = self.number_to_string(id)
+        if len(stringId) < 9:
+            return True
+        return False
+
     async def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order
@@ -872,6 +878,7 @@ class woo(Exchange):
             'symbol': market['id'],
         }
         response = await self.v1PrivateDeleteOrders(self.extend(request, params))
+        await self.v3PrivateDeleteAlgoOrdersPending(self.extend(request, params))
         #
         #     {
         #         "success":true,

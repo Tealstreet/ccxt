@@ -847,6 +847,14 @@ class woo extends Exchange {
         return $this->parse_order($data, $market);
     }
 
+    public function maybe_algo_order_id($id) {
+        $stringId = $this->number_to_string($id);
+        if (strlen($stringId) < 9) {
+            return true;
+        }
+        return false;
+    }
+
     public function cancel_order($id, $symbol = null, $params = array ()) {
         /**
          * cancels an open order
@@ -903,6 +911,7 @@ class woo extends Exchange {
             'symbol' => $market['id'],
         );
         $response = $this->v1PrivateDeleteOrders (array_merge($request, $params));
+        $this->v3PrivateDeleteAlgoOrdersPending (array_merge($request, $params));
         //
         //     {
         //         "success":true,

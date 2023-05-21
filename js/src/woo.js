@@ -856,6 +856,13 @@ export default class woo extends Exchange {
         const data = this.safeValue(response, 'data', {});
         return this.parseOrder(data, market);
     }
+    maybeAlgoOrderId(id) {
+        const stringId = this.numberToString(id);
+        if (stringId.length < 9) {
+            return true;
+        }
+        return false;
+    }
     async cancelOrder(id, symbol = undefined, params = {}) {
         /**
          * @method
@@ -917,6 +924,7 @@ export default class woo extends Exchange {
             'symbol': market['id'],
         };
         const response = await this.v1PrivateDeleteOrders(this.extend(request, params));
+        await this.v3PrivateDeleteAlgoOrdersPending(this.extend(request, params));
         //
         //     {
         //         "success":true,

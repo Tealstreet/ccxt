@@ -864,6 +864,14 @@ class woo extends Exchange {
         }) ();
     }
 
+    public function maybe_algo_order_id($id) {
+        $stringId = $this->number_to_string($id);
+        if (strlen($stringId) < 9) {
+            return true;
+        }
+        return false;
+    }
+
     public function cancel_order($id, $symbol = null, $params = array ()) {
         return Async\async(function () use ($id, $symbol, $params) {
             /**
@@ -923,6 +931,7 @@ class woo extends Exchange {
                 'symbol' => $market['id'],
             );
             $response = Async\await($this->v1PrivateDeleteOrders (array_merge($request, $params)));
+            Async\await($this->v3PrivateDeleteAlgoOrdersPending (array_merge($request, $params)));
             //
             //     {
             //         "success":true,
