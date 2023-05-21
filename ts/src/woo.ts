@@ -881,6 +881,31 @@ export default class woo extends Exchange {
             throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets ();
+        if (this.maybeAlgoOrderId (id)) {
+            return this.cancelAlgoOrder (id, symbol, params);
+        } else {
+            return this.cancelRegularOrder (id, symbol, params);
+        }
+    }
+
+    async cancelAlgoOrder (id, symbol: string = undefined, params = {}) {
+        const request = {};
+        request['oid'] = id;
+        let market = undefined;
+        if (symbol !== undefined) {
+            market = this.market (symbol);
+        }
+        request['symbol'] = market['id'];
+        const response = await (this as any).v3PrivateDeleteAlgoOrderOid (this.extend (request, params));
+        //
+        // { success: true, status: 'CANCEL_SENT' }
+        //
+        const extendParams = { 'symbol': symbol };
+        extendParams['id'] = id;
+        return this.extend (this.parseOrder (response), extendParams);
+    }
+
+    async cancelRegularOrder (id, symbol: string = undefined, params = {}) {
         const request = {};
         const clientOrderIdUnified = this.safeString2 (params, 'clOrdID', 'clientOrderId');
         const clientOrderIdExchangeSpecific = this.safeString2 (params, 'client_order_id', clientOrderIdUnified);

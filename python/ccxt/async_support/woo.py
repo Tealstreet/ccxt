@@ -839,6 +839,27 @@ class woo(Exchange):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         await self.load_markets()
+        if self.maybe_algo_order_id(id):
+            return self.cancel_algo_order(id, symbol, params)
+        else:
+            return self.cancel_regular_order(id, symbol, params)
+
+    async def cancel_algo_order(self, id, symbol=None, params={}):
+        request = {}
+        request['oid'] = id
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+        request['symbol'] = market['id']
+        response = await self.v3PrivateDeleteAlgoOrderOid(self.extend(request, params))
+        #
+        # {success: True, status: 'CANCEL_SENT'}
+        #
+        extendParams = {'symbol': symbol}
+        extendParams['id'] = id
+        return self.extend(self.parse_order(response), extendParams)
+
+    async def cancel_regular_order(self, id, symbol=None, params={}):
         request = {}
         clientOrderIdUnified = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         clientOrderIdExchangeSpecific = self.safe_string_2(params, 'client_order_id', clientOrderIdUnified)

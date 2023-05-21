@@ -877,7 +877,7 @@ class woo extends Exchange {
             /**
              * cancels an open order
              * @param {string} $id order $id
-             * @param {string} $symbol unified $symbol of the $market the order was made in
+             * @param {string} $symbol unified $symbol of the market the order was made in
              * @param {array} $params extra parameters specific to the woo api endpoint
              * @return {array} An ~@link https://docs.ccxt.com/#/?$id=order-structure order structure~
              */
@@ -885,6 +885,35 @@ class woo extends Exchange {
                 throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
             }
             Async\await($this->load_markets());
+            if ($this->maybe_algo_order_id($id)) {
+                return $this->cancel_algo_order($id, $symbol, $params);
+            } else {
+                return $this->cancel_regular_order($id, $symbol, $params);
+            }
+        }) ();
+    }
+
+    public function cancel_algo_order($id, $symbol = null, $params = array ()) {
+        return Async\async(function () use ($id, $symbol, $params) {
+            $request = array();
+            $request['oid'] = $id;
+            $market = null;
+            if ($symbol !== null) {
+                $market = $this->market($symbol);
+            }
+            $request['symbol'] = $market['id'];
+            $response = Async\await($this->v3PrivateDeleteAlgoOrderOid (array_merge($request, $params)));
+            //
+            // array( success => true, status => 'CANCEL_SENT' )
+            //
+            $extendParams = array( 'symbol' => $symbol );
+            $extendParams['id'] = $id;
+            return array_merge($this->parse_order($response), $extendParams);
+        }) ();
+    }
+
+    public function cancel_regular_order($id, $symbol = null, $params = array ()) {
+        return Async\async(function () use ($id, $symbol, $params) {
             $request = array();
             $clientOrderIdUnified = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
             $clientOrderIdExchangeSpecific = $this->safe_string_2($params, 'client_order_id', $clientOrderIdUnified);
