@@ -1080,7 +1080,7 @@ class woo extends Exchange {
     public function parse_order_type($type, $algoType = null, $algoTriggerType = null) {
         if ($algoType !== null) {
             if ($algoType === 'take_profit') {
-                if ($algoTriggerType === 'market_price') {
+                if ($type === 'market') {
                     return 'stop';
                 } else {
                     return 'stopLimit';
@@ -1184,7 +1184,7 @@ class woo extends Exchange {
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
         $price = $this->safe_string_2($order, 'triggerPrice', 'price');
-        $stopPrice = $this->safe_string($order, 'triggerPrice');
+        $stopPrice = $this->safe_string_2($order, 'price', 'triggerPrice');
         $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
         $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
         $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algoType'), $this->safe_string_lower($order, 'triggerPriceType'));

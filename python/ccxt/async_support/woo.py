@@ -1015,7 +1015,7 @@ class woo(Exchange):
     def parse_order_type(self, type, algoType=None, algoTriggerType=None):
         if algoType is not None:
             if algoType == 'take_profit':
-                if algoTriggerType == 'market_price':
+                if type == 'market':
                     return 'stop'
                 else:
                     return 'stopLimit'
@@ -1112,7 +1112,7 @@ class woo(Exchange):
         market = self.safe_market(marketId, market)
         symbol = market['symbol']
         price = self.safe_string_2(order, 'triggerPrice', 'price')
-        stopPrice = self.safe_string(order, 'triggerPrice')
+        stopPrice = self.safe_string_2(order, 'price', 'triggerPrice')
         amount = self.safe_string_2(order, 'order_quantity', 'quantity')  # This is base amount
         cost = self.safe_string_2(order, 'order_amount', 'amount')  # This is quote amount
         orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'), self.safe_string_lower(order, 'algoType'), self.safe_string_lower(order, 'triggerPriceType'))

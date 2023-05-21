@@ -1070,7 +1070,7 @@ export default class woo extends Exchange {
     parseOrderType(type, algoType = undefined, algoTriggerType = undefined) {
         if (algoType !== undefined) {
             if (algoType === 'take_profit') {
-                if (algoTriggerType === 'market_price') {
+                if (type === 'market') {
                     return 'stop';
                 }
                 else {
@@ -1173,7 +1173,7 @@ export default class woo extends Exchange {
         market = this.safeMarket(marketId, market);
         const symbol = market['symbol'];
         const price = this.safeString2(order, 'triggerPrice', 'price');
-        const stopPrice = this.safeString(order, 'triggerPrice');
+        const stopPrice = this.safeString2(order, 'price', 'triggerPrice');
         const amount = this.safeString2(order, 'order_quantity', 'quantity'); // This is base amount
         const cost = this.safeString2(order, 'order_amount', 'amount'); // This is quote amount
         const orderType = this.parseOrderType(this.safeStringLower2(order, 'order_type', 'type'), this.safeStringLower(order, 'algoType'), this.safeStringLower(order, 'triggerPriceType'));
