@@ -742,27 +742,7 @@ class woo(Exchange):
             request['reduce_only'] = reduceOnly
         if price is not None:
             request['order_price'] = self.price_to_precision(symbol, price)
-        if isMarket:
-            # for market buy it requires the amount of quote currency to spend
-            if market['spot'] and orderSide == 'BUY':
-                cost = self.safe_number(params, 'cost')
-                if self.safe_value(self.options, 'createMarketBuyOrderRequiresPrice', True):
-                    if cost is None:
-                        if price is None:
-                            raise InvalidOrder(self.id + " createOrder() requires the price argument for market buy orders to calculate total order cost. Supply a price argument to createOrder() call if you want the cost to be calculated for you from price and amount, or alternatively, supply the total cost value in the 'order_amount' in  exchange-specific parameters")
-                        else:
-                            amountString = self.number_to_string(amount)
-                            priceString = self.number_to_string(price)
-                            orderAmount = Precise.string_mul(amountString, priceString)
-                            request['order_amount'] = self.cost_to_precision(symbol, orderAmount)
-                    else:
-                        request['order_amount'] = self.cost_to_precision(symbol, cost)
-                else:
-                    request['order_amount'] = self.cost_to_precision(symbol, amount)
-            else:
-                request['order_quantity'] = self.amount_to_precision(symbol, amount)
-        else:
-            request['order_quantity'] = self.amount_to_precision(symbol, amount)
+        request['order_quantity'] = self.amount_to_precision(symbol, amount)
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         if clientOrderId is not None:
             request['client_order_id'] = clientOrderId

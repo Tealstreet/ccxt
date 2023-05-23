@@ -767,32 +767,7 @@ export default class woo extends Exchange {
         if (price !== undefined) {
             request['order_price'] = this.priceToPrecision (symbol, price);
         }
-        if (isMarket) {
-            // for market buy it requires the amount of quote currency to spend
-            if (market['spot'] && orderSide === 'BUY') {
-                const cost = this.safeNumber (params, 'cost');
-                if (this.safeValue (this.options, 'createMarketBuyOrderRequiresPrice', true)) {
-                    if (cost === undefined) {
-                        if (price === undefined) {
-                            throw new InvalidOrder (this.id + " createOrder() requires the price argument for market buy orders to calculate total order cost. Supply a price argument to createOrder() call if you want the cost to be calculated for you from price and amount, or alternatively, supply the total cost value in the 'order_amount' in  exchange-specific parameters");
-                        } else {
-                            const amountString = this.numberToString (amount);
-                            const priceString = this.numberToString (price);
-                            const orderAmount = Precise.stringMul (amountString, priceString);
-                            request['order_amount'] = this.costToPrecision (symbol, orderAmount);
-                        }
-                    } else {
-                        request['order_amount'] = this.costToPrecision (symbol, cost);
-                    }
-                } else {
-                    request['order_amount'] = this.costToPrecision (symbol, amount);
-                }
-            } else {
-                request['order_quantity'] = this.amountToPrecision (symbol, amount);
-            }
-        } else {
-            request['order_quantity'] = this.amountToPrecision (symbol, amount);
-        }
+        request['order_quantity'] = this.amountToPrecision (symbol, amount);
         const clientOrderId = this.safeString2 (params, 'clOrdID', 'clientOrderId');
         if (clientOrderId !== undefined) {
             request['client_order_id'] = clientOrderId;

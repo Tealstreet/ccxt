@@ -757,32 +757,7 @@ class woo extends Exchange {
         if ($price !== null) {
             $request['order_price'] = $this->price_to_precision($symbol, $price);
         }
-        if ($isMarket) {
-            // for $market buy it requires the $amount of quote currency to spend
-            if ($market['spot'] && $orderSide === 'BUY') {
-                $cost = $this->safe_number($params, 'cost');
-                if ($this->safe_value($this->options, 'createMarketBuyOrderRequiresPrice', true)) {
-                    if ($cost === null) {
-                        if ($price === null) {
-                            throw new InvalidOrder($this->id . " createOrder() requires the $price argument for $market buy orders to calculate total order $cost-> Supply a $price argument to createOrder() call if you want the $cost to be calculated for you from $price and $amount, or alternatively, supply the total $cost value in the 'order_amount' in  exchange-specific parameters");
-                        } else {
-                            $amountString = $this->number_to_string($amount);
-                            $priceString = $this->number_to_string($price);
-                            $orderAmount = Precise::string_mul($amountString, $priceString);
-                            $request['order_amount'] = $this->cost_to_precision($symbol, $orderAmount);
-                        }
-                    } else {
-                        $request['order_amount'] = $this->cost_to_precision($symbol, $cost);
-                    }
-                } else {
-                    $request['order_amount'] = $this->cost_to_precision($symbol, $amount);
-                }
-            } else {
-                $request['order_quantity'] = $this->amount_to_precision($symbol, $amount);
-            }
-        } else {
-            $request['order_quantity'] = $this->amount_to_precision($symbol, $amount);
-        }
+        $request['order_quantity'] = $this->amount_to_precision($symbol, $amount);
         $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
         if ($clientOrderId !== null) {
             $request['client_order_id'] = $clientOrderId;
