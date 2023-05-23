@@ -740,58 +740,150 @@ class woo extends Exchange {
              * @param {array} $params extra parameters specific to the woo api endpoint
              * @return {array} an ~@link https://docs.ccxt.com/#/?id=order-structure order structure~
              */
+            // quick order:
+            //
+            // BTC/USDT:USDT
+            // limit
+            // buy
+            // 4.0
+            // 29116.0
+            // array('positionMode' => 'unknown', 'timeInForce' => 'PO', 'reduceOnly' => False)
+            //
+            // limit order:
+            //
+            // BTC/USDT:USDT
+            // limit
+            // buy
+            // 4.0
+            // 28520.0
+            // array('positionMode' => 'unknown', 'timeInForce' => 'PO', 'reduceOnly' => False)
+            //
+            // no post = 'timeInForce' => 'GTC',
+            //
+            // SL
+            //
+            // BTC/USDT:USDT
+            // stop
+            // sell
+            // 20.0
+            // None
+            // array('positionMode' => 'unknown', 'stopPrice' => 27663.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
+            //
+            // TP
+            //
+            // BTC/USDT:USDT
+            // stop
+            // sell
+            // 20.0
+            // None
+            // array('positionMode' => 'unknown', 'stopPrice' => 30150.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
+            //
+            // LIMIT TP
+            //
+            // BTC/USDT:USDT
+            // stopLimit
+            // sell
+            // 4.0
+            // 33000.0
+            // array('positionMode' => 'unknown', 'stopPrice' => 32000.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
             $reduceOnly = $this->safe_value($params, 'reduceOnly');
             $orderType = strtoupper($type);
-            if ($reduceOnly !== null) {
-                if ($orderType !== 'LIMIT') {
-                    throw new InvalidOrder($this->id . ' createOrder() only support $reduceOnly for limit orders');
+            if ($orderType === 'STOP' || $orderType === 'STOPLIMIT') {
+                Async\await($this->load_markets());
+                $market = $this->market($symbol);
+                $orderSide = strtoupper($side);
+                $algoOrderType = 'MARKET';
+                if ($orderType !== 'STOP') {
+                    $algoOrderType = 'LIMIT';
                 }
+                $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
+                $request = array(
+                    'symbol' => $market['id'],
+                    'algoType' => 'STOP',
+                    'type' => $algoOrderType,
+                    'side' => $orderSide,
+                );
+                if ($reduceOnly) {
+                    $request['reduceOnly'] = $reduceOnly;
+                }
+                if ($price !== null) {
+                    $request['price'] = $this->price_to_precision($symbol, $price);
+                }
+                $request['triggerPrice'] = $triggerPrice;
+                $request['quantity'] = $this->amount_to_precision($symbol, $amount);
+                $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
+                // $response = Async\await($this->v3PrivatePostAlgoOrder (array_merge($request, $params)));
+                $response = Async\await($this->v3PrivatePostAlgoOrder ($request));
+                // {
+                //     success => true,
+                //     timestamp => '1641383206.489',
+                //     order_id => '86980774',
+                //     order_type => 'LIMIT',
+                //     order_price => '1', // null for 'MARKET' order
+                //     order_quantity => '12', // null for 'MARKET' order
+                //     order_amount => null, // NOT-null for 'MARKET' order
+                //     client_order_id => '0'
+                // }
+                // $response -> $data -> $rows -> [0]
+                $data = $this->safe_value($response, 'data');
+                $rows = $this->safe_value($data, 'rows', array());
+                // return array_merge(
+                //     $this->parse_order($rows[0], $market),
+                //     array( 'type' => $type )
+                // );
+                return $this->parse_order($rows[0], $market);
+            } else {
+                if ($reduceOnly !== null) {
+                    if ($orderType !== 'LIMIT') {
+                        throw new InvalidOrder($this->id . ' createOrder() only support $reduceOnly for limit orders');
+                    }
+                }
+                Async\await($this->load_markets());
+                $market = $this->market($symbol);
+                $orderSide = strtoupper($side);
+                $request = array(
+                    'symbol' => $market['id'],
+                    'order_type' => $orderType, // LIMIT/MARKET/IOC/FOK/POST_ONLY/ASK/BID
+                    'side' => $orderSide,
+                );
+                $isMarket = $orderType === 'MARKET';
+                $timeInForce = $this->safe_string_lower($params, 'timeInForce');
+                $postOnly = $this->is_post_only($isMarket, null, $params);
+                if ($postOnly) {
+                    $request['order_type'] = 'POST_ONLY';
+                } elseif ($timeInForce === 'fok') {
+                    $request['order_type'] = 'FOK';
+                } elseif ($timeInForce === 'ioc') {
+                    $request['order_type'] = 'IOC';
+                }
+                if ($reduceOnly) {
+                    $request['reduce_only'] = $reduceOnly;
+                }
+                if ($price !== null) {
+                    $request['order_price'] = $this->price_to_precision($symbol, $price);
+                }
+                $request['order_quantity'] = $this->amount_to_precision($symbol, $amount);
+                $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
+                if ($clientOrderId !== null) {
+                    $request['client_order_id'] = $clientOrderId;
+                }
+                $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
+                $response = Async\await($this->v1PrivatePostOrder (array_merge($request, $params)));
+                // {
+                //     success => true,
+                //     timestamp => '1641383206.489',
+                //     order_id => '86980774',
+                //     order_type => 'LIMIT',
+                //     order_price => '1', // null for 'MARKET' order
+                //     order_quantity => '12', // null for 'MARKET' order
+                //     order_amount => null, // NOT-null for 'MARKET' order
+                //     client_order_id => '0'
+                // }
+                return array_merge(
+                    $this->parse_order($response, $market),
+                    array( 'type' => $type )
+                );
             }
-            Async\await($this->load_markets());
-            $market = $this->market($symbol);
-            $orderSide = strtoupper($side);
-            $request = array(
-                'symbol' => $market['id'],
-                'order_type' => $orderType, // LIMIT/MARKET/IOC/FOK/POST_ONLY/ASK/BID
-                'side' => $orderSide,
-            );
-            $isMarket = $orderType === 'MARKET';
-            $timeInForce = $this->safe_string_lower($params, 'timeInForce');
-            $postOnly = $this->is_post_only($isMarket, null, $params);
-            if ($postOnly) {
-                $request['order_type'] = 'POST_ONLY';
-            } elseif ($timeInForce === 'fok') {
-                $request['order_type'] = 'FOK';
-            } elseif ($timeInForce === 'ioc') {
-                $request['order_type'] = 'IOC';
-            }
-            if ($reduceOnly) {
-                $request['reduce_only'] = $reduceOnly;
-            }
-            if ($price !== null) {
-                $request['order_price'] = $this->price_to_precision($symbol, $price);
-            }
-            $request['order_quantity'] = $this->amount_to_precision($symbol, $amount);
-            $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
-            if ($clientOrderId !== null) {
-                $request['client_order_id'] = $clientOrderId;
-            }
-            $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
-            $response = Async\await($this->v1PrivatePostOrder (array_merge($request, $params)));
-            // {
-            //     success => true,
-            //     timestamp => '1641383206.489',
-            //     order_id => '86980774',
-            //     order_type => 'LIMIT',
-            //     order_price => '1', // null for 'MARKET' order
-            //     order_quantity => '12', // null for 'MARKET' order
-            //     order_amount => null, // NOT-null for 'MARKET' order
-            //     client_order_id => '0'
-            // }
-            return array_merge(
-                $this->parse_order($response, $market),
-                array( 'type' => $type )
-            );
         }) ();
     }
 
@@ -1201,6 +1293,10 @@ class woo extends Exchange {
         $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
         $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
         $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algoType'));
+        $tsOrderType = $orderType;
+        if ($orderType === 'market') {
+            $tsOrderType = 'stop';
+        }
         $status = $this->safe_value($order, 'algoStatus');
         $side = $this->safe_string_lower($order, 'side');
         $filled = $this->safe_value($order, 'executed');
@@ -1217,7 +1313,7 @@ class woo extends Exchange {
             'lastTradeTimestamp' => null,
             'status' => $this->parse_order_status($status),
             'symbol' => $symbol,
-            'type' => $orderType,
+            'type' => $tsOrderType,
             'timeInForce' => $this->parse_time_in_force($orderType),
             'postOnly' => null, // TO_DO
             'reduceOnly' => $this->safe_value($order, 'reduceOnly'),
