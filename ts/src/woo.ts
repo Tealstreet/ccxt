@@ -1106,7 +1106,7 @@ export default class woo extends Exchange {
         return this.safeString (timeInForces, timeInForce, undefined);
     }
 
-    parseOrderType (type, algoType = undefined, algoTriggerType = undefined) {
+    parseOrderType (type, algoType = undefined) {
         if (algoType !== undefined) {
             if (algoType === 'take_profit') {
                 if (type === 'market') {
@@ -1216,7 +1216,7 @@ export default class woo extends Exchange {
         const stopPrice = this.safeString2 (order, 'triggerPrice', 'price');
         const amount = this.safeString2 (order, 'order_quantity', 'quantity'); // This is base amount
         const cost = this.safeString2 (order, 'order_amount', 'amount'); // This is quote amount
-        const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'), this.safeStringLower (order, 'algoType'), this.safeStringLower (order, 'triggerPriceType'));
+        const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'), this.safeStringLower (order, 'algoType'));
         const status = this.safeValue (order, 'algoStatus');
         const side = this.safeStringLower (order, 'side');
         const filled = this.safeValue (order, 'executed');

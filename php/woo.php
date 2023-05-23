@@ -1086,7 +1086,7 @@ class woo extends Exchange {
         return $this->safe_string($timeInForces, $timeInForce, null);
     }
 
-    public function parse_order_type($type, $algoType = null, $algoTriggerType = null) {
+    public function parse_order_type($type, $algoType = null) {
         if ($algoType !== null) {
             if ($algoType === 'take_profit') {
                 if ($type === 'market') {
@@ -1196,7 +1196,7 @@ class woo extends Exchange {
         $stopPrice = $this->safe_string_2($order, 'triggerPrice', 'price');
         $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
         $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
-        $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algoType'), $this->safe_string_lower($order, 'triggerPriceType'));
+        $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algoType'));
         $status = $this->safe_value($order, 'algoStatus');
         $side = $this->safe_string_lower($order, 'side');
         $filled = $this->safe_value($order, 'executed');
