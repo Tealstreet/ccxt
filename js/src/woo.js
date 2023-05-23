@@ -2417,7 +2417,7 @@ export default class woo extends Exchange {
         //
         const contract = this.safeString(position, 'symbol');
         market = this.safeMarket(contract, market);
-        let size = this.safeString(position, 'holding');
+        const size = this.safeString(position, 'holding');
         let side = undefined;
         if (Precise.stringGt(size, '0')) {
             side = 'long';
@@ -2431,32 +2431,30 @@ export default class woo extends Exchange {
         const entryPrice = this.safeString(position, 'averageOpenPrice');
         const priceDifference = Precise.stringSub(markPrice, entryPrice);
         const unrealisedPnl = Precise.stringMul(priceDifference, size);
-        size = Precise.stringAbs(size);
-        const notional = Precise.stringMul(size, markPrice);
         return {
             'info': position,
             'id': market['symbol'] + ':' + side,
-            'symbol': this.safeString(market, 'symbol'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'initialMargin': undefined,
-            'initialMarginPercentage': undefined,
-            'maintenanceMargin': undefined,
-            'maintenanceMarginPercentage': undefined,
+            'symbol': market['symbol'],
+            'notional': undefined,
+            'marginMode': 'cross',
+            'liquidationPrice': this.safeNumber(position, 'estLiqPrice'),
             'entryPrice': this.parseNumber(entryPrice),
-            'notional': this.parseNumber(notional),
-            'leverage': undefined,
             'unrealizedPnl': this.parseNumber(unrealisedPnl),
+            'percentage': undefined,
             'contracts': this.parseNumber(size),
             'contractSize': this.parseNumber(contractSize),
-            'marginRatio': undefined,
-            'liquidationPrice': this.safeNumber(position, 'estLiqPrice'),
             'markPrice': this.parseNumber(markPrice),
-            'collateral': undefined,
-            'marginMode': 'cross',
-            'marginType': undefined,
             'side': side,
-            'percentage': undefined,
+            'hedged': false,
+            'timestamp': timestamp,
+            'datetime': this.iso8601(timestamp),
+            'maintenanceMargin': undefined,
+            'maintenanceMarginPercentage': undefined,
+            'collateral': undefined,
+            'initialMargin': undefined,
+            'initialMarginPercentage': undefined,
+            'leverage': undefined,
+            'marginRatio': undefined,
         };
     }
     defaultNetworkCodeForCurrency(code) {

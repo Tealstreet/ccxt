@@ -2287,32 +2287,30 @@ class woo(Exchange):
         entryPrice = self.safe_string(position, 'averageOpenPrice')
         priceDifference = Precise.string_sub(markPrice, entryPrice)
         unrealisedPnl = Precise.string_mul(priceDifference, size)
-        size = Precise.string_abs(size)
-        notional = Precise.string_mul(size, markPrice)
         return {
             'info': position,
             'id': market['symbol'] + ':' + side,
-            'symbol': self.safe_string(market, 'symbol'),
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'initialMargin': None,
-            'initialMarginPercentage': None,
-            'maintenanceMargin': None,
-            'maintenanceMarginPercentage': None,
+            'symbol': market['symbol'],
+            'notional': None,
+            'marginMode': 'cross',
+            'liquidationPrice': self.safe_number(position, 'estLiqPrice'),
             'entryPrice': self.parse_number(entryPrice),
-            'notional': self.parse_number(notional),
-            'leverage': None,
             'unrealizedPnl': self.parse_number(unrealisedPnl),
+            'percentage': None,
             'contracts': self.parse_number(size),
             'contractSize': self.parse_number(contractSize),
-            'marginRatio': None,
-            'liquidationPrice': self.safe_number(position, 'estLiqPrice'),
             'markPrice': self.parse_number(markPrice),
-            'collateral': None,
-            'marginMode': 'cross',
-            'marginType': None,
             'side': side,
-            'percentage': None,
+            'hedged': False,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'maintenanceMargin': None,
+            'maintenanceMarginPercentage': None,
+            'collateral': None,
+            'initialMargin': None,
+            'initialMarginPercentage': None,
+            'leverage': None,
+            'marginRatio': None,
         }
 
     def default_network_code_for_currency(self, code):

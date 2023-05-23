@@ -2499,32 +2499,30 @@ class woo extends Exchange {
         $entryPrice = $this->safe_string($position, 'averageOpenPrice');
         $priceDifference = Precise::string_sub($markPrice, $entryPrice);
         $unrealisedPnl = Precise::string_mul($priceDifference, $size);
-        $size = Precise::string_abs($size);
-        $notional = Precise::string_mul($size, $markPrice);
         return array(
             'info' => $position,
             'id' => $market['symbol'] . ':' . $side,
-            'symbol' => $this->safe_string($market, 'symbol'),
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'initialMargin' => null,
-            'initialMarginPercentage' => null,
-            'maintenanceMargin' => null,
-            'maintenanceMarginPercentage' => null,
+            'symbol' => $market['symbol'],
+            'notional' => null,
+            'marginMode' => 'cross',
+            'liquidationPrice' => $this->safe_number($position, 'estLiqPrice'),
             'entryPrice' => $this->parse_number($entryPrice),
-            'notional' => $this->parse_number($notional),
-            'leverage' => null,
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
+            'percentage' => null,
             'contracts' => $this->parse_number($size),
             'contractSize' => $this->parse_number($contractSize),
-            'marginRatio' => null,
-            'liquidationPrice' => $this->safe_number($position, 'estLiqPrice'),
             'markPrice' => $this->parse_number($markPrice),
-            'collateral' => null,
-            'marginMode' => 'cross',
-            'marginType' => null,
             'side' => $side,
-            'percentage' => null,
+            'hedged' => false,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'maintenanceMargin' => null,
+            'maintenanceMarginPercentage' => null,
+            'collateral' => null,
+            'initialMargin' => null,
+            'initialMarginPercentage' => null,
+            'leverage' => null,
+            'marginRatio' => null,
         );
     }
 
