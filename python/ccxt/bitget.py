@@ -1819,14 +1819,14 @@ class bitget(Exchange):
         order = self.safe_string(trade, 'orderId')
         rawSide = self.safe_string(trade, 'side', '')
         side = None
-        if rawSide == 'open_long' or rawSide == 'close_short' or rawSide == 'buy_single' or rawSide.find('buy') != -1:
+        if rawSide.find('open_long') != -1 or rawSide.find('close_short') != -1 or rawSide.find('buy_single') != -1 or rawSide.find('buy') != -1:
             side = 'buy'
-        elif rawSide == 'open_short' or rawSide == 'close_long' or rawSide.find('sell') != -1:
+        elif rawSide.find('open_short') != -1 or rawSide.find('close_long') != -1 or rawSide.find('sell') != -1:
             side = 'sell'
-        close = None
-        if rawSide == 'close_long' or rawSide == 'close_short':
-            close = True
-        price = self.safe_string_2(trade, 'price', 'priceAvg')
+        isClose = None
+        if rawSide.find('close_long') != -1 or rawSide.find('close_short') != -1:
+            isClose = True
+        price = self.safe_string_2(trade, 'priceAvg', 'price')
         amount = self.safe_string_2(trade, 'fillQuantity', 'size')
         amount = self.safe_string(trade, 'sizeQty', amount)
         timestamp = self.safe_integer_2(trade, 'fillTime', 'timestamp')
@@ -1857,7 +1857,7 @@ class bitget(Exchange):
             'fee': fee,
             'timestamp': timestamp,
             'datetime': datetime,
-            'close': close,
+            'isClose': isClose,
         }, market)
 
     def fetch_trades(self, symbol, limit=None, since=None, params={}):

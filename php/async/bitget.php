@@ -1895,16 +1895,16 @@ class bitget extends Exchange {
         $order = $this->safe_string($trade, 'orderId');
         $rawSide = $this->safe_string($trade, 'side', '');
         $side = null;
-        if ($rawSide === 'open_long' || $rawSide === 'close_short' || $rawSide === 'buy_single' || mb_strpos($rawSide, 'buy') !== -1) {
+        if (mb_strpos($rawSide, 'open_long') !== -1 || mb_strpos($rawSide, 'close_short') !== -1 || mb_strpos($rawSide, 'buy_single') !== -1 || mb_strpos($rawSide, 'buy') !== -1) {
             $side = 'buy';
-        } elseif ($rawSide === 'open_short' || $rawSide === 'close_long' || mb_strpos($rawSide, 'sell') !== -1) {
+        } elseif (mb_strpos($rawSide, 'open_short') !== -1 || mb_strpos($rawSide, 'close_long') !== -1 || mb_strpos($rawSide, 'sell') !== -1) {
             $side = 'sell';
         }
-        $close = null;
-        if ($rawSide === 'close_long' || $rawSide === 'close_short') {
-            $close = true;
+        $isClose = null;
+        if (mb_strpos($rawSide, 'close_long') !== -1 || mb_strpos($rawSide, 'close_short') !== -1) {
+            $isClose = true;
         }
-        $price = $this->safe_string_2($trade, 'price', 'priceAvg');
+        $price = $this->safe_string_2($trade, 'priceAvg', 'price');
         $amount = $this->safe_string_2($trade, 'fillQuantity', 'size');
         $amount = $this->safe_string($trade, 'sizeQty', $amount);
         $timestamp = $this->safe_integer_2($trade, 'fillTime', 'timestamp');
@@ -1936,7 +1936,7 @@ class bitget extends Exchange {
             'fee' => $fee,
             'timestamp' => $timestamp,
             'datetime' => $datetime,
-            'close' => $close,
+            'isClose' => $isClose,
         ), $market);
     }
 

@@ -1882,16 +1882,16 @@ export default class bitget extends Exchange {
         const order = this.safeString (trade, 'orderId');
         const rawSide = this.safeString (trade, 'side', '');
         let side = undefined;
-        if (rawSide === 'open_long' || rawSide === 'close_short' || rawSide === 'buy_single' || rawSide.indexOf ('buy') !== -1) {
+        if (rawSide.indexOf ('open_long') !== -1 || rawSide.indexOf ('close_short') !== -1 || rawSide.indexOf ('buy_single') !== -1 || rawSide.indexOf ('buy') !== -1) {
             side = 'buy';
-        } else if (rawSide === 'open_short' || rawSide === 'close_long' || rawSide.indexOf ('sell') !== -1) {
+        } else if (rawSide.indexOf ('open_short') !== -1 || rawSide.indexOf ('close_long') !== -1 || rawSide.indexOf ('sell') !== -1) {
             side = 'sell';
         }
-        let close = undefined;
-        if (rawSide === 'close_long' || rawSide === 'close_short') {
-            close = true;
+        let isClose = undefined;
+        if (rawSide.indexOf ('close_long') !== -1 || rawSide.indexOf ('close_short') !== -1) {
+            isClose = true;
         }
-        const price = this.safeString2 (trade, 'price', 'priceAvg');
+        const price = this.safeString2 (trade, 'priceAvg', 'price');
         let amount = this.safeString2 (trade, 'fillQuantity', 'size');
         amount = this.safeString (trade, 'sizeQty', amount);
         let timestamp = this.safeInteger2 (trade, 'fillTime', 'timestamp');
@@ -1923,7 +1923,7 @@ export default class bitget extends Exchange {
             'fee': fee,
             'timestamp': timestamp,
             'datetime': datetime,
-            'close': close,
+            'isClose': isClose,
         }, market);
     }
 
