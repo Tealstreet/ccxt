@@ -794,9 +794,12 @@ class bitget(Exchange):
                         '30m': '1800',
                         '1h': '3600',
                         '4h': '14400',
-                        '12h': '43200',
-                        '1d': '86400',
-                        '1w': '604800',
+                        '6h': '6Hutc',
+                        '12h': '12Hutc',
+                        '1d': '1Dutc',
+                        '3d': '3Dutc',
+                        '1w': '1Wutc',
+                        '1M': '1Mutc',
                     },
                 },
                 'fetchMarkets': [
@@ -2047,7 +2050,7 @@ class bitget(Exchange):
         until = self.safe_integer_2(params, 'until', 'till')
         params = self.omit(params, ['until', 'till'])
         if limit is None:
-            limit = 100
+            limit = 1000
         if market['type'] == 'spot':
             request['period'] = self.options['timeframes']['spot'][timeframe]
             request['limit'] = limit
@@ -2060,13 +2063,14 @@ class bitget(Exchange):
                 request['before'] = until
         elif market['type'] == 'swap':
             request['granularity'] = self.options['timeframes']['swap'][timeframe]
+            request['limit'] = limit + 1
             duration = self.parse_timeframe(timeframe)
             now = self.milliseconds()
             if since is None:
                 request['startTime'] = now - (limit - 1) * (duration * 1000)
                 request['endTime'] = now
             else:
-                request['startTime'] = self.sum(since, duration * 1000)
+                request['startTime'] = self.sum(since, -1 * duration * 1000)
                 if until is not None:
                     request['endTime'] = until
                 else:

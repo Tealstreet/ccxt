@@ -716,72 +716,140 @@ class woo(Exchange):
         :param dict params: extra parameters specific to the woo api endpoint
         :returns dict: an `order structure <https://docs.ccxt.com/#/?id=order-structure>`
         """
+        # quick order:
+        #
+        # BTC/USDT:USDT
+        # limit
+        # buy
+        # 4.0
+        # 29116.0
+        # {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        #
+        # limit order:
+        #
+        # BTC/USDT:USDT
+        # limit
+        # buy
+        # 4.0
+        # 28520.0
+        # {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        #
+        # no post = 'timeInForce': 'GTC',
+        #
+        # SL
+        #
+        # BTC/USDT:USDT
+        # stop
+        # sell
+        # 20.0
+        # None
+        # {'positionMode': 'unknown', 'stopPrice': 27663.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        #
+        # TP
+        #
+        # BTC/USDT:USDT
+        # stop
+        # sell
+        # 20.0
+        # None
+        # {'positionMode': 'unknown', 'stopPrice': 30150.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        #
+        # LIMIT TP
+        #
+        # BTC/USDT:USDT
+        # stopLimit
+        # sell
+        # 4.0
+        # 33000.0
+        # {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
         reduceOnly = self.safe_value(params, 'reduceOnly')
         orderType = type.upper()
-        if reduceOnly is not None:
-            if orderType != 'LIMIT':
-                raise InvalidOrder(self.id + ' createOrder() only support reduceOnly for limit orders')
-        await self.load_markets()
-        market = self.market(symbol)
-        orderSide = side.upper()
-        request = {
-            'symbol': market['id'],
-            'order_type': orderType,  # LIMIT/MARKET/IOC/FOK/POST_ONLY/ASK/BID
-            'side': orderSide,
-        }
-        isMarket = orderType == 'MARKET'
-        timeInForce = self.safe_string_lower(params, 'timeInForce')
-        postOnly = self.is_post_only(isMarket, None, params)
-        if postOnly:
-            request['order_type'] = 'POST_ONLY'
-        elif timeInForce == 'fok':
-            request['order_type'] = 'FOK'
-        elif timeInForce == 'ioc':
-            request['order_type'] = 'IOC'
-        if reduceOnly:
-            request['reduce_only'] = reduceOnly
-        if price is not None:
-            request['order_price'] = self.price_to_precision(symbol, price)
-        if isMarket:
-            # for market buy it requires the amount of quote currency to spend
-            if market['spot'] and orderSide == 'BUY':
-                cost = self.safe_number(params, 'cost')
-                if self.safe_value(self.options, 'createMarketBuyOrderRequiresPrice', True):
-                    if cost is None:
-                        if price is None:
-                            raise InvalidOrder(self.id + " createOrder() requires the price argument for market buy orders to calculate total order cost. Supply a price argument to createOrder() call if you want the cost to be calculated for you from price and amount, or alternatively, supply the total cost value in the 'order_amount' in  exchange-specific parameters")
-                        else:
-                            amountString = self.number_to_string(amount)
-                            priceString = self.number_to_string(price)
-                            orderAmount = Precise.string_mul(amountString, priceString)
-                            request['order_amount'] = self.cost_to_precision(symbol, orderAmount)
-                    else:
-                        request['order_amount'] = self.cost_to_precision(symbol, cost)
-                else:
-                    request['order_amount'] = self.cost_to_precision(symbol, amount)
-            else:
-                request['order_quantity'] = self.amount_to_precision(symbol, amount)
+        if orderType == 'STOP' or orderType == 'STOPLIMIT':
+            await self.load_markets()
+            market = self.market(symbol)
+            orderSide = side.upper()
+            algoOrderType = 'MARKET'
+            if orderType != 'STOP':
+                algoOrderType = 'LIMIT'
+            triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
+            request = {
+                'symbol': market['id'],
+                'algoType': 'STOP',
+                'type': algoOrderType,
+                'side': orderSide,
+            }
+            if reduceOnly:
+                request['reduceOnly'] = reduceOnly
+            if price is not None:
+                request['price'] = self.price_to_precision(symbol, price)
+            request['triggerPrice'] = triggerPrice
+            request['quantity'] = self.amount_to_precision(symbol, amount)
+            params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
+            # response = await self.v3PrivatePostAlgoOrder(self.extend(request, params))
+            response = await self.v3PrivatePostAlgoOrder(request)
+            # {
+            #     success: True,
+            #     timestamp: '1641383206.489',
+            #     order_id: '86980774',
+            #     order_type: 'LIMIT',
+            #     order_price: '1',  # null for 'MARKET' order
+            #     order_quantity: '12',  # null for 'MARKET' order
+            #     order_amount: null,  # NOT-null for 'MARKET' order
+            #     client_order_id: '0'
+            # }
+            # response -> data -> rows -> [0]
+            data = self.safe_value(response, 'data')
+            rows = self.safe_value(data, 'rows', [])
+            # return self.extend(
+            #     self.parse_order(rows[0], market),
+            #     {'type': type}
+            # )
+            return self.parse_order(rows[0], market)
         else:
+            if reduceOnly is not None:
+                if orderType != 'LIMIT':
+                    raise InvalidOrder(self.id + ' createOrder() only support reduceOnly for limit orders')
+            await self.load_markets()
+            market = self.market(symbol)
+            orderSide = side.upper()
+            request = {
+                'symbol': market['id'],
+                'order_type': orderType,  # LIMIT/MARKET/IOC/FOK/POST_ONLY/ASK/BID
+                'side': orderSide,
+            }
+            isMarket = orderType == 'MARKET'
+            timeInForce = self.safe_string_lower(params, 'timeInForce')
+            postOnly = self.is_post_only(isMarket, None, params)
+            if postOnly:
+                request['order_type'] = 'POST_ONLY'
+            elif timeInForce == 'fok':
+                request['order_type'] = 'FOK'
+            elif timeInForce == 'ioc':
+                request['order_type'] = 'IOC'
+            if reduceOnly:
+                request['reduce_only'] = reduceOnly
+            if price is not None:
+                request['order_price'] = self.price_to_precision(symbol, price)
             request['order_quantity'] = self.amount_to_precision(symbol, amount)
-        clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
-        if clientOrderId is not None:
-            request['client_order_id'] = clientOrderId
-        params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
-        response = await self.v1PrivatePostOrder(self.extend(request, params))
-        # {
-        #     success: True,
-        #     timestamp: '1641383206.489',
-        #     order_id: '86980774',
-        #     order_type: 'LIMIT',
-        #     order_price: '1',  # null for 'MARKET' order
-        #     order_quantity: '12',  # null for 'MARKET' order
-        #     order_amount: null,  # NOT-null for 'MARKET' order
-        #     client_order_id: '0'
-        # }
-        return self.extend(
-            self.parse_order(response, market),
-            {'type': type}
-        )
+            clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
+            if clientOrderId is not None:
+                request['client_order_id'] = clientOrderId
+            params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
+            response = await self.v1PrivatePostOrder(self.extend(request, params))
+            # {
+            #     success: True,
+            #     timestamp: '1641383206.489',
+            #     order_id: '86980774',
+            #     order_type: 'LIMIT',
+            #     order_price: '1',  # null for 'MARKET' order
+            #     order_quantity: '12',  # null for 'MARKET' order
+            #     order_amount: null,  # NOT-null for 'MARKET' order
+            #     client_order_id: '0'
+            # }
+            return self.extend(
+                self.parse_order(response, market),
+                {'type': type}
+            )
 
     async def edit_order(self, id, symbol, type, side, amount, price=None, params={}):
         """
@@ -822,6 +890,12 @@ class woo(Exchange):
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
 
+    def maybe_algo_order_id(self, id):
+        stringId = self.number_to_string(id)
+        if len(stringId) < 9:
+            return True
+        return False
+
     async def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order
@@ -833,6 +907,27 @@ class woo(Exchange):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         await self.load_markets()
+        if self.maybe_algo_order_id(id):
+            return self.cancel_algo_order(id, symbol, params)
+        else:
+            return self.cancel_regular_order(id, symbol, params)
+
+    async def cancel_algo_order(self, id, symbol=None, params={}):
+        request = {}
+        request['oid'] = id
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+        request['symbol'] = market['id']
+        response = await self.v3PrivateDeleteAlgoOrderOid(self.extend(request, params))
+        #
+        # {success: True, status: 'CANCEL_SENT'}
+        #
+        extendParams = {'symbol': symbol}
+        extendParams['id'] = id
+        return self.extend(self.parse_order(response), extendParams)
+
+    async def cancel_regular_order(self, id, symbol=None, params={}):
         request = {}
         clientOrderIdUnified = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         clientOrderIdExchangeSpecific = self.safe_string_2(params, 'client_order_id', clientOrderIdUnified)
@@ -872,6 +967,7 @@ class woo(Exchange):
             'symbol': market['id'],
         }
         response = await self.v1PrivateDeleteOrders(self.extend(request, params))
+        await self.v3PrivateDeleteAlgoOrdersPending(self.extend(request, params))
         #
         #     {
         #         "success":true,
@@ -953,7 +1049,8 @@ class woo(Exchange):
             request['symbol'] = market['id']
         if since is not None:
             request['start_t'] = since
-        response = await self.v1PrivateGetOrders(self.extend(request, params))
+        request['size'] = 500
+        ordersResponse = await self.v1PrivateGetOrders(self.extend(request, params))
         #
         #     {
         #         "success":true,
@@ -985,8 +1082,23 @@ class woo(Exchange):
         #         ]
         #     }
         #
-        data = self.safe_value(response, 'rows')
-        return self.parse_orders(data, market, since, limit, params)
+        ordersData = self.safe_value(ordersResponse, 'rows')
+        total = 0
+        algoOrdersRows = []
+        for i in range(0, 25):
+            request['size'] = 25
+            request['page'] = i + 1
+            algoOrdersResponse = await self.v3PrivateGetAlgoOrders(self.extend(request, params))
+            algoOrdersData = self.safe_value(algoOrdersResponse, 'data')
+            algoOrdersMeta = self.safe_value(algoOrdersData, 'meta')
+            newRows = self.safe_value(algoOrdersData, 'rows')
+            total = total + len(newRows)
+            algoOrdersRows = self.array_concat(algoOrdersRows, newRows)
+            knownTotal = self.safe_integer(algoOrdersMeta, 'total')
+            if total >= knownTotal:
+                break
+        allOrdersData = self.array_concat(ordersData, algoOrdersRows)
+        return self.parse_orders(allOrdersData, market, since, limit, params)
 
     def parse_time_in_force(self, timeInForce):
         timeInForces = {
@@ -996,7 +1108,37 @@ class woo(Exchange):
         }
         return self.safe_string(timeInForces, timeInForce, None)
 
+    def parse_order_type(self, type, algoType=None):
+        if algoType is not None:
+            if algoType == 'take_profit':
+                if type == 'market':
+                    return 'stop'
+                else:
+                    return 'stopLimit'
+        # LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
+        types = {
+            'limit': 'limit',
+            'market': 'market',
+            'post_only': 'limit',
+            'ioc': 'limit',
+            'fok': 'limit',
+            'liquidate': 'limit',
+            # 'stop_market': 'stop',
+            # 'take_profit_market': 'stop',
+            # 'take_profit_limit': 'stopLimit',
+            # 'trigger_limit': 'stopLimit',
+            # 'trigger_market': 'stop',
+        }
+        return self.safe_string_lower(types, type, type)
+
     def parse_order(self, order, market=None):
+        isAlgoOrder = 'algoType' in order
+        if isAlgoOrder:
+            return self.parse_algo_order(order, market)
+        else:
+            return self.parse_regular_order(order, market)
+
+    def parse_regular_order(self, order, market=None):
         #
         # Possible input functions:
         # * createOrder
@@ -1013,7 +1155,7 @@ class woo(Exchange):
         price = self.safe_string_2(order, 'order_price', 'price')
         amount = self.safe_string_2(order, 'order_quantity', 'quantity')  # This is base amount
         cost = self.safe_string_2(order, 'order_amount', 'amount')  # This is quote amount
-        orderType = self.safe_string_lower_2(order, 'order_type', 'type')
+        orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'))
         status = self.safe_value(order, 'status')
         side = self.safe_string_lower(order, 'side')
         filled = self.safe_value(order, 'executed')
@@ -1037,6 +1179,65 @@ class woo(Exchange):
             'side': side,
             'price': price,
             'stopPrice': None,
+            'triggerPrice': None,
+            'average': average,
+            'amount': amount,
+            'filled': filled,
+            'remaining': remaining,  # TO_DO
+            'cost': cost,
+            'trades': transactions,
+            'fee': {
+                'cost': fee,
+                'currency': feeCurrency,
+            },
+            'info': order,
+        }, market)
+
+    def parse_algo_order(self, order, market=None):
+        #
+        # Possible input functions:
+        # * createOrder
+        # * cancelOrder
+        # * fetchOrder
+        # * fetchOrders
+        # isFromFetchOrder = ('order_tag' in order); TO_DO
+        timestamp = self.safe_timestamp_2(order, 'timestamp', 'createdTime')
+        orderId = self.safe_string(order, 'algoOrderId')
+        clientOrderId = self.safe_string(order, 'clientOrderId')  # Somehow, self always returns 0 for limit order
+        marketId = self.safe_string(order, 'symbol')
+        market = self.safe_market(marketId, market)
+        symbol = market['symbol']
+        price = self.safe_string_2(order, 'price', 'triggerPrice')
+        stopPrice = self.safe_string_2(order, 'triggerPrice', 'price')
+        amount = self.safe_string_2(order, 'order_quantity', 'quantity')  # This is base amount
+        cost = self.safe_string_2(order, 'order_amount', 'amount')  # This is quote amount
+        orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'), self.safe_string_lower(order, 'algoType'))
+        tsOrderType = orderType
+        if orderType == 'market':
+            tsOrderType = 'stop'
+        status = self.safe_value(order, 'algoStatus')
+        side = self.safe_string_lower(order, 'side')
+        filled = self.safe_value(order, 'executed')
+        average = self.safe_string(order, 'average_executed_price')
+        remaining = Precise.string_sub(cost, filled)
+        fee = self.safe_value(order, 'totalFee')
+        feeCurrency = self.safe_string(order, 'feeAsset')
+        transactions = self.safe_value(order, 'Transactions')
+        return self.safe_order({
+            'id': orderId,
+            'clientOrderId': clientOrderId,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'lastTradeTimestamp': None,
+            'status': self.parse_order_status(status),
+            'symbol': symbol,
+            'type': tsOrderType,
+            'timeInForce': self.parse_time_in_force(orderType),
+            'postOnly': None,  # TO_DO
+            'reduceOnly': self.safe_value(order, 'reduceOnly'),
+            'side': side,
+            'price': price,
+            'stopPrice': stopPrice,
             'triggerPrice': None,
             'average': average,
             'amount': amount,
@@ -2157,32 +2358,30 @@ class woo(Exchange):
         entryPrice = self.safe_string(position, 'averageOpenPrice')
         priceDifference = Precise.string_sub(markPrice, entryPrice)
         unrealisedPnl = Precise.string_mul(priceDifference, size)
-        size = Precise.string_abs(size)
-        notional = Precise.string_mul(size, markPrice)
         return {
             'info': position,
             'id': market['symbol'] + ':' + side,
-            'symbol': self.safe_string(market, 'symbol'),
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'initialMargin': None,
-            'initialMarginPercentage': None,
-            'maintenanceMargin': None,
-            'maintenanceMarginPercentage': None,
+            'symbol': market['symbol'],
+            'notional': None,
+            'marginMode': 'cross',
+            'liquidationPrice': self.safe_number(position, 'estLiqPrice'),
             'entryPrice': self.parse_number(entryPrice),
-            'notional': self.parse_number(notional),
-            'leverage': None,
             'unrealizedPnl': self.parse_number(unrealisedPnl),
+            'percentage': None,
             'contracts': self.parse_number(size),
             'contractSize': self.parse_number(contractSize),
-            'marginRatio': None,
-            'liquidationPrice': self.safe_number(position, 'estLiqPrice'),
             'markPrice': self.parse_number(markPrice),
-            'collateral': None,
-            'marginMode': 'cross',
-            'marginType': None,
             'side': side,
-            'percentage': None,
+            'hedged': False,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'maintenanceMargin': None,
+            'maintenanceMarginPercentage': None,
+            'collateral': None,
+            'initialMargin': None,
+            'initialMarginPercentage': None,
+            'leverage': None,
+            'marginRatio': None,
         }
 
     def default_network_code_for_currency(self, code):
