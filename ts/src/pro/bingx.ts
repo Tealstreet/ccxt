@@ -801,13 +801,13 @@ export default class bingx extends bingxRest {
         const marketId = this.safeString (ticker, 'symbol');
         market = this.safeMarket (marketId);
         const symbol = this.safeSymbol (marketId);
-        const last = this.safeString (ticker, 'indexPrice');
+        const last = this.safeString (ticker, 'fairPrice');
         const open = this.safeString (ticker, 'open');
         const percentage = this.safeString (ticker, 'changePercentage');
         // const quoteVolume = this.safeString (ticker, 'volume2');
         // const baseVolume = this.safeString (ticker, 'volume');
-        const bid = this.safeString (ticker, 'indexPrice');
-        const ask = this.safeString (ticker, 'indexPrice');
+        const bid = this.safeString (ticker, 'tradePrice');
+        const ask = this.safeString (ticker, 'tradePrice');
         const high = this.safeString (ticker, 'high');
         const low = this.safeString (ticker, 'low');
         return this.safeTicker ({
