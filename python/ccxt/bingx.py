@@ -441,7 +441,7 @@ class bingx(Exchange):
             code = currencies[i]
             account = self.account()
             if self.safe_string(dataAccount, 'currency', '') == code:
-                account['free'] = self.safe_string(dataAccount, 'availableMArgin')
+                account['free'] = self.safe_string(dataAccount, 'availableMargin')
                 account['used'] = self.safe_string(dataAccount, 'usedMargin')
                 account['total'] = self.safe_string(dataAccount, 'balance')
             result[code] = account

@@ -459,7 +459,7 @@ class bingx extends Exchange {
             $code = $currencies[$i];
             $account = $this->account();
             if ($this->safe_string($dataAccount, 'currency', '') === $code) {
-                $account['free'] = $this->safe_string($dataAccount, 'availableMArgin');
+                $account['free'] = $this->safe_string($dataAccount, 'availableMargin');
                 $account['used'] = $this->safe_string($dataAccount, 'usedMargin');
                 $account['total'] = $this->safe_string($dataAccount, 'balance');
             }
