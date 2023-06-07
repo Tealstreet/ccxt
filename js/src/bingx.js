@@ -460,7 +460,7 @@ export default class bingx extends Exchange {
             const code = currencies[i];
             const account = this.account();
             if (this.safeString(dataAccount, 'currency', '') === code) {
-                account['free'] = this.safeString(dataAccount, 'availableMArgin');
+                account['free'] = this.safeString(dataAccount, 'availableMargin');
                 account['used'] = this.safeString(dataAccount, 'usedMargin');
                 account['total'] = this.safeString(dataAccount, 'balance');
             }
