@@ -105,6 +105,7 @@ class bingx(Exchange):
                                 'user/setMarginMode': 1,
                                 'user/setLeverage': 1,
                                 'user/forceOrders': 1,
+                                'user/historyOrders': 1,
                                 'user/auth/userDataStream': 1,
                             },
                             'put': {
@@ -590,6 +591,114 @@ class bingx(Exchange):
         # }
         # response = await self.publicGetDataCurrencyTrades(self.extend(request, params))
         # return self.parse_trades(response, market, since, limit)
+
+    async def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
+        # {
+        #     "code": 0,
+        #     "data": {
+        #     "orders": [
+        #         {
+        #             "action": "Open",
+        #             "avgFilledPrice": 31333.37,
+        #             "commission": -0.0009,
+        #             "entrustPrice": 31331.25,
+        #             "entrustTm": "2021-01-05T09:15:02Z",
+        #             "entrustVolume": 0.0001,
+        #             "filledVolume": 0.0001,
+        #             "orderId": "996273190",
+        #             "orderStatus": "Filled",
+        #             "profit": 0,
+        #             "side": "Bid",
+        #             "symbol": "BTC-USDT",
+        #             "tradeType": "Market",
+        #             "updateTm": "2021-01-05T09:15:15Z"
+        #         }
+        #     ]
+        # },
+        #     "message": ""
+        # }
+        await self.load_markets()
+        market = None
+        request = {}
+        if symbol is not None:
+            market = self.market(symbol)
+            request['symbol'] = market['id']
+        request['lastOrderId'] = 0
+        request['length'] = 100
+        request['timestamp'] = self.milliseconds() - 0
+        response = await self.swapV1PrivatePostUserHistoryOrders(self.extend(request, params))
+        data = self.safe_value(response, 'data')
+        trades = self.safe_value(data, 'orders')
+        return self.parse_my_trades(trades, market, since, limit)
+
+    def parse_my_trades(self, trades, market=None, since=None, limit=None, params={}):
+        result = []
+        for i in range(0, len(trades)):
+            trade = self.extend(self.parse_my_trade(trades[i], market), params)
+            result.append(trade)
+        result = self.sort_by(result, 'timestamp')
+        symbol = market['symbol'] if (market is not None) else None
+        tail = (since is None)
+        return self.filter_by_symbol_since_limit(result, symbol, since, limit, tail)
+
+    def parse_my_trade(self, trade, market=None):
+        # {
+        #     'orderId': '1657690927243935744',
+        #     'side': 'Ask',
+        #     'action': 'Close',
+        #     'tradeType': 'Limit',
+        #     'entrustVolume': '0.0003',
+        #     'entrustPrice': '26337.6',
+        #     'filledVolume': '0',
+        #     'avgFilledPrice': '0',
+        #     'entrustTm': '2023-05-14T10:14:50Z',
+        #     'symbol': 'BTC-USDT',
+        #     'profit': '0',
+        #     'commission': '0',
+        #     'updateTm': '2023-05-14T10:14:50Z',
+        #     'orderStatus': 'Cancelled'
+        # }
+        marketId = self.safe_string(trade, 'symbol')
+        market = self.safe_market(marketId)
+        symbol = market['symbol']
+        rawSide = self.safe_string(trade, 'side')
+        id = self.safe_string(trade, 'orderId')
+        action = self.safe_string(trade, 'action')
+        type = self.safe_string(trade, 'tradeType')
+        eVolume = self.safe_string(trade, 'entrustVolume')
+        ePrice = self.safe_string(trade, 'entrustPrice')
+        filled = self.safe_string(trade, 'filledVolume')
+        avgFilledPrice = self.safe_string(trade, 'avgFilledPrice')
+        entrustTm = self.safe_string(trade, 'entrustTm')
+        profit = self.safe_string(trade, 'profit')
+        commission = self.safe_string(trade, 'commission')
+        updateTm = self.safe_string(trade, 'updateTm')
+        status = self.safe_string(trade, 'orderStatus')
+        isClose = None
+        if action == 'Close' and status != 'Cancelled':
+            isClose = True
+        side = None
+        if rawSide == 'Bid':
+            side = 'buy'
+        else:
+            side = 'sell'
+        return self.safe_order({
+            'info': trade,
+            'id': id,
+            'symbol': symbol,
+            'side': side,
+            'type': type,
+            'filled': filled,
+            'average': avgFilledPrice,
+            'takerOrMaker': None,
+            'price': ePrice,
+            'profit': profit,
+            'fees': commission,
+            'status': status,
+            'timestamp': entrustTm,
+            'datetime': self.iso8601(entrustTm),
+            'isClose': isClose,
+        })
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
         """

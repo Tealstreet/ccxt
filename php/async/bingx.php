@@ -105,6 +105,7 @@ class bingx extends Exchange {
                                 'user/setMarginMode' => 1,
                                 'user/setLeverage' => 1,
                                 'user/forceOrders' => 1,
+                                'user/historyOrders' => 1,
                                 'user/auth/userDataStream' => 1,
                             ),
                             'put' => array(
@@ -639,6 +640,123 @@ class bingx extends Exchange {
             // $response = Async\await($this->publicGetDataCurrencyTrades (array_merge($request, $params)));
             // return $this->parse_trades($response, $market, $since, $limit);
         }) ();
+    }
+
+    public function fetch_my_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
+        return Async\async(function () use ($symbol, $since, $limit, $params) {
+            // {
+            //     "code" => 0,
+            //     "data" => {
+            //     "orders" => array(
+            //         array(
+            //             "action" => "Open",
+            //             "avgFilledPrice" => 31333.37,
+            //             "commission" => -0.0009,
+            //             "entrustPrice" => 31331.25,
+            //             "entrustTm" => "2021-01-05T09:15:02Z",
+            //             "entrustVolume" => 0.0001,
+            //             "filledVolume" => 0.0001,
+            //             "orderId" => "996273190",
+            //             "orderStatus" => "Filled",
+            //             "profit" => 0,
+            //             "side" => "Bid",
+            //             "symbol" => "BTC-USDT",
+            //             "tradeType" => "Market",
+            //             "updateTm" => "2021-01-05T09:15:15Z"
+            //         }
+            //     )
+            // ),
+            //     "message" => ""
+            // }
+            Async\await($this->load_markets());
+            $market = null;
+            $request = array();
+            if ($symbol !== null) {
+                $market = $this->market($symbol);
+                $request['symbol'] = $market['id'];
+            }
+            $request['lastOrderId'] = 0;
+            $request['length'] = 100;
+            $request['timestamp'] = $this->milliseconds() - 0;
+            $response = Async\await($this->swapV1PrivatePostUserHistoryOrders (array_merge($request, $params)));
+            $data = $this->safe_value($response, 'data');
+            $trades = $this->safe_value($data, 'orders');
+            return $this->parse_my_trades($trades, $market, $since, $limit);
+        }) ();
+    }
+
+    public function parse_my_trades($trades, $market = null, $since = null, $limit = null, $params = array ()) {
+        $result = array();
+        for ($i = 0; $i < count($trades); $i++) {
+            $trade = array_merge($this->parse_my_trade($trades[$i], $market), $params);
+            $result[] = $trade;
+        }
+        $result = $this->sort_by($result, 'timestamp');
+        $symbol = ($market !== null) ? $market['symbol'] : null;
+        $tail = ($since === null);
+        return $this->filter_by_symbol_since_limit($result, $symbol, $since, $limit, $tail);
+    }
+
+    public function parse_my_trade($trade, $market = null) {
+        // {
+        //     'orderId' => '1657690927243935744',
+        //     'side' => 'Ask',
+        //     'action' => 'Close',
+        //     'tradeType' => 'Limit',
+        //     'entrustVolume' => '0.0003',
+        //     'entrustPrice' => '26337.6',
+        //     'filledVolume' => '0',
+        //     'avgFilledPrice' => '0',
+        //     'entrustTm' => '2023-05-14T10:14:50Z',
+        //     'symbol' => 'BTC-USDT',
+        //     'profit' => '0',
+        //     'commission' => '0',
+        //     'updateTm' => '2023-05-14T10:14:50Z',
+        //     'orderStatus' => 'Cancelled'
+        // }
+        $marketId = $this->safe_string($trade, 'symbol');
+        $market = $this->safe_market($marketId);
+        $symbol = $market['symbol'];
+        $rawSide = $this->safe_string($trade, 'side');
+        $id = $this->safe_string($trade, 'orderId');
+        $action = $this->safe_string($trade, 'action');
+        $type = $this->safe_string($trade, 'tradeType');
+        $eVolume = $this->safe_string($trade, 'entrustVolume');
+        $ePrice = $this->safe_string($trade, 'entrustPrice');
+        $filled = $this->safe_string($trade, 'filledVolume');
+        $avgFilledPrice = $this->safe_string($trade, 'avgFilledPrice');
+        $entrustTm = $this->safe_string($trade, 'entrustTm');
+        $profit = $this->safe_string($trade, 'profit');
+        $commission = $this->safe_string($trade, 'commission');
+        $updateTm = $this->safe_string($trade, 'updateTm');
+        $status = $this->safe_string($trade, 'orderStatus');
+        $isClose = null;
+        if ($action === 'Close' && $status !== 'Cancelled') {
+            $isClose = true;
+        }
+        $side = null;
+        if ($rawSide === 'Bid') {
+            $side = 'buy';
+        } else {
+            $side = 'sell';
+        }
+        return $this->safe_order(array(
+            'info' => $trade,
+            'id' => $id,
+            'symbol' => $symbol,
+            'side' => $side,
+            'type' => $type,
+            'filled' => $filled,
+            'average' => $avgFilledPrice,
+            'takerOrMaker' => null,
+            'price' => $ePrice,
+            'profit' => $profit,
+            'fees' => $commission,
+            'status' => $status,
+            'timestamp' => $entrustTm,
+            'datetime' => $this->iso8601($entrustTm),
+            'isClose' => $isClose,
+        ));
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
