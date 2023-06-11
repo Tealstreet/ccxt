@@ -674,6 +674,14 @@ export default class bingx extends Exchange {
     parseMyTrades (trades, market = undefined, since = undefined, limit = undefined, params = {}) {
         let result = [];
         for (let i = 0; i < trades.length; i++) {
+            const filled = this.safeNumber (trades[i], 'filledVolume', 0);
+            if (filled <= 0) {
+                continue;
+            }
+            const action = this.safeString (trades[i], 'action');
+            if (action === 'Close') {
+                continue;
+            }
             const trade = this.extend (this.parseMyTrade (trades[i], market), params);
             result.push (trade);
         }
@@ -712,12 +720,13 @@ export default class bingx extends Exchange {
         const filled = this.safeString (trade, 'filledVolume');
         const avgFilledPrice = this.safeString (trade, 'avgFilledPrice');
         const entrustTm = this.safeString (trade, 'entrustTm');
+        const timestamp = this.parseDate (entrustTm);
         const profit = this.safeString (trade, 'profit');
         const commission = this.safeString (trade, 'commission');
         const updateTm = this.safeString (trade, 'updateTm');
         const status = this.safeString (trade, 'orderStatus');
-        let isClose = undefined;
-        if (action === 'Close' && status !== 'Cancelled') {
+        let isClose = false;
+        if (action === 'Close') {
             isClose = true;
         }
         let side = undefined;
@@ -726,6 +735,17 @@ export default class bingx extends Exchange {
         } else {
             side = 'sell';
         }
+        let takerOrMaker = undefined;
+        const tradeType = this.safeString (trade, 'tradeType');
+        if (tradeType === 'Market') {
+            takerOrMaker = 'taker';
+        } else {
+            takerOrMaker = 'maker';
+        }
+        let cost = 0.00045;
+        if (takerOrMaker === 'taker') {
+            cost = 0.00075;
+        }
         return this.safeOrder ({
             'info': trade,
             'id': id,
@@ -733,15 +753,20 @@ export default class bingx extends Exchange {
             'side': side,
             'type': type,
             'filled': filled,
+            'amount': filled,
             'average': avgFilledPrice,
-            'takerOrMaker': undefined,
+            'takerOrMaker': takerOrMaker,
             'price': ePrice,
             'profit': profit,
             'fees': commission,
             'status': status,
-            'timestamp': entrustTm,
-            'datetime': this.iso8601 (entrustTm),
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
             'isClose': isClose,
+            'fee': {
+                'currency': market['quote'],
+                'cost': cost,
+            },
         });
     }
 

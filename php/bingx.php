@@ -662,6 +662,14 @@ class bingx extends Exchange {
     public function parse_my_trades($trades, $market = null, $since = null, $limit = null, $params = array ()) {
         $result = array();
         for ($i = 0; $i < count($trades); $i++) {
+            $filled = $this->safe_number($trades[$i], 'filledVolume', 0);
+            if ($filled <= 0) {
+                continue;
+            }
+            $action = $this->safe_string($trades[$i], 'action');
+            if ($action === 'Close') {
+                continue;
+            }
             $trade = array_merge($this->parse_my_trade($trades[$i], $market), $params);
             $result[] = $trade;
         }
@@ -700,12 +708,13 @@ class bingx extends Exchange {
         $filled = $this->safe_string($trade, 'filledVolume');
         $avgFilledPrice = $this->safe_string($trade, 'avgFilledPrice');
         $entrustTm = $this->safe_string($trade, 'entrustTm');
+        $timestamp = $this->parse_date($entrustTm);
         $profit = $this->safe_string($trade, 'profit');
         $commission = $this->safe_string($trade, 'commission');
         $updateTm = $this->safe_string($trade, 'updateTm');
         $status = $this->safe_string($trade, 'orderStatus');
-        $isClose = null;
-        if ($action === 'Close' && $status !== 'Cancelled') {
+        $isClose = false;
+        if ($action === 'Close') {
             $isClose = true;
         }
         $side = null;
@@ -714,6 +723,17 @@ class bingx extends Exchange {
         } else {
             $side = 'sell';
         }
+        $takerOrMaker = null;
+        $tradeType = $this->safe_string($trade, 'tradeType');
+        if ($tradeType === 'Market') {
+            $takerOrMaker = 'taker';
+        } else {
+            $takerOrMaker = 'maker';
+        }
+        $cost = 0.00045;
+        if ($takerOrMaker === 'taker') {
+            $cost = 0.00075;
+        }
         return $this->safe_order(array(
             'info' => $trade,
             'id' => $id,
@@ -721,15 +741,20 @@ class bingx extends Exchange {
             'side' => $side,
             'type' => $type,
             'filled' => $filled,
+            'amount' => $filled,
             'average' => $avgFilledPrice,
-            'takerOrMaker' => null,
+            'takerOrMaker' => $takerOrMaker,
             'price' => $ePrice,
             'profit' => $profit,
             'fees' => $commission,
             'status' => $status,
-            'timestamp' => $entrustTm,
-            'datetime' => $this->iso8601($entrustTm),
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
             'isClose' => $isClose,
+            'fee' => array(
+                'currency' => $market['quote'],
+                'cost' => $cost,
+            ),
         ));
     }
 

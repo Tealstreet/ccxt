@@ -634,6 +634,12 @@ class bingx(Exchange):
     def parse_my_trades(self, trades, market=None, since=None, limit=None, params={}):
         result = []
         for i in range(0, len(trades)):
+            filled = self.safe_number(trades[i], 'filledVolume', 0)
+            if filled <= 0:
+                continue
+            action = self.safe_string(trades[i], 'action')
+            if action == 'Close':
+                continue
             trade = self.extend(self.parse_my_trade(trades[i], market), params)
             result.append(trade)
         result = self.sort_by(result, 'timestamp')
@@ -670,18 +676,28 @@ class bingx(Exchange):
         filled = self.safe_string(trade, 'filledVolume')
         avgFilledPrice = self.safe_string(trade, 'avgFilledPrice')
         entrustTm = self.safe_string(trade, 'entrustTm')
+        timestamp = self.parse_date(entrustTm)
         profit = self.safe_string(trade, 'profit')
         commission = self.safe_string(trade, 'commission')
         updateTm = self.safe_string(trade, 'updateTm')
         status = self.safe_string(trade, 'orderStatus')
-        isClose = None
-        if action == 'Close' and status != 'Cancelled':
+        isClose = False
+        if action == 'Close':
             isClose = True
         side = None
         if rawSide == 'Bid':
             side = 'buy'
         else:
             side = 'sell'
+        takerOrMaker = None
+        tradeType = self.safe_string(trade, 'tradeType')
+        if tradeType == 'Market':
+            takerOrMaker = 'taker'
+        else:
+            takerOrMaker = 'maker'
+        cost = 0.00045
+        if takerOrMaker == 'taker':
+            cost = 0.00075
         return self.safe_order({
             'info': trade,
             'id': id,
@@ -689,15 +705,20 @@ class bingx(Exchange):
             'side': side,
             'type': type,
             'filled': filled,
+            'amount': filled,
             'average': avgFilledPrice,
-            'takerOrMaker': None,
+            'takerOrMaker': takerOrMaker,
             'price': ePrice,
             'profit': profit,
             'fees': commission,
             'status': status,
-            'timestamp': entrustTm,
-            'datetime': self.iso8601(entrustTm),
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
             'isClose': isClose,
+            'fee': {
+                'currency': market['quote'],
+                'cost': cost,
+            },
         })
 
     async def create_order(self, symbol, type, side, amount, price=None, params={}):
