@@ -15,7 +15,7 @@ export default class woo extends wooRest {
     watchTrades(symbol: any, since?: any, limit?: any, params?: {}): Promise<any>;
     handleTrade(client: any, message: any): void;
     parseWsTrade(trade: any, market?: any): import("../base/types.js").Trade;
-    checkRequiredUid(error?: boolean): boolean;
+    checkRequiredUid(): boolean;
     authenticate(params?: {}): any;
     watchPrivate(messageHash: any, message: any, params?: {}): Promise<any>;
     watchOrders(symbol?: string, since?: any, limit?: any, params?: {}): Promise<any>;

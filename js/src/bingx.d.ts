@@ -24,6 +24,9 @@ export default class bingx extends Exchange {
     fetchTicker(symbol: any, params?: {}): Promise<import("./base/types.js").Ticker>;
     parseTrade(trade: any, market?: any): import("./base/types.js").Trade;
     fetchTrades(symbol: any, since?: any, limit?: any, params?: {}): Promise<any[]>;
+    fetchMyTrades(symbol?: any, since?: any, limit?: any, params?: {}): Promise<any>;
+    parseMyTrades(trades: any, market?: any, since?: any, limit?: any, params?: {}): any;
+    parseMyTrade(trade: any, market?: any): any;
     createOrder(symbol: any, type: any, side: any, amount: any, price?: any, params?: {}): Promise<any>;
     cancelAllOrders(symbol?: string, params?: {}): Promise<any>;
     cancelOrder(id: any, symbol?: any, params?: {}): Promise<any>;
@@ -37,6 +40,7 @@ export default class bingx extends Exchange {
         liquidationPrice: number;
         entryPrice: number;
         unrealizedPnl: number;
+        realizedPnl: number;
         percentage: any;
         contracts: number;
         contractSize: number;

@@ -772,9 +772,12 @@ class bitget extends Exchange["default"] {
                         '30m': '1800',
                         '1h': '3600',
                         '4h': '14400',
-                        '12h': '43200',
-                        '1d': '86400',
-                        '1w': '604800',
+                        '6h': '6Hutc',
+                        '12h': '12Hutc',
+                        '1d': '1Dutc',
+                        '3d': '3Dutc',
+                        '1w': '1Wutc',
+                        '1M': '1Mutc',
                     },
                 },
                 'fetchMarkets': [
@@ -1862,18 +1865,30 @@ class bitget extends Exchange["default"] {
         //
         const marketId = this.safeString(trade, 'symbol');
         const symbol = this.safeSymbol(marketId, market);
-        const id = this.safeString2(trade, 'tradeId', 'fillId');
+        const id = this.safeStringN(trade, ['tradeId', 'fillId', 'orderId'], '');
         const order = this.safeString(trade, 'orderId');
-        const side = this.safeString(trade, 'side');
-        const price = this.safeString2(trade, 'fillPrice', 'price');
+        const rawSide = this.safeString(trade, 'side', '');
+        let side = undefined;
+        if (rawSide.indexOf('open_long') !== -1 || rawSide.indexOf('close_short') !== -1 || rawSide.indexOf('buy_single') !== -1 || rawSide.indexOf('buy') !== -1) {
+            side = 'buy';
+        }
+        else if (rawSide.indexOf('open_short') !== -1 || rawSide.indexOf('close_long') !== -1 || rawSide.indexOf('sell') !== -1) {
+            side = 'sell';
+        }
+        let isClose = undefined;
+        if (rawSide.indexOf('close_long') !== -1 || rawSide.indexOf('close_short') !== -1) {
+            isClose = true;
+        }
+        const price = this.safeString2(trade, 'priceAvg', 'price');
         let amount = this.safeString2(trade, 'fillQuantity', 'size');
         amount = this.safeString(trade, 'sizeQty', amount);
         let timestamp = this.safeInteger2(trade, 'fillTime', 'timestamp');
         timestamp = this.safeInteger(trade, 'cTime', timestamp);
         let fee = undefined;
-        const feeAmount = this.safeString(trade, 'fees');
+        let feeAmount = this.safeString2(trade, 'fees', 'fee');
         const type = this.safeString(trade, 'orderType');
         if (feeAmount !== undefined) {
+            feeAmount = Precise["default"].stringNeg(feeAmount);
             const currencyCode = this.safeCurrencyCode(this.safeString(trade, 'feeCcy'));
             fee = {
                 'code': currencyCode,
@@ -1892,10 +1907,11 @@ class bitget extends Exchange["default"] {
             'takerOrMaker': undefined,
             'price': price,
             'amount': amount,
-            'cost': undefined,
+            'cost': this.safeString(fee, 'cost'),
             'fee': fee,
             'timestamp': timestamp,
             'datetime': datetime,
+            'isClose': isClose,
         }, market);
     }
     async fetchTrades(symbol, limit = undefined, since = undefined, params = {}) {
@@ -2095,7 +2111,7 @@ class bitget extends Exchange["default"] {
         const until = this.safeInteger2(params, 'until', 'till');
         params = this.omit(params, ['until', 'till']);
         if (limit === undefined) {
-            limit = 100;
+            limit = 1000;
         }
         if (market['type'] === 'spot') {
             request['period'] = this.options['timeframes']['spot'][timeframe];
@@ -2113,6 +2129,7 @@ class bitget extends Exchange["default"] {
         }
         else if (market['type'] === 'swap') {
             request['granularity'] = this.options['timeframes']['swap'][timeframe];
+            request['limit'] = limit + 1;
             const duration = this.parseTimeframe(timeframe);
             const now = this.milliseconds();
             if (since === undefined) {
@@ -2120,7 +2137,7 @@ class bitget extends Exchange["default"] {
                 request['endTime'] = now;
             }
             else {
-                request['startTime'] = this.sum(since, duration * 1000);
+                request['startTime'] = this.sum(since, -1 * duration * 1000);
                 if (until !== undefined) {
                     request['endTime'] = until;
                 }
@@ -3213,43 +3230,50 @@ class bitget extends Exchange["default"] {
         if (symbol === undefined) {
             throw new errors.ArgumentsRequired(this.id + ' fetchMyTrades() requires a symbol argument');
         }
+        this.checkRequiredSymbol('fetchMyTrades', symbol);
         await this.loadMarkets();
         const market = this.market(symbol);
-        if (market['swap']) {
-            throw new errors.BadSymbol(this.id + ' fetchMyTrades() only supports spot markets');
-        }
         const request = {
             'symbol': market['id'],
+            'pageSize': 20,
         };
         if (limit !== undefined) {
             request['limit'] = limit;
         }
-        const response = await this.privateSpotPostTradeFills(this.extend(request, params));
-        //
-        //     {
-        //       code: '00000',
-        //       msg: 'success',
-        //       requestTime: '1645918954082',
-        //       data: [
-        //         {
-        //           accountId: '6394957606',
-        //           symbol: 'LTCUSDT_SPBL',
-        //           orderId: '864752115272552448',
-        //           fillId: '864752115685969921',
-        //           orderType: 'limit',
-        //           side: 'buy',
-        //           fillPrice: '127.92000000',
-        //           fillQuantity: '0.10000000',
-        //           fillTotalAmount: '12.79200000',
-        //           feeCcy: 'LTC',
-        //           fees: '0.00000000',
-        //           cTime: '1641898891373'
-        //         }
-        //       ]
-        //     }
-        //
+        if (since !== undefined) {
+            request['startTime'] = since;
+        }
+        request['endTime'] = this.milliseconds().toString();
+        const response = await this.privateMixGetOrderHistory(this.extend(request, params));
+        // {
+        //     "symbol": "SOLUSDT_UMCBL",
+        //     "size": 1,
+        //     "orderId": "963544804144852112",
+        //     "clientOid": "963544804144852113",
+        //     "filledQty": 1,
+        //     "fee": -0.00629204,
+        //     "price": 31.4602,
+        //     "priceAvg": 31.4602,
+        //     "state": "filled",
+        //     "side": "close_short",
+        //     "timeInForce": "normal",
+        //     "totalProfits": 0.00760000,
+        //     "posSide": "short",
+        //     "marginCoin": "USDT",
+        //     "filledAmount": 31.4602,
+        //     "orderType": "limit",
+        //     "leverage": "5",
+        //     "marginMode": "crossed",
+        //     "reduceOnly": false,
+        //     "enterPointSource": "WEB",
+        //     "tradeSide": "open_long",
+        //     "holdMode": "double_hold",
+        //     "cTime": "1665452903781",
+        //     "uTime": "1665452917467"
+        // }
         const data = this.safeValue(response, 'data');
-        return this.parseTrades(data, market, since, limit);
+        const orderList = this.safeValue(data, 'orderList', []);
+        return this.parseTrades(orderList, market, since, limit);
     }
     async fetchOrderTrades(id, symbol = undefined, since = undefined, limit = undefined, params = {}) {
         /**

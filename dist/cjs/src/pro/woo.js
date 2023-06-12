@@ -60,7 +60,8 @@ class woo extends woo$1 {
     }
     async watchPublic(messageHash, message) {
         this.checkRequiredUid();
-        const url = this.urls['api']['ws']['public'] + '/' + this.uid;
+        // const url = this.urls['api']['ws']['public'] + '/' + this.uid;
+        const url = this.urls['api']['ws']['public'] + '/' + 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY';
         const requestId = this.requestId(url);
         const subscribe = {
             'id': requestId,
@@ -379,7 +380,7 @@ class woo extends woo$1 {
         const side = this.safeStringLower(trade, 'side');
         const timestamp = this.safeInteger(trade, 'timestamp');
         return this.safeTrade({
-            'id': undefined,
+            'id': timestamp,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
             'symbol': symbol,
@@ -394,16 +395,17 @@ class woo extends woo$1 {
             'info': trade,
         }, market);
     }
-    checkRequiredUid(error = true) {
-        if (!this.uid) {
-            if (error) {
-                throw new errors.AuthenticationError(this.id + ' requires `uid` credential');
-            }
-            else {
-                return false;
-            }
-        }
+    checkRequiredUid() {
+        // checkRequiredUid (error = true) {
         return true;
+        // if (!this.uid) {
+        //     if (error) {
+        //         throw new AuthenticationError (this.id + ' requires `uid` credential');
+        //     } else {
+        //         return false;
+        //     }
+        // }
+        // return true;
     }
     authenticate(params = {}) {
         this.checkRequiredCredentials();

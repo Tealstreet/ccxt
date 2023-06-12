@@ -703,7 +703,6 @@ class bingx extends Exchange {
         $id = $this->safe_string($trade, 'orderId');
         $action = $this->safe_string($trade, 'action');
         $type = $this->safe_string($trade, 'tradeType');
-        $eVolume = $this->safe_string($trade, 'entrustVolume');
         $ePrice = $this->safe_string($trade, 'entrustPrice');
         $filled = $this->safe_string($trade, 'filledVolume');
         $avgFilledPrice = $this->safe_string($trade, 'avgFilledPrice');
@@ -711,7 +710,6 @@ class bingx extends Exchange {
         $timestamp = $this->parse_date($entrustTm);
         $profit = $this->safe_string($trade, 'profit');
         $commission = $this->safe_string($trade, 'commission');
-        $updateTm = $this->safe_string($trade, 'updateTm');
         $status = $this->safe_string($trade, 'orderStatus');
         $isClose = false;
         if ($action === 'Close') {

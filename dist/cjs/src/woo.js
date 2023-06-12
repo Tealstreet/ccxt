@@ -86,17 +86,20 @@ class woo extends Exchange["default"] {
                 'withdraw': true, // exchange have that endpoint disabled atm, but was once implemented in ccxt per old docs: https://kronosresearch.github.io/wootrade-documents/#token-withdraw
             },
             'timeframes': {
-                '1m': '1m',
-                '5m': '5m',
-                '15m': '15m',
-                '30m': '30m',
-                '1h': '1h',
+                '1m': '1',
+                '3m': '3',
+                '5m': '5',
+                '15m': '15',
+                '30m': '30',
+                '1h': '60',
+                '2h': '2h',
                 '4h': '4h',
+                '8h': '8h',
                 '12h': '12h',
-                '1d': '1d',
-                '1w': '1w',
-                '1M': '1mon',
-                '1y': '1y',
+                '1d': '1D',
+                '3d': '3D',
+                '1w': '1W',
+                '1M': '1M',
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
@@ -132,6 +135,7 @@ class woo extends Exchange["default"] {
                             'info': 1,
                             'info/{symbol}': 1,
                             'system_info': 1,
+                            'kline': 1,
                             'market_trades': 1,
                             'token': 1,
                             'token_network': 1,
@@ -140,6 +144,7 @@ class woo extends Exchange["default"] {
                             'funding_rate_history': 1,
                             'futures': 1,
                             'futures/{symbol}': 1,
+                            'tv/history': 1,
                         },
                     },
                     'private': {
@@ -149,7 +154,6 @@ class woo extends Exchange["default"] {
                             'client/order/{client_order_id}': 1,
                             'orders': 1,
                             'orderbook/{symbol}': 1,
-                            'kline': 1,
                             'client/trade/{tid}': 1,
                             'order/{oid}/trades': 1,
                             'client/trades': 1,
@@ -328,6 +332,9 @@ class woo extends Exchange["default"] {
             let symbol = base + '/' + quote;
             let contractSize = undefined;
             let linear = undefined;
+            if (isSpot) {
+                continue;
+            }
             if (isSwap) {
                 settleId = this.safeString(parts, 2);
                 settle = this.safeCurrencyCode(settleId);
@@ -721,87 +728,150 @@ class woo extends Exchange["default"] {
          * @param {object} params extra parameters specific to the woo api endpoint
          * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
          */
+        // quick order:
+        //
+        // BTC/USDT:USDT
+        // limit
+        // buy
+        // 4.0
+        // 29116.0
+        // {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        //
+        // limit order:
+        //
+        // BTC/USDT:USDT
+        // limit
+        // buy
+        // 4.0
+        // 28520.0
+        // {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
+        //
+        // no post = 'timeInForce': 'GTC',
+        //
+        // SL
+        //
+        // BTC/USDT:USDT
+        // stop
+        // sell
+        // 20.0
+        // None
+        // {'positionMode': 'unknown', 'stopPrice': 27663.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        //
+        // TP
+        //
+        // BTC/USDT:USDT
+        // stop
+        // sell
+        // 20.0
+        // None
+        // {'positionMode': 'unknown', 'stopPrice': 30150.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
+        //
+        // LIMIT TP
+        //
+        // BTC/USDT:USDT
+        // stopLimit
+        // sell
+        // 4.0
+        // 33000.0
+        // {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
         const reduceOnly = this.safeValue(params, 'reduceOnly');
         const orderType = type.toUpperCase();
-        if (reduceOnly !== undefined) {
-            if (orderType !== 'LIMIT') {
-                throw new errors.InvalidOrder(this.id + ' createOrder() only support reduceOnly for limit orders');
+        if (orderType === 'STOP' || orderType === 'STOPLIMIT') {
+            await this.loadMarkets();
+            const market = this.market(symbol);
+            const orderSide = side.toUpperCase();
+            let algoOrderType = 'MARKET';
+            if (orderType !== 'STOP') {
+                algoOrderType = 'LIMIT';
             }
-        }
-        await this.loadMarkets();
-        const market = this.market(symbol);
-        const orderSide = side.toUpperCase();
-        const request = {
-            'symbol': market['id'],
-            'order_type': orderType,
-            'side': orderSide,
-        };
-        const isMarket = orderType === 'MARKET';
-        const timeInForce = this.safeStringLower(params, 'timeInForce');
-        const postOnly = this.isPostOnly(isMarket, undefined, params);
-        if (postOnly) {
-            request['order_type'] = 'POST_ONLY';
-        }
-        else if (timeInForce === 'fok') {
-            request['order_type'] = 'FOK';
-        }
-        else if (timeInForce === 'ioc') {
-            request['order_type'] = 'IOC';
-        }
-        if (reduceOnly) {
-            request['reduce_only'] = reduceOnly;
-        }
-        if (price !== undefined) {
-            request['order_price'] = this.priceToPrecision(symbol, price);
-        }
-        if (isMarket) {
-            // for market buy it requires the amount of quote currency to spend
-            if (market['spot'] && orderSide === 'BUY') {
-                const cost = this.safeNumber(params, 'cost');
-                if (this.safeValue(this.options, 'createMarketBuyOrderRequiresPrice', true)) {
-                    if (cost === undefined) {
-                        if (price === undefined) {
-                            throw new errors.InvalidOrder(this.id + " createOrder() requires the price argument for market buy orders to calculate total order cost. Supply a price argument to createOrder() call if you want the cost to be calculated for you from price and amount, or alternatively, supply the total cost value in the 'order_amount' in  exchange-specific parameters");
-                        }
-                        else {
-                            const amountString = this.numberToString(amount);
-                            const priceString = this.numberToString(price);
-                            const orderAmount = Precise["default"].stringMul(amountString, priceString);
-                            request['order_amount'] = this.costToPrecision(symbol, orderAmount);
-                        }
-                    }
-                    else {
-                        request['order_amount'] = this.costToPrecision(symbol, cost);
-                    }
-                }
-                else {
-                    request['order_amount'] = this.costToPrecision(symbol, amount);
-                }
+            const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
+            const request = {
+                'symbol': market['id'],
+                'algoType': 'STOP',
+                'type': algoOrderType,
+                'side': orderSide,
+            };
+            if (reduceOnly) {
+                request['reduceOnly'] = reduceOnly;
             }
-            else {
-                request['order_quantity'] = this.amountToPrecision(symbol, amount);
+            if (price !== undefined) {
+                request['price'] = this.priceToPrecision(symbol, price);
             }
+            request['triggerPrice'] = triggerPrice;
+            request['quantity'] = this.amountToPrecision(symbol, amount);
+            params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
+            // const response = await (this as any).v3PrivatePostAlgoOrder (this.extend (request, params));
+            const response = await this.v3PrivatePostAlgoOrder(request);
+            // {
+            //     success: true,
+            //     timestamp: '1641383206.489',
+            //     order_id: '86980774',
+            //     order_type: 'LIMIT',
+            //     order_price: '1', // null for 'MARKET' order
+            //     order_quantity: '12', // null for 'MARKET' order
+            //     order_amount: null, // NOT-null for 'MARKET' order
+            //     client_order_id: '0'
+            // }
+            // response -> data -> rows -> [0]
+            const data = this.safeValue(response, 'data');
+            const rows = this.safeValue(data, 'rows', []);
+            // return this.extend (
+            //     this.parseOrder (rows[0], market),
+            //     { 'type': type }
+            // );
+            return this.parseOrder(rows[0], market);
         }
         else {
+            if (reduceOnly !== undefined) {
+                if (orderType !== 'LIMIT') {
+                    throw new errors.InvalidOrder(this.id + ' createOrder() only support reduceOnly for limit orders');
+                }
+            }
+            await this.loadMarkets();
+            const market = this.market(symbol);
+            const orderSide = side.toUpperCase();
+            const request = {
+                'symbol': market['id'],
+                'order_type': orderType,
+                'side': orderSide,
+            };
+            const isMarket = orderType === 'MARKET';
+            const timeInForce = this.safeStringLower(params, 'timeInForce');
+            const postOnly = this.isPostOnly(isMarket, undefined, params);
+            if (postOnly) {
+                request['order_type'] = 'POST_ONLY';
+            }
+            else if (timeInForce === 'fok') {
+                request['order_type'] = 'FOK';
+            }
+            else if (timeInForce === 'ioc') {
+                request['order_type'] = 'IOC';
+            }
+            if (reduceOnly) {
+                request['reduce_only'] = reduceOnly;
+            }
+            if (price !== undefined) {
+                request['order_price'] = this.priceToPrecision(symbol, price);
+            }
             request['order_quantity'] = this.amountToPrecision(symbol, amount);
+            const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
+            if (clientOrderId !== undefined) {
+                request['client_order_id'] = clientOrderId;
+            }
+            params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
+            const response = await this.v1PrivatePostOrder(this.extend(request, params));
+            // {
+            //     success: true,
+            //     timestamp: '1641383206.489',
+            //     order_id: '86980774',
+            //     order_type: 'LIMIT',
+            //     order_price: '1', // null for 'MARKET' order
+            //     order_quantity: '12', // null for 'MARKET' order
+            //     order_amount: null, // NOT-null for 'MARKET' order
+            //     client_order_id: '0'
+            // }
+            return this.extend(this.parseOrder(response, market), { 'type': type });
         }
-        const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
-        if (clientOrderId !== undefined) {
-            request['client_order_id'] = clientOrderId;
-        }
-        params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
-        const response = await this.v1PrivatePostOrder(this.extend(request, params));
-        // {
-        //     success: true,
-        //     timestamp: '1641383206.489',
-        //     order_id: '86980774',
-        //     order_type: 'LIMIT',
-        //     order_price: '1', // null for 'MARKET' order
-        //     order_quantity: '12', // null for 'MARKET' order
-        //     order_amount: null, // NOT-null for 'MARKET' order
-        //     client_order_id: '0'
-        // }
-        return this.extend(this.parseOrder(response, market), { 'type': type });
     }
     async editOrder(id, symbol, type, side, amount, price = undefined, params = {}) {
         /**
@@ -846,6 +916,13 @@ class woo extends Exchange["default"] {
         const data = this.safeValue(response, 'data', {});
         return this.parseOrder(data, market);
     }
+    maybeAlgoOrderId(id) {
+        const stringId = this.numberToString(id);
+        if (stringId.length < 9) {
+            return true;
+        }
+        return false;
+    }
     async cancelOrder(id, symbol = undefined, params = {}) {
         /**
          * @method
@@ -860,6 +937,30 @@ class woo extends Exchange["default"] {
             throw new errors.ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets();
+        if (this.maybeAlgoOrderId(id)) {
+            return this.cancelAlgoOrder(id, symbol, params);
+        }
+        else {
+            return this.cancelRegularOrder(id, symbol, params);
+        }
+    }
+    async cancelAlgoOrder(id, symbol = undefined, params = {}) {
+        const request = {};
+        request['oid'] = id;
+        let market = undefined;
+        if (symbol !== undefined) {
+            market = this.market(symbol);
+        }
+        request['symbol'] = market['id'];
+        const response = await this.v3PrivateDeleteAlgoOrderOid(this.extend(request, params));
+        //
+        // { success: true, status: 'CANCEL_SENT' }
+        //
+        const extendParams = { 'symbol': symbol };
+        extendParams['id'] = id;
+        return this.extend(this.parseOrder(response), extendParams);
+    }
+    async cancelRegularOrder(id, symbol = undefined, params = {}) {
         const request = {};
         const clientOrderIdUnified = this.safeString2(params, 'clOrdID', 'clientOrderId');
         const clientOrderIdExchangeSpecific = this.safeString2(params, 'client_order_id', clientOrderIdUnified);
@@ -907,6 +1008,7 @@ class woo extends Exchange["default"] {
             'symbol': market['id'],
         };
         const response = await this.v1PrivateDeleteOrders(this.extend(request, params));
+        await this.v3PrivateDeleteAlgoOrdersPending(this.extend(request, params));
         //
         //     {
         //         "success":true,
@@ -996,7 +1098,8 @@ class woo extends Exchange["default"] {
         if (since !== undefined) {
             request['start_t'] = since;
         }
-        const response = await this.v1PrivateGetOrders(this.extend(request, params));
+        request['size'] = 500;
+        const ordersResponse = await this.v1PrivateGetOrders(this.extend(request, params));
         //
         //     {
         //         "success":true,
@@ -1028,8 +1131,25 @@ class woo extends Exchange["default"] {
         //         ]
         //     }
         //
-        const data = this.safeValue(response, 'rows');
-        return this.parseOrders(data, market, since, limit, params);
+        const ordersData = this.safeValue(ordersResponse, 'rows');
+        let total = 0;
+        let algoOrdersRows = [];
+        for (let i = 0; i < 25; i++) {
+            request['size'] = 25;
+            request['page'] = i + 1;
+            const algoOrdersResponse = await this.v3PrivateGetAlgoOrders(this.extend(request, params));
+            const algoOrdersData = this.safeValue(algoOrdersResponse, 'data');
+            const algoOrdersMeta = this.safeValue(algoOrdersData, 'meta');
+            const newRows = this.safeValue(algoOrdersData, 'rows');
+            total = total + newRows.length;
+            algoOrdersRows = this.arrayConcat(algoOrdersRows, newRows);
+            const knownTotal = this.safeInteger(algoOrdersMeta, 'total');
+            if (total >= knownTotal) {
+                break;
+            }
+        }
+        const allOrdersData = this.arrayConcat(ordersData, algoOrdersRows);
+        return this.parseOrders(allOrdersData, market, since, limit, params);
     }
     parseTimeInForce(timeInForce) {
         const timeInForces = {
@@ -1039,7 +1159,43 @@ class woo extends Exchange["default"] {
         };
         return this.safeString(timeInForces, timeInForce, undefined);
     }
+    parseOrderType(type, algoType = undefined) {
+        if (algoType !== undefined) {
+            if (algoType === 'take_profit') {
+                if (type === 'market') {
+                    return 'stop';
+                }
+                else {
+                    return 'stopLimit';
+                }
+            }
+        }
+        // LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
+        const types = {
+            'limit': 'limit',
+            'market': 'market',
+            'post_only': 'limit',
+            'ioc': 'limit',
+            'fok': 'limit',
+            'liquidate': 'limit',
+            // 'stop_market': 'stop',
+            // 'take_profit_market': 'stop',
+            // 'take_profit_limit': 'stopLimit',
+            // 'trigger_limit': 'stopLimit',
+            // 'trigger_market': 'stop',
+        };
+        return this.safeStringLower(types, type, type);
+    }
     parseOrder(order, market = undefined) {
+        const isAlgoOrder = 'algoType' in order;
+        if (isAlgoOrder) {
+            return this.parseAlgoOrder(order, market);
+        }
+        else {
+            return this.parseRegularOrder(order, market);
+        }
+    }
+    parseRegularOrder(order, market = undefined) {
         //
         // Possible input functions:
         // * createOrder
@@ -1056,7 +1212,7 @@ class woo extends Exchange["default"] {
         const price = this.safeString2(order, 'order_price', 'price');
         const amount = this.safeString2(order, 'order_quantity', 'quantity'); // This is base amount
         const cost = this.safeString2(order, 'order_amount', 'amount'); // This is quote amount
-        const orderType = this.safeStringLower2(order, 'order_type', 'type');
+        const orderType = this.parseOrderType(this.safeStringLower2(order, 'order_type', 'type'));
         const status = this.safeValue(order, 'status');
         const side = this.safeStringLower(order, 'side');
         const filled = this.safeValue(order, 'executed');
@@ -1080,6 +1236,66 @@ class woo extends Exchange["default"] {
             'side': side,
             'price': price,
             'stopPrice': undefined,
+            'triggerPrice': undefined,
+            'average': average,
+            'amount': amount,
+            'filled': filled,
+            'remaining': remaining,
+            'cost': cost,
+            'trades': transactions,
+            'fee': {
+                'cost': fee,
+                'currency': feeCurrency,
+            },
+            'info': order,
+        }, market);
+    }
+    parseAlgoOrder(order, market = undefined) {
+        //
+        // Possible input functions:
+        // * createOrder
+        // * cancelOrder
+        // * fetchOrder
+        // * fetchOrders
+        // const isFromFetchOrder = ('order_tag' in order); TO_DO
+        const timestamp = this.safeTimestamp2(order, 'timestamp', 'createdTime');
+        const orderId = this.safeString(order, 'algoOrderId');
+        const clientOrderId = this.safeString(order, 'clientOrderId'); // Somehow, this always returns 0 for limit order
+        const marketId = this.safeString(order, 'symbol');
+        market = this.safeMarket(marketId, market);
+        const symbol = market['symbol'];
+        const price = this.safeString2(order, 'price', 'triggerPrice');
+        const stopPrice = this.safeString2(order, 'triggerPrice', 'price');
+        const amount = this.safeString2(order, 'order_quantity', 'quantity'); // This is base amount
+        const cost = this.safeString2(order, 'order_amount', 'amount'); // This is quote amount
+        const orderType = this.parseOrderType(this.safeStringLower2(order, 'order_type', 'type'), this.safeStringLower(order, 'algoType'));
+        let tsOrderType = orderType;
+        if (orderType === 'market') {
+            tsOrderType = 'stop';
+        }
+        const status = this.safeValue(order, 'algoStatus');
+        const side = this.safeStringLower(order, 'side');
+        const filled = this.safeValue(order, 'executed');
+        const average = this.safeString(order, 'average_executed_price');
+        const remaining = Precise["default"].stringSub(cost, filled);
+        const fee = this.safeValue(order, 'totalFee');
+        const feeCurrency = this.safeString(order, 'feeAsset');
+        const transactions = this.safeValue(order, 'Transactions');
+        return this.safeOrder({
+            'id': orderId,
+            'clientOrderId': clientOrderId,
+            'timestamp': timestamp,
+            'datetime': this.iso8601(timestamp),
+            'lastTradeTimestamp': undefined,
+            'status': this.parseOrderStatus(status),
+            'symbol': symbol,
+            'type': tsOrderType,
+            'timeInForce': this.parseTimeInForce(orderType),
+            'postOnly': undefined,
+            'reduceOnly': this.safeValue(order, 'reduceOnly'),
+            'side': side,
+            'price': price,
+            'stopPrice': stopPrice,
             'triggerPrice': undefined,
             'average': average,
             'amount': amount,
@@ -1151,59 +1367,36 @@ class woo extends Exchange["default"] {
         return this.parseOrderBook(response, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
     }
     async fetchOHLCV(symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchOHLCV
-         * @description fetches historical candlestick data containing the open, high, low, and close price, and the volume of a market
-         * @param {string} symbol unified symbol of the market to fetch OHLCV data for
-         * @param {string} timeframe the length of time each candle represents
-         * @param {int|undefined} since timestamp in ms of the earliest candle to fetch
-         * @param {int|undefined} limit the maximum amount of candles to fetch
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {[[int]]} A list of candles ordered as timestamp, open, high, low, close, volume
-         */
         await this.loadMarkets();
         const market = this.market(symbol);
         const request = {
             'symbol': market['id'],
-            'type': this.safeString(this.timeframes, timeframe, timeframe),
+            'resolution': this.timeframes[timeframe],
+            'from': since / 1000,
         };
-        if (limit !== undefined) {
-            request['limit'] = Math.min(limit, 1000);
+        const parsedTimeFrame = this.parseTimeframe(timeframe);
+        const duration = parsedTimeFrame * 1000 * limit;
+        const to = this.sum(since, duration);
+        request['to'] = to / 1000;
+        const response = await this.v1PublicGetTvHistory(this.extend(request, params));
+        const res = [];
+        if (response.s === 'ok') {
+            const length = response.t.length;
+            for (let i = 0; i < length; i++) {
+                res.push([
+                    response.t[i] * 1000,
+                    response.o[i],
+                    response.h[i],
+                    response.l[i],
+                    response.c[i],
+                    response.v[i],
+                ]);
+            }
         }
-        const response = await this.v1PrivateGetKline(this.extend(request, params));
-        // {
-        //     success: true,
-        //     rows: [
-        //       {
-        //         open: '0.94238',
-        //         close: '0.94271',
-        //         low: '0.94238',
-        //         high: '0.94296',
-        //         volume: '73.55',
-        //         amount: '69.32040520',
-        //         symbol: 'SPOT_WOO_USDT',
-        //         type: '1m',
-        //         start_timestamp: '1641584700000',
-        //         end_timestamp: '1641584760000'
-        //       },
-        //       {
-        //         open: '0.94186',
-        //         close: '0.94186',
-        //         low: '0.94186',
-        //         high: '0.94186',
-        //         volume: '64.00',
-        //         amount: '60.27904000',
-        //         symbol: 'SPOT_WOO_USDT',
-        //         type: '1m',
-        //         start_timestamp: '1641584640000',
-        //         end_timestamp: '1641584700000'
-        //       },
-        //       ...
-        //     ]
-        // }
-        const data = this.safeValue(response, 'rows', []);
-        return this.parseOHLCVs(data, market, timeframe, since, limit);
+        else {
+            throw (response.s);
+        }
+        return res;
     }
     parseOHLCV(ohlcv, market = undefined) {
         // example response in fetchOHLCV
@@ -1886,13 +2079,30 @@ class woo extends Exchange["default"] {
     sign(path, section = 'public', method = 'GET', params = {}, headers = undefined, body = undefined) {
         const version = section[0];
         const access = section[1];
+        const isUdfPath = path === 'tv/history';
         const pathWithParams = this.implodeParams(path, params);
         let url = this.implodeHostname(this.urls['api'][access]);
-        url += '/' + version + '/';
+        if (isUdfPath) {
+            url += '/';
+        }
+        else {
+            url += '/' + version + '/';
+        }
         params = this.omit(params, this.extractParams(path));
         params = this.keysort(params);
         if (access === 'public') {
-            url += access + '/' + pathWithParams;
+            if (isUdfPath) {
+                url += pathWithParams;
+            }
+            else {
+                url += access + '/' + pathWithParams;
+            }
+            if (Object.keys(params).length) {
+                url += '?' + this.urlencode(params);
+            }
+        }
+        else if (access === 'pub') {
+            url += pathWithParams;
             if (Object.keys(params).length) {
                 url += '?' + this.urlencode(params);
             }
@@ -2191,8 +2401,8 @@ class woo extends Exchange["default"] {
     }
     async setLeverage(leverage, symbol = undefined, params = {}) {
         await this.loadMarkets();
-        if ((leverage < 1) || (leverage > 20)) {
-            throw new errors.BadRequest(this.id + ' leverage should be between 1 and 20');
+        if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20)) {
+            throw new errors.BadRequest(this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15 or 20');
         }
         const request = {
             'leverage': leverage,
@@ -2271,7 +2481,7 @@ class woo extends Exchange["default"] {
         //
         const contract = this.safeString(position, 'symbol');
         market = this.safeMarket(contract, market);
-        let size = this.safeString(position, 'holding');
+        const size = this.safeString(position, 'holding');
         let side = undefined;
         if (Precise["default"].stringGt(size, '0')) {
             side = 'long';
@@ -2285,32 +2495,30 @@ class woo extends Exchange["default"] {
         const entryPrice = this.safeString(position, 'averageOpenPrice');
         const priceDifference = Precise["default"].stringSub(markPrice, entryPrice);
         const unrealisedPnl = Precise["default"].stringMul(priceDifference, size);
-        size = Precise["default"].stringAbs(size);
-        const notional = Precise["default"].stringMul(size, markPrice);
         return {
             'info': position,
-            'id': undefined,
-            'symbol': this.safeString(market, 'symbol'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'initialMargin': undefined,
-            'initialMarginPercentage': undefined,
-            'maintenanceMargin': undefined,
-            'maintenanceMarginPercentage': undefined,
+            'id': market['symbol'] + ':' + side,
+            'symbol': market['symbol'],
+            'notional': undefined,
+            'marginMode': 'cross',
+            'liquidationPrice': this.safeNumber(position, 'estLiqPrice'),
             'entryPrice': this.parseNumber(entryPrice),
-            'notional': this.parseNumber(notional),
-            'leverage': undefined,
             'unrealizedPnl': this.parseNumber(unrealisedPnl),
+            'percentage': undefined,
             'contracts': this.parseNumber(size),
             'contractSize': this.parseNumber(contractSize),
-            'marginRatio': undefined,
-            'liquidationPrice': this.safeNumber(position, 'estLiqPrice'),
             'markPrice': this.parseNumber(markPrice),
-            'collateral': undefined,
-            'marginMode': 'cross',
-            'marginType': undefined,
             'side': side,
-            'percentage': undefined,
+            'hedged': false,
+            'timestamp': timestamp,
+            'datetime': this.iso8601(timestamp),
+            'maintenanceMargin': undefined,
+            'maintenanceMarginPercentage': undefined,
+            'collateral': undefined,
+            'initialMargin': undefined,
+            'initialMarginPercentage': undefined,
+            'leverage': undefined,
+            'marginRatio': undefined,
         };
     }
     defaultNetworkCodeForCurrency(code) {
@@ -2325,6 +2533,103 @@ class woo extends Exchange["default"] {
         }
         // if it was not returned according to above options, then return the first network of currency
         return this.safeValue(networkKeys, 0);
+    }
+    async fetchTicker(symbol, params = {}) {
+        /**
+         * @method
+         * @name woo#fetchTicker
+         * @description fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+         * @param {string} symbol unified symbol of the market to fetch the ticker for
+         * @param {object} params extra parameters specific to the paymium api endpoint
+         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         */
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const request = {
+            'symbol': market['id'],
+        };
+        const response = await this.v1PublicGetFuturesSymbol(this.extend(request, params));
+        //
+        // {
+        //   "symbol": "BTC-USDT",
+        //   "priceChange": "10.00",
+        //   "priceChangePercent": "10",
+        //   "lastPrice": "5738.23",
+        //   "lastVolume": "31.21",
+        //   "highPrice": "5938.23",
+        //   "lowPrice": "5238.23",
+        //   "volume": "23211231.13",
+        //   "dayVolume": "213124412412.47",
+        //   "openPrice": "5828.32"
+        // }
+        //
+        const ticker = this.safeValue(response, 'info');
+        return this.parseTicker(ticker, market);
+    }
+    parseTicker(ticker, market = undefined) {
+        //
+        // {
+        //   "symbol": "PERP_BTC_USDT",
+        //   "index_price": 56727.31344564,
+        //   "mark_price": 56727.31344564,
+        //   "est_funding_rate": 0.12345689,
+        //   "last_funding_rate": 0.12345689,
+        //   "next_funding_time": 1567411795000,
+        //   "open_interest": 0.12345689,
+        //   "24h_open": 0.16112,
+        //   "24h_close": 0.32206,
+        //   "24h_high": 0.33000,
+        //   "24h_low": 0.14251,
+        //   "24h_volume": 89040821.98,
+        //   "24h_amount": 22493062.21
+        // }
+        //
+        const symbol = this.safeSymbol(undefined, market);
+        const timestamp = this.milliseconds();
+        const baseVolume = this.safeString(ticker, '24h_volume');
+        const openFloat = this.safeFloat(ticker, '24h_open');
+        const currentFloat = this.safeFloat(ticker, 'index_price');
+        const percentage = currentFloat / openFloat * 100;
+        const last = this.safeString(ticker, 'index_price');
+        return this.safeTicker({
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': this.iso8601(timestamp),
+            'high': this.safeString(ticker, '24h_high'),
+            'low': this.safeString(ticker, '24h_low'),
+            'bid': this.safeString(ticker, 'index_price'),
+            'bidVolume': undefined,
+            'ask': this.safeString(ticker, 'index_price'),
+            'askVolume': undefined,
+            'open': this.safeString(ticker, '24h_open'),
+            'close': last,
+            'last': last,
+            'mark': last,
+            'previousClose': undefined,
+            'change': undefined,
+            'percentage': this.numberToString(percentage),
+            'average': undefined,
+            'baseVolume': baseVolume,
+            'info': ticker,
+        }, market);
+    }
+    async fetchAccountConfiguration(symbol, params = {}) {
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const leverageInfo = await this.fetchLeverage(market['id']);
+        const leverage = this.safeInteger(leverageInfo, 'leverage');
+        const accountConfig = {
+            'marginMode': 'cross',
+            'positionMode': 'oneway',
+            'markets': {},
+        };
+        const leverageConfigs = accountConfig['markets'];
+        leverageConfigs[market['symbol']] = {
+            'leverage': leverage,
+            'buyLeverage': leverage,
+            'sellLeverage': leverage,
+        };
+        return accountConfig;
     }
 }
 

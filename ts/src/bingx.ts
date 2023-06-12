@@ -715,7 +715,6 @@ export default class bingx extends Exchange {
         const id = this.safeString (trade, 'orderId');
         const action = this.safeString (trade, 'action');
         const type = this.safeString (trade, 'tradeType');
-        const eVolume = this.safeString (trade, 'entrustVolume');
         const ePrice = this.safeString (trade, 'entrustPrice');
         const filled = this.safeString (trade, 'filledVolume');
         const avgFilledPrice = this.safeString (trade, 'avgFilledPrice');
@@ -723,7 +722,6 @@ export default class bingx extends Exchange {
         const timestamp = this.parseDate (entrustTm);
         const profit = this.safeString (trade, 'profit');
         const commission = this.safeString (trade, 'commission');
-        const updateTm = this.safeString (trade, 'updateTm');
         const status = this.safeString (trade, 'orderStatus');
         let isClose = false;
         if (action === 'Close') {

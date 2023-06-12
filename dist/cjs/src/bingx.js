@@ -98,6 +98,7 @@ class bingx extends Exchange["default"] {
                                 'user/setMarginMode': 1,
                                 'user/setLeverage': 1,
                                 'user/forceOrders': 1,
+                                'user/historyOrders': 1,
                                 'user/auth/userDataStream': 1,
                             },
                             'put': {
@@ -457,7 +458,7 @@ class bingx extends Exchange["default"] {
             const code = currencies[i];
             const account = this.account();
             if (this.safeString(dataAccount, 'currency', '') === code) {
-                account['free'] = this.safeString(dataAccount, 'availableMArgin');
+                account['free'] = this.safeString(dataAccount, 'availableMargin');
                 account['used'] = this.safeString(dataAccount, 'usedMargin');
                 account['total'] = this.safeString(dataAccount, 'balance');
             }
@@ -613,6 +614,143 @@ class bingx extends Exchange["default"] {
         // };
         // const response = await (this as any).publicGetDataCurrencyTrades (this.extend (request, params));
         // return this.parseTrades (response, market, since, limit);
+    }
+    async fetchMyTrades(symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        // {
+        //     "code": 0,
+        //     "data": {
+        //     "orders": [
+        //         {
+        //             "action": "Open",
+        //             "avgFilledPrice": 31333.37,
+        //             "commission": -0.0009,
+        //             "entrustPrice": 31331.25,
+        //             "entrustTm": "2021-01-05T09:15:02Z",
+        //             "entrustVolume": 0.0001,
+        //             "filledVolume": 0.0001,
+        //             "orderId": "996273190",
+        //             "orderStatus": "Filled",
+        //             "profit": 0,
+        //             "side": "Bid",
+        //             "symbol": "BTC-USDT",
+        //             "tradeType": "Market",
+        //             "updateTm": "2021-01-05T09:15:15Z"
+        //         }
+        //     ]
+        // },
+        //     "message": ""
+        // }
+        await this.loadMarkets();
+        let market = undefined;
+        const request = {};
+        if (symbol !== undefined) {
+            market = this.market(symbol);
+            request['symbol'] = market['id'];
+        }
+        request['lastOrderId'] = 0;
+        request['length'] = 100;
+        request['timestamp'] = this.milliseconds() - 0;
+        const response = await this.swapV1PrivatePostUserHistoryOrders(this.extend(request, params));
+        const data = this.safeValue(response, 'data');
+        const trades = this.safeValue(data, 'orders');
+        return this.parseMyTrades(trades, market, since, limit);
+    }
+    parseMyTrades(trades, market = undefined, since = undefined, limit = undefined, params = {}) {
+        let result = [];
+        for (let i = 0; i < trades.length; i++) {
+            const filled = this.safeNumber(trades[i], 'filledVolume', 0);
+            if (filled <= 0) {
+                continue;
+            }
+            const action = this.safeString(trades[i], 'action');
+            if (action === 'Close') {
+                continue;
+            }
+            const trade = this.extend(this.parseMyTrade(trades[i], market), params);
+            result.push(trade);
+        }
+        result = this.sortBy(result, 'timestamp');
+        const symbol = (market !== undefined) ? market['symbol'] : undefined;
+        const tail = (since === undefined);
+        return this.filterBySymbolSinceLimit(result, symbol, since, limit, tail);
+    }
+    parseMyTrade(trade, market = undefined) {
+        // {
+        //     'orderId': '1657690927243935744',
+        //     'side': 'Ask',
+        //     'action': 'Close',
+        //     'tradeType': 'Limit',
+        //     'entrustVolume': '0.0003',
+        //     'entrustPrice': '26337.6',
+        //     'filledVolume': '0',
+        //     'avgFilledPrice': '0',
+        //     'entrustTm': '2023-05-14T10:14:50Z',
+        //     'symbol': 'BTC-USDT',
+        //     'profit': '0',
+        //     'commission': '0',
+        //     'updateTm': '2023-05-14T10:14:50Z',
+        //     'orderStatus': 'Cancelled'
+        // }
+        const marketId = this.safeString(trade, 'symbol');
+        market = this.safeMarket(marketId);
+        const symbol = market['symbol'];
+        const rawSide = this.safeString(trade, 'side');
+        const id = this.safeString(trade, 'orderId');
+        const action = this.safeString(trade, 'action');
+        const type = this.safeString(trade, 'tradeType');
+        const ePrice = this.safeString(trade, 'entrustPrice');
+        const filled = this.safeString(trade, 'filledVolume');
+        const avgFilledPrice = this.safeString(trade, 'avgFilledPrice');
+        const entrustTm = this.safeString(trade, 'entrustTm');
+        const timestamp = this.parseDate(entrustTm);
+        const profit = this.safeString(trade, 'profit');
+        const commission = this.safeString(trade, 'commission');
+        const status = this.safeString(trade, 'orderStatus');
+        let isClose = false;
+        if (action === 'Close') {
+            isClose = true;
+        }
+        let side = undefined;
+        if (rawSide === 'Bid') {
+            side = 'buy';
+        }
+        else {
+            side = 'sell';
+        }
+        let takerOrMaker = undefined;
+        const tradeType = this.safeString(trade, 'tradeType');
+        if (tradeType === 'Market') {
+            takerOrMaker = 'taker';
+        }
+        else {
+            takerOrMaker = 'maker';
+        }
+        let cost = 0.00045;
+        if (takerOrMaker === 'taker') {
+            cost = 0.00075;
+        }
+        return this.safeOrder({
+            'info': trade,
+            'id': id,
+            'symbol': symbol,
+            'side': side,
+            'type': type,
+            'filled': filled,
+            'amount': filled,
+            'average': avgFilledPrice,
+            'takerOrMaker': takerOrMaker,
+            'price': ePrice,
+            'profit': profit,
+            'fees': commission,
+            'status': status,
+            'timestamp': timestamp,
+            'datetime': this.iso8601(timestamp),
+            'isClose': isClose,
+            'fee': {
+                'currency': market['quote'],
+                'cost': cost,
+            },
+        });
     }
     async createOrder(symbol, type, side, amount, price = undefined, params = {}) {
         /**
@@ -905,7 +1043,8 @@ class bingx extends Exchange["default"] {
             'marginMode': marginMode,
             'liquidationPrice': liquidation,
             'entryPrice': this.safeNumber(position, 'avgPrice'),
-            'unrealizedPnl': this.safeNumber(position, 'unrealizedPL'),
+            'unrealizedPnl': this.safeNumber2(position, 'unrealisedPNL', 'unrealizedPL'),
+            'realizedPnl': this.safeNumber2(position, 'realisedPNL', 'realizedPL'),
             'percentage': undefined,
             'contracts': contracts,
             'contractSize': this.safeNumber(market, 'contractSize'),

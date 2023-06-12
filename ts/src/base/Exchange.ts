@@ -1291,6 +1291,8 @@ export default class Exchange {
         if (client.url in this.clients && this.clients[client.url].error) {
             if (!this.safeValue(this.clients[client.url].connection, 'willReconnect', false)) {
                 delete this.clients[client.url];
+            } else {
+                this.clients[client.url].subscriptions = {};
             }
         }
     }
@@ -1303,6 +1305,8 @@ export default class Exchange {
             if (this.clients[client.url]) {
                 if (!this.safeValue(this.clients[client.url].connection, 'willReconnect', false)) {
                     delete this.clients[client.url];
+                } else {
+                    this.clients[client.url].subscriptions = {};
                 }
             }
         }

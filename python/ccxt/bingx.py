@@ -670,7 +670,6 @@ class bingx(Exchange):
         id = self.safe_string(trade, 'orderId')
         action = self.safe_string(trade, 'action')
         type = self.safe_string(trade, 'tradeType')
-        eVolume = self.safe_string(trade, 'entrustVolume')
         ePrice = self.safe_string(trade, 'entrustPrice')
         filled = self.safe_string(trade, 'filledVolume')
         avgFilledPrice = self.safe_string(trade, 'avgFilledPrice')
@@ -678,7 +677,6 @@ class bingx(Exchange):
         timestamp = self.parse_date(entrustTm)
         profit = self.safe_string(trade, 'profit')
         commission = self.safe_string(trade, 'commission')
-        updateTm = self.safe_string(trade, 'updateTm')
         status = self.safe_string(trade, 'orderStatus')
         isClose = False
         if action == 'Close':
