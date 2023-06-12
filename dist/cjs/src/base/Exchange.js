@@ -1063,9 +1063,6 @@ class Exchange {
             if (!this.safeValue(this.clients[client.url].connection, 'willReconnect', false)) {
                 delete this.clients[client.url];
             }
-            else {
-                this.clients[client.url].subscriptions = {};
-            }
         }
     }
     onClose(client, error) {
@@ -1075,9 +1072,6 @@ class Exchange {
             if (this.clients[client.url]) {
                 if (!this.safeValue(this.clients[client.url].connection, 'willReconnect', false)) {
                     delete this.clients[client.url];
-                }
-                else {
-                    this.clients[client.url].subscriptions = {};
                 }
             }
         }
