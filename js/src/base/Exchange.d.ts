@@ -464,6 +464,7 @@ export default class Exchange {
     onError(client: any, error: any): void;
     onClose(client: any, error: any): void;
     close(): Promise<void>;
+    reconnect(): void;
     handleDelta(bookside: any, delta: any, nonce?: any): void;
     loadOrderBook(client: any, messageHash: any, symbol: any, limit?: any, params?: {}): Promise<void>;
     handleDeltas(orderbook: any, deltas: any, nonce?: any): void;

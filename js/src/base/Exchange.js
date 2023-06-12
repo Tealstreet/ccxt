@@ -1098,7 +1098,21 @@ export default class Exchange {
         for (let i = 0; i < clients.length; i++) {
             const client = clients[i];
             delete this.clients[client.url];
+            this.clients[client.url].subscriptions = {};
             await client.close();
+        }
+    }
+    reconnect() {
+        const clients = Object.values(this.clients || {});
+        for (let i = 0; i < clients.length; i++) {
+            const client = clients[i];
+            if (this.safeValue(client.connection, 'willReconnect', false)) {
+                // @ts-ignore
+                client.connection.reconnect();
+            }
+            else {
+                throw new ExchangeError(this.id + ' reconnect() client is not reconnecting client: ' + client);
+            }
         }
     }
     handleDelta(bookside, delta, nonce = undefined) {
