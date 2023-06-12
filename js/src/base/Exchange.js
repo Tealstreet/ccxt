@@ -1106,12 +1106,14 @@ export default class Exchange {
         const clients = Object.values(this.clients || {});
         for (let i = 0; i < clients.length; i++) {
             const client = clients[i];
-            if (this.safeValue(client.connection, 'willReconnect', false)) {
-                // @ts-ignore
-                client.connection.reconnect();
-            }
-            else {
-                throw new ExchangeError(this.id + ' reconnect() client is not reconnecting client: ' + client);
+            if (client.connection) {
+                if (this.safeValue(client.connection, 'willReconnect', false)) {
+                    // @ts-ignore
+                    client.connection.reconnect();
+                }
+                else {
+                    throw new ExchangeError(this.id + ' reconnect() client is not reconnecting client: ' + client);
+                }
             }
         }
     }
