@@ -1086,8 +1086,8 @@ class Exchange {
         const clients = Object.values(this.clients || {});
         for (let i = 0; i < clients.length; i++) {
             const client = clients[i];
+            client.subscriptions = {};
             delete this.clients[client.url];
-            this.clients[client.url].subscriptions = {};
             await client.close();
         }
     }
