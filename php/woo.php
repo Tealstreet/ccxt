@@ -253,6 +253,7 @@ class woo extends Exchange {
                 'transfer' => array(
                     'fillResponseFromRequest' => true,
                 ),
+                'brokerId' => 'bc830de7-50f3-460b-9ee0-f430f83f9dad',
             ),
             'commonCurrencies' => array(),
             'exceptions' => array(
@@ -799,6 +800,10 @@ class woo extends Exchange {
             $request['quantity'] = $this->amount_to_precision($symbol, $amount);
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
             // $response = $this->v3PrivatePostAlgoOrder (array_merge($request, $params));
+            $brokerId = $this->safe_string($this->options, 'brokerId');
+            if ($brokerId !== null) {
+                $request['broker_id'] = $brokerId;
+            }
             $response = $this->v3PrivatePostAlgoOrder ($request);
             // {
             //     success => true,
@@ -852,6 +857,10 @@ class woo extends Exchange {
             $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
             if ($clientOrderId !== null) {
                 $request['client_order_id'] = $clientOrderId;
+            }
+            $brokerId = $this->safe_string($this->options, 'brokerId');
+            if ($brokerId !== null) {
+                $request['broker_id'] = $brokerId;
             }
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
             $response = $this->v1PrivatePostOrder (array_merge($request, $params));

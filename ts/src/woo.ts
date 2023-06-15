@@ -253,6 +253,7 @@ export default class woo extends Exchange {
                 'transfer': {
                     'fillResponseFromRequest': true,
                 },
+                'brokerId': 'bc830de7-50f3-460b-9ee0-f430f83f9dad',
             },
             'commonCurrencies': {},
             'exceptions': {
@@ -809,6 +810,10 @@ export default class woo extends Exchange {
             request['quantity'] = this.amountToPrecision (symbol, amount);
             params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ]);
             // const response = await (this as any).v3PrivatePostAlgoOrder (this.extend (request, params));
+            const brokerId = this.safeString (this.options, 'brokerId');
+            if (brokerId !== undefined) {
+                request['broker_id'] = brokerId;
+            }
             const response = await (this as any).v3PrivatePostAlgoOrder (request);
             // {
             //     success: true,
@@ -862,6 +867,10 @@ export default class woo extends Exchange {
             const clientOrderId = this.safeString2 (params, 'clOrdID', 'clientOrderId');
             if (clientOrderId !== undefined) {
                 request['client_order_id'] = clientOrderId;
+            }
+            const brokerId = this.safeString (this.options, 'brokerId');
+            if (brokerId !== undefined) {
+                request['broker_id'] = brokerId;
             }
             params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ]);
             const response = await (this as any).v1PrivatePostOrder (this.extend (request, params));
