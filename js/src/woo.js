@@ -906,13 +906,21 @@ export default class woo extends Exchange {
             // 'quantity': this.amountToPrecision (symbol, amount),
             // 'price': this.priceToPrecision (symbol, price),
         };
-        if (price !== undefined) {
+        if (price !== undefined && type !== 'stop') {
             request['price'] = this.priceToPrecision(symbol, price);
+        }
+        const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
+        if (triggerPrice !== undefined) {
+            request['triggerPrice'] = triggerPrice;
         }
         if (amount !== undefined) {
             request['quantity'] = this.amountToPrecision(symbol, amount);
         }
-        const response = await this.v3PrivatePutOrderOid(this.extend(request, params));
+        let method = 'v3PrivatePutOrderOid';
+        if (this.maybeAlgoOrderId(id)) {
+            method = 'v3PrivatePutAlgoOrderOid';
+        }
+        const response = await this[method](this.extend(request, params));
         //
         //     {
         //         "code": 0,
@@ -1043,7 +1051,10 @@ export default class woo extends Exchange {
         const request = {};
         const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
         let chosenSpotMethod = undefined;
-        if (clientOrderId) {
+        if (this.maybeAlgoOrderId(id)) {
+            chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid';
+        }
+        else if (clientOrderId) {
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
             request['client_order_id'] = clientOrderId;
         }

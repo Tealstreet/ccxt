@@ -916,13 +916,21 @@ class woo extends Exchange {
                 // 'quantity' => $this->amount_to_precision($symbol, $amount),
                 // 'price' => $this->price_to_precision($symbol, $price),
             );
-            if ($price !== null) {
+            if ($price !== null && $type !== 'stop') {
                 $request['price'] = $this->price_to_precision($symbol, $price);
+            }
+            $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
+            if ($triggerPrice !== null) {
+                $request['triggerPrice'] = $triggerPrice;
             }
             if ($amount !== null) {
                 $request['quantity'] = $this->amount_to_precision($symbol, $amount);
             }
-            $response = Async\await($this->v3PrivatePutOrderOid (array_merge($request, $params)));
+            $method = 'v3PrivatePutOrderOid';
+            if ($this->maybe_algo_order_id($id)) {
+                $method = 'v3PrivatePutAlgoOrderOid';
+            }
+            $response = Async\await($this->$method (array_merge($request, $params)));
             //
             //     {
             //         "code" => 0,
@@ -1060,7 +1068,9 @@ class woo extends Exchange {
             $request = array();
             $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
             $chosenSpotMethod = null;
-            if ($clientOrderId) {
+            if ($this->maybe_algo_order_id($id)) {
+                $chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid';
+            } elseif ($clientOrderId) {
                 $chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
                 $request['client_order_id'] = $clientOrderId;
             } else {

@@ -877,11 +877,17 @@ class woo(Exchange):
             # 'quantity': self.amount_to_precision(symbol, amount),
             # 'price': self.price_to_precision(symbol, price),
         }
-        if price is not None:
+        if price is not None and type != 'stop':
             request['price'] = self.price_to_precision(symbol, price)
+        triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
+        if triggerPrice is not None:
+            request['triggerPrice'] = triggerPrice
         if amount is not None:
             request['quantity'] = self.amount_to_precision(symbol, amount)
-        response = await self.v3PrivatePutOrderOid(self.extend(request, params))
+        method = 'v3PrivatePutOrderOid'
+        if self.maybe_algo_order_id(id):
+            method = 'v3PrivatePutAlgoOrderOid'
+        response = await getattr(self, method)(self.extend(request, params))
         #
         #     {
         #         "code": 0,
@@ -995,7 +1001,9 @@ class woo(Exchange):
         request = {}
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         chosenSpotMethod = None
-        if clientOrderId:
+        if self.maybe_algo_order_id(id):
+            chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid'
+        elif clientOrderId:
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId'
             request['client_order_id'] = clientOrderId
         else:
