@@ -1154,8 +1154,8 @@ class woo extends Exchange {
             $ordersData = $this->safe_value($ordersResponse, 'rows');
             $total = 0;
             $algoOrdersRows = array();
-            for ($i = 0; $i < 25; $i++) {
-                $request['size'] = 25;
+            for ($i = 0; $i < 50; $i++) {
+                $request['size'] = 50;
                 $request['page'] = $i + 1;
                 $algoOrdersResponse = Async\await($this->v3PrivateGetAlgoOrders (array_merge($request, $params)));
                 $algoOrdersData = $this->safe_value($algoOrdersResponse, 'data');

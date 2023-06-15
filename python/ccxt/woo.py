@@ -1085,8 +1085,8 @@ class woo(Exchange):
         ordersData = self.safe_value(ordersResponse, 'rows')
         total = 0
         algoOrdersRows = []
-        for i in range(0, 25):
-            request['size'] = 25
+        for i in range(0, 50):
+            request['size'] = 50
             request['page'] = i + 1
             algoOrdersResponse = self.v3PrivateGetAlgoOrders(self.extend(request, params))
             algoOrdersData = self.safe_value(algoOrdersResponse, 'data')

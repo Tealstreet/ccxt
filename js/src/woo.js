@@ -1137,8 +1137,8 @@ export default class woo extends Exchange {
         const ordersData = this.safeValue(ordersResponse, 'rows');
         let total = 0;
         let algoOrdersRows = [];
-        for (let i = 0; i < 25; i++) {
-            request['size'] = 25;
+        for (let i = 0; i < 50; i++) {
+            request['size'] = 50;
             request['page'] = i + 1;
             const algoOrdersResponse = await this.v3PrivateGetAlgoOrders(this.extend(request, params));
             const algoOrdersData = this.safeValue(algoOrdersResponse, 'data');
