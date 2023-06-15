@@ -778,7 +778,7 @@ export default class woo extends Exchange {
         // 4.0
         // 33000.0
         // {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        const reduceOnly = this.safeValue(params, 'reduceOnly');
+        const reduceOnly = this.safeValue2(params, 'reduceOnly', 'close');
         const orderType = type.toUpperCase();
         if (orderType === 'STOP' || orderType === 'STOPLIMIT') {
             await this.loadMarkets();

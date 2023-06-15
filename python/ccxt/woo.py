@@ -763,7 +763,7 @@ class woo(Exchange):
         # 4.0
         # 33000.0
         # {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        reduceOnly = self.safe_value(params, 'reduceOnly')
+        reduceOnly = self.safe_value_2(params, 'reduceOnly', 'close')
         orderType = type.upper()
         if orderType == 'STOP' or orderType == 'STOPLIMIT':
             self.load_markets()

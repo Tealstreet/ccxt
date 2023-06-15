@@ -787,7 +787,7 @@ class woo extends Exchange {
             // 4.0
             // 33000.0
             // array('positionMode' => 'unknown', 'stopPrice' => 32000.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
-            $reduceOnly = $this->safe_value($params, 'reduceOnly');
+            $reduceOnly = $this->safe_value_2($params, 'reduceOnly', 'close');
             $orderType = strtoupper($type);
             if ($orderType === 'STOP' || $orderType === 'STOPLIMIT') {
                 Async\await($this->load_markets());
