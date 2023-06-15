@@ -458,78 +458,11 @@ class woo(ccxt.async_support.woo):
         return self.filter_by_symbol_since_limit(orders, symbol, since, limit, True)
 
     def parse_ws_order(self, order, market=None):
-        #
-        #     {
-        #         symbol: 'PERP_BTC_USDT',
-        #         clientOrderId: 0,
-        #         orderId: 52952826,
-        #         type: 'LIMIT',
-        #         side: 'SELL',
-        #         quantity: 0.01,
-        #         price: 22000,
-        #         tradeId: 0,
-        #         executedPrice: 0,
-        #         executedQuantity: 0,
-        #         fee: 0,
-        #         feeAsset: 'USDT',
-        #         totalExecutedQuantity: 0,
-        #         status: 'NEW',
-        #         reason: '',
-        #         orderTag: 'default',
-        #         totalFee: 0,
-        #         visible: 0.01,
-        #         timestamp: 1657515556799,
-        #         reduceOnly: False,
-        #         maker: False
-        #     }
-        #
-        orderId = self.safe_string(order, 'orderId')
-        marketId = self.safe_string(order, 'symbol')
-        market = self.market(marketId)
-        symbol = market['symbol']
-        timestamp = self.safe_integer(order, 'timestamp')
-        cost = self.safe_string(order, 'totalFee')
-        fee = {
-            'cost': cost,
-            'currency': self.safe_string(order, 'feeAsset'),
-        }
-        price = self.safe_float(order, 'price')
-        amount = self.safe_float(order, 'quantity')
-        side = self.safe_string_lower(order, 'side')
-        type = self.safe_string_lower(order, 'type')
-        filled = self.safe_float(order, 'executedQuantity')
-        totalExecQuantity = self.safe_float(order, 'totalExecutedQuantity')
-        remaining = amount
-        if amount >= totalExecQuantity:
-            remaining -= totalExecQuantity
-        rawStatus = self.safe_string(order, 'status')
-        status = self.parse_order_status(rawStatus)
-        trades = None
-        clientOrderId = self.safe_string(order, 'clientOrderId')
-        return {
-            'info': order,
-            'symbol': symbol,
-            'id': orderId,
-            'clientOrderId': clientOrderId,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'lastTradeTimestamp': timestamp,
-            'type': type,
-            'timeInForce': None,
-            'postOnly': None,
-            'side': side,
-            'price': price,
-            'stopPrice': None,
-            'triggerPrice': None,
-            'amount': amount,
-            'cost': cost,
-            'average': None,
-            'filled': filled,
-            'remaining': remaining,
-            'status': status,
-            'fee': fee,
-            'trades': trades,
-        }
+        isAlgoOrder = 'algoType' in order
+        if isAlgoOrder:
+            return self.parseAlgoOrder(order, market)
+        else:
+            return self.parseRegularOrder(order, market)
 
     def handle_order_update(self, client, message):
         #

@@ -466,79 +466,13 @@ export default class woo extends wooRest {
         return this.filterBySymbolSinceLimit(orders, symbol, since, limit, true);
     }
     parseWsOrder(order, market = undefined) {
-        //
-        //     {
-        //         symbol: 'PERP_BTC_USDT',
-        //         clientOrderId: 0,
-        //         orderId: 52952826,
-        //         type: 'LIMIT',
-        //         side: 'SELL',
-        //         quantity: 0.01,
-        //         price: 22000,
-        //         tradeId: 0,
-        //         executedPrice: 0,
-        //         executedQuantity: 0,
-        //         fee: 0,
-        //         feeAsset: 'USDT',
-        //         totalExecutedQuantity: 0,
-        //         status: 'NEW',
-        //         reason: '',
-        //         orderTag: 'default',
-        //         totalFee: 0,
-        //         visible: 0.01,
-        //         timestamp: 1657515556799,
-        //         reduceOnly: false,
-        //         maker: false
-        //     }
-        //
-        const orderId = this.safeString(order, 'orderId');
-        const marketId = this.safeString(order, 'symbol');
-        market = this.market(marketId);
-        const symbol = market['symbol'];
-        const timestamp = this.safeInteger(order, 'timestamp');
-        const cost = this.safeString(order, 'totalFee');
-        const fee = {
-            'cost': cost,
-            'currency': this.safeString(order, 'feeAsset'),
-        };
-        const price = this.safeFloat(order, 'price');
-        const amount = this.safeFloat(order, 'quantity');
-        const side = this.safeStringLower(order, 'side');
-        const type = this.safeStringLower(order, 'type');
-        const filled = this.safeFloat(order, 'executedQuantity');
-        const totalExecQuantity = this.safeFloat(order, 'totalExecutedQuantity');
-        let remaining = amount;
-        if (amount >= totalExecQuantity) {
-            remaining -= totalExecQuantity;
+        const isAlgoOrder = 'algoType' in order;
+        if (isAlgoOrder) {
+            return this.parseAlgoOrder(order, market);
         }
-        const rawStatus = this.safeString(order, 'status');
-        const status = this.parseOrderStatus(rawStatus);
-        const trades = undefined;
-        const clientOrderId = this.safeString(order, 'clientOrderId');
-        return {
-            'info': order,
-            'symbol': symbol,
-            'id': orderId,
-            'clientOrderId': clientOrderId,
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'lastTradeTimestamp': timestamp,
-            'type': type,
-            'timeInForce': undefined,
-            'postOnly': undefined,
-            'side': side,
-            'price': price,
-            'stopPrice': undefined,
-            'triggerPrice': undefined,
-            'amount': amount,
-            'cost': cost,
-            'average': undefined,
-            'filled': filled,
-            'remaining': remaining,
-            'status': status,
-            'fee': fee,
-            'trades': trades,
-        };
+        else {
+            return this.parseRegularOrder(order, market);
+        }
     }
     handleOrderUpdate(client, message) {
         //

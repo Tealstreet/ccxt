@@ -503,79 +503,12 @@ class woo extends \ccxt\async\woo {
     }
 
     public function parse_ws_order($order, $market = null) {
-        //
-        //     {
-        //         $symbol => 'PERP_BTC_USDT',
-        //         $clientOrderId => 0,
-        //         $orderId => 52952826,
-        //         $type => 'LIMIT',
-        //         $side => 'SELL',
-        //         quantity => 0.01,
-        //         $price => 22000,
-        //         tradeId => 0,
-        //         executedPrice => 0,
-        //         executedQuantity => 0,
-        //         $fee => 0,
-        //         feeAsset => 'USDT',
-        //         totalExecutedQuantity => 0,
-        //         $status => 'NEW',
-        //         reason => '',
-        //         orderTag => 'default',
-        //         totalFee => 0,
-        //         visible => 0.01,
-        //         $timestamp => 1657515556799,
-        //         reduceOnly => false,
-        //         maker => false
-        //     }
-        //
-        $orderId = $this->safe_string($order, 'orderId');
-        $marketId = $this->safe_string($order, 'symbol');
-        $market = $this->market($marketId);
-        $symbol = $market['symbol'];
-        $timestamp = $this->safe_integer($order, 'timestamp');
-        $cost = $this->safe_string($order, 'totalFee');
-        $fee = array(
-            'cost' => $cost,
-            'currency' => $this->safe_string($order, 'feeAsset'),
-        );
-        $price = $this->safe_float($order, 'price');
-        $amount = $this->safe_float($order, 'quantity');
-        $side = $this->safe_string_lower($order, 'side');
-        $type = $this->safe_string_lower($order, 'type');
-        $filled = $this->safe_float($order, 'executedQuantity');
-        $totalExecQuantity = $this->safe_float($order, 'totalExecutedQuantity');
-        $remaining = $amount;
-        if ($amount >= $totalExecQuantity) {
-            $remaining -= $totalExecQuantity;
+        $isAlgoOrder = 'algoType' in $order;
+        if ($isAlgoOrder) {
+            return $this->parseAlgoOrder ($order, $market);
+        } else {
+            return $this->parseRegularOrder ($order, $market);
         }
-        $rawStatus = $this->safe_string($order, 'status');
-        $status = $this->parse_order_status($rawStatus);
-        $trades = null;
-        $clientOrderId = $this->safe_string($order, 'clientOrderId');
-        return array(
-            'info' => $order,
-            'symbol' => $symbol,
-            'id' => $orderId,
-            'clientOrderId' => $clientOrderId,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'lastTradeTimestamp' => $timestamp,
-            'type' => $type,
-            'timeInForce' => null,
-            'postOnly' => null,
-            'side' => $side,
-            'price' => $price,
-            'stopPrice' => null,
-            'triggerPrice' => null,
-            'amount' => $amount,
-            'cost' => $cost,
-            'average' => null,
-            'filled' => $filled,
-            'remaining' => $remaining,
-            'status' => $status,
-            'fee' => $fee,
-            'trades' => $trades,
-        );
     }
 
     public function handle_order_update($client, $message) {
