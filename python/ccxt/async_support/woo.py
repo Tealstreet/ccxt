@@ -1278,6 +1278,7 @@ class woo(Exchange):
                 'PARTIAL_FILLED': 'open',
                 'REJECTED': 'rejected',
                 'INCOMPLETE': 'open',
+                'REPLACED': 'open',
                 'COMPLETED': 'closed',
             }
             return self.safe_string(statuses, status, status)

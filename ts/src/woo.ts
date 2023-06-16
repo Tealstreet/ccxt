@@ -1356,6 +1356,7 @@ export default class woo extends Exchange {
                 'PARTIAL_FILLED': 'open',
                 'REJECTED': 'rejected',
                 'INCOMPLETE': 'open',
+                'REPLACED': 'open',
                 'COMPLETED': 'closed',
             };
             return this.safeString (statuses, status, status);

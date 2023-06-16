@@ -1365,6 +1365,7 @@ class woo extends Exchange {
                 'PARTIAL_FILLED' => 'open',
                 'REJECTED' => 'rejected',
                 'INCOMPLETE' => 'open',
+                'REPLACED' => 'open',
                 'COMPLETED' => 'closed',
             );
             return $this->safe_string($statuses, $status, $status);
