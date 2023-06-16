@@ -2405,7 +2405,10 @@ class phemex(Exchange):
         # support 0 amount for full close stops
         elif amount is not None and amount > 0:
             if isUSDTSettled:
-                request['baseQtyEV'] = self.amount_to_precision(market['symbol'], amount)
+                if market['type'] == 'swap':
+                    request['orderQtyRq'] = self.amount_to_precision(market['symbol'], amount)
+                else:
+                    request['baseQtyEV'] = self.amount_to_precision(market['symbol'], amount)
             else:
                 request['baseQtyEV'] = self.to_ev(amount, market)
         stopPrice = self.safe_string_2(params, 'stopPx', 'stopPrice')
