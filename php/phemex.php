@@ -2513,7 +2513,11 @@ class phemex extends Exchange {
         // support 0 $amount for full close stops
         } elseif ($amount !== null && $amount > 0) {
             if ($isUSDTSettled) {
-                $request['baseQtyEV'] = $this->amount_to_precision($market['symbol'], $amount);
+                if ($market['type'] === 'swap') {
+                    $request['orderQtyRq'] = $this->amount_to_precision($market['symbol'], $amount);
+                } else {
+                    $request['baseQtyEV'] = $this->amount_to_precision($market['symbol'], $amount);
+                }
             } else {
                 $request['baseQtyEV'] = $this->to_ev($amount, $market);
             }
