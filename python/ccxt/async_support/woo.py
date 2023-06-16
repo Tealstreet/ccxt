@@ -261,7 +261,7 @@ class woo(Exchange):
                 'transfer': {
                     'fillResponseFromRequest': True,
                 },
-                'brokerId': 'bc830de7-50f3-460b-9ee0-f430f83f9dad',
+                'brokerId': 'ab82cb09-cfec-4473-80a3-b740779d0644',
             },
             'commonCurrencies': {},
             'exceptions': {
