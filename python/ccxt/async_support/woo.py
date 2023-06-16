@@ -1162,8 +1162,8 @@ class woo(Exchange):
         # * fetchOrders
         # isFromFetchOrder = ('order_tag' in order); TO_DO
         timestamp = self.safe_timestamp_2(order, 'timestamp', 'created_time')
-        orderId = self.safe_string(order, 'order_id')
-        clientOrderId = self.safe_string(order, 'client_order_id')  # Somehow, self always returns 0 for limit order
+        orderId = self.safe_string_2(order, 'order_id', 'orderId')
+        clientOrderId = self.safe_string_2(order, 'client_order_id', 'clientOrderId')  # Somehow, self always returns 0 for limit order
         marketId = self.safe_string(order, 'symbol')
         market = self.safe_market(marketId, market)
         symbol = market['symbol']
@@ -1174,10 +1174,10 @@ class woo(Exchange):
         status = self.safe_value(order, 'status')
         side = self.safe_string_lower(order, 'side')
         filled = self.safe_value(order, 'executed')
-        average = self.safe_string(order, 'average_executed_price')
+        average = self.safe_string_2(order, 'average_executed_price', 'executedPrice')
         remaining = Precise.string_sub(cost, filled)
-        fee = self.safe_value(order, 'total_fee')
-        feeCurrency = self.safe_string(order, 'fee_asset')
+        fee = self.safe_value_2(order, 'total_fee', 'totalFee')
+        feeCurrency = self.safe_string_2(order, 'fee_asset', 'feeAsset')
         transactions = self.safe_value(order, 'Transactions')
         return self.safe_order({
             'id': orderId,

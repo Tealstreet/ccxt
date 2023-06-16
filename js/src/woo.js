@@ -1227,8 +1227,8 @@ export default class woo extends Exchange {
         // * fetchOrders
         // const isFromFetchOrder = ('order_tag' in order); TO_DO
         const timestamp = this.safeTimestamp2(order, 'timestamp', 'created_time');
-        const orderId = this.safeString(order, 'order_id');
-        const clientOrderId = this.safeString(order, 'client_order_id'); // Somehow, this always returns 0 for limit order
+        const orderId = this.safeString2(order, 'order_id', 'orderId');
+        const clientOrderId = this.safeString2(order, 'client_order_id', 'clientOrderId'); // Somehow, this always returns 0 for limit order
         const marketId = this.safeString(order, 'symbol');
         market = this.safeMarket(marketId, market);
         const symbol = market['symbol'];
@@ -1239,10 +1239,10 @@ export default class woo extends Exchange {
         const status = this.safeValue(order, 'status');
         const side = this.safeStringLower(order, 'side');
         const filled = this.safeValue(order, 'executed');
-        const average = this.safeString(order, 'average_executed_price');
+        const average = this.safeString2(order, 'average_executed_price', 'executedPrice');
         const remaining = Precise.stringSub(cost, filled);
-        const fee = this.safeValue(order, 'total_fee');
-        const feeCurrency = this.safeString(order, 'fee_asset');
+        const fee = this.safeValue2(order, 'total_fee', 'totalFee');
+        const feeCurrency = this.safeString2(order, 'fee_asset', 'feeAsset');
         const transactions = this.safeValue(order, 'Transactions');
         return this.safeOrder({
             'id': orderId,

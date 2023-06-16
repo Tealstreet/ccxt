@@ -1217,8 +1217,8 @@ class woo extends Exchange {
         // * fetchOrders
         // $isFromFetchOrder = (is_array($order) && array_key_exists('order_tag', $order)); TO_DO
         $timestamp = $this->safe_timestamp_2($order, 'timestamp', 'created_time');
-        $orderId = $this->safe_string($order, 'order_id');
-        $clientOrderId = $this->safe_string($order, 'client_order_id'); // Somehow, this always returns 0 for limit $order
+        $orderId = $this->safe_string_2($order, 'order_id', 'orderId');
+        $clientOrderId = $this->safe_string_2($order, 'client_order_id', 'clientOrderId'); // Somehow, this always returns 0 for limit $order
         $marketId = $this->safe_string($order, 'symbol');
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
@@ -1229,10 +1229,10 @@ class woo extends Exchange {
         $status = $this->safe_value($order, 'status');
         $side = $this->safe_string_lower($order, 'side');
         $filled = $this->safe_value($order, 'executed');
-        $average = $this->safe_string($order, 'average_executed_price');
+        $average = $this->safe_string_2($order, 'average_executed_price', 'executedPrice');
         $remaining = Precise::string_sub($cost, $filled);
-        $fee = $this->safe_value($order, 'total_fee');
-        $feeCurrency = $this->safe_string($order, 'fee_asset');
+        $fee = $this->safe_value_2($order, 'total_fee', 'totalFee');
+        $feeCurrency = $this->safe_string_2($order, 'fee_asset', 'feeAsset');
         $transactions = $this->safe_value($order, 'Transactions');
         return $this->safe_order(array(
             'id' => $orderId,
