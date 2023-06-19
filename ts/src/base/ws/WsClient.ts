@@ -167,9 +167,12 @@ export default class WsClient {
     this.connection.onerror = this.onError.bind(this);
     this.connection.onclose = this.onClose.bind(this);
     if (isNode) {
-      this.connection
-        .on("ping", this.onPing.bind(this))
-        .on("pong", this.onPong.bind(this));
+      this.connection.on("pong", () => {
+        this.lastPong = milliseconds();
+        if (this.verbose) {
+          this.log(new Date(), "onPong");
+        }
+      });
     }
     // this.connection.terminate () // debugging
     // this.connection.close () // debugging
@@ -278,22 +281,6 @@ export default class WsClient {
     this.clearConnectionTimeout();
     this.setPingInterval();
     this.onConnectedCallback(this);
-  }
-
-  // this method is not used at this time, because in JS the ws client will
-  // respond to pings coming from the server with pongs automatically
-  // however, some devs may want to track connection states in their app
-  onPing() {
-    if (this.verbose) {
-      this.log(new Date(), "onPing");
-    }
-  }
-
-  onPong() {
-    this.lastPong = milliseconds();
-    if (this.verbose) {
-      this.log(new Date(), "onPong");
-    }
   }
 
   onError(error) {
