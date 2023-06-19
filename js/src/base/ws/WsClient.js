@@ -209,6 +209,8 @@ export default class WsClient {
         if (this.verbose) {
             this.log(new Date(), "onOpen");
         }
+        const now = milliseconds();
+        this.lastPong = now;
         this.connectionEstablished = milliseconds();
         this.isConnected = true;
         this.connected.resolve(this.url);
