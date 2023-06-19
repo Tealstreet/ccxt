@@ -303,7 +303,7 @@ export default class WsClient {
     if (!this.error) {
       // todo: exception types for server-side disconnects
       // TEALSTREET
-      if (NetworkError) {
+      if (this.error instanceof NetworkError) {
         this.reset(
           new NetworkError(
             "connection closed by remote server, closing code " +
