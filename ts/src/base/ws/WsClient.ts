@@ -340,6 +340,7 @@ export default class WsClient {
   }
 
   onMessage(rawMessage: { data: string | Buffer }) {
+    this.ensurePingInterval();
     // if we use onmessage we get MessageEvent objects
     // MessageEvent {isTrusted: true, data: "{"e":"depthUpdate","E":1581358737706,"s":"ETHBTC",…"0.06200000"]],"a":[["0.02261300","0.00000000"]]}", origin: "wss://stream.binance.com:9443", lastEventId: "", source: null, …}
     let message = rawMessage.data;
@@ -361,5 +362,13 @@ export default class WsClient {
       // reset with a json encoding error ?
     }
     this.onMessageCallback(this, message);
+  }
+
+  ensurePingInterval() {
+    if (this.keepAlive && !this.pingInterval) {
+      console.log('resetting ping interval');
+      const onPingInterval = this.onPingInterval.bind(this);
+      this.pingInterval = setInterval(onPingInterval, this.keepAlive);
+    }
   }
 }
