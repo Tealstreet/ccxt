@@ -169,8 +169,7 @@ export default class WsClient {
     if (isNode) {
       this.connection
         .on("ping", this.onPing.bind(this))
-        .on("pong", this.onPong.bind(this))
-        .on("upgrade", this.onUpgrade.bind(this));
+        .on("pong", this.onPong.bind(this));
     }
     // this.connection.terminate () // debugging
     // this.connection.close () // debugging
@@ -334,14 +333,6 @@ export default class WsClient {
       }
     }
     this.onCloseCallback(this, event);
-  }
-
-  // this method is not used at this time
-  // but may be used to read protocol-level data like cookies, headers, etc
-  onUpgrade(message) {
-    if (this.verbose) {
-      this.log(new Date(), "onUpgrade");
-    }
   }
 
   send(message) {
