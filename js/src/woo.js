@@ -830,7 +830,7 @@ export default class woo extends Exchange {
             return this.parseOrder(rows[0], market);
         }
         else {
-            if (reduceOnly !== undefined) {
+            if (reduceOnly !== undefined && reduceOnly === true) {
                 if (orderType !== 'LIMIT') {
                     throw new InvalidOrder(this.id + ' createOrder() only support reduceOnly for limit orders');
                 }
