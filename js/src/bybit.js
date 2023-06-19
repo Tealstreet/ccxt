@@ -7254,7 +7254,7 @@ export default class bybit extends Exchange {
         //
         const contract = this.safeString(position, 'symbol');
         market = this.safeMarket(contract, market, undefined, 'contract');
-        const size = Precise.stringAbs(this.safeString(position, 'size'));
+        let size = Precise.stringAbs(this.safeString(position, 'size'));
         let side = this.safeString(position, 'side');
         if (side !== undefined) {
             if (side === 'Buy') {
@@ -7262,6 +7262,7 @@ export default class bybit extends Exchange {
             }
             else if (side === 'Sell') {
                 side = 'short';
+                size = Precise.stringMul(size, '-1');
             }
             else {
                 side = undefined;

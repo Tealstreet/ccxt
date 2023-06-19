@@ -6764,6 +6764,7 @@ class bybit(Exchange):
                 side = 'long'
             elif side == 'Sell':
                 side = 'short'
+                size = Precise.string_mul(size, '-1')
             else:
                 side = None
         notional = self.safe_string(position, 'positionValue')

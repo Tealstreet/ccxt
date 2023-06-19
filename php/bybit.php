@@ -7142,6 +7142,7 @@ class bybit extends Exchange {
                 $side = 'long';
             } elseif ($side === 'Sell') {
                 $side = 'short';
+                $size = Precise::string_mul($size, '-1');
             } else {
                 $side = null;
             }
