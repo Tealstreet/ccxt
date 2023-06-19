@@ -117,10 +117,12 @@ export default class WsClient {
         this.connection.onerror = this.onError.bind(this);
         this.connection.onclose = this.onClose.bind(this);
         if (isNode) {
-            this.connection
-                .on("ping", this.onPing.bind(this))
-                .on("pong", this.onPong.bind(this))
-                .on("upgrade", this.onUpgrade.bind(this));
+            this.connection.on("pong", () => {
+                this.lastPong = milliseconds();
+                if (this.verbose) {
+                    this.log(new Date(), "onPong");
+                }
+            });
         }
         // this.connection.terminate () // debugging
         // this.connection.close () // debugging
@@ -215,20 +217,6 @@ export default class WsClient {
         this.setPingInterval();
         this.onConnectedCallback(this);
     }
-    // this method is not used at this time, because in JS the ws client will
-    // respond to pings coming from the server with pongs automatically
-    // however, some devs may want to track connection states in their app
-    onPing() {
-        if (this.verbose) {
-            this.log(new Date(), "onPing");
-        }
-    }
-    onPong() {
-        this.lastPong = milliseconds();
-        if (this.verbose) {
-            this.log(new Date(), "onPong");
-        }
-    }
     onError(error) {
         if (this.verbose) {
             this.log(new Date(), "onError", error.message);
@@ -259,13 +247,6 @@ export default class WsClient {
         }
         this.onCloseCallback(this, event);
     }
-    // this method is not used at this time
-    // but may be used to read protocol-level data like cookies, headers, etc
-    onUpgrade(message) {
-        if (this.verbose) {
-            this.log(new Date(), "onUpgrade");
-        }
-    }
     send(message) {
         if (this.verbose) {
             this.log(new Date(), "sending", message);
@@ -279,10 +260,10 @@ export default class WsClient {
             return this.connection.close();
         }
     }
-    onMessage(message) {
+    onMessage(rawMessage) {
         // if we use onmessage we get MessageEvent objects
         // MessageEvent {isTrusted: true, data: "{"e":"depthUpdate","E":1581358737706,"s":"ETHBTC",…"0.06200000"]],"a":[["0.02261300","0.00000000"]]}", origin: "wss://stream.binance.com:9443", lastEventId: "", source: null, …}
-        message = message.data;
+        let message = rawMessage.data;
         try {
             if (message instanceof Buffer) {
                 message = message.toString();

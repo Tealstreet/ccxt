@@ -94,7 +94,7 @@ export default class WsClient {
     this.connected = Future();
   }
 
-  future(messageHash) {
+  future(messageHash: string | undefined) {
     if (!(messageHash in this.futures)) {
       this.futures[messageHash] = Future();
     }
@@ -106,7 +106,7 @@ export default class WsClient {
     return future;
   }
 
-  resolve(result, messageHash) {
+  resolve(result, messageHash: string | undefined) {
     if (this.verbose && messageHash === undefined) {
       this.log(new Date(), "resolve received undefined messageHash");
     }
@@ -141,7 +141,7 @@ export default class WsClient {
     return result;
   }
 
-  log(...args) {
+  log(...args: any[]) {
     console.log(...args);
     // console.dir (args, { depth: null })
   }
@@ -337,10 +337,10 @@ export default class WsClient {
     }
   }
 
-  onMessage(message) {
+  onMessage(rawMessage: { data: string | Buffer }) {
     // if we use onmessage we get MessageEvent objects
     // MessageEvent {isTrusted: true, data: "{"e":"depthUpdate","E":1581358737706,"s":"ETHBTC",…"0.06200000"]],"a":[["0.02261300","0.00000000"]]}", origin: "wss://stream.binance.com:9443", lastEventId: "", source: null, …}
-    message = message.data;
+    let message = rawMessage.data;
     try {
       if (message instanceof Buffer) {
         message = message.toString();
