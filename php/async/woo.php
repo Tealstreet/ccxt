@@ -8,7 +8,6 @@ namespace ccxt\async;
 use Exception; // a common import
 use ccxt\ArgumentsRequired;
 use ccxt\BadRequest;
-use ccxt\InvalidOrder;
 use ccxt\Precise;
 use React\Async;
 
@@ -838,11 +837,6 @@ class woo extends Exchange {
                 // );
                 return $this->parse_order($rows[0], $market);
             } else {
-                if ($reduceOnly !== null && $reduceOnly === true) {
-                    if ($orderType !== 'LIMIT') {
-                        throw new InvalidOrder($this->id . ' createOrder() only support $reduceOnly for limit orders');
-                    }
-                }
                 Async\await($this->load_markets());
                 $market = $this->market($symbol);
                 $orderSide = strtoupper($side);

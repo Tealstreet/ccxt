@@ -810,9 +810,6 @@ class woo(Exchange):
             # )
             return self.parse_order(rows[0], market)
         else:
-            if reduceOnly is not None and reduceOnly is True:
-                if orderType != 'LIMIT':
-                    raise InvalidOrder(self.id + ' createOrder() only support reduceOnly for limit orders')
             await self.load_markets()
             market = self.market(symbol)
             orderSide = side.upper()
