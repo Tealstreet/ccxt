@@ -2687,6 +2687,7 @@ export default class woo extends Exchange {
             'marginMode': 'cross',
             'positionMode': 'oneway',
             'markets': {},
+            'leverage': leverage,
         };
         const leverageConfigs = accountConfig['markets'];
         leverageConfigs[market['symbol']] = {

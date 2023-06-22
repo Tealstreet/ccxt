@@ -2637,6 +2637,7 @@ class woo extends Exchange {
             'marginMode' => 'cross',
             'positionMode' => 'oneway',
             'markets' => array(),
+            'leverage' => $leverage,
         );
         $leverageConfigs = $accountConfig['markets'];
         $leverageConfigs[$market['symbol']] = array(

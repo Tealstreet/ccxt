@@ -2494,6 +2494,7 @@ class woo(Exchange):
             'marginMode': 'cross',
             'positionMode': 'oneway',
             'markets': {},
+            'leverage': leverage,
         }
         leverageConfigs = accountConfig['markets']
         leverageConfigs[market['symbol']] = {
