@@ -1128,7 +1128,7 @@ class bybit extends Exchange {
         $enableUnifiedMargin = $this->safe_value($this->options, 'enableUnifiedMargin');
         $enableUnifiedAccount = $this->safe_value($this->options, 'enableUnifiedAccount');
         if ($enableUnifiedMargin === null || $enableUnifiedAccount === null) {
-            $response = $this->privateGetUserV3PrivateQueryApi ($params);
+            // $response = $this->privateGetUserV3PrivateQueryApi ($params);
             //
             //     {
             //         "retCode":0,
@@ -1162,9 +1162,11 @@ class bybit extends Exchange {
             //         "time":1669735171649
             //     }
             //
-            $result = $this->safe_value($response, 'result', array());
-            $this->options['enableUnifiedMargin'] = $this->safe_integer($result, 'unified') === 1;
-            $this->options['enableUnifiedAccount'] = $this->safe_integer($result, 'uta') === 1;
+            // $result = $this->safe_value($response, 'result', array());
+            // $this->options['enableUnifiedMargin'] = $this->safe_integer($result, 'unified') === 1;
+            // $this->options['enableUnifiedAccount'] = $this->safe_integer($result, 'uta') === 1;
+            $this->options['enableUnifiedMargin'] = 1;
+            $this->options['enableUnifiedAccount'] = 1;
         }
         return [ $this->options['enableUnifiedMargin'], $this->options['enableUnifiedAccount'] ];
     }
