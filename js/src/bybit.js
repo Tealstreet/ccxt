@@ -1128,7 +1128,7 @@ export default class bybit extends Exchange {
         const enableUnifiedMargin = this.safeValue(this.options, 'enableUnifiedMargin');
         const enableUnifiedAccount = this.safeValue(this.options, 'enableUnifiedAccount');
         if (enableUnifiedMargin === undefined || enableUnifiedAccount === undefined) {
-            const response = await this.privateGetUserV3PrivateQueryApi(params);
+            // const response = await (this as any).privateGetUserV3PrivateQueryApi (params);
             //
             //     {
             //         "retCode":0,
@@ -1162,9 +1162,11 @@ export default class bybit extends Exchange {
             //         "time":1669735171649
             //     }
             //
-            const result = this.safeValue(response, 'result', {});
-            this.options['enableUnifiedMargin'] = this.safeInteger(result, 'unified') === 1;
-            this.options['enableUnifiedAccount'] = this.safeInteger(result, 'uta') === 1;
+            // const result = this.safeValue (response, 'result', {});
+            // this.options['enableUnifiedMargin'] = this.safeInteger (result, 'unified') === 1;
+            // this.options['enableUnifiedAccount'] = this.safeInteger (result, 'uta') === 1;
+            this.options['enableUnifiedMargin'] = 1;
+            this.options['enableUnifiedAccount'] = 1;
         }
         return [this.options['enableUnifiedMargin'], this.options['enableUnifiedAccount']];
     }
