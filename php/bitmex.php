@@ -548,8 +548,10 @@ class bitmex extends Exchange {
             $currencyId = $this->safe_string($balance, 'currency');
             $code = $this->safe_currency_code($currencyId);
             $account = $this->account();
-            $free = $this->safe_string($balance, 'availableMargin');
-            $total = $this->safe_string($balance, 'marginBalance');
+            $free = $this->safe_integer($balance, 'availableMargin');
+            $total = $this->safe_integer($balance, 'marginBalance');
+            $freeStr = (string) $free;
+            $totalStr = (string) $total;
             if ($code !== 'USDT') {
                 // tmp fix until this PR gets merged
                 // https://github.com/ccxt/ccxt/pull/15311
@@ -558,18 +560,18 @@ class bitmex extends Exchange {
                 $info = $this->safe_value($market, 'info', array());
                 $multiplier = $this->safe_string($info, 'underlyingToPositionMultiplier');
                 if ($multiplier !== null) {
-                    $free = Precise::string_div($free, $multiplier);
-                    $total = Precise::string_div($total, $multiplier);
+                    $freeStr = Precise::string_div($freeStr, $multiplier);
+                    $totalStr = Precise::string_div($totalStr, $multiplier);
                 } else {
-                    $free = Precise::string_div($free, '1e8');
-                    $total = Precise::string_div($total, '1e8');
+                    $freeStr = Precise::string_div($freeStr, '1e8');
+                    $totalStr = Precise::string_div($totalStr, '1e8');
                 }
             } else {
-                $free = Precise::string_div($free, '1e6');
-                $total = Precise::string_div($total, '1e6');
+                $freeStr = Precise::string_div($freeStr, '1e6');
+                $totalStr = Precise::string_div($totalStr, '1e6');
             }
-            $account['free'] = $free;
-            $account['total'] = $total;
+            $account['free'] = $freeStr;
+            $account['total'] = $totalStr;
             $result[$code] = $account;
         }
         return $this->safe_balance($result);
