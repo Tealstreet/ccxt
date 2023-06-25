@@ -259,5 +259,6 @@ export default class woo extends Exchange {
         marginMode: string;
         positionMode: string;
         markets: {};
+        leverage: number;
     }>;
 }

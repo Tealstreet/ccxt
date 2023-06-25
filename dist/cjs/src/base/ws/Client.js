@@ -60,8 +60,8 @@ class Client {
         return future;
     }
     resolve(result, messageHash) {
-        if (this.verbose && (messageHash === undefined)) {
-            this.log(new Date(), 'resolve received undefined messageHash');
+        if (this.verbose && messageHash === undefined) {
+            this.log(new Date(), "resolve received undefined messageHash");
         }
         if (messageHash in this.futures) {
             const promise = this.futures[messageHash];
@@ -99,10 +99,10 @@ class Client {
         // console.dir (args, { depth: null })
     }
     connect(backoffDelay = 0) {
-        throw new errors.NotSupported('connect() not implemented yet');
+        throw new errors.NotSupported("connect() not implemented yet");
     }
     isOpen() {
-        throw new errors.NotSupported('isOpen() not implemented yet');
+        throw new errors.NotSupported("isOpen() not implemented yet");
     }
     reset(error) {
         this.clearConnectionTimeout();
@@ -111,7 +111,7 @@ class Client {
     }
     onConnectionTimeout() {
         if (!this.isOpen()) {
-            const error = new errors.RequestTimeout('Connection to ' + this.url + ' failed due to a connection timeout');
+            const error = new errors.RequestTimeout("Connection to " + this.url + " failed due to a connection timeout");
             this.onError(error);
             this.connection.close(1006);
         }
@@ -142,8 +142,15 @@ class Client {
         if (this.keepAlive && this.isOpen()) {
             const now = time.milliseconds();
             this.lastPong = this.lastPong || now;
-            if ((this.lastPong + this.keepAlive * this.maxPingPongMisses) < now) {
-                this.onError(new errors.RequestTimeout('Connection to ' + this.url + ' timed out due to a ping-pong keepalive missing on time'));
+            if (this.lastPong + this.keepAlive * this.maxPingPongMisses < now) {
+                console.error('ping-pong keepalive missed on time. Doing nothing in CCXT. Handle elsewhere...');
+                // this.onError(
+                //   new RequestTimeout(
+                //     "Connection to " +
+                //       this.url +
+                //       " timed out due to a ping-pong keepalive missing on time"
+                //   )
+                // );
             }
             else {
                 if (this.ping) {
@@ -166,7 +173,7 @@ class Client {
     }
     onOpen() {
         if (this.verbose) {
-            this.log(new Date(), 'onOpen');
+            this.log(new Date(), "onOpen");
         }
         this.connectionEstablished = time.milliseconds();
         this.isConnected = true;
@@ -181,18 +188,18 @@ class Client {
     // however, some devs may want to track connection states in their app
     onPing() {
         if (this.verbose) {
-            this.log(new Date(), 'onPing');
+            this.log(new Date(), "onPing");
         }
     }
     onPong() {
         this.lastPong = time.milliseconds();
         if (this.verbose) {
-            this.log(new Date(), 'onPong');
+            this.log(new Date(), "onPong");
         }
     }
     onError(error) {
         if (this.verbose) {
-            this.log(new Date(), 'onError', error.message);
+            this.log(new Date(), "onError", error.message);
         }
         if (!(error instanceof errors.BaseError)) {
             // in case of ErrorEvent from node_modules/ws/lib/event-target.js
@@ -204,16 +211,18 @@ class Client {
     }
     onClose(event) {
         if (this.verbose) {
-            this.log(new Date(), 'onClose', event);
+            this.log(new Date(), "onClose", event);
         }
         if (!this.error) {
             // todo: exception types for server-side disconnects
             // TEALSTREET
             if (errors.NetworkError) {
-                this.reset(new errors.NetworkError('connection closed by remote server, closing code ' + String(event.code)));
+                this.reset(new errors.NetworkError("connection closed by remote server, closing code " +
+                    String(event.code)));
             }
             else {
-                this.reset(new Error('connection closed by remote server, closing code ' + String(event.code)));
+                this.reset(new Error("connection closed by remote server, closing code " +
+                    String(event.code)));
             }
         }
         this.onCloseCallback(this, event);
@@ -222,18 +231,18 @@ class Client {
     // but may be used to read protocol-level data like cookies, headers, etc
     onUpgrade(message) {
         if (this.verbose) {
-            this.log(new Date(), 'onUpgrade');
+            this.log(new Date(), "onUpgrade");
         }
     }
     send(message) {
         if (this.verbose) {
-            this.log(new Date(), 'sending', message);
+            this.log(new Date(), "sending", message);
         }
-        message = (typeof message === 'string') ? message : JSON.stringify(message);
+        message = typeof message === "string" ? message : JSON.stringify(message);
         this.connection.send(message);
     }
     close() {
-        throw new errors.NotSupported('close() not implemented yet');
+        throw new errors.NotSupported("close() not implemented yet");
     }
     onMessage(message) {
         // if we use onmessage we get MessageEvent objects
@@ -255,14 +264,14 @@ class Client {
                 message = JSON.parse(message.replace(/:(\d{15,}),/g, ':"$1",'));
             }
             if (this.verbose) {
-                this.log(new Date(), 'onMessage', message);
+                this.log(new Date(), "onMessage", message);
                 // unlimited depth
                 // this.log (new Date (), 'onMessage', util.inspect (message, false, null, true))
                 // this.log (new Date (), 'onMessage', JSON.stringify (message, null, 4))
             }
         }
         catch (e) {
-            this.log(new Date(), 'onMessage JSON.parse', e);
+            this.log(new Date(), "onMessage JSON.parse", e);
             // reset with a json encoding error ?
         }
         this.onMessageCallback(this, message);

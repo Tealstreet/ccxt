@@ -252,6 +252,7 @@ class woo extends Exchange["default"] {
                 'transfer': {
                     'fillResponseFromRequest': true,
                 },
+                'brokerId': 'ab82cb09-cfec-4473-80a3-b740779d0644',
             },
             'commonCurrencies': {},
             'exceptions': {
@@ -774,7 +775,7 @@ class woo extends Exchange["default"] {
         // 4.0
         // 33000.0
         // {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        const reduceOnly = this.safeValue(params, 'reduceOnly');
+        const reduceOnly = this.safeValue2(params, 'reduceOnly', 'close');
         const orderType = type.toUpperCase();
         if (orderType === 'STOP' || orderType === 'STOPLIMIT') {
             await this.loadMarkets();
@@ -801,6 +802,10 @@ class woo extends Exchange["default"] {
             request['quantity'] = this.amountToPrecision(symbol, amount);
             params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
             // const response = await (this as any).v3PrivatePostAlgoOrder (this.extend (request, params));
+            const brokerId = this.safeString(this.options, 'brokerId');
+            if (brokerId !== undefined) {
+                request['broker_id'] = brokerId;
+            }
             const response = await this.v3PrivatePostAlgoOrder(request);
             // {
             //     success: true,
@@ -822,11 +827,6 @@ class woo extends Exchange["default"] {
             return this.parseOrder(rows[0], market);
         }
         else {
-            if (reduceOnly !== undefined) {
-                if (orderType !== 'LIMIT') {
-                    throw new errors.InvalidOrder(this.id + ' createOrder() only support reduceOnly for limit orders');
-                }
-            }
             await this.loadMarkets();
             const market = this.market(symbol);
             const orderSide = side.toUpperCase();
@@ -857,6 +857,10 @@ class woo extends Exchange["default"] {
             const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
             if (clientOrderId !== undefined) {
                 request['client_order_id'] = clientOrderId;
+            }
+            const brokerId = this.safeString(this.options, 'brokerId');
+            if (brokerId !== undefined) {
+                request['broker_id'] = brokerId;
             }
             params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
             const response = await this.v1PrivatePostOrder(this.extend(request, params));
@@ -894,13 +898,21 @@ class woo extends Exchange["default"] {
             // 'quantity': this.amountToPrecision (symbol, amount),
             // 'price': this.priceToPrecision (symbol, price),
         };
-        if (price !== undefined) {
+        if (price !== undefined && type !== 'stop') {
             request['price'] = this.priceToPrecision(symbol, price);
+        }
+        const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
+        if (triggerPrice !== undefined) {
+            request['triggerPrice'] = triggerPrice;
         }
         if (amount !== undefined) {
             request['quantity'] = this.amountToPrecision(symbol, amount);
         }
-        const response = await this.v3PrivatePutOrderOid(this.extend(request, params));
+        let method = 'v3PrivatePutOrderOid';
+        if (this.maybeAlgoOrderId(id)) {
+            method = 'v3PrivatePutAlgoOrderOid';
+        }
+        const response = await this[method](this.extend(request, params));
         //
         //     {
         //         "code": 0,
@@ -1031,7 +1043,10 @@ class woo extends Exchange["default"] {
         const request = {};
         const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
         let chosenSpotMethod = undefined;
-        if (clientOrderId) {
+        if (this.maybeAlgoOrderId(id)) {
+            chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid';
+        }
+        else if (clientOrderId) {
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
             request['client_order_id'] = clientOrderId;
         }
@@ -1134,8 +1149,8 @@ class woo extends Exchange["default"] {
         const ordersData = this.safeValue(ordersResponse, 'rows');
         let total = 0;
         let algoOrdersRows = [];
-        for (let i = 0; i < 25; i++) {
-            request['size'] = 25;
+        for (let i = 0; i < 50; i++) {
+            request['size'] = 50;
             request['page'] = i + 1;
             const algoOrdersResponse = await this.v3PrivateGetAlgoOrders(this.extend(request, params));
             const algoOrdersData = this.safeValue(algoOrdersResponse, 'data');
@@ -1204,8 +1219,8 @@ class woo extends Exchange["default"] {
         // * fetchOrders
         // const isFromFetchOrder = ('order_tag' in order); TO_DO
         const timestamp = this.safeTimestamp2(order, 'timestamp', 'created_time');
-        const orderId = this.safeString(order, 'order_id');
-        const clientOrderId = this.safeString(order, 'client_order_id'); // Somehow, this always returns 0 for limit order
+        const orderId = this.safeString2(order, 'order_id', 'orderId');
+        const clientOrderId = this.safeString2(order, 'client_order_id', 'clientOrderId'); // Somehow, this always returns 0 for limit order
         const marketId = this.safeString(order, 'symbol');
         market = this.safeMarket(marketId, market);
         const symbol = market['symbol'];
@@ -1216,10 +1231,10 @@ class woo extends Exchange["default"] {
         const status = this.safeValue(order, 'status');
         const side = this.safeStringLower(order, 'side');
         const filled = this.safeValue(order, 'executed');
-        const average = this.safeString(order, 'average_executed_price');
+        const average = this.safeString2(order, 'average_executed_price', 'executedPrice');
         const remaining = Precise["default"].stringSub(cost, filled);
-        const fee = this.safeValue(order, 'total_fee');
-        const feeCurrency = this.safeString(order, 'fee_asset');
+        const fee = this.safeValue2(order, 'total_fee', 'totalFee');
+        const feeCurrency = this.safeString2(order, 'fee_asset', 'feeAsset');
         const transactions = this.safeValue(order, 'Transactions');
         return this.safeOrder({
             'id': orderId,
@@ -1321,6 +1336,7 @@ class woo extends Exchange["default"] {
                 'PARTIAL_FILLED': 'open',
                 'REJECTED': 'rejected',
                 'INCOMPLETE': 'open',
+                'REPLACED': 'open',
                 'COMPLETED': 'closed',
             };
             return this.safeString(statuses, status, status);
@@ -2622,6 +2638,7 @@ class woo extends Exchange["default"] {
             'marginMode': 'cross',
             'positionMode': 'oneway',
             'markets': {},
+            'leverage': leverage,
         };
         const leverageConfigs = accountConfig['markets'];
         leverageConfigs[market['symbol']] = {

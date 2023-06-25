@@ -1,4 +1,4 @@
-import Client from './Client.js';
+import Client from "./Client.js";
 export default class WsClient extends Client {
     connectionStarted: number;
     protocols: any;

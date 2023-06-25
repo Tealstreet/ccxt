@@ -550,8 +550,10 @@ class bitmex extends Exchange["default"] {
             const currencyId = this.safeString(balance, 'currency');
             const code = this.safeCurrencyCode(currencyId);
             const account = this.account();
-            let free = this.safeString(balance, 'availableMargin');
-            let total = this.safeString(balance, 'marginBalance');
+            const free = this.safeInteger(balance, 'availableMargin');
+            const total = this.safeInteger(balance, 'marginBalance');
+            let freeStr = free.toString();
+            let totalStr = total.toString();
             if (code !== 'USDT') {
                 // tmp fix until this PR gets merged
                 // https://github.com/ccxt/ccxt/pull/15311
@@ -560,20 +562,20 @@ class bitmex extends Exchange["default"] {
                 const info = this.safeValue(market, 'info', {});
                 const multiplier = this.safeString(info, 'underlyingToPositionMultiplier');
                 if (multiplier !== undefined) {
-                    free = Precise["default"].stringDiv(free, multiplier);
-                    total = Precise["default"].stringDiv(total, multiplier);
+                    freeStr = Precise["default"].stringDiv(freeStr, multiplier);
+                    totalStr = Precise["default"].stringDiv(totalStr, multiplier);
                 }
                 else {
-                    free = Precise["default"].stringDiv(free, '1e8');
-                    total = Precise["default"].stringDiv(total, '1e8');
+                    freeStr = Precise["default"].stringDiv(freeStr, '1e8');
+                    totalStr = Precise["default"].stringDiv(totalStr, '1e8');
                 }
             }
             else {
-                free = Precise["default"].stringDiv(free, '1e6');
-                total = Precise["default"].stringDiv(total, '1e6');
+                freeStr = Precise["default"].stringDiv(freeStr, '1e6');
+                totalStr = Precise["default"].stringDiv(totalStr, '1e6');
             }
-            account['free'] = free;
-            account['total'] = total;
+            account['free'] = freeStr;
+            account['total'] = totalStr;
             result[code] = account;
         }
         return this.safeBalance(result);

@@ -142,9 +142,14 @@ export default class Client {
             const now = milliseconds();
             this.lastPong = this.lastPong || now;
             if (this.lastPong + this.keepAlive * this.maxPingPongMisses < now) {
-                this.onError(new RequestTimeout("Connection to " +
-                    this.url +
-                    " timed out due to a ping-pong keepalive missing on time"));
+                console.error('ping-pong keepalive missed on time. Doing nothing in CCXT. Handle elsewhere...');
+                // this.onError(
+                //   new RequestTimeout(
+                //     "Connection to " +
+                //       this.url +
+                //       " timed out due to a ping-pong keepalive missing on time"
+                //   )
+                // );
             }
             else {
                 if (this.ping) {

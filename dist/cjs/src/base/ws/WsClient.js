@@ -18,12 +18,12 @@ const WebSocketPlatform = platform.isNode ? WebSocket__default["default"] : self
 class WsClient extends Client {
     createConnection() {
         if (this.verbose) {
-            this.log(new Date(), 'connecting to', this.url);
+            this.log(new Date(), "connecting to", this.url);
         }
         this.connectionStarted = time.milliseconds();
         this.setConnectionTimeout();
-        const url = `${this.url}${this.url.includes('?') ? '&' : '?'}${+new Date()}`;
-        const wsClass = type.safeValue(this.options, 'wsClass', WebSocketPlatform);
+        const url = `${this.url}${this.url.includes("?") ? "&" : "?"}${+new Date()}`;
+        const wsClass = type.safeValue(this.options, "wsClass", WebSocketPlatform);
         if (platform.isNode) {
             this.connection = new wsClass(url, this.protocols, this.options);
         }
@@ -36,9 +36,9 @@ class WsClient extends Client {
         this.connection.onclose = this.onClose.bind(this);
         if (platform.isNode) {
             this.connection
-                .on('ping', this.onPing.bind(this))
-                .on('pong', this.onPong.bind(this))
-                .on('upgrade', this.onUpgrade.bind(this));
+                .on("ping", this.onPing.bind(this))
+                .on("pong", this.onPong.bind(this))
+                .on("upgrade", this.onUpgrade.bind(this));
         }
         // this.connection.terminate () // debugging
         // this.connection.close () // debugging
@@ -57,10 +57,10 @@ class WsClient extends Client {
         return this.connected;
     }
     isOpen() {
-        return (this.connection.readyState === WebSocketPlatform.OPEN);
+        return this.connection.readyState === WebSocketPlatform.OPEN;
     }
     close() {
-        const wsClass = type.safeValue(this.options, 'wsClass', WebSocketPlatform);
+        const wsClass = type.safeValue(this.options, "wsClass", WebSocketPlatform);
         if (this.connection instanceof wsClass) {
             return this.connection.close();
         }

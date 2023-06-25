@@ -1125,7 +1125,7 @@ class bybit extends Exchange["default"] {
         const enableUnifiedMargin = this.safeValue(this.options, 'enableUnifiedMargin');
         const enableUnifiedAccount = this.safeValue(this.options, 'enableUnifiedAccount');
         if (enableUnifiedMargin === undefined || enableUnifiedAccount === undefined) {
-            const response = await this.privateGetUserV3PrivateQueryApi(params);
+            // const response = await (this as any).privateGetUserV3PrivateQueryApi (params);
             //
             //     {
             //         "retCode":0,
@@ -1159,9 +1159,11 @@ class bybit extends Exchange["default"] {
             //         "time":1669735171649
             //     }
             //
-            const result = this.safeValue(response, 'result', {});
-            this.options['enableUnifiedMargin'] = this.safeInteger(result, 'unified') === 1;
-            this.options['enableUnifiedAccount'] = this.safeInteger(result, 'uta') === 1;
+            // const result = this.safeValue (response, 'result', {});
+            // this.options['enableUnifiedMargin'] = this.safeInteger (result, 'unified') === 1;
+            // this.options['enableUnifiedAccount'] = this.safeInteger (result, 'uta') === 1;
+            this.options['enableUnifiedMargin'] = 1;
+            this.options['enableUnifiedAccount'] = 1;
         }
         return [this.options['enableUnifiedMargin'], this.options['enableUnifiedAccount']];
     }
@@ -7251,7 +7253,7 @@ class bybit extends Exchange["default"] {
         //
         const contract = this.safeString(position, 'symbol');
         market = this.safeMarket(contract, market, undefined, 'contract');
-        const size = Precise["default"].stringAbs(this.safeString(position, 'size'));
+        let size = Precise["default"].stringAbs(this.safeString(position, 'size'));
         let side = this.safeString(position, 'side');
         if (side !== undefined) {
             if (side === 'Buy') {
@@ -7259,6 +7261,7 @@ class bybit extends Exchange["default"] {
             }
             else if (side === 'Sell') {
                 side = 'short';
+                size = Precise["default"].stringMul(size, '-1');
             }
             else {
                 side = undefined;
