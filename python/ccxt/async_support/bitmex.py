@@ -556,8 +556,13 @@ class bitmex(Exchange):
             currencyId = self.safe_string(balance, 'currency')
             code = self.safe_currency_code(currencyId)
             account = self.account()
-            free = self.safe_integer(balance, 'availableMargin')
+            free = self.safe_integer(balance, 'availableMargin', 0)
             total = self.safe_integer(balance, 'marginBalance')
+            if total is None and free is not None:
+                marginUsedPcnt = self.safe_number(balance, 'marginUsedPcnt', 0)
+                total = free / (1 - marginUsedPcnt)
+            if total is None:
+                total = 0
             freeStr = str(free)
             totalStr = str(total)
             if code != 'USDT':

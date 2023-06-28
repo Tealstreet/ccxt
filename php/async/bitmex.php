@@ -560,8 +560,15 @@ class bitmex extends Exchange {
             $currencyId = $this->safe_string($balance, 'currency');
             $code = $this->safe_currency_code($currencyId);
             $account = $this->account();
-            $free = $this->safe_integer($balance, 'availableMargin');
+            $free = $this->safe_integer($balance, 'availableMargin', 0);
             $total = $this->safe_integer($balance, 'marginBalance');
+            if ($total === null && $free !== null) {
+                $marginUsedPcnt = $this->safe_number($balance, 'marginUsedPcnt', 0);
+                $total = $free / (1 - $marginUsedPcnt);
+            }
+            if ($total === null) {
+                $total = 0;
+            }
             $freeStr = (string) $free;
             $totalStr = (string) $total;
             if ($code !== 'USDT') {

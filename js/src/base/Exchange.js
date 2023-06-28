@@ -1109,7 +1109,9 @@ export default class Exchange {
             if (client.connection) {
                 if (this.safeValue(client.connection, 'willReconnect', false)) {
                     // @ts-ignore
+                    client.subscriptions = {};
                     client.connection.reconnect();
+                    client.reject();
                 }
                 else {
                     throw new ExchangeError(this.id + ' reconnect() client is not reconnecting client: ' + client);
