@@ -789,7 +789,7 @@ class woo(Exchange):
             # response = await self.v3PrivatePostAlgoOrder(self.extend(request, params))
             brokerId = self.safe_string(self.options, 'brokerId')
             if brokerId is not None:
-                request['broker_id'] = brokerId
+                request['brokerId'] = brokerId
             response = await self.v3PrivatePostAlgoOrder(request)
             # {
             #     success: True,
