@@ -547,6 +547,7 @@ class bybit extends Exchange {
                         'v5/position/set-leverage' => 2.5,
                         'v5/position/set-tpsl-mode' => 2.5,
                         'v5/position/set-risk-limit' => 2.5,
+                        'v5/position/switch-mode' => 2.5,
                         'v5/position/trading-stop' => 2.5,
                         'v5/account/upgrade-to-uta' => 2.5,
                         'v5/account/set-margin-mode' => 2.5,
@@ -3392,6 +3393,13 @@ class bybit extends Exchange {
         $this->load_markets();
         $market = $this->market($symbol);
         $lowerCaseType = strtolower($type);
+        //  TEALSTREET  //
+        if ($lowerCaseType === 'stop') {
+            $lowerCaseType = 'market';
+        } elseif ($lowerCaseType === 'stopLimit') {
+            $lowerCaseType = 'limit';
+        }
+        //              //
         if (($price === null) && ($lowerCaseType === 'limit')) {
             throw new ArgumentsRequired($this->id . ' createOrder requires a $price argument for limit orders');
         }
@@ -3464,6 +3472,19 @@ class bybit extends Exchange {
         } elseif ($timeInForce === 'ioc') {
             $request['timeInForce'] = 'IOC';
         }
+        // TEALSTREET  //
+        $positionMode = $this->safe_value($params, 'positionMode', 'oneway');
+        $request['positionIdx'] = 0;
+        if ($positionMode !== 'oneway') {
+            $request['positionIdx'] = ($side === 'buy') ? 1 : 2;
+        }
+        $request['tpslOrderType'] = 'Partial';
+        if ($amount === 0) {
+            $request['tpslOrderType'] = 'Full';
+            $request['tpOrderType'] = 'Market';
+            $request['slOrderType'] = 'Market';
+        }
+        //              //
         $triggerPrice = $this->safe_number_2($params, 'triggerPrice', 'stopPrice');
         $stopLossTriggerPrice = $this->safe_number($params, 'stopLossPrice', $triggerPrice);
         $takeProfitTriggerPrice = $this->safe_number($params, 'takeProfitPrice');
@@ -7256,6 +7277,69 @@ class bybit extends Exchange {
         );
     }
 
+    public function parse_account_config($position) {
+        // {
+        //     "info" => array(
+        //     "symbol" => "BTCUSDT",
+        //         "leverage" => "100",
+        //         "autoAddMargin" => "0",
+        //         "avgPrice" => "30675.7",
+        //         "liqPrice" => "56522.58784",
+        //         "riskLimitValue" => "2000000",
+        //         "takeProfit" => "",
+        //         "positionValue" => "30.6757",
+        //         "tpslMode" => "Full",
+        //         "riskId" => "1",
+        //         "trailingStop" => "0",
+        //         "unrealisedPnl" => "0.6903",
+        //         "markPrice" => "29985.4",
+        //         "adlRankIndicator" => "2",
+        //         "cumRealisedPnl" => "-0.01188196",
+        //         "positionMM" => "0.17196798",
+        //         "createdTime" => "1687265385857",
+        //         "positionIdx" => "0",
+        //         "positionIM" => "0.32534648",
+        //         "updatedTime" => "1687968000055",
+        //         "side" => "Sell",
+        //         "bustPrice" => "",
+        //         "positionBalance" => "0",
+        //         "size" => "0.001",
+        //         "positionStatus" => "Normal",
+        //         "stopLoss" => "",
+        //         "tradeMode" => "0"
+        // ),
+        //     "id" => "BTC/USDT:USDT:BTC/USDT:USDT",
+        //     "mode" => "oneway",
+        //     "symbol" => "BTC/USDT:USDT",
+        //     "timestamp" => None,
+        //     "datetime" => None,
+        //     "initialMargin" => -0.306757,
+        //     "initialMarginPercentage" => -0.01,
+        //     "maintenanceMargin" => None,
+        //     "maintenanceMarginPercentage" => None,
+        //     "entryPrice" => 30675.7,
+        //     "notional" => 30.6757,
+        //     "leverage" => 100.0,
+        //     "unrealizedPnl" => 0.6903,
+        //     "pnl" => "-0.011881960.6903",
+        //     "contracts" => -0.001,
+        //     "contractSize" => 1.0,
+        //     "marginRatio" => None,
+        //     "liquidationPrice" => 56522.58784,
+        //     "markPrice" => 29985.4,
+        //     "collateral" => 0.0,
+        //     "marginMode" => "cross",
+        //     "isolated" => False,
+        //     "hedged" => False,
+        //     "price" => 30675.7,
+        //     "status" => True,
+        //     "tradeMode" => "oneway",
+        //     "active" => True,
+        //     "side" => "short",
+        //     "percentage" => -225.0315396225677
+        // }
+    }
+
     public function set_margin_mode($marginMode, $symbol = null, $params = array ()) {
         $this->load_markets();
         $values = $this->is_unified_enabled();
@@ -7437,7 +7521,7 @@ class bybit extends Exchange {
         //         "rate_limit" => 75
         //     }
         //
-        return $this->privatePostContractV3PrivatePositionSwitchMode (array_merge($request, $params));
+        return $this->privatePostV5PositionSwitchMode (array_merge($request, $params));
     }
 
     public function fetch_derivatives_open_interest_history($symbol, $timeframe = '1h', $since = null, $limit = null, $params = array ()) {
