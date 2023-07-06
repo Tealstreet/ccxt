@@ -815,7 +815,7 @@ class woo extends Exchange {
                 // $response = Async\await($this->v3PrivatePostAlgoOrder (array_merge($request, $params)));
                 $brokerId = $this->safe_string($this->options, 'brokerId');
                 if ($brokerId !== null) {
-                    $request['broker_id'] = $brokerId;
+                    $request['brokerId'] = $brokerId;
                 }
                 $response = Async\await($this->v3PrivatePostAlgoOrder ($request));
                 // {

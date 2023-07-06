@@ -807,7 +807,7 @@ export default class woo extends Exchange {
             // const response = await (this as any).v3PrivatePostAlgoOrder (this.extend (request, params));
             const brokerId = this.safeString(this.options, 'brokerId');
             if (brokerId !== undefined) {
-                request['broker_id'] = brokerId;
+                request['brokerId'] = brokerId;
             }
             const response = await this.v3PrivatePostAlgoOrder(request);
             // {

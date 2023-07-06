@@ -562,6 +562,7 @@ class bybit(Exchange):
                         'v5/position/set-leverage': 2.5,
                         'v5/position/set-tpsl-mode': 2.5,
                         'v5/position/set-risk-limit': 2.5,
+                        'v5/position/switch-mode': 2.5,
                         'v5/position/trading-stop': 2.5,
                         'v5/account/upgrade-to-uta': 2.5,
                         'v5/account/set-margin-mode': 2.5,
@@ -3289,6 +3290,12 @@ class bybit(Exchange):
         await self.load_markets()
         market = self.market(symbol)
         lowerCaseType = type.lower()
+        #  TEALSTREET  #
+        if lowerCaseType == 'stop':
+            lowerCaseType = 'market'
+        elif lowerCaseType == 'stopLimit':
+            lowerCaseType = 'limit'
+        #              #
         if (price is None) and (lowerCaseType == 'limit'):
             raise ArgumentsRequired(self.id + ' createOrder requires a price argument for limit orders')
         request = {
@@ -3354,6 +3361,17 @@ class bybit(Exchange):
             request['timeInForce'] = 'FOK'
         elif timeInForce == 'ioc':
             request['timeInForce'] = 'IOC'
+        # TEALSTREET  #
+        positionMode = self.safe_value(params, 'positionMode', 'oneway')
+        request['positionIdx'] = 0
+        if positionMode != 'oneway':
+            request['positionIdx'] = 1 if (side == 'buy') else 2
+        request['tpslOrderType'] = 'Partial'
+        if amount == 0:
+            request['tpslOrderType'] = 'Full'
+            request['tpOrderType'] = 'Market'
+            request['slOrderType'] = 'Market'
+        #              #
         triggerPrice = self.safe_number_2(params, 'triggerPrice', 'stopPrice')
         stopLossTriggerPrice = self.safe_number(params, 'stopLossPrice', triggerPrice)
         takeProfitTriggerPrice = self.safe_number(params, 'takeProfitPrice')
@@ -6866,6 +6884,69 @@ class bybit(Exchange):
             'percentage': self.parse_number(percentage),
         }
 
+    def parse_account_config(self, position):
+        # {
+        #     "info": {
+        #     "symbol": "BTCUSDT",
+        #         "leverage": "100",
+        #         "autoAddMargin": "0",
+        #         "avgPrice": "30675.7",
+        #         "liqPrice": "56522.58784",
+        #         "riskLimitValue": "2000000",
+        #         "takeProfit": "",
+        #         "positionValue": "30.6757",
+        #         "tpslMode": "Full",
+        #         "riskId": "1",
+        #         "trailingStop": "0",
+        #         "unrealisedPnl": "0.6903",
+        #         "markPrice": "29985.4",
+        #         "adlRankIndicator": "2",
+        #         "cumRealisedPnl": "-0.01188196",
+        #         "positionMM": "0.17196798",
+        #         "createdTime": "1687265385857",
+        #         "positionIdx": "0",
+        #         "positionIM": "0.32534648",
+        #         "updatedTime": "1687968000055",
+        #         "side": "Sell",
+        #         "bustPrice": "",
+        #         "positionBalance": "0",
+        #         "size": "0.001",
+        #         "positionStatus": "Normal",
+        #         "stopLoss": "",
+        #         "tradeMode": "0"
+        # },
+        #     "id": "BTC/USDT:USDT:BTC/USDT:USDT",
+        #     "mode": "oneway",
+        #     "symbol": "BTC/USDT:USDT",
+        #     "timestamp": None,
+        #     "datetime": None,
+        #     "initialMargin": -0.306757,
+        #     "initialMarginPercentage": -0.01,
+        #     "maintenanceMargin": None,
+        #     "maintenanceMarginPercentage": None,
+        #     "entryPrice": 30675.7,
+        #     "notional": 30.6757,
+        #     "leverage": 100.0,
+        #     "unrealizedPnl": 0.6903,
+        #     "pnl": "-0.011881960.6903",
+        #     "contracts": -0.001,
+        #     "contractSize": 1.0,
+        #     "marginRatio": None,
+        #     "liquidationPrice": 56522.58784,
+        #     "markPrice": 29985.4,
+        #     "collateral": 0.0,
+        #     "marginMode": "cross",
+        #     "isolated": False,
+        #     "hedged": False,
+        #     "price": 30675.7,
+        #     "status": True,
+        #     "tradeMode": "oneway",
+        #     "active": True,
+        #     "side": "short",
+        #     "percentage": -225.0315396225677
+        # }
+        pass
+
     async def set_margin_mode(self, marginMode, symbol=None, params={}):
         await self.load_markets()
         values = await self.is_unified_enabled()
@@ -7029,7 +7110,7 @@ class bybit(Exchange):
         #         "rate_limit": 75
         #     }
         #
-        return await self.privatePostContractV3PrivatePositionSwitchMode(self.extend(request, params))
+        return await self.privatePostV5PositionSwitchMode(self.extend(request, params))
 
     async def fetch_derivatives_open_interest_history(self, symbol, timeframe='1h', since=None, limit=None, params={}):
         await self.load_markets()
