@@ -548,18 +548,14 @@ export default class bitmex extends Exchange {
             const balance = response[i];
             const currencyId = this.safeString (balance, 'currency');
             const code = this.safeCurrencyCode (currencyId);
-            const account = this.account ();
+            const account = {};
             const free = this.safeInteger (balance, 'availableMargin', 0);
-            let total = this.safeInteger (balance, 'marginBalance');
-            if (total === undefined && free !== undefined) {
-                const marginUsedPcnt = this.safeNumber (balance, 'marginUsedPcnt', 0);
-                total = free / (1 - marginUsedPcnt);
-            }
-            if (total === undefined) {
-                total = 0;
-            }
+            const total = this.safeInteger (balance, 'walletBalance');
             let freeStr = free.toString ();
-            let totalStr = total.toString ();
+            let totalStr = undefined;
+            if (total !== undefined) {
+                totalStr = total.toString ();
+            }
             if (code !== 'USDT') {
                 // tmp fix until this PR gets merged
                 // https://github.com/ccxt/ccxt/pull/15311
@@ -571,15 +567,19 @@ export default class bitmex extends Exchange {
                     freeStr = Precise.stringDiv (freeStr, multiplier);
                     totalStr = Precise.stringDiv (totalStr, multiplier);
                 } else {
-                    freeStr = Precise.stringDiv (freeStr, '1e8');
                     totalStr = Precise.stringDiv (totalStr, '1e8');
+                    freeStr = Precise.stringDiv (freeStr, '1e8');
                 }
             } else {
                 freeStr = Precise.stringDiv (freeStr, '1e6');
                 totalStr = Precise.stringDiv (totalStr, '1e6');
             }
-            account['free'] = freeStr;
-            account['total'] = totalStr;
+            if (totalStr !== undefined) {
+                account['total'] = totalStr;
+            }
+            if (freeStr !== undefined) {
+                account['free'] = freeStr;
+            }
             result[code] = account;
         }
         return this.safeBalance (result);

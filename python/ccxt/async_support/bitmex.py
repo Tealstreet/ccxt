@@ -555,16 +555,13 @@ class bitmex(Exchange):
             balance = response[i]
             currencyId = self.safe_string(balance, 'currency')
             code = self.safe_currency_code(currencyId)
-            account = self.account()
+            account = {}
             free = self.safe_integer(balance, 'availableMargin', 0)
-            total = self.safe_integer(balance, 'marginBalance')
-            if total is None and free is not None:
-                marginUsedPcnt = self.safe_number(balance, 'marginUsedPcnt', 0)
-                total = free / (1 - marginUsedPcnt)
-            if total is None:
-                total = 0
+            total = self.safe_integer(balance, 'walletBalance')
             freeStr = str(free)
-            totalStr = str(total)
+            totalStr = None
+            if total is not None:
+                totalStr = str(total)
             if code != 'USDT':
                 # tmp fix until self PR gets merged
                 # https://github.com/ccxt/ccxt/pull/15311
@@ -576,13 +573,15 @@ class bitmex(Exchange):
                     freeStr = Precise.string_div(freeStr, multiplier)
                     totalStr = Precise.string_div(totalStr, multiplier)
                 else:
-                    freeStr = Precise.string_div(freeStr, '1e8')
                     totalStr = Precise.string_div(totalStr, '1e8')
+                    freeStr = Precise.string_div(freeStr, '1e8')
             else:
                 freeStr = Precise.string_div(freeStr, '1e6')
                 totalStr = Precise.string_div(totalStr, '1e6')
-            account['free'] = freeStr
-            account['total'] = totalStr
+            if totalStr is not None:
+                account['total'] = totalStr
+            if freeStr is not None:
+                account['free'] = freeStr
             result[code] = account
         return self.safe_balance(result)
 
