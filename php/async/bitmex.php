@@ -559,18 +559,14 @@ class bitmex extends Exchange {
             $balance = $response[$i];
             $currencyId = $this->safe_string($balance, 'currency');
             $code = $this->safe_currency_code($currencyId);
-            $account = $this->account();
+            $account = array();
             $free = $this->safe_integer($balance, 'availableMargin', 0);
-            $total = $this->safe_integer($balance, 'marginBalance');
-            if ($total === null && $free !== null) {
-                $marginUsedPcnt = $this->safe_number($balance, 'marginUsedPcnt', 0);
-                $total = $free / (1 - $marginUsedPcnt);
-            }
-            if ($total === null) {
-                $total = 0;
-            }
+            $total = $this->safe_integer($balance, 'walletBalance');
             $freeStr = (string) $free;
-            $totalStr = (string) $total;
+            $totalStr = null;
+            if ($total !== null) {
+                $totalStr = (string) $total;
+            }
             if ($code !== 'USDT') {
                 // tmp fix until this PR gets merged
                 // https://github.com/ccxt/ccxt/pull/15311
@@ -582,15 +578,19 @@ class bitmex extends Exchange {
                     $freeStr = Precise::string_div($freeStr, $multiplier);
                     $totalStr = Precise::string_div($totalStr, $multiplier);
                 } else {
-                    $freeStr = Precise::string_div($freeStr, '1e8');
                     $totalStr = Precise::string_div($totalStr, '1e8');
+                    $freeStr = Precise::string_div($freeStr, '1e8');
                 }
             } else {
                 $freeStr = Precise::string_div($freeStr, '1e6');
                 $totalStr = Precise::string_div($totalStr, '1e6');
             }
-            $account['free'] = $freeStr;
-            $account['total'] = $totalStr;
+            if ($totalStr !== null) {
+                $account['total'] = $totalStr;
+            }
+            if ($freeStr !== null) {
+                $account['free'] = $freeStr;
+            }
             $result[$code] = $account;
         }
         return $this->safe_balance($result);
