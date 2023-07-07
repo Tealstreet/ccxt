@@ -2516,6 +2516,7 @@ class woo extends Exchange {
             'marginMode' => 'cross',
             'liquidationPrice' => $this->safe_number($position, 'estLiqPrice'),
             'entryPrice' => $this->parse_number($entryPrice),
+            'realizedPnl' => $this->safe_string($position, 'pnl24H'),
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
             'percentage' => null,
             'contracts' => $this->parse_number($size),

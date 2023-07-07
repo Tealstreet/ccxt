@@ -2379,6 +2379,7 @@ class woo(Exchange):
             'marginMode': 'cross',
             'liquidationPrice': self.safe_number(position, 'estLiqPrice'),
             'entryPrice': self.parse_number(entryPrice),
+            'realizedPnl': self.safe_string(position, 'pnl24H'),
             'unrealizedPnl': self.parse_number(unrealisedPnl),
             'percentage': None,
             'contracts': self.parse_number(size),

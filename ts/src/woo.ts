@@ -2564,6 +2564,7 @@ export default class woo extends Exchange {
             'marginMode': 'cross',
             'liquidationPrice': this.safeNumber (position, 'estLiqPrice'),
             'entryPrice': this.parseNumber (entryPrice),
+            'realizedPnl': this.safeString (position, 'pnl24H'),
             'unrealizedPnl': this.parseNumber (unrealisedPnl),
             'percentage': undefined,
             'contracts': this.parseNumber (size),
