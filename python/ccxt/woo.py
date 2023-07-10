@@ -2280,8 +2280,8 @@ class woo(Exchange):
 
     def set_leverage(self, leverage, symbol=None, params={}):
         self.load_markets()
-        if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20):
-            raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15 or 20')
+        if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20) and (leverage != 50):
+            raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50')
         request = {
             'leverage': leverage,
         }

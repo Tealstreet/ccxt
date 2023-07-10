@@ -2420,8 +2420,8 @@ export default class woo extends Exchange {
     }
     async setLeverage(leverage, symbol = undefined, params = {}) {
         await this.loadMarkets();
-        if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20)) {
-            throw new BadRequest(this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15 or 20');
+        if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
+            throw new BadRequest(this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
         }
         const request = {
             'leverage': leverage,
