@@ -70,6 +70,7 @@ export default class Exchange {
         this.tokenBucket = undefined;
         this.throttle = undefined;
         this.enableRateLimit = undefined;
+        this.enableWsRateLimit = undefined;
         this.httpExceptions = undefined;
         this.limits = undefined;
         this.fees = undefined;
@@ -343,6 +344,7 @@ export default class Exchange {
             'name': undefined,
             'countries': undefined,
             'enableRateLimit': true,
+            'enableWsRateLimit': true,
             'rateLimit': 2000,
             'certified': false,
             'pro': false,
@@ -1041,7 +1043,7 @@ export default class Exchange {
                 const options = this.safeValue(this.options, 'ws');
                 const cost = this.safeValue(options, 'cost', 1);
                 if (message) {
-                    if (client.throttle) {
+                    if (this.enableWsRateLimit && client.throttle) {
                         // add cost here |
                         //               |
                         //               V

@@ -236,6 +236,7 @@ export default class Exchange {
     tokenBucket = undefined
     throttle = undefined
     enableRateLimit = undefined
+    enableWsRateLimit = undefined
 
     httpExceptions = undefined
 
@@ -404,6 +405,7 @@ export default class Exchange {
             'name': undefined,
             'countries': undefined,
             'enableRateLimit': true,
+            'enableWsRateLimit': true,
             'rateLimit': 2000, // milliseconds = seconds * 1000
             'certified': false, // if certified by the CCXT dev team
             'pro': false, // if it is integrated with CCXT Pro for WebSocket support
@@ -1266,7 +1268,7 @@ export default class Exchange {
                 const options = this.safeValue (this.options, 'ws');
                 const cost = this.safeValue (options, 'cost', 1);
                 if (message) {
-                    if (client.throttle) {
+                    if (this.enableWsRateLimit && client.throttle) {
                         // add cost here |
                         //               |
                         //               V
