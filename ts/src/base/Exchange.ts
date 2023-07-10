@@ -1219,7 +1219,7 @@ export default class Exchange {
         return this.clients[url];
     }
 
-    watch (url, messageHash, message = undefined, subscribeHash = undefined, subscription = undefined) {
+    watch (url, messageHash, message = undefined, subscribeHash = undefined, subscription = undefined, shouldThrottle=true) {
         //
         // Without comments the code of this method is short and easy:
         //
@@ -1266,11 +1266,11 @@ export default class Exchange {
                 const options = this.safeValue (this.options, 'ws');
                 const cost = this.safeValue (options, 'cost', 1);
                 if (message) {
-                    if (this.enableRateLimit && client.throttle) {
+                    if (client.throttle) {
                         // add cost here |
                         //               |
                         //               V
-                        client.throttle (cost).then (() => {
+                        client.throttle (cost, shouldThrottle).then (() => {
                             client.send (message);
                         }).catch ((e) => { throw e });
                     } else {
