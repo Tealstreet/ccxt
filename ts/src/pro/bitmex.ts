@@ -549,7 +549,7 @@ export default class bitmex extends bitmexRest {
                 messageHash,
             ],
         };
-        const trades = await this.watch (url, messageHash, this.extend (request, params), messageHash);
+        const trades = await this.watch (url, messageHash, this.extend (request, params), messageHash, false);
         if (this.newUpdates) {
             limit = trades.getLimit (symbol, limit);
         }
@@ -969,7 +969,7 @@ export default class bitmex extends bitmexRest {
                 messageHash,
             ],
         };
-        const orderbook = await this.watch (url, messageHash, this.deepExtend (request, params), messageHash);
+        const orderbook = await this.watch (url, messageHash, this.deepExtend (request, params), messageHash, false);
         return orderbook.limit ();
     }
 
