@@ -1243,6 +1243,8 @@ export default class woo extends Exchange {
         const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'));
         const status = this.safeValue (order, 'status');
         const side = this.safeStringLower (order, 'side');
+        const type = this.safeStringUpper (order, 'type');
+        const postOnly = type === 'POST_ONLY';
         const filled = this.safeValue (order, 'executed');
         const average = this.safeString2 (order, 'average_executed_price', 'executedPrice');
         const remaining = Precise.stringSub (cost, filled);
@@ -1259,7 +1261,7 @@ export default class woo extends Exchange {
             'symbol': symbol,
             'type': orderType,
             'timeInForce': this.parseTimeInForce (orderType),
-            'postOnly': undefined, // TO_DO
+            'postOnly': postOnly,
             'reduceOnly': this.safeValue (order, 'reduce_only'),
             'side': side,
             'price': price,

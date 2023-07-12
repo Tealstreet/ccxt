@@ -537,7 +537,7 @@ class bitmex(ccxt.async_support.bitmex):
                 messageHash,
             ],
         }
-        trades = await self.watch(url, messageHash, self.extend(request, params), messageHash)
+        trades = await self.watch(url, messageHash, self.extend(request, params), messageHash, False)
         if self.newUpdates:
             limit = trades.getLimit(symbol, limit)
         return self.filter_by_since_limit(trades, since, limit, 'timestamp', True)
@@ -924,7 +924,7 @@ class bitmex(ccxt.async_support.bitmex):
                 messageHash,
             ],
         }
-        orderbook = await self.watch(url, messageHash, self.deep_extend(request, params), messageHash)
+        orderbook = await self.watch(url, messageHash, self.deep_extend(request, params), messageHash, False)
         return orderbook.limit()
 
     async def watch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):

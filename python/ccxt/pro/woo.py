@@ -63,7 +63,7 @@ class woo(ccxt.async_support.woo):
         self.options['requestId'][url] = newValue
         return newValue
 
-    async def watch_public(self, messageHash, message):
+    async def watch_public(self, messageHash, message, shouldThrottle=True):
         self.check_required_uid()
         # url = self.urls['api']['ws']['public'] + '/' + self.uid
         url = self.urls['api']['ws']['public'] + '/' + 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY'
@@ -72,7 +72,7 @@ class woo(ccxt.async_support.woo):
             'id': requestId,
         }
         request = self.extend(subscribe, message)
-        return await self.watch(url, messageHash, request, messageHash, subscribe)
+        return await self.watch(url, messageHash, request, messageHash, subscribe, shouldThrottle)
 
     async def watch_order_book(self, symbol, limit=None, params={}):
         await self.load_markets()
@@ -84,7 +84,7 @@ class woo(ccxt.async_support.woo):
             'topic': topic,
         }
         message = self.extend(request, params)
-        orderbook = await self.watch_public(topic, message)
+        orderbook = await self.watch_public(topic, message, False)
         return orderbook.limit()
 
     def handle_order_book(self, client, message):
@@ -324,7 +324,7 @@ class woo(ccxt.async_support.woo):
             'topic': topic,
         }
         message = self.extend(request, params)
-        trades = await self.watch_public(topic, message)
+        trades = await self.watch_public(topic, message, False)
         if self.newUpdates:
             limit = trades.getLimit(market['symbol'], limit)
         return self.filter_by_symbol_since_limit(trades, symbol, since, limit, True)

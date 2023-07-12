@@ -125,7 +125,7 @@ class bingx(ccxt.async_support.bingx):
             if (limit != 5) and (limit != 10) and (limit != 20) and (limit != 50) and (limit != 100):
                 raise BadRequest(self.id + ' watchOrderBook() can only use limit 1, 50, 200 and 500.')
         topics = ['market.depth.' + market['id'] + '.step0.level' + str(limit)]
-        orderbook = await self.watch_topics(url, messageHash, topics, params)
+        orderbook = await self.watch_topics(url, messageHash, topics, params, False)
         # return orderbook.limit()
         return orderbook
 
@@ -244,7 +244,7 @@ class bingx(ccxt.async_support.bingx):
         params = self.clean_params(params)
         messageHash = 'trade:' + symbol
         topic = 'market.trade.detail.' + market['id']
-        trades = await self.watch_topics(url, messageHash, [topic], params)
+        trades = await self.watch_topics(url, messageHash, [topic], params, False)
         if self.newUpdates:
             limit = trades.getLimit(symbol, limit)
         # since BingX always returns duplicate set of klines via ws, and we are not sending since from
@@ -475,14 +475,14 @@ class bingx(ccxt.async_support.bingx):
         messageHash = 'orders'
         client.resolve(orders, messageHash)
 
-    async def watch_topics(self, url, messageHash, topics=[], params={}):
+    async def watch_topics(self, url, messageHash, topics=[], params={}, shouldThrottle=True):
         request = {
             'id': '' + self.request_id(),
             'reqType': 'sub',
             'dataType': topics[0],
         }
         message = self.extend(request, params)
-        return await self.watch(url, messageHash, message, messageHash)
+        return await self.watch(url, messageHash, message, messageHash, shouldThrottle)
 
     async def authenticate(self, params={}):
         # self.check_required_credentials()

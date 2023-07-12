@@ -552,7 +552,7 @@ class bitmex extends \ccxt\async\bitmex {
                     $messageHash,
                 ),
             );
-            $trades = Async\await($this->watch($url, $messageHash, array_merge($request, $params), $messageHash));
+            $trades = Async\await($this->watch($url, $messageHash, array_merge($request, $params), $messageHash, false));
             if ($this->newUpdates) {
                 $limit = $trades->getLimit ($symbol, $limit);
             }
@@ -972,7 +972,7 @@ class bitmex extends \ccxt\async\bitmex {
                     $messageHash,
                 ),
             );
-            $orderbook = Async\await($this->watch($url, $messageHash, $this->deep_extend($request, $params), $messageHash));
+            $orderbook = Async\await($this->watch($url, $messageHash, $this->deep_extend($request, $params), $messageHash, false));
             return $orderbook->limit ();
         }) ();
     }

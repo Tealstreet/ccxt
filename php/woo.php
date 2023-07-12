@@ -1223,6 +1223,8 @@ class woo extends Exchange {
         $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'));
         $status = $this->safe_value($order, 'status');
         $side = $this->safe_string_lower($order, 'side');
+        $type = $this->safe_string_upper($order, 'type');
+        $postOnly = $type === 'POST_ONLY';
         $filled = $this->safe_value($order, 'executed');
         $average = $this->safe_string_2($order, 'average_executed_price', 'executedPrice');
         $remaining = Precise::string_sub($cost, $filled);
@@ -1239,7 +1241,7 @@ class woo extends Exchange {
             'symbol' => $symbol,
             'type' => $orderType,
             'timeInForce' => $this->parse_time_in_force($orderType),
-            'postOnly' => null, // TO_DO
+            'postOnly' => $postOnly,
             'reduceOnly' => $this->safe_value($order, 'reduce_only'),
             'side' => $side,
             'price' => $price,

@@ -65,8 +65,8 @@ class woo extends \ccxt\async\woo {
         return $newValue;
     }
 
-    public function watch_public($messageHash, $message) {
-        return Async\async(function () use ($messageHash, $message) {
+    public function watch_public($messageHash, $message, $shouldThrottle = true) {
+        return Async\async(function () use ($messageHash, $message, $shouldThrottle) {
             $this->check_required_uid();
             // $url = $this->urls['api']['ws']['public'] . '/' . $this->uid;
             $url = $this->urls['api']['ws']['public'] . '/' . 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY';
@@ -75,7 +75,7 @@ class woo extends \ccxt\async\woo {
                 'id' => $requestId,
             );
             $request = array_merge($subscribe, $message);
-            return Async\await($this->watch($url, $messageHash, $request, $messageHash, $subscribe));
+            return Async\await($this->watch($url, $messageHash, $request, $messageHash, $subscribe, $shouldThrottle));
         }) ();
     }
 
@@ -90,7 +90,7 @@ class woo extends \ccxt\async\woo {
                 'topic' => $topic,
             );
             $message = array_merge($request, $params);
-            $orderbook = Async\await($this->watch_public($topic, $message));
+            $orderbook = Async\await($this->watch_public($topic, $message, false));
             return $orderbook->limit ();
         }) ();
     }
@@ -352,7 +352,7 @@ class woo extends \ccxt\async\woo {
                 'topic' => $topic,
             );
             $message = array_merge($request, $params);
-            $trades = Async\await($this->watch_public($topic, $message));
+            $trades = Async\await($this->watch_public($topic, $message, false));
             if ($this->newUpdates) {
                 $limit = $trades->getLimit ($market['symbol'], $limit);
             }

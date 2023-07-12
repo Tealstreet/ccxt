@@ -132,7 +132,7 @@ class bingx extends \ccxt\async\bingx {
                 }
             }
             $topics = [ 'market.depth.' . $market['id'] . '.step0.level' . (string) $limit ];
-            $orderbook = Async\await($this->watch_topics($url, $messageHash, $topics, $params));
+            $orderbook = Async\await($this->watch_topics($url, $messageHash, $topics, $params, false));
             // return $orderbook->limit ();
             return $orderbook;
         }) ();
@@ -266,7 +266,7 @@ class bingx extends \ccxt\async\bingx {
             $params = $this->clean_params($params);
             $messageHash = 'trade:' . $symbol;
             $topic = 'market.trade.detail.' . $market['id'];
-            $trades = Async\await($this->watch_topics($url, $messageHash, array( $topic ), $params));
+            $trades = Async\await($this->watch_topics($url, $messageHash, array( $topic ), $params, false));
             if ($this->newUpdates) {
                 $limit = $trades->getLimit ($symbol, $limit);
             }
@@ -517,15 +517,15 @@ class bingx extends \ccxt\async\bingx {
         $client->resolve ($orders, $messageHash);
     }
 
-    public function watch_topics($url, $messageHash, $topics = [], $params = array ()) {
-        return Async\async(function () use ($url, $messageHash, $topics, $params) {
+    public function watch_topics($url, $messageHash, $topics = [], $params = array (), $shouldThrottle = true) {
+        return Async\async(function () use ($url, $messageHash, $topics, $params, $shouldThrottle) {
             $request = array(
                 'id' => '' . $this->request_id(),
                 'reqType' => 'sub',
                 'dataType' => $topics[0],
             );
             $message = array_merge($request, $params);
-            return Async\await($this->watch($url, $messageHash, $message, $messageHash));
+            return Async\await($this->watch($url, $messageHash, $message, $messageHash, $shouldThrottle));
         }) ();
     }
 

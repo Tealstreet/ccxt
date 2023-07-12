@@ -377,7 +377,7 @@ class bitget extends \ccxt\async\bitget {
                 'channel' => $channel,
                 'instId' => $this->get_ws_market_id($market),
             );
-            $orderbook = Async\await($this->watch_public($messageHash, $args, $params));
+            $orderbook = Async\await($this->watch_public($messageHash, $args, $params, false));
             if ($incrementalFeed) {
                 return $orderbook->limit ();
             } else {
@@ -504,7 +504,7 @@ class bitget extends \ccxt\async\bitget {
                 'channel' => 'trade',
                 'instId' => $this->get_ws_market_id($market),
             );
-            $trades = Async\await($this->watch_public($messageHash, $args, $params));
+            $trades = Async\await($this->watch_public($messageHash, $args, $params, false));
             if ($this->newUpdates) {
                 $limit = $trades->getLimit ($symbol, $limit);
             }
@@ -1022,15 +1022,15 @@ class bitget extends \ccxt\async\bitget {
         $client->resolve ($this->balance, $messageHash);
     }
 
-    public function watch_public($messageHash, $args, $params = array ()) {
-        return Async\async(function () use ($messageHash, $args, $params) {
+    public function watch_public($messageHash, $args, $params = array (), $shouldThrottle = true) {
+        return Async\async(function () use ($messageHash, $args, $params, $shouldThrottle) {
             $url = $this->urls['api']['ws'];
             $request = array(
                 'op' => 'subscribe',
                 'args' => array( $args ),
             );
             $message = array_merge($request, $params);
-            return Async\await($this->watch($url, $messageHash, $message, $messageHash));
+            return Async\await($this->watch($url, $messageHash, $message, $messageHash, $shouldThrottle));
         }) ();
     }
 

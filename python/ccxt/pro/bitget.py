@@ -357,7 +357,7 @@ class bitget(ccxt.async_support.bitget):
             'channel': channel,
             'instId': self.get_ws_market_id(market),
         }
-        orderbook = await self.watch_public(messageHash, args, params)
+        orderbook = await self.watch_public(messageHash, args, params, False)
         if incrementalFeed:
             return orderbook.limit()
         else:
@@ -469,7 +469,7 @@ class bitget(ccxt.async_support.bitget):
             'channel': 'trade',
             'instId': self.get_ws_market_id(market),
         }
-        trades = await self.watch_public(messageHash, args, params)
+        trades = await self.watch_public(messageHash, args, params, False)
         if self.newUpdates:
             limit = trades.getLimit(symbol, limit)
         return self.filter_by_since_limit(trades, since, limit, 'timestamp', True)
@@ -951,14 +951,14 @@ class bitget(ccxt.async_support.bitget):
         messageHash = 'balance:' + instType
         client.resolve(self.balance, messageHash)
 
-    async def watch_public(self, messageHash, args, params={}):
+    async def watch_public(self, messageHash, args, params={}, shouldThrottle=True):
         url = self.urls['api']['ws']
         request = {
             'op': 'subscribe',
             'args': [args],
         }
         message = self.extend(request, params)
-        return await self.watch(url, messageHash, message, messageHash)
+        return await self.watch(url, messageHash, message, messageHash, shouldThrottle)
 
     async def authenticate(self, params={}):
         self.check_required_credentials()

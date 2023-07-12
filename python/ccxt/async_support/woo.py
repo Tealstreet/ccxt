@@ -1170,6 +1170,8 @@ class woo(Exchange):
         orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'))
         status = self.safe_value(order, 'status')
         side = self.safe_string_lower(order, 'side')
+        type = self.safe_string_upper(order, 'type')
+        postOnly = type == 'POST_ONLY'
         filled = self.safe_value(order, 'executed')
         average = self.safe_string_2(order, 'average_executed_price', 'executedPrice')
         remaining = Precise.string_sub(cost, filled)
@@ -1186,7 +1188,7 @@ class woo(Exchange):
             'symbol': symbol,
             'type': orderType,
             'timeInForce': self.parse_time_in_force(orderType),
-            'postOnly': None,  # TO_DO
+            'postOnly': postOnly,
             'reduceOnly': self.safe_value(order, 'reduce_only'),
             'side': side,
             'price': price,
