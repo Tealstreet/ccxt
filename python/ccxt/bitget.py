@@ -231,6 +231,7 @@ class bitget(Exchange):
                             'account/setMarginMode': 8,
                             'order/placeOrder': 2,
                             'order/batch-orders': 2,
+                            'order/modifyOrder': 2,
                             'order/cancel-order': 2,
                             'order/cancel-all-orders': 2,
                             'order/cancel-batch-orders': 2,
