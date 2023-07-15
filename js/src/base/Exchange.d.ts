@@ -69,6 +69,7 @@ export default class Exchange {
     tokenBucket: any;
     throttle: any;
     enableRateLimit: any;
+    enableWsRateLimit: any;
     httpExceptions: any;
     limits: any;
     fees: any;
@@ -217,6 +218,7 @@ export default class Exchange {
         name: any;
         countries: any;
         enableRateLimit: boolean;
+        enableWsRateLimit: boolean;
         rateLimit: number;
         certified: boolean;
         pro: boolean;
@@ -459,7 +461,7 @@ export default class Exchange {
     countedOrderBook(snapshot?: {}, depth?: number): CountedOrderBook;
     handleMessage(client: any, message: any): void;
     client(url: any): WsClient;
-    watch(url: any, messageHash: any, message?: any, subscribeHash?: any, subscription?: any): any;
+    watch(url: any, messageHash: any, message?: any, subscribeHash?: any, subscription?: any, shouldThrottle?: boolean): any;
     onConnected(client: any, message?: any): void;
     onError(client: any, error: any): void;
     onClose(client: any, error: any): void;

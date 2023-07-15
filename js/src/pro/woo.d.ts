@@ -2,7 +2,7 @@ import wooRest from '../woo.js';
 export default class woo extends wooRest {
     describe(): any;
     requestId(url: any): any;
-    watchPublic(messageHash: any, message: any): Promise<any>;
+    watchPublic(messageHash: any, message: any, shouldThrottle?: boolean): Promise<any>;
     watchOrderBook(symbol: any, limit?: any, params?: {}): Promise<any>;
     handleOrderBook(client: any, message: any): void;
     watchTicker(symbol: any, params?: {}): Promise<any>;

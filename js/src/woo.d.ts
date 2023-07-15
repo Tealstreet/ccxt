@@ -209,6 +209,7 @@ export default class woo extends Exchange {
         marginMode: string;
         liquidationPrice: number;
         entryPrice: number;
+        realizedPnl: string;
         unrealizedPnl: number;
         percentage: any;
         contracts: number;
@@ -235,6 +236,7 @@ export default class woo extends Exchange {
         marginMode: string;
         liquidationPrice: number;
         entryPrice: number;
+        realizedPnl: string;
         unrealizedPnl: number;
         percentage: any;
         contracts: number;

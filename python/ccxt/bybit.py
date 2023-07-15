@@ -6883,7 +6883,7 @@ class bybit(Exchange):
             'percentage': self.parse_number(percentage),
         }
 
-    def parse_account_config(self, position):
+    def parse_account_config(self):
         # {
         #     "info": {
         #     "symbol": "BTCUSDT",

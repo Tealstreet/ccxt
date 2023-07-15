@@ -804,7 +804,7 @@ class woo extends Exchange["default"] {
             // const response = await (this as any).v3PrivatePostAlgoOrder (this.extend (request, params));
             const brokerId = this.safeString(this.options, 'brokerId');
             if (brokerId !== undefined) {
-                request['broker_id'] = brokerId;
+                request['brokerId'] = brokerId;
             }
             const response = await this.v3PrivatePostAlgoOrder(request);
             // {
@@ -1230,6 +1230,8 @@ class woo extends Exchange["default"] {
         const orderType = this.parseOrderType(this.safeStringLower2(order, 'order_type', 'type'));
         const status = this.safeValue(order, 'status');
         const side = this.safeStringLower(order, 'side');
+        const type = this.safeStringUpper(order, 'type');
+        const postOnly = type === 'POST_ONLY';
         const filled = this.safeValue(order, 'executed');
         const average = this.safeString2(order, 'average_executed_price', 'executedPrice');
         const remaining = Precise["default"].stringSub(cost, filled);
@@ -1246,7 +1248,7 @@ class woo extends Exchange["default"] {
             'symbol': symbol,
             'type': orderType,
             'timeInForce': this.parseTimeInForce(orderType),
-            'postOnly': undefined,
+            'postOnly': postOnly,
             'reduceOnly': this.safeValue(order, 'reduce_only'),
             'side': side,
             'price': price,
@@ -2417,8 +2419,8 @@ class woo extends Exchange["default"] {
     }
     async setLeverage(leverage, symbol = undefined, params = {}) {
         await this.loadMarkets();
-        if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20)) {
-            throw new errors.BadRequest(this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15 or 20');
+        if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
+            throw new errors.BadRequest(this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
         }
         const request = {
             'leverage': leverage,
@@ -2519,6 +2521,7 @@ class woo extends Exchange["default"] {
             'marginMode': 'cross',
             'liquidationPrice': this.safeNumber(position, 'estLiqPrice'),
             'entryPrice': this.parseNumber(entryPrice),
+            'realizedPnl': this.safeString(position, 'pnl24H'),
             'unrealizedPnl': this.parseNumber(unrealisedPnl),
             'percentage': undefined,
             'contracts': this.parseNumber(size),

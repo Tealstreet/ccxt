@@ -369,7 +369,7 @@ class bitget extends bitget$1 {
             'channel': channel,
             'instId': this.getWsMarketId(market),
         };
-        const orderbook = await this.watchPublic(messageHash, args, params);
+        const orderbook = await this.watchPublic(messageHash, args, params, false);
         if (incrementalFeed) {
             return orderbook.limit();
         }
@@ -494,7 +494,7 @@ class bitget extends bitget$1 {
             'channel': 'trade',
             'instId': this.getWsMarketId(market),
         };
-        const trades = await this.watchPublic(messageHash, args, params);
+        const trades = await this.watchPublic(messageHash, args, params, false);
         if (this.newUpdates) {
             limit = trades.getLimit(symbol, limit);
         }
@@ -1000,14 +1000,14 @@ class bitget extends bitget$1 {
         const messageHash = 'balance:' + instType;
         client.resolve(this.balance, messageHash);
     }
-    async watchPublic(messageHash, args, params = {}) {
+    async watchPublic(messageHash, args, params = {}, shouldThrottle = true) {
         const url = this.urls['api']['ws'];
         const request = {
             'op': 'subscribe',
             'args': [args],
         };
         const message = this.extend(request, params);
-        return await this.watch(url, messageHash, message, messageHash);
+        return await this.watch(url, messageHash, message, messageHash, shouldThrottle);
     }
     async authenticate(params = {}) {
         this.checkRequiredCredentials();

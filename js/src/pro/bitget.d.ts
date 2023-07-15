@@ -25,7 +25,7 @@ export default class bitget extends bitgetRest {
     parseWsMyTrade(trade: any, market?: any): import("../base/types.js").Trade;
     watchBalance(params?: {}): Promise<any>;
     handleBalance(client: any, message: any): void;
-    watchPublic(messageHash: any, args: any, params?: {}): Promise<any>;
+    watchPublic(messageHash: any, args: any, params?: {}, shouldThrottle?: boolean): Promise<any>;
     authenticate(params?: {}): Promise<any>;
     watchPrivate(messageHash: any, subscriptionHash: any, args: any, params?: {}): Promise<any>;
     handleAuthenticate(client: any, message: any): any;

@@ -7400,7 +7400,7 @@ export default class bybit extends Exchange {
             'percentage': this.parseNumber(percentage),
         };
     }
-    parseAccountConfig(position) {
+    parseAccountConfig() {
         // {
         //     "info": {
         //     "symbol": "BTCUSDT",

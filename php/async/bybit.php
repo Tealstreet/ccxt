@@ -7426,7 +7426,7 @@ class bybit extends Exchange {
         );
     }
 
-    public function parse_account_config($position) {
+    public function parse_account_config() {
         // {
         //     "info" => array(
         //     "symbol" => "BTCUSDT",

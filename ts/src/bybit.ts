@@ -7335,7 +7335,7 @@ export default class bybit extends Exchange {
         };
     }
 
-    parseAccountConfig (position) {
+    parseAccountConfig () {
         // {
         //     "info": {
         //     "symbol": "BTCUSDT",

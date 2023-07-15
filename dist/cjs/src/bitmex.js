@@ -264,6 +264,13 @@ class bitmex extends Exchange["default"] {
             },
         });
     }
+    safeSymbol(marketId, market = undefined, delimiter = undefined, marketType = undefined) {
+        if (marketId.indexOf('/') < 0) {
+            marketId = marketId.replace('BTC', 'XBT');
+        }
+        market = this.safeMarket(marketId, market, delimiter, marketType);
+        return market['symbol'];
+    }
     async fetchMarkets(params = {}) {
         /**
          * @method
@@ -549,11 +556,14 @@ class bitmex extends Exchange["default"] {
             const balance = response[i];
             const currencyId = this.safeString(balance, 'currency');
             const code = this.safeCurrencyCode(currencyId);
-            const account = this.account();
-            const free = this.safeInteger(balance, 'availableMargin');
-            const total = this.safeInteger(balance, 'marginBalance');
+            const account = {};
+            const free = this.safeInteger(balance, 'availableMargin', 0);
+            const total = this.safeInteger(balance, 'walletBalance');
             let freeStr = free.toString();
-            let totalStr = total.toString();
+            let totalStr = undefined;
+            if (total !== undefined) {
+                totalStr = total.toString();
+            }
             if (code !== 'USDT') {
                 // tmp fix until this PR gets merged
                 // https://github.com/ccxt/ccxt/pull/15311
@@ -566,16 +576,20 @@ class bitmex extends Exchange["default"] {
                     totalStr = Precise["default"].stringDiv(totalStr, multiplier);
                 }
                 else {
-                    freeStr = Precise["default"].stringDiv(freeStr, '1e8');
                     totalStr = Precise["default"].stringDiv(totalStr, '1e8');
+                    freeStr = Precise["default"].stringDiv(freeStr, '1e8');
                 }
             }
             else {
                 freeStr = Precise["default"].stringDiv(freeStr, '1e6');
                 totalStr = Precise["default"].stringDiv(totalStr, '1e6');
             }
-            account['free'] = freeStr;
-            account['total'] = totalStr;
+            if (totalStr !== undefined) {
+                account['total'] = totalStr;
+            }
+            if (freeStr !== undefined) {
+                account['free'] = freeStr;
+            }
             result[code] = account;
         }
         return this.safeBalance(result);

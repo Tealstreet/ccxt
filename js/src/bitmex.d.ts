@@ -1,6 +1,7 @@
 import { Exchange } from './base/Exchange.js';
 export default class bitmex extends Exchange {
     describe(): any;
+    safeSymbol(marketId: any, market?: any, delimiter?: any, marketType?: any): any;
     fetchMarkets(params?: {}): Promise<any[]>;
     parseBalance(response: any): import("./base/types.js").Balances;
     fetchBalance(params?: {}): Promise<import("./base/types.js").Balances>;
