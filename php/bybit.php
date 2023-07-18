@@ -3148,6 +3148,7 @@ class bybit extends Exchange {
         $timestamp = $this->safe_integer($order, 'createdTime');
         $id = $this->safe_string($order, 'orderId');
         $type = $this->safe_string_lower($order, 'orderType');
+        $stopOrderType = $this->safe_string_lower($order, 'stopOrderType');
         $price = $this->safe_string($order, 'price');
         $amount = $this->safe_string($order, 'qty');
         $cost = $this->safe_string($order, 'cumExecValue');
@@ -3175,6 +3176,13 @@ class bybit extends Exchange {
         $rawTimeInForce = $this->safe_string($order, 'timeInForce');
         $timeInForce = $this->parse_time_in_force($rawTimeInForce);
         $stopPrice = $this->omit_zero($this->safe_string($order, 'triggerPrice'));
+        if ($stopOrderType !== null) {
+            if ($type === 'market') {
+                $type = 'stop';
+            } else {
+                $type = 'stopLimit';
+            }
+        }
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,

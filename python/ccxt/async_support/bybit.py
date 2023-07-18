@@ -3060,6 +3060,7 @@ class bybit(Exchange):
         timestamp = self.safe_integer(order, 'createdTime')
         id = self.safe_string(order, 'orderId')
         type = self.safe_string_lower(order, 'orderType')
+        stopOrderType = self.safe_string_lower(order, 'stopOrderType')
         price = self.safe_string(order, 'price')
         amount = self.safe_string(order, 'qty')
         cost = self.safe_string(order, 'cumExecValue')
@@ -3084,6 +3085,11 @@ class bybit(Exchange):
         rawTimeInForce = self.safe_string(order, 'timeInForce')
         timeInForce = self.parse_time_in_force(rawTimeInForce)
         stopPrice = self.omit_zero(self.safe_string(order, 'triggerPrice'))
+        if stopOrderType is not None:
+            if type == 'market':
+                type = 'stop'
+            else:
+                type = 'stopLimit'
         return self.safe_order({
             'info': order,
             'id': id,

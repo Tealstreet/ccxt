@@ -3177,7 +3177,8 @@ export default class bybit extends Exchange {
         const symbol = market['symbol'];
         const timestamp = this.safeInteger(order, 'createdTime');
         const id = this.safeString(order, 'orderId');
-        const type = this.safeStringLower(order, 'orderType');
+        let type = this.safeStringLower(order, 'orderType');
+        const stopOrderType = this.safeStringLower(order, 'stopOrderType');
         const price = this.safeString(order, 'price');
         const amount = this.safeString(order, 'qty');
         const cost = this.safeString(order, 'cumExecValue');
@@ -3205,6 +3206,14 @@ export default class bybit extends Exchange {
         const rawTimeInForce = this.safeString(order, 'timeInForce');
         const timeInForce = this.parseTimeInForce(rawTimeInForce);
         const stopPrice = this.omitZero(this.safeString(order, 'triggerPrice'));
+        if (stopOrderType !== undefined) {
+            if (type === 'market') {
+                type = 'stop';
+            }
+            else {
+                type = 'stopLimit';
+            }
+        }
         return this.safeOrder({
             'info': order,
             'id': id,
