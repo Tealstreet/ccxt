@@ -14,7 +14,15 @@ export default class bitso extends Exchange {
         type: string;
         currency: any;
         amount: number;
-        before: number;
+        before: number; /**
+         * @method
+         * @name bitso#fetchDepositWithdrawFees
+         * @description fetch deposit and withdraw fees
+         * @see https://bitso.com/api_info#fees
+         * @param {[string]|undefined} codes list of unified currency codes
+         * @param {object} params extra parameters specific to the bitso api endpoint
+         * @returns {[object]} a list of [fee structures]{@link https://docs.ccxt.com/#/?id=fee-structure}
+         */
         after: number;
         status: string;
         fee: any;

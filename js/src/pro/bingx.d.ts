@@ -15,7 +15,7 @@ export default class bingx extends bingxRest {
     getPrivateType(url: any): "spot" | "unified" | "usdc";
     watchOrders(symbol?: string, since?: any, limit?: any, params?: {}): Promise<any>;
     handleOrder(client: any, message: any, subscription?: any): void;
-    watchTopics(url: any, messageHash: any, topics?: any[], params?: {}): Promise<any>;
+    watchTopics(url: any, messageHash: any, topics?: any[], params?: {}, shouldThrottle?: boolean): Promise<any>;
     authenticate(params?: {}): Promise<void>;
     keepAliveListenKey(params?: {}): Promise<void>;
     handleErrorMessage(client: any, message: any): boolean;

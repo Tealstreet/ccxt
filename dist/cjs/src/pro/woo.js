@@ -58,7 +58,7 @@ class woo extends woo$1 {
         this.options['requestId'][url] = newValue;
         return newValue;
     }
-    async watchPublic(messageHash, message) {
+    async watchPublic(messageHash, message, shouldThrottle = true) {
         this.checkRequiredUid();
         // const url = this.urls['api']['ws']['public'] + '/' + this.uid;
         const url = this.urls['api']['ws']['public'] + '/' + 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY';
@@ -67,7 +67,7 @@ class woo extends woo$1 {
             'id': requestId,
         };
         const request = this.extend(subscribe, message);
-        return await this.watch(url, messageHash, request, messageHash, subscribe);
+        return await this.watch(url, messageHash, request, messageHash, subscribe, shouldThrottle);
     }
     async watchOrderBook(symbol, limit = undefined, params = {}) {
         await this.loadMarkets();
@@ -79,7 +79,7 @@ class woo extends woo$1 {
             'topic': topic,
         };
         const message = this.extend(request, params);
-        const orderbook = await this.watchPublic(topic, message);
+        const orderbook = await this.watchPublic(topic, message, false);
         return orderbook.limit();
     }
     handleOrderBook(client, message) {
@@ -324,7 +324,7 @@ class woo extends woo$1 {
             'topic': topic,
         };
         const message = this.extend(request, params);
-        const trades = await this.watchPublic(topic, message);
+        const trades = await this.watchPublic(topic, message, false);
         if (this.newUpdates) {
             limit = trades.getLimit(market['symbol'], limit);
         }

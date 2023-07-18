@@ -267,6 +267,13 @@ export default class bitmex extends Exchange {
             },
         });
     }
+    safeSymbol(marketId, market = undefined, delimiter = undefined, marketType = undefined) {
+        if (marketId.indexOf('/') < 0) {
+            marketId = marketId.replace('BTC', 'XBT');
+        }
+        market = this.safeMarket(marketId, market, delimiter, marketType);
+        return market['symbol'];
+    }
     async fetchMarkets(params = {}) {
         /**
          * @method

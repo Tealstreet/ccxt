@@ -124,7 +124,7 @@ class bingx extends bingx$1 {
             }
         }
         const topics = ['market.depth.' + market['id'] + '.step0.level' + limit.toString()];
-        const orderbook = await this.watchTopics(url, messageHash, topics, params);
+        const orderbook = await this.watchTopics(url, messageHash, topics, params, false);
         // return orderbook.limit ();
         return orderbook;
     }
@@ -252,7 +252,7 @@ class bingx extends bingx$1 {
         params = this.cleanParams(params);
         const messageHash = 'trade:' + symbol;
         const topic = 'market.trade.detail.' + market['id'];
-        const trades = await this.watchTopics(url, messageHash, [topic], params);
+        const trades = await this.watchTopics(url, messageHash, [topic], params, false);
         if (this.newUpdates) {
             limit = trades.getLimit(symbol, limit);
         }
@@ -498,14 +498,14 @@ class bingx extends bingx$1 {
         const messageHash = 'orders';
         client.resolve(orders, messageHash);
     }
-    async watchTopics(url, messageHash, topics = [], params = {}) {
+    async watchTopics(url, messageHash, topics = [], params = {}, shouldThrottle = true) {
         const request = {
             'id': '' + this.requestId(),
             'reqType': 'sub',
             'dataType': topics[0],
         };
         const message = this.extend(request, params);
-        return await this.watch(url, messageHash, message, messageHash);
+        return await this.watch(url, messageHash, message, messageHash, shouldThrottle);
     }
     async authenticate(params = {}) {
         // this.checkRequiredCredentials ();

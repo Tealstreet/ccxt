@@ -185,6 +185,7 @@ export default class bitget extends Exchange {
         liquidationPrice: number;
         entryPrice: number;
         unrealizedPnl: number;
+        realizedPnl: number;
         percentage: any;
         contracts: number;
         contractSize: number;
@@ -212,6 +213,7 @@ export default class bitget extends Exchange {
         liquidationPrice: number;
         entryPrice: number;
         unrealizedPnl: number;
+        realizedPnl: number;
         percentage: any;
         contracts: number;
         contractSize: number;

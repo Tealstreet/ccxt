@@ -73,6 +73,7 @@ class Exchange {
         this.tokenBucket = undefined;
         this.throttle = undefined;
         this.enableRateLimit = undefined;
+        this.enableWsRateLimit = undefined;
         this.httpExceptions = undefined;
         this.limits = undefined;
         this.fees = undefined;
@@ -340,6 +341,7 @@ class Exchange {
             'name': undefined,
             'countries': undefined,
             'enableRateLimit': true,
+            'enableWsRateLimit': true,
             'rateLimit': 2000,
             'certified': false,
             'pro': false,
@@ -991,7 +993,7 @@ class Exchange {
         }
         return this.clients[url];
     }
-    watch(url, messageHash, message = undefined, subscribeHash = undefined, subscription = undefined) {
+    watch(url, messageHash, message = undefined, subscribeHash = undefined, subscription = undefined, shouldThrottle = true) {
         //
         // Without comments the code of this method is short and easy:
         //
@@ -1038,11 +1040,11 @@ class Exchange {
                 const options = this.safeValue(this.options, 'ws');
                 const cost = this.safeValue(options, 'cost', 1);
                 if (message) {
-                    if (this.enableRateLimit && client.throttle) {
+                    if (this.enableWsRateLimit && client.throttle) {
                         // add cost here |
                         //               |
                         //               V
-                        client.throttle(cost).then(() => {
+                        client.throttle(cost, shouldThrottle).then(() => {
                             client.send(message);
                         }).catch((e) => { throw e; });
                     }

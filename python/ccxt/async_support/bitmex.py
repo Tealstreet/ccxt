@@ -278,6 +278,12 @@ class bitmex(Exchange):
             },
         })
 
+    def safe_symbol(self, marketId, market=None, delimiter=None, marketType=None):
+        if marketId.find('/') < 0:
+            marketId = marketId.replace('BTC', 'XBT')
+        market = self.safe_market(marketId, market, delimiter, marketType)
+        return market['symbol']
+
     async def fetch_markets(self, params={}):
         """
         retrieves data on all markets for bitmex

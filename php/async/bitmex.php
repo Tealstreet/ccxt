@@ -276,6 +276,14 @@ class bitmex extends Exchange {
         ));
     }
 
+    public function safe_symbol($marketId, $market = null, $delimiter = null, $marketType = null) {
+        if (mb_strpos($marketId, '/') === false) {
+            $marketId = str_replace('BTC', 'XBT', $marketId);
+        }
+        $market = $this->safe_market($marketId, $market, $delimiter, $marketType);
+        return $market['symbol'];
+    }
+
     public function fetch_markets($params = array ()) {
         return Async\async(function () use ($params) {
             /**
