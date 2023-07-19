@@ -3174,7 +3174,8 @@ class bybit extends Exchange["default"] {
         const symbol = market['symbol'];
         const timestamp = this.safeInteger(order, 'createdTime');
         const id = this.safeString(order, 'orderId');
-        const type = this.safeStringLower(order, 'orderType');
+        let type = this.safeStringLower(order, 'orderType');
+        const stopOrderType = this.safeStringLower(order, 'stopOrderType');
         const price = this.safeString(order, 'price');
         const amount = this.safeString(order, 'qty');
         const cost = this.safeString(order, 'cumExecValue');
@@ -3202,6 +3203,14 @@ class bybit extends Exchange["default"] {
         const rawTimeInForce = this.safeString(order, 'timeInForce');
         const timeInForce = this.parseTimeInForce(rawTimeInForce);
         const stopPrice = this.omitZero(this.safeString(order, 'triggerPrice'));
+        if (stopOrderType !== undefined) {
+            if (type === 'market') {
+                type = 'stop';
+            }
+            else {
+                type = 'stopLimit';
+            }
+        }
         return this.safeOrder({
             'info': order,
             'id': id,
@@ -7397,7 +7406,7 @@ class bybit extends Exchange["default"] {
             'percentage': this.parseNumber(percentage),
         };
     }
-    parseAccountConfig() {
+    parseAccountConfig(position) {
         // {
         //     "info": {
         //     "symbol": "BTCUSDT",
@@ -7458,6 +7467,7 @@ class bybit extends Exchange["default"] {
         //     "side": "short",
         //     "percentage": -225.0315396225677
         // }
+        return position;
     }
     async setMarginMode(marginMode, symbol = undefined, params = {}) {
         await this.loadMarkets();

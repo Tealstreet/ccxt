@@ -7409,7 +7409,7 @@ export default class bybit extends Exchange {
             'percentage': this.parseNumber(percentage),
         };
     }
-    parseAccountConfig() {
+    parseAccountConfig(position) {
         // {
         //     "info": {
         //     "symbol": "BTCUSDT",
@@ -7470,6 +7470,7 @@ export default class bybit extends Exchange {
         //     "side": "short",
         //     "percentage": -225.0315396225677
         // }
+        return position;
     }
     async setMarginMode(marginMode, symbol = undefined, params = {}) {
         await this.loadMarkets();

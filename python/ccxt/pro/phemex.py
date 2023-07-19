@@ -429,7 +429,10 @@ class phemex(ccxt.async_support.phemex):
         symbol = market['symbol']
         url = self.urls['api']['ws']
         requestId = self.request_id()
-        name = 'trade'
+        quote = market['quote']
+        name = 'trade_p'
+        if quote.upper() != 'USDT':
+            name = 'trade'
         messageHash = name + ':' + symbol
         method = name + '.subscribe'
         subscribe = {

@@ -462,7 +462,11 @@ export default class phemex extends phemexRest {
         symbol = market['symbol'];
         const url = this.urls['api']['ws'];
         const requestId = this.requestId ();
-        const name = 'trade';
+        const quote = market['quote'];
+        let name = 'trade_p';
+        if (quote.toUpperCase () !== 'USDT') {
+            name = 'trade';
+        }
         const messageHash = name + ':' + symbol;
         const method = name + '.subscribe';
         const subscribe = {

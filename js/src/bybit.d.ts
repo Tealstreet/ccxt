@@ -211,7 +211,7 @@ export default class bybit extends Exchange {
         side: string;
         percentage: number;
     };
-    parseAccountConfig(): void;
+    parseAccountConfig(position: any): any;
     setMarginMode(marginMode: any, symbol?: string, params?: {}): Promise<any>;
     setUnifiedMarginMode(marginMode: any, symbol?: string, params?: {}): Promise<any>;
     setDerivativesMarginMode(marginMode: any, symbol?: string, params?: {}): Promise<any>;

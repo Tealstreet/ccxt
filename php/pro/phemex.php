@@ -465,7 +465,11 @@ class phemex extends \ccxt\async\phemex {
             $symbol = $market['symbol'];
             $url = $this->urls['api']['ws'];
             $requestId = $this->request_id();
-            $name = 'trade';
+            $quote = $market['quote'];
+            $name = 'trade_p';
+            if (strtoupper($quote) !== 'USDT') {
+                $name = 'trade';
+            }
             $messageHash = $name . ':' . $symbol;
             $method = $name . '.subscribe';
             $subscribe = array(

@@ -6890,7 +6890,7 @@ class bybit(Exchange):
             'percentage': self.parse_number(percentage),
         }
 
-    def parse_account_config(self):
+    def parse_account_config(self, position):
         # {
         #     "info": {
         #     "symbol": "BTCUSDT",
@@ -6951,7 +6951,7 @@ class bybit(Exchange):
         #     "side": "short",
         #     "percentage": -225.0315396225677
         # }
-        pass
+        return position
 
     async def set_margin_mode(self, marginMode, symbol=None, params={}):
         await self.load_markets()

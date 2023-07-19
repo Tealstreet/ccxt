@@ -7285,7 +7285,7 @@ class bybit extends Exchange {
         );
     }
 
-    public function parse_account_config() {
+    public function parse_account_config($position) {
         // {
         //     "info" => array(
         //     "symbol" => "BTCUSDT",
@@ -7346,6 +7346,7 @@ class bybit extends Exchange {
         //     "side" => "short",
         //     "percentage" => -225.0315396225677
         // }
+        return $position;
     }
 
     public function set_margin_mode($marginMode, $symbol = null, $params = array ()) {
