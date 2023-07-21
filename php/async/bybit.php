@@ -20,7 +20,6 @@ class bybit extends Exchange {
 
     public function describe() {
         return $this->deep_extend(parent::describe(), array(
-            'verbose' => true,
             'id' => 'bybit',
             'name' => 'Bybit',
             'countries' => array( 'VG' ), // British Virgin Islands
@@ -3529,8 +3528,13 @@ class bybit extends Exchange {
             // TEALSTREET  //
             $positionMode = $this->safe_value($params, 'positionMode', 'oneway');
             $request['positionIdx'] = 0;
+            $reduceOnly = $this->safe_value($params, 'reduceOnly', false);
             if ($positionMode !== 'oneway') {
-                $request['positionIdx'] = ($side === 'buy') ? 1 : 2;
+                if ($reduceOnly) {
+                    $request['positionIdx'] = ($side === 'buy') ? 2 : 1;
+                } else {
+                    $request['positionIdx'] = ($side === 'buy') ? 1 : 2;
+                }
             }
             $request['tpslOrderType'] = 'Partial';
             if ($amount === 0) {
@@ -3538,7 +3542,6 @@ class bybit extends Exchange {
                 $request['tpOrderType'] = 'Market';
                 $request['slOrderType'] = 'Market';
             }
-            //              //
             $triggerPrice = $this->safe_number_2($params, 'triggerPrice', 'stopPrice');
             $stopLossTriggerPrice = $this->safe_number($params, 'stopLossPrice', $triggerPrice);
             $takeProfitTriggerPrice = $this->safe_number($params, 'takeProfitPrice');
@@ -3583,7 +3586,7 @@ class bybit extends Exchange {
                 // mandatory field for options
                 $request['orderLinkId'] = $this->uuid16();
             }
-            $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId' ));
+            $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode' ));
             $response = Async\await($this->privatePostV5OrderCreate (array_merge($request, $params)));
             //
             //     {
@@ -6922,6 +6925,22 @@ class bybit extends Exchange {
         }) ();
     }
 
+    public function fetch_account_configuration($symbol, $params = array ()) {
+        return Async\async(function () use ($symbol, $params) {
+            Async\await($this->load_markets());
+            $position = Async\await($this->fetch_position($symbol));
+            return $this->parse_account_configuration($position);
+        }) ();
+    }
+
+    public function parse_account_configuration($position) {
+        return array(
+            'leverage' => $this->safe_number($position, 'leverage'),
+            'positionMode' => $this->safe_string($position, 'positionMode'),
+            'marginMode' => $this->safe_string($position, 'marginMode'),
+        );
+    }
+
     public function fetch_unified_positions($symbols = null, $params = array ()) {
         return Async\async(function () use ($symbols, $params) {
             Async\await($this->load_markets());
@@ -7317,6 +7336,14 @@ class bybit extends Exchange {
         $market = $this->safe_market($contract, $market, null, 'contract');
         $size = Precise::string_abs($this->safe_string($position, 'size'));
         $side = $this->safe_string($position, 'side');
+        $positionIdx = $this->safe_string($position, 'positionIdx');
+        if ($positionIdx !== '0') {
+            if ($positionIdx === '1') {
+                $side = 'Buy';
+            } elseif ($positionIdx === '2') {
+                $side = 'Sell';
+            }
+        }
         if ($side !== null) {
             if ($side === 'Buy') {
                 $side = 'long';
@@ -7379,13 +7406,13 @@ class bybit extends Exchange {
         $maintenanceMarginPercentage = Precise::string_div($maintenanceMarginString, $notional);
         $percentage = Precise::string_mul(Precise::string_div($unrealisedPnl, $initialMarginString), '100');
         $marginRatio = Precise::string_div($maintenanceMarginString, $collateralString, 4);
-        $positionIdx = $this->safe_string($position, 'positionIdx');
-        // /TEALSTREET
         $mode = 'oneway';
-        $symbolSuffix = $market['symbol'];
-        if ($positionIdx === '1') {
+        $id = $market['symbol'];
+        if ($positionIdx !== '0') {
             $mode = 'hedged';
-            $symbolSuffix = $side;
+            if ($side !== null) {
+                $id = $id . ':' . $side;
+            }
         }
         $status = true;
         if ($size === '0') {
@@ -7395,12 +7422,9 @@ class bybit extends Exchange {
         if ($this->safe_string($position, 'positionStatus') !== 'Normal') {
             $active = false;
         }
-        // \TEALSTREET
         return array(
             'info' => $position,
-            // /TEALSTREET
-            'id' => $market['symbol'] . ':' . $symbolSuffix,
-            // \TEALSTREET
+            'id' => $id,
             'mode' => $mode,
             'symbol' => $market['symbol'],
             'timestamp' => $timestamp,
@@ -7413,7 +7437,7 @@ class bybit extends Exchange {
             'notional' => $this->parse_number($notional),
             'leverage' => $this->parse_number($leverage),
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
-            'pnl' => $realizedPnl . $unrealisedPnl,
+            'pnl' => $this->parse_number($realizedPnl),
             'contracts' => $this->parse_number($size), // in USD for inverse swaps
             'contractSize' => $this->safe_number($market, 'contractSize'),
             'marginRatio' => $this->parse_number($marginRatio),
@@ -7421,14 +7445,12 @@ class bybit extends Exchange {
             'markPrice' => $this->safe_number($position, 'markPrice'),
             'collateral' => $this->parse_number($collateralString),
             'marginMode' => $marginMode,
-            // /TEALSTREET
             'isolated' => $marginMode === 'isolated',
             'hedged' => $mode === 'hedged',
             'price' => $this->parse_number($entryPrice),
             'status' => $status,
-            'tradeMode' => $mode,
+            'positionMode' => $mode,
             'active' => $active,
-            // \TEALSTREET
             'side' => $side,
             'percentage' => $this->parse_number($percentage),
         );

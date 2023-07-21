@@ -25,7 +25,6 @@ class bybit(Exchange):
 
     def describe(self):
         return self.deep_extend(super(bybit, self).describe(), {
-            'verbose': True,
             'id': 'bybit',
             'name': 'Bybit',
             'countries': ['VG'],  # British Virgin Islands
@@ -3369,14 +3368,17 @@ class bybit(Exchange):
         # TEALSTREET  #
         positionMode = self.safe_value(params, 'positionMode', 'oneway')
         request['positionIdx'] = 0
+        reduceOnly = self.safe_value(params, 'reduceOnly', False)
         if positionMode != 'oneway':
-            request['positionIdx'] = 1 if (side == 'buy') else 2
+            if reduceOnly:
+                request['positionIdx'] = 2 if (side == 'buy') else 1
+            else:
+                request['positionIdx'] = 1 if (side == 'buy') else 2
         request['tpslOrderType'] = 'Partial'
         if amount == 0:
             request['tpslOrderType'] = 'Full'
             request['tpOrderType'] = 'Market'
             request['slOrderType'] = 'Market'
-        #              #
         triggerPrice = self.safe_number_2(params, 'triggerPrice', 'stopPrice')
         stopLossTriggerPrice = self.safe_number(params, 'stopLossPrice', triggerPrice)
         takeProfitTriggerPrice = self.safe_number(params, 'takeProfitPrice')
@@ -3414,7 +3416,7 @@ class bybit(Exchange):
         elif market['option']:
             # mandatory field for options
             request['orderLinkId'] = self.uuid16()
-        params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId'])
+        params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode'])
         response = self.privatePostV5OrderCreate(self.extend(request, params))
         #
         #     {
@@ -6421,6 +6423,18 @@ class bybit(Exchange):
             'datetime': self.iso8601(timestamp),
         })
 
+    def fetch_account_configuration(self, symbol, params={}):
+        self.load_markets()
+        position = self.fetch_position(symbol)
+        return self.parse_account_configuration(position)
+
+    def parse_account_configuration(self, position):
+        return {
+            'leverage': self.safe_number(position, 'leverage'),
+            'positionMode': self.safe_string(position, 'positionMode'),
+            'marginMode': self.safe_string(position, 'marginMode'),
+        }
+
     def fetch_unified_positions(self, symbols=None, params={}):
         self.load_markets()
         request = {}
@@ -6784,6 +6798,12 @@ class bybit(Exchange):
         market = self.safe_market(contract, market, None, 'contract')
         size = Precise.string_abs(self.safe_string(position, 'size'))
         side = self.safe_string(position, 'side')
+        positionIdx = self.safe_string(position, 'positionIdx')
+        if positionIdx != '0':
+            if positionIdx == '1':
+                side = 'Buy'
+            elif positionIdx == '2':
+                side = 'Sell'
         if side is not None:
             if side == 'Buy':
                 side = 'long'
@@ -6838,25 +6858,21 @@ class bybit(Exchange):
         maintenanceMarginPercentage = Precise.string_div(maintenanceMarginString, notional)
         percentage = Precise.string_mul(Precise.string_div(unrealisedPnl, initialMarginString), '100')
         marginRatio = Precise.string_div(maintenanceMarginString, collateralString, 4)
-        positionIdx = self.safe_string(position, 'positionIdx')
-        # /TEALSTREET
         mode = 'oneway'
-        symbolSuffix = market['symbol']
-        if positionIdx == '1':
+        id = market['symbol']
+        if positionIdx != '0':
             mode = 'hedged'
-            symbolSuffix = side
+            if side is not None:
+                id = id + ':' + side
         status = True
         if size == '0':
             status = False
         active = True
         if self.safe_string(position, 'positionStatus') != 'Normal':
             active = False
-        # \TEALSTREET
         return {
             'info': position,
-            # /TEALSTREET
-            'id': market['symbol'] + ':' + symbolSuffix,
-            # \TEALSTREET
+            'id': id,
             'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
@@ -6869,7 +6885,7 @@ class bybit(Exchange):
             'notional': self.parse_number(notional),
             'leverage': self.parse_number(leverage),
             'unrealizedPnl': self.parse_number(unrealisedPnl),
-            'pnl': realizedPnl + unrealisedPnl,
+            'pnl': self.parse_number(realizedPnl),
             'contracts': self.parse_number(size),  # in USD for inverse swaps
             'contractSize': self.safe_number(market, 'contractSize'),
             'marginRatio': self.parse_number(marginRatio),
@@ -6877,14 +6893,12 @@ class bybit(Exchange):
             'markPrice': self.safe_number(position, 'markPrice'),
             'collateral': self.parse_number(collateralString),
             'marginMode': marginMode,
-            # /TEALSTREET
             'isolated': marginMode == 'isolated',
             'hedged': mode == 'hedged',
             'price': self.parse_number(entryPrice),
             'status': status,
-            'tradeMode': mode,
+            'positionMode': mode,
             'active': active,
-            # \TEALSTREET
             'side': side,
             'percentage': self.parse_number(percentage),
         }
