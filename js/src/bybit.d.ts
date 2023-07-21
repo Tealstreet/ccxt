@@ -175,13 +175,25 @@ export default class bybit extends Exchange {
         fee: any;
     }>;
     fetchPosition(symbol: any, params?: {}): Promise<any>;
+    fetchAccountConfiguration(symbol: any, params?: {}): Promise<{
+        leverage: number;
+        positionMode: string;
+        marginMode: string;
+        markets: {};
+    }>;
+    parseAccountConfiguration(position: any): {
+        leverage: number;
+        positionMode: string;
+        marginMode: string;
+        markets: {};
+    };
     fetchUnifiedPositions(symbols?: string[], params?: {}): Promise<any>;
     fetchUSDCPositions(symbols?: string[], params?: {}): Promise<any>;
     fetchDerivativesPositions(symbols?: string[], params?: {}): Promise<any>;
     fetchPositions(symbols?: string[], params?: {}): Promise<any>;
     parsePosition(position: any, market?: any): {
         info: any;
-        id: string;
+        id: any;
         mode: string;
         symbol: any;
         timestamp: number;
@@ -194,7 +206,7 @@ export default class bybit extends Exchange {
         notional: number;
         leverage: number;
         unrealizedPnl: number;
-        pnl: any;
+        pnl: number;
         contracts: number;
         contractSize: number;
         marginRatio: number;
@@ -206,7 +218,7 @@ export default class bybit extends Exchange {
         hedged: boolean;
         price: number;
         status: boolean;
-        tradeMode: string;
+        positionMode: string;
         active: boolean;
         side: string;
         percentage: number;

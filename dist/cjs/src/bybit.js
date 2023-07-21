@@ -10,7 +10,6 @@ var Precise = require('./base/Precise.js');
 class bybit extends Exchange["default"] {
     describe() {
         return this.deepExtend(super.describe(), {
-            'verbose': true,
             'id': 'bybit',
             'name': 'Bybit',
             'countries': ['VG'],
@@ -3526,8 +3525,14 @@ class bybit extends Exchange["default"] {
         // TEALSTREET  //
         const positionMode = this.safeValue(params, 'positionMode', 'oneway');
         request['positionIdx'] = 0;
+        const reduceOnly = this.safeValue(params, 'reduceOnly', false);
         if (positionMode !== 'oneway') {
-            request['positionIdx'] = (side === 'buy') ? 1 : 2;
+            if (reduceOnly) {
+                request['positionIdx'] = (side === 'buy') ? 2 : 1;
+            }
+            else {
+                request['positionIdx'] = (side === 'buy') ? 1 : 2;
+            }
         }
         request['tpslOrderType'] = 'Partial';
         if (amount === 0) {
@@ -3535,7 +3540,6 @@ class bybit extends Exchange["default"] {
             request['tpOrderType'] = 'Market';
             request['slOrderType'] = 'Market';
         }
-        //              //
         const triggerPrice = this.safeNumber2(params, 'triggerPrice', 'stopPrice');
         const stopLossTriggerPrice = this.safeNumber(params, 'stopLossPrice', triggerPrice);
         const takeProfitTriggerPrice = this.safeNumber(params, 'takeProfitPrice');
@@ -3584,7 +3588,7 @@ class bybit extends Exchange["default"] {
             // mandatory field for options
             request['orderLinkId'] = this.uuid16();
         }
-        params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId']);
+        params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode']);
         const response = await this.privatePostV5OrderCreate(this.extend(request, params));
         //
         //     {
@@ -6721,7 +6725,7 @@ class bybit extends Exchange["default"] {
                 request['category'] = 'linear';
             }
             else {
-                throw new errors.NotSupported(this.id + ' fetchPosition() does not allow inverse market orders for ' + symbol + ' markets');
+                request['category'] = 'inverse';
             }
         }
         else if (isUsdcSettled) {
@@ -6894,6 +6898,26 @@ class bybit extends Exchange["default"] {
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
         });
+    }
+    async fetchAccountConfiguration(symbol, params = {}) {
+        await this.loadMarkets();
+        const position = await this.fetchPosition(symbol);
+        return this.parseAccountConfiguration(position);
+    }
+    parseAccountConfiguration(position) {
+        const accountConfig = {
+            'leverage': this.safeNumber(position, 'leverage'),
+            'positionMode': this.safeString(position, 'positionMode'),
+            'marginMode': this.safeString(position, 'marginMode'),
+            'markets': {},
+        };
+        const symbol = this.safeString(position, 'symbol');
+        accountConfig['markets'][symbol] = {
+            'leverage': this.safeNumber(position, 'leverage'),
+            'positionMode': this.safeString(position, 'positionMode'),
+            'marginMode': this.safeString(position, 'marginMode'),
+        };
+        return accountConfig;
     }
     async fetchUnifiedPositions(symbols = undefined, params = {}) {
         await this.loadMarkets();
@@ -7286,6 +7310,15 @@ class bybit extends Exchange["default"] {
         market = this.safeMarket(contract, market, undefined, 'contract');
         let size = Precise["default"].stringAbs(this.safeString(position, 'size'));
         let side = this.safeString(position, 'side');
+        const positionIdx = this.safeString(position, 'positionIdx');
+        if (!side && positionIdx !== '0') {
+            if (positionIdx === '1') {
+                side = 'Buy';
+            }
+            else if (positionIdx === '2') {
+                side = 'Sell';
+            }
+        }
         if (side !== undefined) {
             if (side === 'Buy') {
                 side = 'long';
@@ -7352,13 +7385,13 @@ class bybit extends Exchange["default"] {
         const maintenanceMarginPercentage = Precise["default"].stringDiv(maintenanceMarginString, notional);
         const percentage = Precise["default"].stringMul(Precise["default"].stringDiv(unrealisedPnl, initialMarginString), '100');
         const marginRatio = Precise["default"].stringDiv(maintenanceMarginString, collateralString, 4);
-        const positionIdx = this.safeString(position, 'positionIdx');
-        // /TEALSTREET
         let mode = 'oneway';
-        let symbolSuffix = market['symbol'];
-        if (positionIdx === '1') {
+        let id = market['symbol'];
+        if (positionIdx !== '0') {
             mode = 'hedged';
-            symbolSuffix = side;
+            if (side !== undefined) {
+                id = id + ':' + side;
+            }
         }
         let status = true;
         if (size === '0') {
@@ -7368,12 +7401,9 @@ class bybit extends Exchange["default"] {
         if (this.safeString(position, 'positionStatus') !== 'Normal') {
             active = false;
         }
-        // \TEALSTREET
         return {
             'info': position,
-            // /TEALSTREET
-            'id': market['symbol'] + ':' + symbolSuffix,
-            // \TEALSTREET
+            'id': id,
             'mode': mode,
             'symbol': market['symbol'],
             'timestamp': timestamp,
@@ -7386,7 +7416,7 @@ class bybit extends Exchange["default"] {
             'notional': this.parseNumber(notional),
             'leverage': this.parseNumber(leverage),
             'unrealizedPnl': this.parseNumber(unrealisedPnl),
-            'pnl': realizedPnl + unrealisedPnl,
+            'pnl': this.parseNumber(realizedPnl),
             'contracts': this.parseNumber(size),
             'contractSize': this.safeNumber(market, 'contractSize'),
             'marginRatio': this.parseNumber(marginRatio),
@@ -7394,14 +7424,12 @@ class bybit extends Exchange["default"] {
             'markPrice': this.safeNumber(position, 'markPrice'),
             'collateral': this.parseNumber(collateralString),
             'marginMode': marginMode,
-            // /TEALSTREET
             'isolated': marginMode === 'isolated',
             'hedged': mode === 'hedged',
             'price': this.parseNumber(entryPrice),
             'status': status,
-            'tradeMode': mode,
+            'positionMode': mode,
             'active': active,
-            // \TEALSTREET
             'side': side,
             'percentage': this.parseNumber(percentage),
         };
@@ -7587,7 +7615,7 @@ class bybit extends Exchange["default"] {
                     request['category'] = 'linear';
                 }
                 else {
-                    throw new errors.NotSupported(this.id + ' setUnifiedMarginLeverage() leverage doesn\'t support inverse and option market in unified account');
+                    request['category'] = 'inverse';
                 }
                 method = 'privatePostV5PositionSetLeverage';
             }
@@ -7599,7 +7627,7 @@ class bybit extends Exchange["default"] {
                     request['category'] = 'linear';
                 }
                 else {
-                    throw new errors.NotSupported(this.id + ' setUnifiedMarginLeverage() leverage doesn\'t support inverse market in unified margin');
+                    request['category'] = 'inverse';
                 }
                 method = 'privatePostUnifiedV3PrivatePositionSetLeverage';
             }
