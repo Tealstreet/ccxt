@@ -6670,7 +6670,7 @@ export default class bybit extends Exchange {
             } else if (market['linear']) {
                 request['category'] = 'linear';
             } else {
-                throw new NotSupported (this.id + ' fetchPosition() does not allow inverse market orders for ' + symbol + ' markets');
+                request['category'] = 'inverse';
             }
         } else if (isUsdcSettled) {
             method = 'privatePostOptionUsdcOpenapiPrivateV1QueryPosition';
@@ -6847,11 +6847,19 @@ export default class bybit extends Exchange {
     }
 
     parseAccountConfiguration (position) {
-        return {
+        const accountConfig = {
+            'leverage': this.safeNumber (position, 'leverage'),
+            'positionMode': this.safeString (position, 'positionMode'),
+            'marginMode': this.safeString (position, 'marginMode'),
+            'markets': {},
+        };
+        const symbol = this.safeString (position, 'symbol');
+        accountConfig['markets'][symbol] = {
             'leverage': this.safeNumber (position, 'leverage'),
             'positionMode': this.safeString (position, 'positionMode'),
             'marginMode': this.safeString (position, 'marginMode'),
         };
+        return accountConfig;
     }
 
     async fetchUnifiedPositions (symbols: string[] = undefined, params = {}) {
@@ -7546,7 +7554,7 @@ export default class bybit extends Exchange {
                 if (market['linear']) {
                     request['category'] = 'linear';
                 } else {
-                    throw new NotSupported (this.id + ' setUnifiedMarginLeverage() leverage doesn\'t support inverse and option market in unified account');
+                    request['category'] = 'inverse';
                 }
                 method = 'privatePostV5PositionSetLeverage';
             } else if (enableUnifiedMargin) {
@@ -7555,7 +7563,7 @@ export default class bybit extends Exchange {
                 } else if (market['linear']) {
                     request['category'] = 'linear';
                 } else {
-                    throw new NotSupported (this.id + ' setUnifiedMarginLeverage() leverage doesn\'t support inverse market in unified margin');
+                    request['category'] = 'inverse';
                 }
                 method = 'privatePostUnifiedV3PrivatePositionSetLeverage';
             } else {

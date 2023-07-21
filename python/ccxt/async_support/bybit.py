@@ -6259,7 +6259,7 @@ class bybit(Exchange):
             elif market['linear']:
                 request['category'] = 'linear'
             else:
-                raise NotSupported(self.id + ' fetchPosition() does not allow inverse market orders for ' + symbol + ' markets')
+                request['category'] = 'inverse'
         elif isUsdcSettled:
             method = 'privatePostOptionUsdcOpenapiPrivateV1QueryPosition'
             if market['option']:
@@ -6430,11 +6430,19 @@ class bybit(Exchange):
         return self.parse_account_configuration(position)
 
     def parse_account_configuration(self, position):
-        return {
+        accountConfig = {
+            'leverage': self.safe_number(position, 'leverage'),
+            'positionMode': self.safe_string(position, 'positionMode'),
+            'marginMode': self.safe_string(position, 'marginMode'),
+            'markets': {},
+        }
+        symbol = self.safe_string(position, 'symbol')
+        accountConfig['markets'][symbol] = {
             'leverage': self.safe_number(position, 'leverage'),
             'positionMode': self.safe_string(position, 'positionMode'),
             'marginMode': self.safe_string(position, 'marginMode'),
         }
+        return accountConfig
 
     async def fetch_unified_positions(self, symbols=None, params={}):
         await self.load_markets()
@@ -6800,7 +6808,7 @@ class bybit(Exchange):
         size = Precise.string_abs(self.safe_string(position, 'size'))
         side = self.safe_string(position, 'side')
         positionIdx = self.safe_string(position, 'positionIdx')
-        if positionIdx != '0':
+        if not side and positionIdx != '0':
             if positionIdx == '1':
                 side = 'Buy'
             elif positionIdx == '2':
@@ -7073,7 +7081,7 @@ class bybit(Exchange):
                 if market['linear']:
                     request['category'] = 'linear'
                 else:
-                    raise NotSupported(self.id + ' setUnifiedMarginLeverage() leverage doesn\'t support inverse and option market in unified account')
+                    request['category'] = 'inverse'
                 method = 'privatePostV5PositionSetLeverage'
             elif enableUnifiedMargin:
                 if market['option']:
@@ -7081,7 +7089,7 @@ class bybit(Exchange):
                 elif market['linear']:
                     request['category'] = 'linear'
                 else:
-                    raise NotSupported(self.id + ' setUnifiedMarginLeverage() leverage doesn\'t support inverse market in unified margin')
+                    request['category'] = 'inverse'
                 method = 'privatePostUnifiedV3PrivatePositionSetLeverage'
             else:
                 method = 'privatePostContractV3PrivatePositionSetLeverage'

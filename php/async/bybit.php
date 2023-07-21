@@ -6754,7 +6754,7 @@ class bybit extends Exchange {
                 } elseif ($market['linear']) {
                     $request['category'] = 'linear';
                 } else {
-                    throw new NotSupported($this->id . ' fetchPosition() does not allow inverse $market orders for ' . $symbol . ' markets');
+                    $request['category'] = 'inverse';
                 }
             } elseif ($isUsdcSettled) {
                 $method = 'privatePostOptionUsdcOpenapiPrivateV1QueryPosition';
@@ -6934,11 +6934,19 @@ class bybit extends Exchange {
     }
 
     public function parse_account_configuration($position) {
-        return array(
+        $accountConfig = array(
+            'leverage' => $this->safe_number($position, 'leverage'),
+            'positionMode' => $this->safe_string($position, 'positionMode'),
+            'marginMode' => $this->safe_string($position, 'marginMode'),
+            'markets' => array(),
+        );
+        $symbol = $this->safe_string($position, 'symbol');
+        $accountConfig['markets'][$symbol] = array(
             'leverage' => $this->safe_number($position, 'leverage'),
             'positionMode' => $this->safe_string($position, 'positionMode'),
             'marginMode' => $this->safe_string($position, 'marginMode'),
         );
+        return $accountConfig;
     }
 
     public function fetch_unified_positions($symbols = null, $params = array ()) {
@@ -7337,7 +7345,7 @@ class bybit extends Exchange {
         $size = Precise::string_abs($this->safe_string($position, 'size'));
         $side = $this->safe_string($position, 'side');
         $positionIdx = $this->safe_string($position, 'positionIdx');
-        if ($positionIdx !== '0') {
+        if (!$side && $positionIdx !== '0') {
             if ($positionIdx === '1') {
                 $side = 'Buy';
             } elseif ($positionIdx === '2') {
@@ -7644,7 +7652,7 @@ class bybit extends Exchange {
                     if ($market['linear']) {
                         $request['category'] = 'linear';
                     } else {
-                        throw new NotSupported($this->id . ' setUnifiedMarginLeverage() $leverage doesn\'t support inverse and option $market in unified account');
+                        $request['category'] = 'inverse';
                     }
                     $method = 'privatePostV5PositionSetLeverage';
                 } elseif ($enableUnifiedMargin) {
@@ -7653,7 +7661,7 @@ class bybit extends Exchange {
                     } elseif ($market['linear']) {
                         $request['category'] = 'linear';
                     } else {
-                        throw new NotSupported($this->id . ' setUnifiedMarginLeverage() $leverage doesn\'t support inverse $market in unified margin');
+                        $request['category'] = 'inverse';
                     }
                     $method = 'privatePostUnifiedV3PrivatePositionSetLeverage';
                 } else {
