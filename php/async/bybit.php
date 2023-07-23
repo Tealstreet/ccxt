@@ -3328,6 +3328,26 @@ class bybit extends Exchange {
         ), $market);
     }
 
+    public function parse_stop_trigger($trigger) {
+        $trigger = $trigger && strtolower($trigger);
+        $triggers = array(
+            'MarkPrice' => 'mark',
+            'LastPrice' => 'last',
+            'IndexPrice' => 'index',
+        );
+        return $this->safe_string($triggers, $trigger, $trigger);
+    }
+
+    public function format_stop_trigger($trigger) {
+        $trigger = $trigger && strtolower($trigger);
+        $triggers = array(
+            'mark' => 'MarkPrice',
+            'last' => 'LastPrice',
+            'index' => 'IndexPrice',
+        );
+        return $this->safe_string($triggers, $trigger, $trigger);
+    }
+
     public function fetch_order($id, $symbol = null, $params = array ()) {
         return Async\async(function () use ($id, $symbol, $params) {
             /**
@@ -3446,13 +3466,14 @@ class bybit extends Exchange {
             Async\await($this->load_markets());
             $market = $this->market($symbol);
             $lowerCaseType = strtolower($type);
-            //  TEALSTREET  //
+            $isStop = false;
             if ($lowerCaseType === 'stop') {
+                $isStop = true;
                 $lowerCaseType = 'market';
             } elseif ($lowerCaseType === 'stopLimit') {
+                $isStop = true;
                 $lowerCaseType = 'limit';
             }
-            //              //
             if (($price === null) && ($lowerCaseType === 'limit')) {
                 throw new ArgumentsRequired($this->id . ' createOrder requires a $price argument for limit orders');
             }
@@ -3481,6 +3502,14 @@ class bybit extends Exchange {
                 // Valid for option only.
                 // 'orderIv' => '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
             );
+            if ($isStop) {
+                $close = $this->safe_value($params, 'close', false);
+                if ($close) {
+                    $request['closeOnTrigger'] = true;
+                }
+                $triggerType = $this->safe_string_2($params, 'trigger', 'triggerType', 'Last');
+                $request['triggerBy'] = $this->format_stop_trigger($triggerType);
+            }
             if ($market['spot']) {
                 $request['category'] = 'spot';
             } elseif ($market['linear']) {
@@ -3586,7 +3615,7 @@ class bybit extends Exchange {
                 // mandatory field for options
                 $request['orderLinkId'] = $this->uuid16();
             }
-            $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode' ));
+            $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close' ));
             $response = Async\await($this->privatePostV5OrderCreate (array_merge($request, $params)));
             //
             //     {

@@ -2270,13 +2270,13 @@ class bitget extends Exchange {
         return $this->safe_string($statuses, $status, $status);
     }
 
-    public function parse_stop_trigger($status) {
-        $statuses = array(
+    public function parse_stop_trigger($trigger) {
+        $triggers = array(
             'market_price' => 'mark',
             'fill_price' => 'last',
             'index_price' => 'index',
         );
-        return $this->safe_string($statuses, $status, $status);
+        return $this->safe_string($triggers, $trigger, $trigger);
     }
 
     public function parse_order($order, $market = null) {

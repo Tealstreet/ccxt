@@ -2281,13 +2281,13 @@ class bitget extends Exchange["default"] {
         };
         return this.safeString(statuses, status, status);
     }
-    parseStopTrigger(status) {
-        const statuses = {
+    parseStopTrigger(trigger) {
+        const triggers = {
             'market_price': 'mark',
             'fill_price': 'last',
             'index_price': 'index',
         };
-        return this.safeString(statuses, status, status);
+        return this.safeString(triggers, trigger, trigger);
     }
     parseOrder(order, market = undefined) {
         //

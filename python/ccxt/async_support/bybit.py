@@ -3190,6 +3190,24 @@ class bybit(Exchange):
             'info': order,
         }, market)
 
+    def parse_stop_trigger(self, trigger):
+        trigger = trigger and trigger.lower()
+        triggers = {
+            'MarkPrice': 'mark',
+            'LastPrice': 'last',
+            'IndexPrice': 'index',
+        }
+        return self.safe_string(triggers, trigger, trigger)
+
+    def format_stop_trigger(self, trigger):
+        trigger = trigger and trigger.lower()
+        triggers = {
+            'mark': 'MarkPrice',
+            'last': 'LastPrice',
+            'index': 'IndexPrice',
+        }
+        return self.safe_string(triggers, trigger, trigger)
+
     async def fetch_order(self, id, symbol=None, params={}):
         """
         fetches information on an order made by the user
@@ -3295,12 +3313,13 @@ class bybit(Exchange):
         await self.load_markets()
         market = self.market(symbol)
         lowerCaseType = type.lower()
-        #  TEALSTREET  #
+        isStop = False
         if lowerCaseType == 'stop':
+            isStop = True
             lowerCaseType = 'market'
         elif lowerCaseType == 'stopLimit':
+            isStop = True
             lowerCaseType = 'limit'
-        #              #
         if (price is None) and (lowerCaseType == 'limit'):
             raise ArgumentsRequired(self.id + ' createOrder requires a price argument for limit orders')
         request = {
@@ -3328,6 +3347,12 @@ class bybit(Exchange):
             # Valid for option only.
             # 'orderIv': '0',  # Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
         }
+        if isStop:
+            close = self.safe_value(params, 'close', False)
+            if close:
+                request['closeOnTrigger'] = True
+            triggerType = self.safe_string_2(params, 'trigger', 'triggerType', 'Last')
+            request['triggerBy'] = self.format_stop_trigger(triggerType)
         if market['spot']:
             request['category'] = 'spot'
         elif market['linear']:
@@ -3417,7 +3442,7 @@ class bybit(Exchange):
         elif market['option']:
             # mandatory field for options
             request['orderLinkId'] = self.uuid16()
-        params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode'])
+        params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close'])
         response = await self.privatePostV5OrderCreate(self.extend(request, params))
         #
         #     {

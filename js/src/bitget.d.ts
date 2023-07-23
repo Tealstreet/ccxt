@@ -145,7 +145,7 @@ export default class bitget extends Exchange {
     fetchBalance(params?: {}): Promise<any>;
     parseBalance(balance: any): import("./base/types.js").Balances;
     parseOrderStatus(status: any): string;
-    parseStopTrigger(status: any): string;
+    parseStopTrigger(trigger: any): string;
     parseOrder(order: any, market?: any): any;
     createOrder(symbol: any, type: any, side: any, amount: any, price?: any, params?: {}): Promise<any>;
     cancelOrder(id: any, symbol?: any, params?: {}): Promise<any>;

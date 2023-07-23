@@ -3317,6 +3317,24 @@ export default class bybit extends Exchange {
             'info': order,
         }, market);
     }
+    parseStopTrigger(trigger) {
+        trigger = trigger && trigger.toLowerCase();
+        const triggers = {
+            'MarkPrice': 'mark',
+            'LastPrice': 'last',
+            'IndexPrice': 'index',
+        };
+        return this.safeString(triggers, trigger, trigger);
+    }
+    formatStopTrigger(trigger) {
+        trigger = trigger && trigger.toLowerCase();
+        const triggers = {
+            'mark': 'MarkPrice',
+            'last': 'LastPrice',
+            'index': 'IndexPrice',
+        };
+        return this.safeString(triggers, trigger, trigger);
+    }
     async fetchOrder(id, symbol = undefined, params = {}) {
         /**
          * @method
@@ -3437,14 +3455,15 @@ export default class bybit extends Exchange {
         await this.loadMarkets();
         const market = this.market(symbol);
         let lowerCaseType = type.toLowerCase();
-        //  TEALSTREET  //
+        let isStop = false;
         if (lowerCaseType === 'stop') {
+            isStop = true;
             lowerCaseType = 'market';
         }
         else if (lowerCaseType === 'stopLimit') {
+            isStop = true;
             lowerCaseType = 'limit';
         }
-        //              //
         if ((price === undefined) && (lowerCaseType === 'limit')) {
             throw new ArgumentsRequired(this.id + ' createOrder requires a price argument for limit orders');
         }
@@ -3473,6 +3492,14 @@ export default class bybit extends Exchange {
             // Valid for option only.
             // 'orderIv': '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
         };
+        if (isStop) {
+            const close = this.safeValue(params, 'close', false);
+            if (close) {
+                request['closeOnTrigger'] = true;
+            }
+            const triggerType = this.safeString2(params, 'trigger', 'triggerType', 'Last');
+            request['triggerBy'] = this.formatStopTrigger(triggerType);
+        }
         if (market['spot']) {
             request['category'] = 'spot';
         }
@@ -3591,7 +3618,7 @@ export default class bybit extends Exchange {
             // mandatory field for options
             request['orderLinkId'] = this.uuid16();
         }
-        params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode']);
+        params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close']);
         const response = await this.privatePostV5OrderCreate(this.extend(request, params));
         //
         //     {

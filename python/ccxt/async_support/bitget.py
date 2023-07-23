@@ -2204,13 +2204,13 @@ class bitget(Exchange):
         }
         return self.safe_string(statuses, status, status)
 
-    def parse_stop_trigger(self, status):
-        statuses = {
+    def parse_stop_trigger(self, trigger):
+        triggers = {
             'market_price': 'mark',
             'fill_price': 'last',
             'index_price': 'index',
         }
-        return self.safe_string(statuses, status, status)
+        return self.safe_string(triggers, trigger, trigger)
 
     def parse_order(self, order, market=None):
         #

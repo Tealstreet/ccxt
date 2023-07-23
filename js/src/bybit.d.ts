@@ -48,6 +48,8 @@ export default class bybit extends Exchange {
     parseOrder(order: any, market?: any): any;
     parseContractOrder(order: any, market?: any): any;
     parseSpotOrder(order: any, market?: any): any;
+    parseStopTrigger(trigger: any): string;
+    formatStopTrigger(trigger: any): string;
     fetchOrder(id: any, symbol?: string, params?: {}): Promise<any>;
     createOrder(symbol: any, type: any, side: any, amount: any, price?: any, params?: {}): Promise<any>;
     createUnifiedAccountOrder(symbol: any, type: any, side: any, amount: any, price?: any, params?: {}): Promise<any>;
