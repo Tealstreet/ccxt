@@ -3249,7 +3249,7 @@ export default class bitget extends Exchange {
         const market = this.market (symbol);
         const request = {
             'symbol': market['id'],
-            'pageSize': 20,
+            'pageSize': 100,
         };
         if (limit !== undefined) {
             request['limit'] = limit;

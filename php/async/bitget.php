@@ -3263,7 +3263,7 @@ class bitget extends Exchange {
             $market = $this->market($symbol);
             $request = array(
                 'symbol' => $market['id'],
-                'pageSize' => 20,
+                'pageSize' => 100,
             );
             if ($limit !== null) {
                 $request['limit'] = $limit;

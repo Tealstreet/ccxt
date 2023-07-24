@@ -3062,7 +3062,7 @@ class bitget(Exchange):
         market = self.market(symbol)
         request = {
             'symbol': market['id'],
-            'pageSize': 20,
+            'pageSize': 100,
         }
         if limit is not None:
             request['limit'] = limit
