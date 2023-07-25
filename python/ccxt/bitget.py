@@ -2197,6 +2197,7 @@ class bitget(Exchange):
         statuses = {
             'new': 'open',
             'init': 'open',
+            'partially_filled': 'open',
             'full_fill': 'closed',
             'filled': 'closed',
             'not_trigger': 'untriggered',

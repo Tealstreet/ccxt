@@ -2278,6 +2278,7 @@ export default class bitget extends Exchange {
         const statuses = {
             'new': 'open',
             'init': 'open',
+            'partially_filled': 'open',
             'full_fill': 'closed',
             'filled': 'closed',
             'not_trigger': 'untriggered',

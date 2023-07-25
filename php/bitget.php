@@ -2263,6 +2263,7 @@ class bitget extends Exchange {
         $statuses = array(
             'new' => 'open',
             'init' => 'open',
+            'partially_filled' => 'open',
             'full_fill' => 'closed',
             'filled' => 'closed',
             'not_trigger' => 'untriggered',
