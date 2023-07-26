@@ -3896,8 +3896,8 @@ export default class bitget extends Exchange {
             'marginMode': isIsolated ? 'isolated' : 'cross',
             'isIsolated': isIsolated,
             'leverage': leverage,
-            'buyLeverage': buyLeverage,
-            'sellLeverage': sellLeverage,
+            'buyLeverage': isIsolated ? buyLeverage : leverage,
+            'sellLeverage': isIsolated ? sellLeverage : leverage,
             'marginCoin': marginCoin,
             'positionMode': positionMode,
         };

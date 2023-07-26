@@ -3663,8 +3663,8 @@ class bitget(Exchange):
             'marginMode': 'isolated' if isIsolated else 'cross',
             'isIsolated': isIsolated,
             'leverage': leverage,
-            'buyLeverage': buyLeverage,
-            'sellLeverage': sellLeverage,
+            'buyLeverage': buyLeverage if isIsolated else leverage,
+            'sellLeverage': sellLeverage if isIsolated else leverage,
             'marginCoin': marginCoin,
             'positionMode': positionMode,
         }
