@@ -3334,10 +3334,12 @@ class bitget(Exchange):
         defaultSubType = self.safe_string(self.options, 'defaultSubType')
         request = {
             'productType': 'UMCBL' if (defaultSubType == 'linear') else 'DMCBL',
-            'symbol': symbol,
             'startTime': since,
             'endTime': self.milliseconds(),
+            'pageSize': 99,
         }
+        if symbol is not None:
+            request['symbol'] = symbol
         response = await self.privateMixGetPositionHistoryPosition(self.extend(request, params))
         #
         #     {
@@ -3375,79 +3377,57 @@ class bitget(Exchange):
         return result
 
     def parse_history_position(self, position, market=None):
-        #
-        #     {
-        #         marginCoin: 'USDT',
-        #         symbol: 'BTCUSDT_UMCBL',
-        #         holdSide: 'long',
-        #         openDelegateCount: '0',
-        #         margin: '1.921475',
-        #         available: '0.001',
-        #         locked: '0',
-        #         total: '0.001',
-        #         leverage: '20',
-        #         achievedProfits: '0',
-        #         averageOpenPrice: '38429.5',
-        #         marginMode: 'fixed',
-        #         holdMode: 'double_hold',
-        #         unrealizedPL: '0.14869',
-        #         liquidationPrice: '0',
-        #         keepMarginRate: '0.004',
-        #         cTime: '1645922194988'
-        #     }
-        #
+        # {
+        #   "code": "00000",
+        #   "msg": "success",
+        #   "requestTime": 0,
+        #   "data": {
+        #     "list": [
+        #       {
+        #         "symbol": "ETHUSDT_UMCBL",
+        #         "marginCoin": "USDT",
+        #         "holdSide": "short",
+        #         "openAvgPrice": "1206.7",
+        #         "closeAvgPrice": "1206.8",
+        #         "marginMode": "fixed",
+        #         "openTotalPos": "1.15",
+        #         "closeTotalPos": "1.15",
+        #         "pnl": "-0.11",
+        #         "netProfit": "-1.780315",
+        #         "totalFunding": "0",
+        #         "openFee": "-0.83",
+        #         "closeFee": "-0.83",
+        #         "ctime": "1689300233897",
+        #         "utime": "1689300238205"
+        #       }
+        #     ],
+        #     "endId": "1062308959580516352"
+        #   }
+        # }
         marketId = self.safe_string(position, 'symbol')
-        instType = self.get_sub_type_from_market_id(marketId)
-        market = self.safe_market(marketId, market)
-        timestamp = self.safe_integer(position, 'cTime')
-        marginMode = self.safe_string(position, 'marginMode')
-        if marginMode == 'fixed':
-            marginMode = 'isolated'
-        elif marginMode == 'crossed':
-            marginMode = 'cross'
-        hedged = self.safe_string(position, 'holdMode')
-        isHedged = False
-        if hedged == 'double_hold':
-            isHedged = True
-        elif hedged == 'single_hold':
-            isHedged = False
+        id = self.safe_string(position, 'ctime')
         side = self.safe_string(position, 'holdSide')
-        contracts = self.safe_float_2(position, 'total', 'openDelegateCount')
-        liquidation = self.safe_number_2(position, 'liquidationPrice', 'liqPx')
-        if contracts == 0:
-            contracts = None
-        elif side == 'short' and contracts > 0:
-            contracts = -1 * contracts
-        if liquidation == 0:
-            liquidation = None
-        initialMargin = self.safe_number(position, 'margin')
-        markPrice = self.safe_number(position, 'markPrice')
+        entryPrice = self.safe_string(position, 'openAvgPrice')
+        exitPrice = self.safe_string(position, 'closeAvgPrice')
+        closeFee = self.safe_string(position, 'closeFee')
+        closeTotalPos = self.safe_string(position, 'closeTotalPos')
+        convertedRealizedPnl = self.safe_string(position, 'pnl')
+        openTimestamp = self.safe_integer(position, 'ctime')
+        closeTimestamp = self.safe_integer(position, 'utime')
+        duration = closeTimestamp - openTimestamp
         return {
+            'id': id,
+            'duration': duration,
             'info': position,
-            'id': market['symbol'] + ':' + side,
-            'instType': instType,
-            'symbol': market['symbol'],
-            'notional': None,
-            'marginMode': marginMode,
-            'liquidationPrice': liquidation,
-            'entryPrice': self.safe_number(position, 'averageOpenPrice'),
-            'unrealizedPnl': self.safe_number(position, 'upl'),
-            'realizedPnl': self.safe_number(position, 'achievedProfits'),
-            'percentage': None,
-            'contracts': contracts,
-            'contractSize': self.safe_number(position, 'total'),
-            'markPrice': markPrice,
             'side': side,
-            'hedged': isHedged,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'maintenanceMargin': None,
-            'maintenanceMarginPercentage': self.safe_number(position, 'keepMarginRate'),
-            'collateral': self.safe_number(position, 'margin'),
-            'initialMargin': initialMargin,
-            'initialMarginPercentage': None,
-            'leverage': self.safe_number(position, 'leverage'),
-            'marginRatio': None,
+            'convertedMaxSize': closeTotalPos,
+            'symbol': marketId,
+            'entryPrice': entryPrice,
+            'exitPrice': exitPrice,
+            'convertedRealizedPnl': convertedRealizedPnl,
+            'convertedFees': closeFee,
+            'openTimestamp': openTimestamp,
+            'closeTimestamp': closeTimestamp,
         }
 
     async def fetch_funding_rate_history(self, symbol=None, since=None, limit=None, params={}):

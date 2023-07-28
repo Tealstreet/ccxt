@@ -3541,10 +3541,13 @@ export default class bitget extends Exchange {
         const defaultSubType = this.safeString (this.options, 'defaultSubType');
         const request = {
             'productType': (defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
-            'symbol': symbol,
             'startTime': since,
             'endTime': this.milliseconds (),
+            'pageSize': 99,
         };
+        if (symbol !== undefined) {
+            request['symbol'] = symbol;
+        }
         const response = await (this as any).privateMixGetPositionHistoryPosition (this.extend (request, params));
         //
         //     {
@@ -3584,83 +3587,57 @@ export default class bitget extends Exchange {
     }
 
     parseHistoryPosition (position, market = undefined) {
-        //
-        //     {
-        //         marginCoin: 'USDT',
-        //         symbol: 'BTCUSDT_UMCBL',
-        //         holdSide: 'long',
-        //         openDelegateCount: '0',
-        //         margin: '1.921475',
-        //         available: '0.001',
-        //         locked: '0',
-        //         total: '0.001',
-        //         leverage: '20',
-        //         achievedProfits: '0',
-        //         averageOpenPrice: '38429.5',
-        //         marginMode: 'fixed',
-        //         holdMode: 'double_hold',
-        //         unrealizedPL: '0.14869',
-        //         liquidationPrice: '0',
-        //         keepMarginRate: '0.004',
-        //         cTime: '1645922194988'
-        //     }
-        //
+        // {
+        //   "code": "00000",
+        //   "msg": "success",
+        //   "requestTime": 0,
+        //   "data": {
+        //     "list": [
+        //       {
+        //         "symbol": "ETHUSDT_UMCBL",
+        //         "marginCoin": "USDT",
+        //         "holdSide": "short",
+        //         "openAvgPrice": "1206.7",
+        //         "closeAvgPrice": "1206.8",
+        //         "marginMode": "fixed",
+        //         "openTotalPos": "1.15",
+        //         "closeTotalPos": "1.15",
+        //         "pnl": "-0.11",
+        //         "netProfit": "-1.780315",
+        //         "totalFunding": "0",
+        //         "openFee": "-0.83",
+        //         "closeFee": "-0.83",
+        //         "ctime": "1689300233897",
+        //         "utime": "1689300238205"
+        //       }
+        //     ],
+        //     "endId": "1062308959580516352"
+        //   }
+        // }
         const marketId = this.safeString (position, 'symbol');
-        const instType = this.getSubTypeFromMarketId (marketId);
-        market = this.safeMarket (marketId, market);
-        const timestamp = this.safeInteger (position, 'cTime');
-        let marginMode = this.safeString (position, 'marginMode');
-        if (marginMode === 'fixed') {
-            marginMode = 'isolated';
-        } else if (marginMode === 'crossed') {
-            marginMode = 'cross';
-        }
-        const hedged = this.safeString (position, 'holdMode');
-        let isHedged = false;
-        if (hedged === 'double_hold') {
-            isHedged = true;
-        } else if (hedged === 'single_hold') {
-            isHedged = false;
-        }
+        const id = this.safeString (position, 'ctime');
         const side = this.safeString (position, 'holdSide');
-        let contracts = this.safeFloat2 (position, 'total', 'openDelegateCount');
-        let liquidation = this.safeNumber2 (position, 'liquidationPrice', 'liqPx');
-        if (contracts === 0) {
-            contracts = undefined;
-        } else if (side === 'short' && contracts > 0) {
-            contracts = -1 * contracts;
-        }
-        if (liquidation === 0) {
-            liquidation = undefined;
-        }
-        const initialMargin = this.safeNumber (position, 'margin');
-        const markPrice = this.safeNumber (position, 'markPrice');
+        const entryPrice = this.safeString (position, 'openAvgPrice');
+        const exitPrice = this.safeString (position, 'closeAvgPrice');
+        const closeFee = this.safeString (position, 'closeFee');
+        const closeTotalPos = this.safeString (position, 'closeTotalPos');
+        const convertedRealizedPnl = this.safeString (position, 'pnl');
+        const openTimestamp = this.safeInteger (position, 'ctime');
+        const closeTimestamp = this.safeInteger (position, 'utime');
+        const duration = closeTimestamp - openTimestamp;
         return {
+            'id': id,
+            'duration': duration,
             'info': position,
-            'id': market['symbol'] + ':' + side,
-            'instType': instType,
-            'symbol': market['symbol'],
-            'notional': undefined,
-            'marginMode': marginMode,
-            'liquidationPrice': liquidation,
-            'entryPrice': this.safeNumber (position, 'averageOpenPrice'),
-            'unrealizedPnl': this.safeNumber (position, 'upl'),
-            'realizedPnl': this.safeNumber (position, 'achievedProfits'),
-            'percentage': undefined,
-            'contracts': contracts,
-            'contractSize': this.safeNumber (position, 'total'),
-            'markPrice': markPrice,
             'side': side,
-            'hedged': isHedged,
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'maintenanceMargin': undefined,
-            'maintenanceMarginPercentage': this.safeNumber (position, 'keepMarginRate'),
-            'collateral': this.safeNumber (position, 'margin'),
-            'initialMargin': initialMargin,
-            'initialMarginPercentage': undefined,
-            'leverage': this.safeNumber (position, 'leverage'),
-            'marginRatio': undefined,
+            'convertedMaxSize': closeTotalPos,
+            'symbol': marketId,
+            'entryPrice': entryPrice,
+            'exitPrice': exitPrice,
+            'convertedRealizedPnl': convertedRealizedPnl,
+            'convertedFees': closeFee,
+            'openTimestamp': openTimestamp,
+            'closeTimestamp': closeTimestamp,
         };
     }
 
