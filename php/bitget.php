@@ -3493,7 +3493,7 @@ class bitget extends Exchange {
         //       code => '00000',
         //       msg => 'success',
         //       requestTime => '1645933905060',
-        //       data => array(
+        //       $data => array(
         //         {
         //           marginCoin => 'USDT',
         //           $symbol => 'BTCUSDT_UMCBL',
@@ -3516,7 +3516,8 @@ class bitget extends Exchange {
         //       )
         //     }
         //
-        $position = $this->safe_value($response, 'data', array());
+        $data = $this->safe_value($response, 'data', array());
+        $position = $this->safe_value($data, 'list', array());
         $result = array();
         for ($i = 0; $i < count($position); $i++) {
             $result[] = $this->parse_history_position($position[$i]);

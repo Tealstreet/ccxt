@@ -3562,7 +3562,8 @@ export default class bitget extends Exchange {
         //       ]
         //     }
         //
-        const position = this.safeValue(response, 'data', []);
+        const data = this.safeValue(response, 'data', {});
+        const position = this.safeValue(data, 'list', []);
         const result = [];
         for (let i = 0; i < position.length; i++) {
             result.push(this.parseHistoryPosition(position[i]));

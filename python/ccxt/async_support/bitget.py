@@ -3367,7 +3367,8 @@ class bitget(Exchange):
         #       ]
         #     }
         #
-        position = self.safe_value(response, 'data', [])
+        data = self.safe_value(response, 'data', {})
+        position = self.safe_value(data, 'list', [])
         result = []
         for i in range(0, len(position)):
             result.append(self.parse_history_position(position[i]))
