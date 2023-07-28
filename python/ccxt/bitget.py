@@ -3275,11 +3275,12 @@ class bitget(Exchange):
             marginMode = 'isolated'
         elif marginMode == 'crossed':
             marginMode = 'cross'
-        hedged: boolean | string = self.safe_string(position, 'holdMode')
+        hedged = self.safe_string(position, 'holdMode')
+        isHedged = False
         if hedged == 'double_hold':
-            hedged = True
+            isHedged = True
         elif hedged == 'single_hold':
-            hedged = False
+            isHedged = False
         side = self.safe_string(position, 'holdSide')
         contracts = self.safe_float_2(position, 'total', 'openDelegateCount')
         liquidation = self.safe_number_2(position, 'liquidationPrice', 'liqPx')
@@ -3307,7 +3308,7 @@ class bitget(Exchange):
             'contractSize': self.safe_number(position, 'total'),
             'markPrice': markPrice,
             'side': side,
-            'hedged': hedged,
+            'hedged': isHedged,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'maintenanceMargin': None,

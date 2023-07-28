@@ -3421,11 +3421,12 @@ class bitget extends Exchange {
         } elseif ($marginMode === 'crossed') {
             $marginMode = 'cross';
         }
-        $hedged => boolean | string = $this->safe_string($position, 'holdMode');
+        $hedged = $this->safe_string($position, 'holdMode');
+        $isHedged = false;
         if ($hedged === 'double_hold') {
-            $hedged = true;
+            $isHedged = true;
         } elseif ($hedged === 'single_hold') {
-            $hedged = false;
+            $isHedged = false;
         }
         $side = $this->safe_string($position, 'holdSide');
         $contracts = $this->safe_float_2($position, 'total', 'openDelegateCount');
@@ -3456,7 +3457,7 @@ class bitget extends Exchange {
             'contractSize' => $this->safe_number($position, 'total'),
             'markPrice' => $markPrice,
             'side' => $side,
-            'hedged' => $hedged,
+            'hedged' => $isHedged,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
             'maintenanceMargin' => null,

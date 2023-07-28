@@ -3477,11 +3477,12 @@ export default class bitget extends Exchange {
         } else if (marginMode === 'crossed') {
             marginMode = 'cross';
         }
-        let hedged: boolean | string = this.safeString (position, 'holdMode');
+        const hedged = this.safeString (position, 'holdMode');
+        let isHedged = false;
         if (hedged === 'double_hold') {
-            hedged = true;
+            isHedged = true;
         } else if (hedged === 'single_hold') {
-            hedged = false;
+            isHedged = false;
         }
         const side = this.safeString (position, 'holdSide');
         let contracts = this.safeFloat2 (position, 'total', 'openDelegateCount');
@@ -3512,7 +3513,7 @@ export default class bitget extends Exchange {
             'contractSize': this.safeNumber (position, 'total'),
             'markPrice': markPrice,
             'side': side,
-            'hedged': hedged,
+            'hedged': isHedged,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'maintenanceMargin': undefined,
