@@ -193,6 +193,7 @@ export default class bitget extends Exchange {
                             'plan/historyPlan': 2,
                             'position/singlePosition': 2,
                             'position/allPosition': 2,
+                            'position/history-position': 2,
                             'trace/currentTrack': 2,
                             'trace/followerOrder': 2,
                             'trace/historyTrack': 2,
