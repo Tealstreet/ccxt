@@ -68,6 +68,7 @@ export default class bitget extends Exchange {
                 'fetchPosition': true,
                 'fetchPositionMode': false,
                 'fetchPositions': true,
+                'fetchPositionsHistory': true,
                 'fetchPositionsRisk': false,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchTicker': true,
@@ -3446,6 +3447,139 @@ export default class bitget extends Exchange {
     }
 
     parsePosition (position, market = undefined) {
+        //
+        //     {
+        //         marginCoin: 'USDT',
+        //         symbol: 'BTCUSDT_UMCBL',
+        //         holdSide: 'long',
+        //         openDelegateCount: '0',
+        //         margin: '1.921475',
+        //         available: '0.001',
+        //         locked: '0',
+        //         total: '0.001',
+        //         leverage: '20',
+        //         achievedProfits: '0',
+        //         averageOpenPrice: '38429.5',
+        //         marginMode: 'fixed',
+        //         holdMode: 'double_hold',
+        //         unrealizedPL: '0.14869',
+        //         liquidationPrice: '0',
+        //         keepMarginRate: '0.004',
+        //         cTime: '1645922194988'
+        //     }
+        //
+        const marketId = this.safeString (position, 'symbol');
+        const instType = this.getSubTypeFromMarketId (marketId);
+        market = this.safeMarket (marketId, market);
+        const timestamp = this.safeInteger (position, 'cTime');
+        let marginMode = this.safeString (position, 'marginMode');
+        if (marginMode === 'fixed') {
+            marginMode = 'isolated';
+        } else if (marginMode === 'crossed') {
+            marginMode = 'cross';
+        }
+        const hedged = this.safeString (position, 'holdMode');
+        let isHedged = false;
+        if (hedged === 'double_hold') {
+            isHedged = true;
+        } else if (hedged === 'single_hold') {
+            isHedged = false;
+        }
+        const side = this.safeString (position, 'holdSide');
+        let contracts = this.safeFloat2 (position, 'total', 'openDelegateCount');
+        let liquidation = this.safeNumber2 (position, 'liquidationPrice', 'liqPx');
+        if (contracts === 0) {
+            contracts = undefined;
+        } else if (side === 'short' && contracts > 0) {
+            contracts = -1 * contracts;
+        }
+        if (liquidation === 0) {
+            liquidation = undefined;
+        }
+        const initialMargin = this.safeNumber (position, 'margin');
+        const markPrice = this.safeNumber (position, 'markPrice');
+        return {
+            'info': position,
+            'id': market['symbol'] + ':' + side,
+            'instType': instType,
+            'symbol': market['symbol'],
+            'notional': undefined,
+            'marginMode': marginMode,
+            'liquidationPrice': liquidation,
+            'entryPrice': this.safeNumber (position, 'averageOpenPrice'),
+            'unrealizedPnl': this.safeNumber (position, 'upl'),
+            'realizedPnl': this.safeNumber (position, 'achievedProfits'),
+            'percentage': undefined,
+            'contracts': contracts,
+            'contractSize': this.safeNumber (position, 'total'),
+            'markPrice': markPrice,
+            'side': side,
+            'hedged': isHedged,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'maintenanceMargin': undefined,
+            'maintenanceMarginPercentage': this.safeNumber (position, 'keepMarginRate'),
+            'collateral': this.safeNumber (position, 'margin'),
+            'initialMargin': initialMargin,
+            'initialMarginPercentage': undefined,
+            'leverage': this.safeNumber (position, 'leverage'),
+            'marginRatio': undefined,
+        };
+    }
+
+    async fetchPositionsHistory (symbols = undefined, params = {}) {
+        /**
+         * @method
+         * @name bitget#fetchPositions
+         * @description fetch all open positions
+         * @param {[string]|undefined} symbols list of unified market symbols
+         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @returns {[object]} a list of [position structure]{@link https://docs.ccxt.com/en/latest/manual.html#position-structure}
+         */
+        await this.loadMarkets ();
+        const defaultSubType = this.safeString (this.options, 'defaultSubType');
+        const request = {
+            'productType': (defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
+        };
+        const response = await (this as any).privateMixGetPositionHistoryPosition (this.extend (request, params));
+        //
+        //     {
+        //       code: '00000',
+        //       msg: 'success',
+        //       requestTime: '1645933905060',
+        //       data: [
+        //         {
+        //           marginCoin: 'USDT',
+        //           symbol: 'BTCUSDT_UMCBL',
+        //           holdSide: 'long',
+        //           openDelegateCount: '0',
+        //           margin: '1.921475',
+        //           available: '0.001',
+        //           locked: '0',
+        //           total: '0.001',
+        //           leverage: '20',
+        //           achievedProfits: '0',
+        //           averageOpenPrice: '38429.5',
+        //           marginMode: 'fixed',
+        //           holdMode: 'double_hold',
+        //           unrealizedPL: '0.14869',
+        //           liquidationPrice: '0',
+        //           keepMarginRate: '0.004',
+        //           cTime: '1645922194988'
+        //         }
+        //       ]
+        //     }
+        //
+        const position = this.safeValue (response, 'data', []);
+        const result = [];
+        for (let i = 0; i < position.length; i++) {
+            result.push (this.parseHistoryPosition (position[i]));
+        }
+        symbols = this.marketSymbols (symbols);
+        return this.filterByArray (result, 'symbol', symbols, false);
+    }
+
+    parseHistoryPosition (position, market = undefined) {
         //
         //     {
         //         marginCoin: 'USDT',

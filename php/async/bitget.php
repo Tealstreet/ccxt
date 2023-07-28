@@ -77,6 +77,7 @@ class bitget extends Exchange {
                 'fetchPosition' => true,
                 'fetchPositionMode' => false,
                 'fetchPositions' => true,
+                'fetchPositionsHistory' => true,
                 'fetchPositionsRisk' => false,
                 'fetchPremiumIndexOHLCV' => false,
                 'fetchTicker' => true,
@@ -3461,6 +3462,139 @@ class bitget extends Exchange {
     }
 
     public function parse_position($position, $market = null) {
+        //
+        //     {
+        //         marginCoin => 'USDT',
+        //         symbol => 'BTCUSDT_UMCBL',
+        //         holdSide => 'long',
+        //         openDelegateCount => '0',
+        //         margin => '1.921475',
+        //         available => '0.001',
+        //         locked => '0',
+        //         total => '0.001',
+        //         leverage => '20',
+        //         achievedProfits => '0',
+        //         averageOpenPrice => '38429.5',
+        //         $marginMode => 'fixed',
+        //         holdMode => 'double_hold',
+        //         unrealizedPL => '0.14869',
+        //         liquidationPrice => '0',
+        //         keepMarginRate => '0.004',
+        //         cTime => '1645922194988'
+        //     }
+        //
+        $marketId = $this->safe_string($position, 'symbol');
+        $instType = $this->get_sub_type_from_market_id($marketId);
+        $market = $this->safe_market($marketId, $market);
+        $timestamp = $this->safe_integer($position, 'cTime');
+        $marginMode = $this->safe_string($position, 'marginMode');
+        if ($marginMode === 'fixed') {
+            $marginMode = 'isolated';
+        } elseif ($marginMode === 'crossed') {
+            $marginMode = 'cross';
+        }
+        $hedged = $this->safe_string($position, 'holdMode');
+        $isHedged = false;
+        if ($hedged === 'double_hold') {
+            $isHedged = true;
+        } elseif ($hedged === 'single_hold') {
+            $isHedged = false;
+        }
+        $side = $this->safe_string($position, 'holdSide');
+        $contracts = $this->safe_float_2($position, 'total', 'openDelegateCount');
+        $liquidation = $this->safe_number_2($position, 'liquidationPrice', 'liqPx');
+        if ($contracts === 0) {
+            $contracts = null;
+        } elseif ($side === 'short' && $contracts > 0) {
+            $contracts = -1 * $contracts;
+        }
+        if ($liquidation === 0) {
+            $liquidation = null;
+        }
+        $initialMargin = $this->safe_number($position, 'margin');
+        $markPrice = $this->safe_number($position, 'markPrice');
+        return array(
+            'info' => $position,
+            'id' => $market['symbol'] . ':' . $side,
+            'instType' => $instType,
+            'symbol' => $market['symbol'],
+            'notional' => null,
+            'marginMode' => $marginMode,
+            'liquidationPrice' => $liquidation,
+            'entryPrice' => $this->safe_number($position, 'averageOpenPrice'),
+            'unrealizedPnl' => $this->safe_number($position, 'upl'),
+            'realizedPnl' => $this->safe_number($position, 'achievedProfits'),
+            'percentage' => null,
+            'contracts' => $contracts,
+            'contractSize' => $this->safe_number($position, 'total'),
+            'markPrice' => $markPrice,
+            'side' => $side,
+            'hedged' => $isHedged,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'maintenanceMargin' => null,
+            'maintenanceMarginPercentage' => $this->safe_number($position, 'keepMarginRate'),
+            'collateral' => $this->safe_number($position, 'margin'),
+            'initialMargin' => $initialMargin,
+            'initialMarginPercentage' => null,
+            'leverage' => $this->safe_number($position, 'leverage'),
+            'marginRatio' => null,
+        );
+    }
+
+    public function fetch_positions_history($symbols = null, $params = array ()) {
+        return Async\async(function () use ($symbols, $params) {
+            /**
+             * fetch all open positions
+             * @param {[string]|null} $symbols list of unified market $symbols
+             * @param {array} $params extra parameters specific to the bitget api endpoint
+             * @return {[array]} a list of {@link https://docs.ccxt.com/en/latest/manual.html#$position-structure $position structure}
+             */
+            Async\await($this->load_markets());
+            $defaultSubType = $this->safe_string($this->options, 'defaultSubType');
+            $request = array(
+                'productType' => ($defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
+            );
+            $response = Async\await($this->privateMixGetPositionHistoryPosition (array_merge($request, $params)));
+            //
+            //     {
+            //       code => '00000',
+            //       msg => 'success',
+            //       requestTime => '1645933905060',
+            //       data => array(
+            //         {
+            //           marginCoin => 'USDT',
+            //           symbol => 'BTCUSDT_UMCBL',
+            //           holdSide => 'long',
+            //           openDelegateCount => '0',
+            //           margin => '1.921475',
+            //           available => '0.001',
+            //           locked => '0',
+            //           total => '0.001',
+            //           leverage => '20',
+            //           achievedProfits => '0',
+            //           averageOpenPrice => '38429.5',
+            //           marginMode => 'fixed',
+            //           holdMode => 'double_hold',
+            //           unrealizedPL => '0.14869',
+            //           liquidationPrice => '0',
+            //           keepMarginRate => '0.004',
+            //           cTime => '1645922194988'
+            //         }
+            //       )
+            //     }
+            //
+            $position = $this->safe_value($response, 'data', array());
+            $result = array();
+            for ($i = 0; $i < count($position); $i++) {
+                $result[] = $this->parse_history_position($position[$i]);
+            }
+            $symbols = $this->market_symbols($symbols);
+            return $this->filter_by_array($result, 'symbol', $symbols, false);
+        }) ();
+    }
+
+    public function parse_history_position($position, $market = null) {
         //
         //     {
         //         marginCoin => 'USDT',
