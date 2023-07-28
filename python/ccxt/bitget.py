@@ -3414,12 +3414,14 @@ class bitget(Exchange):
         openTimestamp = self.safe_integer(position, 'ctime')
         closeTimestamp = self.safe_integer(position, 'utime')
         duration = closeTimestamp - openTimestamp
+        marginCoin = self.safe_string(position, 'marginCoin')
         return {
             'id': id,
             'duration': duration,
             'info': position,
             'side': side,
             'convertedMaxSize': closeTotalPos,
+            'convertedMarginCurrency': marginCoin,
             'symbol': marketId,
             'entryPrice': entryPrice,
             'exitPrice': exitPrice,

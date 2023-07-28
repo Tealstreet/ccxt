@@ -3625,12 +3625,14 @@ export default class bitget extends Exchange {
         const openTimestamp = this.safeInteger (position, 'ctime');
         const closeTimestamp = this.safeInteger (position, 'utime');
         const duration = closeTimestamp - openTimestamp;
+        const marginCoin = this.safeString (position, 'marginCoin');
         return {
             'id': id,
             'duration': duration,
             'info': position,
             'side': side,
             'convertedMaxSize': closeTotalPos,
+            'convertedMarginCurrency': marginCoin,
             'symbol': marketId,
             'entryPrice': entryPrice,
             'exitPrice': exitPrice,

@@ -3567,12 +3567,14 @@ class bitget extends Exchange {
         $openTimestamp = $this->safe_integer($position, 'ctime');
         $closeTimestamp = $this->safe_integer($position, 'utime');
         $duration = $closeTimestamp - $openTimestamp;
+        $marginCoin = $this->safe_string($position, 'marginCoin');
         return array(
             'id' => $id,
             'duration' => $duration,
             'info' => $position,
             'side' => $side,
             'convertedMaxSize' => $closeTotalPos,
+            'convertedMarginCurrency' => $marginCoin,
             'symbol' => $marketId,
             'entryPrice' => $entryPrice,
             'exitPrice' => $exitPrice,
