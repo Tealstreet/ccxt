@@ -3527,7 +3527,7 @@ export default class bitget extends Exchange {
         };
     }
 
-    async fetchPositionsHistory (symbols = undefined, params = {}) {
+    async fetchPositionsHistory (symbol = undefined, since = undefined, params = {}) {
         /**
          * @method
          * @name bitget#fetchPositions
@@ -3540,6 +3540,9 @@ export default class bitget extends Exchange {
         const defaultSubType = this.safeString (this.options, 'defaultSubType');
         const request = {
             'productType': (defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
+            'symbol': symbol,
+            'startTime': since,
+            'endTime': this.milliseconds (),
         };
         const response = await (this as any).privateMixGetPositionHistoryPosition (this.extend (request, params));
         //
@@ -3575,8 +3578,7 @@ export default class bitget extends Exchange {
         for (let i = 0; i < position.length; i++) {
             result.push (this.parseHistoryPosition (position[i]));
         }
-        symbols = this.marketSymbols (symbols);
-        return this.filterByArray (result, 'symbol', symbols, false);
+        return result;
     }
 
     parseHistoryPosition (position, market = undefined) {

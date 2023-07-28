@@ -3471,10 +3471,10 @@ class bitget extends Exchange {
         );
     }
 
-    public function fetch_positions_history($symbols = null, $params = array ()) {
+    public function fetch_positions_history($symbol = null, $since = null, $params = array ()) {
         /**
          * fetch all open positions
-         * @param {[string]|null} $symbols list of unified market $symbols
+         * @param {[string]|null} symbols list of unified market symbols
          * @param {array} $params extra parameters specific to the bitget api endpoint
          * @return {[array]} a list of {@link https://docs.ccxt.com/en/latest/manual.html#$position-structure $position structure}
          */
@@ -3482,6 +3482,9 @@ class bitget extends Exchange {
         $defaultSubType = $this->safe_string($this->options, 'defaultSubType');
         $request = array(
             'productType' => ($defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
+            'symbol' => $symbol,
+            'startTime' => $since,
+            'endTime' => $this->milliseconds(),
         );
         $response = $this->privateMixGetPositionHistoryPosition (array_merge($request, $params));
         //
@@ -3492,7 +3495,7 @@ class bitget extends Exchange {
         //       data => array(
         //         {
         //           marginCoin => 'USDT',
-        //           symbol => 'BTCUSDT_UMCBL',
+        //           $symbol => 'BTCUSDT_UMCBL',
         //           holdSide => 'long',
         //           openDelegateCount => '0',
         //           margin => '1.921475',
@@ -3517,8 +3520,7 @@ class bitget extends Exchange {
         for ($i = 0; $i < count($position); $i++) {
             $result[] = $this->parse_history_position($position[$i]);
         }
-        $symbols = $this->market_symbols($symbols);
-        return $this->filter_by_array($result, 'symbol', $symbols, false);
+        return $result;
     }
 
     public function parse_history_position($position, $market = null) {

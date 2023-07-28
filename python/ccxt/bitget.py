@@ -3321,7 +3321,7 @@ class bitget(Exchange):
             'marginRatio': None,
         }
 
-    def fetch_positions_history(self, symbols=None, params={}):
+    def fetch_positions_history(self, symbol=None, since=None, params={}):
         """
         fetch all open positions
         :param [str]|None symbols: list of unified market symbols
@@ -3332,6 +3332,9 @@ class bitget(Exchange):
         defaultSubType = self.safe_string(self.options, 'defaultSubType')
         request = {
             'productType': 'UMCBL' if (defaultSubType == 'linear') else 'DMCBL',
+            'symbol': symbol,
+            'startTime': since,
+            'endTime': self.milliseconds(),
         }
         response = self.privateMixGetPositionHistoryPosition(self.extend(request, params))
         #
@@ -3366,8 +3369,7 @@ class bitget(Exchange):
         result = []
         for i in range(0, len(position)):
             result.append(self.parse_history_position(position[i]))
-        symbols = self.market_symbols(symbols)
-        return self.filter_by_array(result, 'symbol', symbols, False)
+        return result
 
     def parse_history_position(self, position, market=None):
         #
