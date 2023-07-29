@@ -3427,21 +3427,12 @@ class bybit(Exchange):
             request['tpOrderType'] = 'Market'
             request['slOrderType'] = 'Market'
         triggerPrice = self.safe_number_2(params, 'stopPrice', 'triggerPrice')
-        if isStop and triggerPrice is None:
-            raise InvalidOrder(self.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders')
         basePrice = self.safe_number(params, 'basePrice')
-        if isStop and basePrice is None:
-            raise InvalidOrder(self.id + ' createOrder() requires a basePrice param for ' + type + ' orders')
-        stopLossTriggerPrice = None
-        takeProfitTriggerPrice = None
         if isStop:
             if not basePrice:
                 raise InvalidOrder(self.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders')
-            if triggerPrice > basePrice:
-                takeProfitTriggerPrice = triggerPrice
-            else:
-                stopLossTriggerPrice = triggerPrice
-        if isStop:
+            if triggerPrice is None:
+                raise InvalidOrder(self.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders')
             triggerBy = 'LastPrice'
             if params['trigger'] == 'Index':
                 triggerBy = 'IndexPrice'
@@ -3450,36 +3441,11 @@ class bybit(Exchange):
             request['triggerBy'] = triggerBy
             request['slTriggerBy'] = triggerBy
             request['tpTriggerBy'] = triggerBy
-        stopLoss = self.safe_number(params, 'stopLoss')
-        takeProfit = self.safe_number(params, 'takeProfit')
-        isStopLossTriggerOrder = stopLossTriggerPrice is not None
-        isTakeProfitTriggerOrder = takeProfitTriggerPrice is not None
-        isStopLoss = stopLoss is not None
-        isTakeProfit = takeProfit is not None
-        if isStop:
-            isBuy = side == 'buy'
-            ascending = not isBuy if stopLossTriggerPrice else isBuy
-            request['triggerDirection'] = 2 if ascending else 1
             request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
-        elif isStopLossTriggerOrder or isTakeProfitTriggerOrder:
-            if isStopLossTriggerOrder:
-                request['triggerPrice'] = self.price_to_precision(symbol, stopLossTriggerPrice)
-                if side == 'buy':
-                    request['triggerDirection'] = 2
-                else:
-                    request['triggerDirection'] = 1
+            if triggerPrice > basePrice:
+                request['triggerDirection'] = 1
             else:
-                request['triggerPrice'] = self.price_to_precision(symbol, takeProfitTriggerPrice)
-                if side == 'buy':
-                    request['triggerDirection'] = 1
-                else:
-                    request['triggerDirection'] = 2
-            request['reduceOnly'] = True
-        elif isStopLoss or isTakeProfit:
-            if isStopLoss:
-                request['stopLoss'] = self.price_to_precision(symbol, stopLoss)
-            if isTakeProfit:
-                request['takeProfit'] = self.price_to_precision(symbol, takeProfit)
+                request['triggerDirection'] = 2
         clientOrderId = self.safe_string(params, 'clientOrderId')
         if clientOrderId is not None:
             request['orderLinkId'] = clientOrderId

@@ -3596,26 +3596,14 @@ class bybit extends Exchange {
                 $request['slOrderType'] = 'Market';
             }
             $triggerPrice = $this->safe_number_2($params, 'stopPrice', 'triggerPrice');
-            if ($isStop && $triggerPrice === null) {
-                throw new InvalidOrder($this->id . ' createOrder() requires a $triggerPrice param for ' . $type . ' orders');
-            }
             $basePrice = $this->safe_number($params, 'basePrice');
-            if ($isStop && $basePrice === null) {
-                throw new InvalidOrder($this->id . ' createOrder() requires a $basePrice param for ' . $type . ' orders');
-            }
-            $stopLossTriggerPrice = null;
-            $takeProfitTriggerPrice = null;
             if ($isStop) {
                 if (!$basePrice) {
                     throw new InvalidOrder($this->id . ' createOrder() requires both the $triggerPrice and $basePrice $params for ' . $type . ' orders');
                 }
-                if ($triggerPrice > $basePrice) {
-                    $takeProfitTriggerPrice = $triggerPrice;
-                } else {
-                    $stopLossTriggerPrice = $triggerPrice;
+                if ($triggerPrice === null) {
+                    throw new InvalidOrder($this->id . ' createOrder() requires a $triggerPrice param for ' . $type . ' orders');
                 }
-            }
-            if ($isStop) {
                 $triggerBy = 'LastPrice';
                 if ($params['trigger'] === 'Index') {
                     $triggerBy = 'IndexPrice';
@@ -3625,41 +3613,11 @@ class bybit extends Exchange {
                 $request['triggerBy'] = $triggerBy;
                 $request['slTriggerBy'] = $triggerBy;
                 $request['tpTriggerBy'] = $triggerBy;
-            }
-            $stopLoss = $this->safe_number($params, 'stopLoss');
-            $takeProfit = $this->safe_number($params, 'takeProfit');
-            $isStopLossTriggerOrder = $stopLossTriggerPrice !== null;
-            $isTakeProfitTriggerOrder = $takeProfitTriggerPrice !== null;
-            $isStopLoss = $stopLoss !== null;
-            $isTakeProfit = $takeProfit !== null;
-            if ($isStop) {
-                $isBuy = $side === 'buy';
-                $ascending = $stopLossTriggerPrice ? !$isBuy : $isBuy;
-                $request['triggerDirection'] = $ascending ? 2 : 1;
                 $request['triggerPrice'] = $this->price_to_precision($symbol, $triggerPrice);
-            } elseif ($isStopLossTriggerOrder || $isTakeProfitTriggerOrder) {
-                if ($isStopLossTriggerOrder) {
-                    $request['triggerPrice'] = $this->price_to_precision($symbol, $stopLossTriggerPrice);
-                    if ($side === 'buy') {
-                        $request['triggerDirection'] = 2;
-                    } else {
-                        $request['triggerDirection'] = 1;
-                    }
+                if ($triggerPrice > $basePrice) {
+                    $request['triggerDirection'] = 1;
                 } else {
-                    $request['triggerPrice'] = $this->price_to_precision($symbol, $takeProfitTriggerPrice);
-                    if ($side === 'buy') {
-                        $request['triggerDirection'] = 1;
-                    } else {
-                        $request['triggerDirection'] = 2;
-                    }
-                }
-                $request['reduceOnly'] = true;
-            } elseif ($isStopLoss || $isTakeProfit) {
-                if ($isStopLoss) {
-                    $request['stopLoss'] = $this->price_to_precision($symbol, $stopLoss);
-                }
-                if ($isTakeProfit) {
-                    $request['takeProfit'] = $this->price_to_precision($symbol, $takeProfit);
+                    $request['triggerDirection'] = 2;
                 }
             }
             $clientOrderId = $this->safe_string($params, 'clientOrderId');

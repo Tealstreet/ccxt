@@ -3576,26 +3576,14 @@ export default class bybit extends Exchange {
             request['slOrderType'] = 'Market';
         }
         const triggerPrice = this.safeNumber2 (params, 'stopPrice', 'triggerPrice');
-        if (isStop && triggerPrice === undefined) {
-            throw new InvalidOrder (this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
-        }
         const basePrice = this.safeNumber (params, 'basePrice');
-        if (isStop && basePrice === undefined) {
-            throw new InvalidOrder (this.id + ' createOrder() requires a basePrice param for ' + type + ' orders');
-        }
-        let stopLossTriggerPrice = undefined;
-        let takeProfitTriggerPrice = undefined;
         if (isStop) {
             if (!basePrice) {
                 throw new InvalidOrder (this.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders');
             }
-            if (triggerPrice > basePrice) {
-                takeProfitTriggerPrice = triggerPrice;
-            } else {
-                stopLossTriggerPrice = triggerPrice;
+            if (triggerPrice === undefined) {
+                throw new InvalidOrder (this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
             }
-        }
-        if (isStop) {
             let triggerBy = 'LastPrice';
             if (params['trigger'] === 'Index') {
                 triggerBy = 'IndexPrice';
@@ -3605,41 +3593,11 @@ export default class bybit extends Exchange {
             request['triggerBy'] = triggerBy;
             request['slTriggerBy'] = triggerBy;
             request['tpTriggerBy'] = triggerBy;
-        }
-        const stopLoss = this.safeNumber (params, 'stopLoss');
-        const takeProfit = this.safeNumber (params, 'takeProfit');
-        const isStopLossTriggerOrder = stopLossTriggerPrice !== undefined;
-        const isTakeProfitTriggerOrder = takeProfitTriggerPrice !== undefined;
-        const isStopLoss = stopLoss !== undefined;
-        const isTakeProfit = takeProfit !== undefined;
-        if (isStop) {
-            const isBuy = side === 'buy';
-            const ascending = stopLossTriggerPrice ? !isBuy : isBuy;
-            request['triggerDirection'] = ascending ? 2 : 1;
             request['triggerPrice'] = this.priceToPrecision (symbol, triggerPrice);
-        } else if (isStopLossTriggerOrder || isTakeProfitTriggerOrder) {
-            if (isStopLossTriggerOrder) {
-                request['triggerPrice'] = this.priceToPrecision (symbol, stopLossTriggerPrice);
-                if (side === 'buy') {
-                    request['triggerDirection'] = 2;
-                } else {
-                    request['triggerDirection'] = 1;
-                }
+            if (triggerPrice > basePrice) {
+                request['triggerDirection'] = 1;
             } else {
-                request['triggerPrice'] = this.priceToPrecision (symbol, takeProfitTriggerPrice);
-                if (side === 'buy') {
-                    request['triggerDirection'] = 1;
-                } else {
-                    request['triggerDirection'] = 2;
-                }
-            }
-            request['reduceOnly'] = true;
-        } else if (isStopLoss || isTakeProfit) {
-            if (isStopLoss) {
-                request['stopLoss'] = this.priceToPrecision (symbol, stopLoss);
-            }
-            if (isTakeProfit) {
-                request['takeProfit'] = this.priceToPrecision (symbol, takeProfit);
+                request['triggerDirection'] = 2;
             }
         }
         const clientOrderId = this.safeString (params, 'clientOrderId');
