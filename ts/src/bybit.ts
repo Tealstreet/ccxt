@@ -3610,10 +3610,18 @@ export default class bybit extends Exchange {
         } else if (isStopLossTriggerOrder || isTakeProfitTriggerOrder) {
             if (isStopLossTriggerOrder) {
                 request['triggerPrice'] = this.priceToPrecision (symbol, stopLossTriggerPrice);
-                request['triggerDirection'] = 2;
+                if (side === 'buy') {
+                    request['triggerDirection'] = 2;
+                } else {
+                    request['triggerDirection'] = 1;
+                }
             } else {
                 request['triggerPrice'] = this.priceToPrecision (symbol, takeProfitTriggerPrice);
-                request['triggerDirection'] = 1;
+                if (side === 'buy') {
+                    request['triggerDirection'] = 1;
+                } else {
+                    request['triggerDirection'] = 2;
+                }
             }
             request['reduceOnly'] = true;
         } else if (isStopLoss || isTakeProfit) {

@@ -3457,10 +3457,16 @@ class bybit(Exchange):
         elif isStopLossTriggerOrder or isTakeProfitTriggerOrder:
             if isStopLossTriggerOrder:
                 request['triggerPrice'] = self.price_to_precision(symbol, stopLossTriggerPrice)
-                request['triggerDirection'] = 2
+                if side == 'buy':
+                    request['triggerDirection'] = 2
+                else:
+                    request['triggerDirection'] = 1
             else:
                 request['triggerPrice'] = self.price_to_precision(symbol, takeProfitTriggerPrice)
-                request['triggerDirection'] = 1
+                if side == 'buy':
+                    request['triggerDirection'] = 1
+                else:
+                    request['triggerDirection'] = 2
             request['reduceOnly'] = True
         elif isStopLoss or isTakeProfit:
             if isStopLoss:

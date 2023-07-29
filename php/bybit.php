@@ -3584,10 +3584,18 @@ class bybit extends Exchange {
         } elseif ($isStopLossTriggerOrder || $isTakeProfitTriggerOrder) {
             if ($isStopLossTriggerOrder) {
                 $request['triggerPrice'] = $this->price_to_precision($symbol, $stopLossTriggerPrice);
-                $request['triggerDirection'] = 2;
+                if ($side === 'buy') {
+                    $request['triggerDirection'] = 2;
+                } else {
+                    $request['triggerDirection'] = 1;
+                }
             } else {
                 $request['triggerPrice'] = $this->price_to_precision($symbol, $takeProfitTriggerPrice);
-                $request['triggerDirection'] = 1;
+                if ($side === 'buy') {
+                    $request['triggerDirection'] = 1;
+                } else {
+                    $request['triggerDirection'] = 2;
+                }
             }
             $request['reduceOnly'] = true;
         } elseif ($isStopLoss || $isTakeProfit) {
