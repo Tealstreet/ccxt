@@ -90,6 +90,7 @@ class bitget(Exchange):
                 'fetchPosition': True,
                 'fetchPositionMode': False,
                 'fetchPositions': True,
+                'fetchPositionsHistory': True,
                 'fetchPositionsRisk': False,
                 'fetchPremiumIndexOHLCV': False,
                 'fetchTicker': True,
@@ -214,6 +215,7 @@ class bitget(Exchange):
                             'plan/historyPlan': 2,
                             'position/singlePosition': 2,
                             'position/allPosition': 2,
+                            'position/history-position': 2,
                             'trace/currentTrack': 2,
                             'trace/followerOrder': 2,
                             'trace/historyTrack': 2,
@@ -2198,6 +2200,7 @@ class bitget(Exchange):
         statuses = {
             'new': 'open',
             'init': 'open',
+            'partially_filled': 'open',
             'full_fill': 'closed',
             'filled': 'closed',
             'not_trigger': 'untriggered',
@@ -3063,7 +3066,7 @@ class bitget(Exchange):
         market = self.market(symbol)
         request = {
             'symbol': market['id'],
-            'pageSize': 20,
+            'pageSize': 100,
         }
         if limit is not None:
             request['limit'] = limit
@@ -3275,11 +3278,12 @@ class bitget(Exchange):
             marginMode = 'isolated'
         elif marginMode == 'crossed':
             marginMode = 'cross'
-        hedged: boolean | string = self.safe_string(position, 'holdMode')
+        hedged = self.safe_string(position, 'holdMode')
+        isHedged = False
         if hedged == 'double_hold':
-            hedged = True
+            isHedged = True
         elif hedged == 'single_hold':
-            hedged = False
+            isHedged = False
         side = self.safe_string(position, 'holdSide')
         contracts = self.safe_float_2(position, 'total', 'openDelegateCount')
         liquidation = self.safe_number_2(position, 'liquidationPrice', 'liqPx')
@@ -3307,7 +3311,7 @@ class bitget(Exchange):
             'contractSize': self.safe_number(position, 'total'),
             'markPrice': markPrice,
             'side': side,
-            'hedged': hedged,
+            'hedged': isHedged,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'maintenanceMargin': None,
@@ -3317,6 +3321,115 @@ class bitget(Exchange):
             'initialMarginPercentage': None,
             'leverage': self.safe_number(position, 'leverage'),
             'marginRatio': None,
+        }
+
+    async def fetch_positions_history(self, symbol=None, since=None, params={}):
+        """
+        fetch all open positions
+        :param [str]|None symbols: list of unified market symbols
+        :param dict params: extra parameters specific to the bitget api endpoint
+        :returns [dict]: a list of `position structure <https://docs.ccxt.com/en/latest/manual.html#position-structure>`
+        """
+        await self.load_markets()
+        defaultSubType = self.safe_string(self.options, 'defaultSubType')
+        request = {
+            'productType': 'UMCBL' if (defaultSubType == 'linear') else 'DMCBL',
+            'startTime': since,
+            'endTime': self.milliseconds(),
+            'pageSize': 99,
+        }
+        if symbol is not None:
+            request['symbol'] = symbol
+        response = await self.privateMixGetPositionHistoryPosition(self.extend(request, params))
+        #
+        #     {
+        #       code: '00000',
+        #       msg: 'success',
+        #       requestTime: '1645933905060',
+        #       data: [
+        #         {
+        #           marginCoin: 'USDT',
+        #           symbol: 'BTCUSDT_UMCBL',
+        #           holdSide: 'long',
+        #           openDelegateCount: '0',
+        #           margin: '1.921475',
+        #           available: '0.001',
+        #           locked: '0',
+        #           total: '0.001',
+        #           leverage: '20',
+        #           achievedProfits: '0',
+        #           averageOpenPrice: '38429.5',
+        #           marginMode: 'fixed',
+        #           holdMode: 'double_hold',
+        #           unrealizedPL: '0.14869',
+        #           liquidationPrice: '0',
+        #           keepMarginRate: '0.004',
+        #           cTime: '1645922194988'
+        #         }
+        #       ]
+        #     }
+        #
+        data = self.safe_value(response, 'data', {})
+        position = self.safe_value(data, 'list', [])
+        result = []
+        for i in range(0, len(position)):
+            result.append(self.parse_history_position(position[i]))
+        return result
+
+    def parse_history_position(self, position, market=None):
+        # {
+        #   "code": "00000",
+        #   "msg": "success",
+        #   "requestTime": 0,
+        #   "data": {
+        #     "list": [
+        #       {
+        #         "symbol": "ETHUSDT_UMCBL",
+        #         "marginCoin": "USDT",
+        #         "holdSide": "short",
+        #         "openAvgPrice": "1206.7",
+        #         "closeAvgPrice": "1206.8",
+        #         "marginMode": "fixed",
+        #         "openTotalPos": "1.15",
+        #         "closeTotalPos": "1.15",
+        #         "pnl": "-0.11",
+        #         "netProfit": "-1.780315",
+        #         "totalFunding": "0",
+        #         "openFee": "-0.83",
+        #         "closeFee": "-0.83",
+        #         "ctime": "1689300233897",
+        #         "utime": "1689300238205"
+        #       }
+        #     ],
+        #     "endId": "1062308959580516352"
+        #   }
+        # }
+        marketId = self.safe_string(position, 'symbol')
+        id = self.safe_string(position, 'ctime')
+        side = self.safe_string(position, 'holdSide')
+        entryPrice = self.safe_string(position, 'openAvgPrice')
+        exitPrice = self.safe_string(position, 'closeAvgPrice')
+        closeFee = self.safe_string(position, 'closeFee')
+        closeTotalPos = self.safe_string(position, 'closeTotalPos')
+        convertedRealizedPnl = self.safe_string(position, 'pnl')
+        openTimestamp = self.safe_integer(position, 'ctime')
+        closeTimestamp = self.safe_integer(position, 'utime')
+        duration = closeTimestamp - openTimestamp
+        marginCoin = self.safe_string(position, 'marginCoin')
+        return {
+            'id': id,
+            'duration': duration,
+            'info': position,
+            'side': side,
+            'convertedMaxSize': closeTotalPos,
+            'convertedMarginCurrency': marginCoin,
+            'symbol': marketId,
+            'entryPrice': entryPrice,
+            'exitPrice': exitPrice,
+            'convertedRealizedPnl': convertedRealizedPnl,
+            'convertedFees': closeFee,
+            'openTimestamp': openTimestamp,
+            'closeTimestamp': closeTimestamp,
         }
 
     async def fetch_funding_rate_history(self, symbol=None, since=None, limit=None, params={}):
@@ -3662,8 +3775,8 @@ class bitget(Exchange):
             'marginMode': 'isolated' if isIsolated else 'cross',
             'isIsolated': isIsolated,
             'leverage': leverage,
-            'buyLeverage': buyLeverage,
-            'sellLeverage': sellLeverage,
+            'buyLeverage': buyLeverage if isIsolated else leverage,
+            'sellLeverage': sellLeverage if isIsolated else leverage,
             'marginCoin': marginCoin,
             'positionMode': positionMode,
         }

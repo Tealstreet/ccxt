@@ -77,6 +77,7 @@ class bitget extends Exchange {
                 'fetchPosition' => true,
                 'fetchPositionMode' => false,
                 'fetchPositions' => true,
+                'fetchPositionsHistory' => true,
                 'fetchPositionsRisk' => false,
                 'fetchPremiumIndexOHLCV' => false,
                 'fetchTicker' => true,
@@ -201,6 +202,7 @@ class bitget extends Exchange {
                             'plan/historyPlan' => 2,
                             'position/singlePosition' => 2,
                             'position/allPosition' => 2,
+                            'position/history-position' => 2,
                             'trace/currentTrack' => 2,
                             'trace/followerOrder' => 2,
                             'trace/historyTrack' => 2,
@@ -2308,6 +2310,7 @@ class bitget extends Exchange {
         $statuses = array(
             'new' => 'open',
             'init' => 'open',
+            'partially_filled' => 'open',
             'full_fill' => 'closed',
             'filled' => 'closed',
             'not_trigger' => 'untriggered',
@@ -3263,7 +3266,7 @@ class bitget extends Exchange {
             $market = $this->market($symbol);
             $request = array(
                 'symbol' => $market['id'],
-                'pageSize' => 20,
+                'pageSize' => 100,
             );
             if ($limit !== null) {
                 $request['limit'] = $limit;
@@ -3491,11 +3494,12 @@ class bitget extends Exchange {
         } elseif ($marginMode === 'crossed') {
             $marginMode = 'cross';
         }
-        $hedged => boolean | string = $this->safe_string($position, 'holdMode');
+        $hedged = $this->safe_string($position, 'holdMode');
+        $isHedged = false;
         if ($hedged === 'double_hold') {
-            $hedged = true;
+            $isHedged = true;
         } elseif ($hedged === 'single_hold') {
-            $hedged = false;
+            $isHedged = false;
         }
         $side = $this->safe_string($position, 'holdSide');
         $contracts = $this->safe_float_2($position, 'total', 'openDelegateCount');
@@ -3526,7 +3530,7 @@ class bitget extends Exchange {
             'contractSize' => $this->safe_number($position, 'total'),
             'markPrice' => $markPrice,
             'side' => $side,
-            'hedged' => $hedged,
+            'hedged' => $isHedged,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
             'maintenanceMargin' => null,
@@ -3536,6 +3540,121 @@ class bitget extends Exchange {
             'initialMarginPercentage' => null,
             'leverage' => $this->safe_number($position, 'leverage'),
             'marginRatio' => null,
+        );
+    }
+
+    public function fetch_positions_history($symbol = null, $since = null, $params = array ()) {
+        return Async\async(function () use ($symbol, $since, $params) {
+            /**
+             * fetch all open positions
+             * @param {[string]|null} symbols list of unified market symbols
+             * @param {array} $params extra parameters specific to the bitget api endpoint
+             * @return {[array]} a list of {@link https://docs.ccxt.com/en/latest/manual.html#$position-structure $position structure}
+             */
+            Async\await($this->load_markets());
+            $defaultSubType = $this->safe_string($this->options, 'defaultSubType');
+            $request = array(
+                'productType' => ($defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
+                'startTime' => $since,
+                'endTime' => $this->milliseconds(),
+                'pageSize' => 99,
+            );
+            if ($symbol !== null) {
+                $request['symbol'] = $symbol;
+            }
+            $response = Async\await($this->privateMixGetPositionHistoryPosition (array_merge($request, $params)));
+            //
+            //     {
+            //       code => '00000',
+            //       msg => 'success',
+            //       requestTime => '1645933905060',
+            //       $data => array(
+            //         {
+            //           marginCoin => 'USDT',
+            //           $symbol => 'BTCUSDT_UMCBL',
+            //           holdSide => 'long',
+            //           openDelegateCount => '0',
+            //           margin => '1.921475',
+            //           available => '0.001',
+            //           locked => '0',
+            //           total => '0.001',
+            //           leverage => '20',
+            //           achievedProfits => '0',
+            //           averageOpenPrice => '38429.5',
+            //           marginMode => 'fixed',
+            //           holdMode => 'double_hold',
+            //           unrealizedPL => '0.14869',
+            //           liquidationPrice => '0',
+            //           keepMarginRate => '0.004',
+            //           cTime => '1645922194988'
+            //         }
+            //       )
+            //     }
+            //
+            $data = $this->safe_value($response, 'data', array());
+            $position = $this->safe_value($data, 'list', array());
+            $result = array();
+            for ($i = 0; $i < count($position); $i++) {
+                $result[] = $this->parse_history_position($position[$i]);
+            }
+            return $result;
+        }) ();
+    }
+
+    public function parse_history_position($position, $market = null) {
+        // {
+        //   "code" => "00000",
+        //   "msg" => "success",
+        //   "requestTime" => 0,
+        //   "data" => {
+        //     "list" => array(
+        //       {
+        //         "symbol" => "ETHUSDT_UMCBL",
+        //         "marginCoin" => "USDT",
+        //         "holdSide" => "short",
+        //         "openAvgPrice" => "1206.7",
+        //         "closeAvgPrice" => "1206.8",
+        //         "marginMode" => "fixed",
+        //         "openTotalPos" => "1.15",
+        //         "closeTotalPos" => "1.15",
+        //         "pnl" => "-0.11",
+        //         "netProfit" => "-1.780315",
+        //         "totalFunding" => "0",
+        //         "openFee" => "-0.83",
+        //         "closeFee" => "-0.83",
+        //         "ctime" => "1689300233897",
+        //         "utime" => "1689300238205"
+        //       }
+        //     ),
+        //     "endId" => "1062308959580516352"
+        //   }
+        // }
+        $marketId = $this->safe_string($position, 'symbol');
+        $id = $this->safe_string($position, 'ctime');
+        $side = $this->safe_string($position, 'holdSide');
+        $entryPrice = $this->safe_string($position, 'openAvgPrice');
+        $exitPrice = $this->safe_string($position, 'closeAvgPrice');
+        $closeFee = $this->safe_string($position, 'closeFee');
+        $closeTotalPos = $this->safe_string($position, 'closeTotalPos');
+        $convertedRealizedPnl = $this->safe_string($position, 'pnl');
+        $openTimestamp = $this->safe_integer($position, 'ctime');
+        $closeTimestamp = $this->safe_integer($position, 'utime');
+        $duration = $closeTimestamp - $openTimestamp;
+        $marginCoin = $this->safe_string($position, 'marginCoin');
+        return array(
+            'id' => $id,
+            'duration' => $duration,
+            'info' => $position,
+            'side' => $side,
+            'convertedMaxSize' => $closeTotalPos,
+            'convertedMarginCurrency' => $marginCoin,
+            'symbol' => $marketId,
+            'entryPrice' => $entryPrice,
+            'exitPrice' => $exitPrice,
+            'convertedRealizedPnl' => $convertedRealizedPnl,
+            'convertedFees' => $closeFee,
+            'openTimestamp' => $openTimestamp,
+            'closeTimestamp' => $closeTimestamp,
         );
     }
 
@@ -3935,8 +4054,8 @@ class bitget extends Exchange {
             'marginMode' => $isIsolated ? 'isolated' : 'cross',
             'isIsolated' => $isIsolated,
             'leverage' => $leverage,
-            'buyLeverage' => $buyLeverage,
-            'sellLeverage' => $sellLeverage,
+            'buyLeverage' => $isIsolated ? $buyLeverage : $leverage,
+            'sellLeverage' => $isIsolated ? $sellLeverage : $leverage,
             'marginCoin' => $marginCoin,
             'positionMode' => $positionMode,
         );

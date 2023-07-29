@@ -70,6 +70,7 @@ export default class bitget extends Exchange {
                 'fetchPosition': true,
                 'fetchPositionMode': false,
                 'fetchPositions': true,
+                'fetchPositionsHistory': true,
                 'fetchPositionsRisk': false,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchTicker': true,
@@ -194,6 +195,7 @@ export default class bitget extends Exchange {
                             'plan/historyPlan': 2,
                             'position/singlePosition': 2,
                             'position/allPosition': 2,
+                            'position/history-position': 2,
                             'trace/currentTrack': 2,
                             'trace/followerOrder': 2,
                             'trace/historyTrack': 2,
@@ -2278,6 +2280,7 @@ export default class bitget extends Exchange {
         const statuses = {
             'new': 'open',
             'init': 'open',
+            'partially_filled': 'open',
             'full_fill': 'closed',
             'filled': 'closed',
             'not_trigger': 'untriggered',
@@ -3239,7 +3242,7 @@ export default class bitget extends Exchange {
         const market = this.market(symbol);
         const request = {
             'symbol': market['id'],
-            'pageSize': 20,
+            'pageSize': 100,
         };
         if (limit !== undefined) {
             request['limit'] = limit;
@@ -3463,12 +3466,13 @@ export default class bitget extends Exchange {
         else if (marginMode === 'crossed') {
             marginMode = 'cross';
         }
-        let hedged = this.safeString(position, 'holdMode');
+        const hedged = this.safeString(position, 'holdMode');
+        let isHedged = false;
         if (hedged === 'double_hold') {
-            hedged = true;
+            isHedged = true;
         }
         else if (hedged === 'single_hold') {
-            hedged = false;
+            isHedged = false;
         }
         const side = this.safeString(position, 'holdSide');
         let contracts = this.safeFloat2(position, 'total', 'openDelegateCount');
@@ -3500,7 +3504,7 @@ export default class bitget extends Exchange {
             'contractSize': this.safeNumber(position, 'total'),
             'markPrice': markPrice,
             'side': side,
-            'hedged': hedged,
+            'hedged': isHedged,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
             'maintenanceMargin': undefined,
@@ -3510,6 +3514,119 @@ export default class bitget extends Exchange {
             'initialMarginPercentage': undefined,
             'leverage': this.safeNumber(position, 'leverage'),
             'marginRatio': undefined,
+        };
+    }
+    async fetchPositionsHistory(symbol = undefined, since = undefined, params = {}) {
+        /**
+         * @method
+         * @name bitget#fetchPositions
+         * @description fetch all open positions
+         * @param {[string]|undefined} symbols list of unified market symbols
+         * @param {object} params extra parameters specific to the bitget api endpoint
+         * @returns {[object]} a list of [position structure]{@link https://docs.ccxt.com/en/latest/manual.html#position-structure}
+         */
+        await this.loadMarkets();
+        const defaultSubType = this.safeString(this.options, 'defaultSubType');
+        const request = {
+            'productType': (defaultSubType === 'linear') ? 'UMCBL' : 'DMCBL',
+            'startTime': since,
+            'endTime': this.milliseconds(),
+            'pageSize': 99,
+        };
+        if (symbol !== undefined) {
+            request['symbol'] = symbol;
+        }
+        const response = await this.privateMixGetPositionHistoryPosition(this.extend(request, params));
+        //
+        //     {
+        //       code: '00000',
+        //       msg: 'success',
+        //       requestTime: '1645933905060',
+        //       data: [
+        //         {
+        //           marginCoin: 'USDT',
+        //           symbol: 'BTCUSDT_UMCBL',
+        //           holdSide: 'long',
+        //           openDelegateCount: '0',
+        //           margin: '1.921475',
+        //           available: '0.001',
+        //           locked: '0',
+        //           total: '0.001',
+        //           leverage: '20',
+        //           achievedProfits: '0',
+        //           averageOpenPrice: '38429.5',
+        //           marginMode: 'fixed',
+        //           holdMode: 'double_hold',
+        //           unrealizedPL: '0.14869',
+        //           liquidationPrice: '0',
+        //           keepMarginRate: '0.004',
+        //           cTime: '1645922194988'
+        //         }
+        //       ]
+        //     }
+        //
+        const data = this.safeValue(response, 'data', {});
+        const position = this.safeValue(data, 'list', []);
+        const result = [];
+        for (let i = 0; i < position.length; i++) {
+            result.push(this.parseHistoryPosition(position[i]));
+        }
+        return result;
+    }
+    parseHistoryPosition(position, market = undefined) {
+        // {
+        //   "code": "00000",
+        //   "msg": "success",
+        //   "requestTime": 0,
+        //   "data": {
+        //     "list": [
+        //       {
+        //         "symbol": "ETHUSDT_UMCBL",
+        //         "marginCoin": "USDT",
+        //         "holdSide": "short",
+        //         "openAvgPrice": "1206.7",
+        //         "closeAvgPrice": "1206.8",
+        //         "marginMode": "fixed",
+        //         "openTotalPos": "1.15",
+        //         "closeTotalPos": "1.15",
+        //         "pnl": "-0.11",
+        //         "netProfit": "-1.780315",
+        //         "totalFunding": "0",
+        //         "openFee": "-0.83",
+        //         "closeFee": "-0.83",
+        //         "ctime": "1689300233897",
+        //         "utime": "1689300238205"
+        //       }
+        //     ],
+        //     "endId": "1062308959580516352"
+        //   }
+        // }
+        const marketId = this.safeString(position, 'symbol');
+        const id = this.safeString(position, 'ctime');
+        const side = this.safeString(position, 'holdSide');
+        const entryPrice = this.safeString(position, 'openAvgPrice');
+        const exitPrice = this.safeString(position, 'closeAvgPrice');
+        const closeFee = this.safeString(position, 'closeFee');
+        const closeTotalPos = this.safeString(position, 'closeTotalPos');
+        const convertedRealizedPnl = this.safeString(position, 'pnl');
+        const openTimestamp = this.safeInteger(position, 'ctime');
+        const closeTimestamp = this.safeInteger(position, 'utime');
+        const duration = closeTimestamp - openTimestamp;
+        const marginCoin = this.safeString(position, 'marginCoin');
+        return {
+            'id': id,
+            'duration': duration,
+            'info': position,
+            'side': side,
+            'convertedMaxSize': closeTotalPos,
+            'convertedMarginCurrency': marginCoin,
+            'symbol': marketId,
+            'entryPrice': entryPrice,
+            'exitPrice': exitPrice,
+            'convertedRealizedPnl': convertedRealizedPnl,
+            'convertedFees': closeFee,
+            'openTimestamp': openTimestamp,
+            'closeTimestamp': closeTimestamp,
         };
     }
     async fetchFundingRateHistory(symbol = undefined, since = undefined, limit = undefined, params = {}) {
@@ -3895,8 +4012,8 @@ export default class bitget extends Exchange {
             'marginMode': isIsolated ? 'isolated' : 'cross',
             'isIsolated': isIsolated,
             'leverage': leverage,
-            'buyLeverage': buyLeverage,
-            'sellLeverage': sellLeverage,
+            'buyLeverage': isIsolated ? buyLeverage : leverage,
+            'sellLeverage': isIsolated ? sellLeverage : leverage,
             'marginCoin': marginCoin,
             'positionMode': positionMode,
         };
