@@ -2859,10 +2859,10 @@ class bybit extends Exchange {
         //         "time" => 1675865290069
         //     }
         //
+        $responseResult = $this->safe_value($response, 'result', $response);
         $result = array(
-            'info' => $response,
+            'info' => $responseResult,
         );
-        $responseResult = $this->safe_value($response, 'result', array());
         $currencyList = $this->safe_value_n($responseResult, array( 'loanAccountList', 'list', 'coin', 'balances', 'balance' ));
         if ($currencyList === null) {
             // usdc wallet
@@ -2872,6 +2872,7 @@ class bybit extends Exchange {
             $account['total'] = $this->safe_string($responseResult, 'walletBalance');
             $result[$code] = $account;
         } else {
+            $result['info'] = $currencyList;
             for ($i = 0; $i < count($currencyList); $i++) {
                 $entry = $currencyList[$i];
                 $accountType = $this->safe_string($entry, 'accountType');

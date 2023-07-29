@@ -2879,10 +2879,10 @@ export default class bybit extends Exchange {
         //         "time": 1675865290069
         //     }
         //
+        const responseResult = this.safeValue (response, 'result', response);
         const result = {
-            'info': response,
+            'info': responseResult,
         };
-        const responseResult = this.safeValue (response, 'result', {});
         const currencyList = this.safeValueN (responseResult, [ 'loanAccountList', 'list', 'coin', 'balances', 'balance' ]);
         if (currencyList === undefined) {
             // usdc wallet
@@ -2892,6 +2892,7 @@ export default class bybit extends Exchange {
             account['total'] = this.safeString (responseResult, 'walletBalance');
             result[code] = account;
         } else {
+            result['info'] = currencyList;
             for (let i = 0; i < currencyList.length; i++) {
                 const entry = currencyList[i];
                 const accountType = this.safeString (entry, 'accountType');

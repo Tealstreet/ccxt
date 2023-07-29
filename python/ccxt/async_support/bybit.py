@@ -2794,10 +2794,10 @@ class bybit(Exchange):
         #         "time": 1675865290069
         #     }
         #
+        responseResult = self.safe_value(response, 'result', response)
         result = {
-            'info': response,
+            'info': responseResult,
         }
-        responseResult = self.safe_value(response, 'result', {})
         currencyList = self.safe_value_n(responseResult, ['loanAccountList', 'list', 'coin', 'balances', 'balance'])
         if currencyList is None:
             # usdc wallet
@@ -2807,6 +2807,7 @@ class bybit(Exchange):
             account['total'] = self.safe_string(responseResult, 'walletBalance')
             result[code] = account
         else:
+            result['info'] = currencyList
             for i in range(0, len(currencyList)):
                 entry = currencyList[i]
                 accountType = self.safe_string(entry, 'accountType')
