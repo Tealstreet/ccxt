@@ -1320,12 +1320,12 @@ class bybit extends Exchange {
         if ($this->options['adjustForTimeDifference']) {
             $this->load_time_difference();
         }
-        $promisesUnresolved = array(
+        $unresolvedPromises = array(
             $this->fetch_spot_markets($params),
             $this->fetch_derivatives_markets(array( 'category' => 'linear' )),
             $this->fetch_derivatives_markets(array( 'category' => 'inverse' )),
         );
-        $promises = $promisesUnresolved;
+        $promises = $unresolvedPromises;
         $spotMarkets = $promises[0];
         $linearMarkets = $promises[1];
         $inverseMarkets = $promises[2];
@@ -6633,7 +6633,7 @@ class bybit extends Exchange {
         return $this->parse_transaction($result, $currency);
     }
 
-    public function fetch_position($symbol, $params = array ()) {
+    public function fetch_position($symbol, $params = array (), $first = true) {
         /**
          * fetch data on a single open contract trade $position
          * @param {string} $symbol unified $market $symbol of the $market the $position is held in, default is null
@@ -6818,32 +6818,90 @@ class bybit extends Exchange {
         $result = $this->safe_value($response, 'result', array());
         $positions = $this->safe_value_2($result, 'list', 'dataList', array());
         $timestamp = $this->safe_integer($response, 'time');
-        $first = $this->safe_value($positions, 0);
-        $position = $this->parse_position($first, $market);
-        return array_merge($position, array(
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-        ));
+        if ($first) {
+            $this->safe_value($positions, 0);
+            $position = $this->parse_position($first, $market);
+            return array_merge($position, array(
+                'timestamp' => $timestamp,
+                'datetime' => $this->iso8601($timestamp),
+            ));
+        } else {
+            $parsedPositions = array();
+            for ($i = 0; $i < count($positions); $i++) {
+                $parsedPosition = $this->parse_position($positions[$i], $market);
+                $parsedPositions[] = array_merge($parsedPosition, array(
+                    'timestamp' => $timestamp,
+                    'datetime' => $this->iso8601($timestamp),
+                ));
+            }
+            return $parsedPositions;
+        }
     }
 
     public function fetch_account_configuration($symbol, $params = array ()) {
         $this->load_markets();
-        $position = $this->fetch_position($symbol);
-        return $this->parse_account_configuration($position);
+        $market = $this->market($symbol);
+        $promises = array(
+            $this->fetch_position($symbol, array(), false),
+        );
+        $isUnified = $this->is_unified_enabled() && $market['linear'];
+        if ($isUnified) {
+            $promises[] = $this->privateGetV5AccountInfo ();
+        }
+        $promises = $promises;
+        $positions = $promises[0];
+        $accountInfo = null;
+        if ($isUnified) {
+            $accountInfoResponse = $promises[1];
+            $accountInfo = $this->safe_value($accountInfoResponse, 'result');
+        }
+        return $this->parse_account_configuration($positions, $accountInfo);
     }
 
-    public function parse_account_configuration($position) {
+    public function parse_account_configuration($positions, $accountInfo) {
+        $marginMode = null;
+        if ($accountInfo !== null) {
+            $marginMode = $this->safe_string($accountInfo, 'marginMode');
+            if ($marginMode === 'ISOLATED_MARGIN') {
+                $marginMode = 'isolated';
+            } else {
+                $marginMode = 'cross';
+            }
+        } else {
+            $marginMode = $this->safe_string($positions[0], 'marginMode');
+        }
+        $leverage = null;
+        $buyLeverage = null;
+        $sellLeverage = null;
+        for ($i = 0; $i < count($positions); $i++) {
+            $position = $positions[$i];
+            $side = $this->safe_string($position, 'side');
+            if ($side === 'long') {
+                $buyLeverage = $this->safe_number($position, 'leverage');
+            } elseif ($side === 'short') {
+                $sellLeverage = $this->safe_number($position, 'leverage');
+            } else {
+                $foundLeverage = $this->safe_number($position, 'leverage');
+                $buyLeverage = $foundLeverage;
+                $sellLeverage = $foundLeverage;
+            }
+        }
+        $leverage = $buyLeverage || $sellLeverage;
         $accountConfig = array(
-            'leverage' => $this->safe_number($position, 'leverage'),
-            'positionMode' => $this->safe_string($position, 'positionMode'),
-            'marginMode' => $this->safe_string($position, 'marginMode'),
+            'leverage' => $leverage,
+            'buyLeverage' => $buyLeverage,
+            'sellLeverage' => $sellLeverage,
+            'positionMode' => $this->safe_string($positions[0], 'positionMode'),
+            'marginMode' => $marginMode,
             'markets' => array(),
         );
-        $symbol = $this->safe_string($position, 'symbol');
+        $symbol = $this->safe_string($positions[0], 'symbol');
         $accountConfig['markets'][$symbol] = array(
-            'leverage' => $this->safe_number($position, 'leverage'),
-            'positionMode' => $this->safe_string($position, 'positionMode'),
-            'marginMode' => $this->safe_string($position, 'marginMode'),
+            'leverage' => $leverage,
+            'buyLeverage' => $buyLeverage,
+            'sellLeverage' => $sellLeverage,
+            'positionMode' => $this->safe_string($positions[0], 'positionMode'),
+            'marginMode' => $marginMode,
         );
         return $accountConfig;
     }
@@ -7423,7 +7481,8 @@ class bybit extends Exchange {
         $this->load_markets();
         $values = $this->is_unified_enabled();
         $isUnifiedAccount = $this->safe_value($values, 1);
-        if ($isUnifiedAccount) {
+        $market = $this->market($symbol);
+        if ($isUnifiedAccount && $market['linear']) {
             return $this->set_unified_margin_mode($marginMode, $symbol, $params);
         }
         return $this->set_derivatives_margin_mode($marginMode, $symbol, $params);
@@ -7431,25 +7490,18 @@ class bybit extends Exchange {
 
     public function set_unified_margin_mode($marginMode, $symbol = null, $params = array ()) {
         $this->load_markets();
-        $market = $this->market($symbol);
-        $request = array(
-            'symbol' => $market['id'],
-        );
-        if (!$market['linear']) {
-            $request['category'] = 'inverse';
-        } else {
-            $request['category'] = 'linear';
-        }
+        $formattedMarginMode = $marginMode;
         if ($marginMode === 'isolated') {
-            $request['tradeMode'] = 1;
+            $formattedMarginMode = 'ISOLATED_MARGIN';
         } elseif ($marginMode === 'cross') {
-            $request['tradeMode'] = 0;
+            $formattedMarginMode = 'REGULAR_MARGIN';
         } else {
-            throw new BadRequest($this->id . ' setMarginMode() $marginMode must be either isolated or cross');
+            throw new BadRequest($this->id . ' setMarginMode() does not support $marginMode ' . $marginMode . '');
         }
-        $request['buyLeverage'] = $this->safe_string_2($params, 'buyLeverage', 'leverage');
-        $request['sellLeverage'] = $this->safe_string_2($params, 'sellLeverage', 'leverage');
-        $response = $this->privatePostV5PositionSwitchIsolated (array_merge($request, $params));
+        $request = array(
+            'setMarginMode' => $formattedMarginMode,
+        );
+        $response = $this->privatePostV5AccountSetMarginMode (array_merge($request, $params));
         return $response;
     }
 
@@ -7531,13 +7583,15 @@ class bybit extends Exchange {
         // engage in $leverage setting
         // we reuse the code here instead of having two methods
         $leverage = $this->number_to_string($leverage);
+        $buyLeverage = $this->safe_string($params, 'buyLeverage', $leverage);
+        $sellLeverage = $this->safe_string($params, 'sellLeverage', $leverage);
         $method = null;
         $request = null;
         if ($enableUnifiedMargin || $enableUnifiedAccount || !$isUsdcSettled) {
             $request = array(
                 'symbol' => $market['id'],
-                'buyLeverage' => $leverage,
-                'sellLeverage' => $leverage,
+                'buyLeverage' => $buyLeverage,
+                'sellLeverage' => $sellLeverage,
             );
             if ($enableUnifiedAccount) {
                 if ($market['linear']) {
@@ -7567,8 +7621,8 @@ class bybit extends Exchange {
         }
         // TEALSTREET
         $params = array(
-            'buyLeverage' => $this->safe_string($params, 'buyLeverage') || $request['buyLeverage'],
-            'sellLeverage' => $this->safe_string($params, 'sellLeverage') || $request['sellLeverage'],
+            'buyLeverage' => $buyLeverage || $request['buyLeverage'],
+            'sellLeverage' => $sellLeverage || $request['sellLeverage'],
         );
         // TEALSTREET
         return $this->$method (array_merge($request, $params));

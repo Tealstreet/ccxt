@@ -1339,12 +1339,12 @@ export default class bybit extends Exchange {
         if (this.options['adjustForTimeDifference']) {
             await this.loadTimeDifference ();
         }
-        const promisesUnresolved = [
+        const unresolvedPromises = [
             this.fetchSpotMarkets (params),
             this.fetchDerivativesMarkets ({ 'category': 'linear' }),
             this.fetchDerivativesMarkets ({ 'category': 'inverse' }),
         ];
-        const promises = await Promise.all (promisesUnresolved);
+        const promises = await Promise.all (unresolvedPromises);
         const spotMarkets = promises[0];
         const linearMarkets = promises[1];
         const inverseMarkets = promises[2];
@@ -6700,7 +6700,7 @@ export default class bybit extends Exchange {
         return this.parseTransaction (result, currency);
     }
 
-    async fetchPosition (symbol, params = {}) {
+    async fetchPosition (symbol, params = {}, first = true) {
         /**
          * @method
          * @name bybit#fetchPosition
@@ -6887,32 +6887,90 @@ export default class bybit extends Exchange {
         const result = this.safeValue (response, 'result', {});
         const positions = this.safeValue2 (result, 'list', 'dataList', []);
         const timestamp = this.safeInteger (response, 'time');
-        const first = this.safeValue (positions, 0);
-        const position = this.parsePosition (first, market);
-        return this.extend (position, {
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-        });
+        if (first) {
+            this.safeValue (positions, 0);
+            const position = this.parsePosition (first, market);
+            return this.extend (position, {
+                'timestamp': timestamp,
+                'datetime': this.iso8601 (timestamp),
+            });
+        } else {
+            const parsedPositions = [];
+            for (let i = 0; i < positions.length; i++) {
+                const parsedPosition = this.parsePosition (positions[i], market);
+                parsedPositions.push (this.extend (parsedPosition, {
+                    'timestamp': timestamp,
+                    'datetime': this.iso8601 (timestamp),
+                }));
+            }
+            return parsedPositions;
+        }
     }
 
     async fetchAccountConfiguration (symbol, params = {}) {
         await this.loadMarkets ();
-        const position = await this.fetchPosition (symbol);
-        return this.parseAccountConfiguration (position);
+        const market = this.market (symbol);
+        let promises = [
+            this.fetchPosition (symbol, {}, false),
+        ];
+        const isUnified = this.isUnifiedEnabled () && market['linear'];
+        if (isUnified) {
+            promises.push ((this as any).privateGetV5AccountInfo ());
+        }
+        promises = await Promise.all (promises);
+        const positions = promises[0];
+        let accountInfo = undefined;
+        if (isUnified) {
+            const accountInfoResponse = promises[1];
+            accountInfo = this.safeValue (accountInfoResponse, 'result');
+        }
+        return this.parseAccountConfiguration (positions, accountInfo);
     }
 
-    parseAccountConfiguration (position) {
+    parseAccountConfiguration (positions, accountInfo) {
+        let marginMode = undefined;
+        if (accountInfo !== undefined) {
+            marginMode = this.safeString (accountInfo, 'marginMode');
+            if (marginMode === 'ISOLATED_MARGIN') {
+                marginMode = 'isolated';
+            } else {
+                marginMode = 'cross';
+            }
+        } else {
+            marginMode = this.safeString (positions[0], 'marginMode');
+        }
+        let leverage = undefined;
+        let buyLeverage = undefined;
+        let sellLeverage = undefined;
+        for (let i = 0; i < positions.length; i++) {
+            const position = positions[i];
+            const side = this.safeString (position, 'side');
+            if (side === 'long') {
+                buyLeverage = this.safeNumber (position, 'leverage');
+            } else if (side === 'short') {
+                sellLeverage = this.safeNumber (position, 'leverage');
+            } else {
+                const foundLeverage = this.safeNumber (position, 'leverage');
+                buyLeverage = foundLeverage;
+                sellLeverage = foundLeverage;
+            }
+        }
+        leverage = buyLeverage || sellLeverage;
         const accountConfig = {
-            'leverage': this.safeNumber (position, 'leverage'),
-            'positionMode': this.safeString (position, 'positionMode'),
-            'marginMode': this.safeString (position, 'marginMode'),
+            'leverage': leverage,
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': this.safeString (positions[0], 'positionMode'),
+            'marginMode': marginMode,
             'markets': {},
         };
-        const symbol = this.safeString (position, 'symbol');
+        const symbol = this.safeString (positions[0], 'symbol');
         accountConfig['markets'][symbol] = {
-            'leverage': this.safeNumber (position, 'leverage'),
-            'positionMode': this.safeString (position, 'positionMode'),
-            'marginMode': this.safeString (position, 'marginMode'),
+            'leverage': leverage,
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': this.safeString (positions[0], 'positionMode'),
+            'marginMode': marginMode,
         };
         return accountConfig;
     }
@@ -7494,7 +7552,8 @@ export default class bybit extends Exchange {
         await this.loadMarkets ();
         const values = await this.isUnifiedEnabled ();
         const isUnifiedAccount = this.safeValue (values, 1);
-        if (isUnifiedAccount) {
+        const market = this.market (symbol);
+        if (isUnifiedAccount && market['linear']) {
             return await this.setUnifiedMarginMode (marginMode, symbol, params);
         }
         return await this.setDerivativesMarginMode (marginMode, symbol, params);
@@ -7502,25 +7561,18 @@ export default class bybit extends Exchange {
 
     async setUnifiedMarginMode (marginMode, symbol: string = undefined, params = {}) {
         await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'symbol': market['id'],
-        };
-        if (!market['linear']) {
-            request['category'] = 'inverse';
-        } else {
-            request['category'] = 'linear';
-        }
+        let formattedMarginMode = marginMode;
         if (marginMode === 'isolated') {
-            request['tradeMode'] = 1;
+            formattedMarginMode = 'ISOLATED_MARGIN';
         } else if (marginMode === 'cross') {
-            request['tradeMode'] = 0;
+            formattedMarginMode = 'REGULAR_MARGIN';
         } else {
-            throw new BadRequest (this.id + ' setMarginMode() marginMode must be either isolated or cross');
+            throw new BadRequest (this.id + ' setMarginMode() does not support marginMode ' + marginMode + '');
         }
-        request['buyLeverage'] = this.safeString2 (params, 'buyLeverage', 'leverage');
-        request['sellLeverage'] = this.safeString2 (params, 'sellLeverage', 'leverage');
-        const response = await (this as any).privatePostV5PositionSwitchIsolated (this.extend (request, params));
+        const request = {
+            'setMarginMode': formattedMarginMode,
+        };
+        const response = await (this as any).privatePostV5AccountSetMarginMode (this.extend (request, params));
         return response;
     }
 
@@ -7604,13 +7656,15 @@ export default class bybit extends Exchange {
         // engage in leverage setting
         // we reuse the code here instead of having two methods
         leverage = this.numberToString (leverage);
+        const buyLeverage = this.safeString (params, 'buyLeverage', leverage);
+        const sellLeverage = this.safeString (params, 'sellLeverage', leverage);
         let method = undefined;
         let request = undefined;
         if (enableUnifiedMargin || enableUnifiedAccount || !isUsdcSettled) {
             request = {
                 'symbol': market['id'],
-                'buyLeverage': leverage,
-                'sellLeverage': leverage,
+                'buyLeverage': buyLeverage,
+                'sellLeverage': sellLeverage,
             };
             if (enableUnifiedAccount) {
                 if (market['linear']) {
@@ -7640,8 +7694,8 @@ export default class bybit extends Exchange {
         }
         // TEALSTREET
         params = {
-            'buyLeverage': this.safeString (params, 'buyLeverage') || request['buyLeverage'],
-            'sellLeverage': this.safeString (params, 'sellLeverage') || request['sellLeverage'],
+            'buyLeverage': buyLeverage || request['buyLeverage'],
+            'sellLeverage': sellLeverage || request['sellLeverage'],
         };
         // TEALSTREET
         return await this[method] (this.extend (request, params));

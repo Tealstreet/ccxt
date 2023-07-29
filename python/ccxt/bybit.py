@@ -1321,12 +1321,12 @@ class bybit(Exchange):
         """
         if self.options['adjustForTimeDifference']:
             self.load_time_difference()
-        promisesUnresolved = [
+        unresolvedPromises = [
             self.fetch_spot_markets(params),
             self.fetch_derivatives_markets({'category': 'linear'}),
             self.fetch_derivatives_markets({'category': 'inverse'}),
         ]
-        promises = promisesUnresolved
+        promises = unresolvedPromises
         spotMarkets = promises[0]
         linearMarkets = promises[1]
         inverseMarkets = promises[2]
@@ -6271,7 +6271,7 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         return self.parse_transaction(result, currency)
 
-    def fetch_position(self, symbol, params={}):
+    def fetch_position(self, symbol, params={}, first=True):
         """
         fetch data on a single open contract trade position
         :param str symbol: unified market symbol of the market the position is held in, default is None
@@ -6452,30 +6452,80 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         positions = self.safe_value_2(result, 'list', 'dataList', [])
         timestamp = self.safe_integer(response, 'time')
-        first = self.safe_value(positions, 0)
-        position = self.parse_position(first, market)
-        return self.extend(position, {
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-        })
+        if first:
+            self.safe_value(positions, 0)
+            position = self.parse_position(first, market)
+            return self.extend(position, {
+                'timestamp': timestamp,
+                'datetime': self.iso8601(timestamp),
+            })
+        else:
+            parsedPositions = []
+            for i in range(0, len(positions)):
+                parsedPosition = self.parse_position(positions[i], market)
+                parsedPositions.append(self.extend(parsedPosition, {
+                    'timestamp': timestamp,
+                    'datetime': self.iso8601(timestamp),
+                }))
+            return parsedPositions
 
     def fetch_account_configuration(self, symbol, params={}):
         self.load_markets()
-        position = self.fetch_position(symbol)
-        return self.parse_account_configuration(position)
+        market = self.market(symbol)
+        promises = [
+            self.fetch_position(symbol, {}, False),
+        ]
+        isUnified = self.is_unified_enabled() and market['linear']
+        if isUnified:
+            promises.append(self.privateGetV5AccountInfo())
+        promises = promises
+        positions = promises[0]
+        accountInfo = None
+        if isUnified:
+            accountInfoResponse = promises[1]
+            accountInfo = self.safe_value(accountInfoResponse, 'result')
+        return self.parse_account_configuration(positions, accountInfo)
 
-    def parse_account_configuration(self, position):
+    def parse_account_configuration(self, positions, accountInfo):
+        marginMode = None
+        if accountInfo is not None:
+            marginMode = self.safe_string(accountInfo, 'marginMode')
+            if marginMode == 'ISOLATED_MARGIN':
+                marginMode = 'isolated'
+            else:
+                marginMode = 'cross'
+        else:
+            marginMode = self.safe_string(positions[0], 'marginMode')
+        leverage = None
+        buyLeverage = None
+        sellLeverage = None
+        for i in range(0, len(positions)):
+            position = positions[i]
+            side = self.safe_string(position, 'side')
+            if side == 'long':
+                buyLeverage = self.safe_number(position, 'leverage')
+            elif side == 'short':
+                sellLeverage = self.safe_number(position, 'leverage')
+            else:
+                foundLeverage = self.safe_number(position, 'leverage')
+                buyLeverage = foundLeverage
+                sellLeverage = foundLeverage
+        leverage = buyLeverage or sellLeverage
         accountConfig = {
-            'leverage': self.safe_number(position, 'leverage'),
-            'positionMode': self.safe_string(position, 'positionMode'),
-            'marginMode': self.safe_string(position, 'marginMode'),
+            'leverage': leverage,
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': self.safe_string(positions[0], 'positionMode'),
+            'marginMode': marginMode,
             'markets': {},
         }
-        symbol = self.safe_string(position, 'symbol')
+        symbol = self.safe_string(positions[0], 'symbol')
         accountConfig['markets'][symbol] = {
-            'leverage': self.safe_number(position, 'leverage'),
-            'positionMode': self.safe_string(position, 'positionMode'),
-            'marginMode': self.safe_string(position, 'marginMode'),
+            'leverage': leverage,
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': self.safe_string(positions[0], 'positionMode'),
+            'marginMode': marginMode,
         }
         return accountConfig
 
@@ -7014,29 +7064,24 @@ class bybit(Exchange):
         self.load_markets()
         values = self.is_unified_enabled()
         isUnifiedAccount = self.safe_value(values, 1)
-        if isUnifiedAccount:
+        market = self.market(symbol)
+        if isUnifiedAccount and market['linear']:
             return self.set_unified_margin_mode(marginMode, symbol, params)
         return self.set_derivatives_margin_mode(marginMode, symbol, params)
 
     def set_unified_margin_mode(self, marginMode, symbol=None, params={}):
         self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'symbol': market['id'],
-        }
-        if not market['linear']:
-            request['category'] = 'inverse'
-        else:
-            request['category'] = 'linear'
+        formattedMarginMode = marginMode
         if marginMode == 'isolated':
-            request['tradeMode'] = 1
+            formattedMarginMode = 'ISOLATED_MARGIN'
         elif marginMode == 'cross':
-            request['tradeMode'] = 0
+            formattedMarginMode = 'REGULAR_MARGIN'
         else:
-            raise BadRequest(self.id + ' setMarginMode() marginMode must be either isolated or cross')
-        request['buyLeverage'] = self.safe_string_2(params, 'buyLeverage', 'leverage')
-        request['sellLeverage'] = self.safe_string_2(params, 'sellLeverage', 'leverage')
-        response = self.privatePostV5PositionSwitchIsolated(request)
+            raise BadRequest(self.id + ' setMarginMode() does not support marginMode ' + marginMode + '')
+        request = {
+            'setMarginMode': formattedMarginMode,
+        }
+        response = self.privatePostV5AccountSetMarginMode(self.extend(request, params))
         return response
 
     def set_derivatives_margin_mode(self, marginMode, symbol=None, params={}):
@@ -7110,13 +7155,15 @@ class bybit(Exchange):
         # engage in leverage setting
         # we reuse the code here instead of having two methods
         leverage = self.number_to_string(leverage)
+        buyLeverage = self.safe_string(params, 'buyLeverage', leverage)
+        sellLeverage = self.safe_string(params, 'sellLeverage', leverage)
         method = None
         request = None
         if enableUnifiedMargin or enableUnifiedAccount or not isUsdcSettled:
             request = {
                 'symbol': market['id'],
-                'buyLeverage': leverage,
-                'sellLeverage': leverage,
+                'buyLeverage': buyLeverage,
+                'sellLeverage': sellLeverage,
             }
             if enableUnifiedAccount:
                 if market['linear']:
@@ -7142,8 +7189,8 @@ class bybit(Exchange):
             method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave'
         # TEALSTREET
         params = {
-            'buyLeverage': self.safe_string(params, 'buyLeverage') or request['buyLeverage'],
-            'sellLeverage': self.safe_string(params, 'sellLeverage') or request['sellLeverage'],
+            'buyLeverage': buyLeverage or request['buyLeverage'],
+            'sellLeverage': sellLeverage or request['sellLeverage'],
         }
         # TEALSTREET
         return getattr(self, method)(self.extend(request, params))
