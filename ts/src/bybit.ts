@@ -3,7 +3,20 @@
 
 import { Exchange } from './base/Exchange.js';
 import { TICK_SIZE } from './base/functions/number.js';
-import { AuthenticationError, ExchangeError, ArgumentsRequired, PermissionDenied, InvalidOrder, OrderNotFound, InsufficientFunds, BadRequest, RateLimitExceeded, InvalidNonce, NotSupported, RequestTimeout } from './base/errors.js';
+import {
+    ArgumentsRequired,
+    AuthenticationError,
+    BadRequest,
+    ExchangeError,
+    InsufficientFunds,
+    InvalidNonce,
+    InvalidOrder,
+    NotSupported,
+    OrderNotFound,
+    PermissionDenied,
+    RateLimitExceeded,
+    RequestTimeout,
+} from './base/errors.js';
 import { Precise } from './base/Precise.js';
 
 //  ---------------------------------------------------------------------------
@@ -547,6 +560,7 @@ export default class bybit extends Exchange {
                         'v5/position/set-tpsl-mode': 2.5,
                         'v5/position/set-risk-limit': 2.5,
                         'v5/position/switch-mode': 2.5,
+                        'v5/position/switch-isolated': 2.5,
                         'v5/position/trading-stop': 2.5,
                         'v5/account/upgrade-to-uta': 2.5,
                         'v5/account/set-margin-mode': 2.5,
@@ -7488,18 +7502,25 @@ export default class bybit extends Exchange {
 
     async setUnifiedMarginMode (marginMode, symbol: string = undefined, params = {}) {
         await this.loadMarkets ();
-        if ((marginMode !== 'REGULAR_MARGIN') && (marginMode !== 'PORTFOLIO_MARGIN')) {
-            throw new BadRequest (this.id + ' setMarginMode() marginMode must be either REGULAR_MARGIN or PORTFOLIO_MARGIN');
-        }
+        const market = this.market (symbol);
         const request = {
-            'setMarginMode': marginMode,
+            'symbol': market['id'],
         };
-        const response = await (this as any).privatePostV5AccountSetMarginMode (this.extend (request, params));
-        //
-        //  {
-        //      "setMarginMode": "PORTFOLIO_MARGIN"
-        //  }
-        //
+        if (!market['linear']) {
+            request['category'] = 'inverse';
+        } else {
+            request['category'] = 'linear';
+        }
+        if (marginMode === 'isolated') {
+            request['tradeMode'] = 1;
+        } else if (marginMode === 'cross') {
+            request['tradeMode'] = 0;
+        } else {
+            throw new BadRequest (this.id + ' setMarginMode() marginMode must be either isolated or cross');
+        }
+        request['buyLeverage'] = this.safeString2 (params, 'buyLeverage', 'leverage');
+        request['sellLeverage'] = this.safeString2 (params, 'sellLeverage', 'leverage');
+        const response = await (this as any).privatePostV5PositionSwitchIsolated (this.extend (request, params));
         return response;
     }
 

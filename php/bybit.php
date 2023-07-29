@@ -547,6 +547,7 @@ class bybit extends Exchange {
                         'v5/position/set-tpsl-mode' => 2.5,
                         'v5/position/set-risk-limit' => 2.5,
                         'v5/position/switch-mode' => 2.5,
+                        'v5/position/switch-isolated' => 2.5,
                         'v5/position/trading-stop' => 2.5,
                         'v5/account/upgrade-to-uta' => 2.5,
                         'v5/account/set-margin-mode' => 2.5,
@@ -7430,18 +7431,25 @@ class bybit extends Exchange {
 
     public function set_unified_margin_mode($marginMode, $symbol = null, $params = array ()) {
         $this->load_markets();
-        if (($marginMode !== 'REGULAR_MARGIN') && ($marginMode !== 'PORTFOLIO_MARGIN')) {
-            throw new BadRequest($this->id . ' setMarginMode() $marginMode must be either REGULAR_MARGIN or PORTFOLIO_MARGIN');
-        }
+        $market = $this->market($symbol);
         $request = array(
-            'setMarginMode' => $marginMode,
+            'symbol' => $market['id'],
         );
-        $response = $this->privatePostV5AccountSetMarginMode (array_merge($request, $params));
-        //
-        //  {
-        //      "setMarginMode" => "PORTFOLIO_MARGIN"
-        //  }
-        //
+        if (!$market['linear']) {
+            $request['category'] = 'inverse';
+        } else {
+            $request['category'] = 'linear';
+        }
+        if ($marginMode === 'isolated') {
+            $request['tradeMode'] = 1;
+        } elseif ($marginMode === 'cross') {
+            $request['tradeMode'] = 0;
+        } else {
+            throw new BadRequest($this->id . ' setMarginMode() $marginMode must be either isolated or cross');
+        }
+        $request['buyLeverage'] = $this->safe_string_2($params, 'buyLeverage', 'leverage');
+        $request['sellLeverage'] = $this->safe_string_2($params, 'sellLeverage', 'leverage');
+        $response = $this->privatePostV5PositionSwitchIsolated (array_merge($request, $params));
         return $response;
     }
 
