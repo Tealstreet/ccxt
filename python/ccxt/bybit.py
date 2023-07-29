@@ -3302,6 +3302,7 @@ class bybit(Exchange):
         elif market['spot']:
             return self.create_spot_order(symbol, type, side, amount, price, params)
         elif enableUnifiedMargin and not market['inverse']:
+            # self should not be used or hit(unified account is always 'true')
             return self.create_unified_margin_order(symbol, type, side, amount, price, params)
         elif isUSDCSettled:
             return self.create_usdc_order(symbol, type, side, amount, price, params)

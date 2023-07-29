@@ -3435,6 +3435,7 @@ export default class bybit extends Exchange {
         } else if (market['spot']) {
             return await this.createSpotOrder (symbol, type, side, amount, price, params);
         } else if (enableUnifiedMargin && !market['inverse']) {
+            // this should not be used or hit (unified account is always 'true')
             return await this.createUnifiedMarginOrder (symbol, type, side, amount, price, params);
         } else if (isUSDCSettled) {
             return await this.createUsdcOrder (symbol, type, side, amount, price, params);

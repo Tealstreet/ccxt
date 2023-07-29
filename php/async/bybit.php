@@ -3453,6 +3453,7 @@ class bybit extends Exchange {
             } elseif ($market['spot']) {
                 return Async\await($this->create_spot_order($symbol, $type, $side, $amount, $price, $params));
             } elseif ($enableUnifiedMargin && !$market['inverse']) {
+                // this should not be used or hit (unified account is always 'true')
                 return Async\await($this->create_unified_margin_order($symbol, $type, $side, $amount, $price, $params));
             } elseif ($isUSDCSettled) {
                 return Async\await($this->create_usdc_order($symbol, $type, $side, $amount, $price, $params));
