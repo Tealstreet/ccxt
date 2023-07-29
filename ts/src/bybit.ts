@@ -3458,7 +3458,7 @@ export default class bybit extends Exchange {
         if ((price === undefined) && (lowerCaseType === 'limit')) {
             throw new ArgumentsRequired (this.id + ' createOrder requires a price argument for limit orders');
         }
-        const closeOnTrigger = params['close'] !== undefined && params['close'] === true;
+        const closeOnTrigger = this.safeValue (params, 'close', false);
         const reduceOnly = this.safeValue (params, 'reduceOnly', false);
         const request = {
             'symbol': market['id'],

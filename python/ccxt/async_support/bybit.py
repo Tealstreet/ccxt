@@ -3322,7 +3322,7 @@ class bybit(Exchange):
         #              #
         if (price is None) and (lowerCaseType == 'limit'):
             raise ArgumentsRequired(self.id + ' createOrder requires a price argument for limit orders')
-        closeOnTrigger = params['close'] is not None and params['close'] is True
+        closeOnTrigger = self.safe_value(params, 'close', False)
         reduceOnly = self.safe_value(params, 'reduceOnly', False)
         request = {
             'symbol': market['id'],

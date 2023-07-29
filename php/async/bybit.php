@@ -3478,7 +3478,7 @@ class bybit extends Exchange {
             if (($price === null) && ($lowerCaseType === 'limit')) {
                 throw new ArgumentsRequired($this->id . ' createOrder requires a $price argument for limit orders');
             }
-            $closeOnTrigger = $params['close'] !== null && $params['close'] === true;
+            $closeOnTrigger = $this->safe_value($params, 'close', false);
             $reduceOnly = $this->safe_value($params, 'reduceOnly', false);
             $request = array(
                 'symbol' => $market['id'],
