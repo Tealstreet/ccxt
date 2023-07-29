@@ -3303,6 +3303,7 @@ class bybit(Exchange):
         #              #
         if (price is None) and (lowerCaseType == 'limit'):
             raise ArgumentsRequired(self.id + ' createOrder requires a price argument for limit orders')
+        closeOnTrigger = params['close'] is not None and params['close'] is True
         request = {
             'symbol': market['id'],
             'side': self.capitalize(side),
@@ -3313,7 +3314,7 @@ class bybit(Exchange):
             # 'reduceOnly': False,  # reduce only, required for linear orders
             # when creating a closing order, bybit recommends a True value for
             #  closeOnTrigger to avoid failing due to insufficient available margin
-            # 'closeOnTrigger': False, required for linear orders
+            'closeOnTrigger': closeOnTrigger,  # required for linear orders
             # 'orderLinkId': 'string',  # unique client order id, max 36 characters
             # 'triggerPrice': 123.45,  # trigger price, required for conditional orders
             # 'triggerBy': 'MarkPrice',  # IndexPrice, MarkPrice, LastPrice

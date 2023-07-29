@@ -3410,6 +3410,7 @@ class bybit extends Exchange {
         if (($price === null) && ($lowerCaseType === 'limit')) {
             throw new ArgumentsRequired($this->id . ' createOrder requires a $price argument for limit orders');
         }
+        $closeOnTrigger = $params['close'] !== null && $params['close'] === true;
         $request = array(
             'symbol' => $market['id'],
             'side' => $this->capitalize($side),
@@ -3419,8 +3420,8 @@ class bybit extends Exchange {
             // 'stopLoss' => 123.45, // stop loss $price, only take effect upon opening the position
             // 'reduceOnly' => false, // reduce only, required for linear orders
             // when creating a closing $order, bybit recommends a True value for
-            //  closeOnTrigger to avoid failing due to insufficient available margin
-            // 'closeOnTrigger' => false, required for linear orders
+            //  $closeOnTrigger to avoid failing due to insufficient available margin
+            'closeOnTrigger' => $closeOnTrigger, // required for linear orders
             // 'orderLinkId' => 'string', // unique client $order id, max 36 characters
             // 'triggerPrice' => 123.45, // trigger $price, required for conditional orders
             // 'triggerBy' => 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
