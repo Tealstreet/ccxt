@@ -3424,17 +3424,22 @@ class bybit(Exchange):
             request['tpslOrderType'] = 'Full'
             request['tpOrderType'] = 'Market'
             request['slOrderType'] = 'Market'
-        triggerPrice = self.safe_number_2(params, 'triggerPrice', 'stopPrice')
-        stopPrice = self.safe_number(params, 'stopPrice')
+        triggerPrice = self.safe_number_2(params, 'stopPrice', 'triggerPrice')
+        if isStop and triggerPrice is None:
+            raise InvalidOrder(self.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders')
         basePrice = self.safe_number(params, 'basePrice')
-        isSL = triggerPrice is not None and basePrice is not None and triggerPrice < basePrice
+        if isStop and basePrice is None:
+            raise InvalidOrder(self.id + ' createOrder() requires a basePrice param for ' + type + ' orders')
         stopLossTriggerPrice = None
         takeProfitTriggerPrice = None
-        if isSL:
-            stopLossTriggerPrice = self.safe_number(params, 'stopLossPrice', triggerPrice)
-        else:
-            takeProfitTriggerPrice = self.safe_number(params, 'takeProfitPrice', triggerPrice)
-        if stopPrice is not None:
+        if isStop:
+            if not basePrice:
+                raise InvalidOrder(self.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders')
+            if triggerPrice > basePrice:
+                takeProfitTriggerPrice = triggerPrice
+            else:
+                stopLossTriggerPrice = triggerPrice
+        if isStop:
             triggerBy = 'LastPrice'
             if params['trigger'] == 'Index':
                 triggerBy = 'IndexPrice'
@@ -3449,7 +3454,7 @@ class bybit(Exchange):
         isTakeProfitTriggerOrder = takeProfitTriggerPrice is not None
         isStopLoss = stopLoss is not None
         isTakeProfit = takeProfit is not None
-        if triggerPrice is not None:
+        if isStop:
             isBuy = side == 'buy'
             ascending = not isBuy if stopLossTriggerPrice else isBuy
             request['triggerDirection'] = 2 if ascending else 1

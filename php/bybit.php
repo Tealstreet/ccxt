@@ -3548,18 +3548,27 @@ class bybit extends Exchange {
             $request['tpOrderType'] = 'Market';
             $request['slOrderType'] = 'Market';
         }
-        $triggerPrice = $this->safe_number_2($params, 'triggerPrice', 'stopPrice');
-        $stopPrice = $this->safe_number($params, 'stopPrice');
+        $triggerPrice = $this->safe_number_2($params, 'stopPrice', 'triggerPrice');
+        if ($isStop && $triggerPrice === null) {
+            throw new InvalidOrder($this->id . ' createOrder() requires a $triggerPrice param for ' . $type . ' orders');
+        }
         $basePrice = $this->safe_number($params, 'basePrice');
-        $isSL = $triggerPrice !== null && $basePrice !== null && $triggerPrice < $basePrice;
+        if ($isStop && $basePrice === null) {
+            throw new InvalidOrder($this->id . ' createOrder() requires a $basePrice param for ' . $type . ' orders');
+        }
         $stopLossTriggerPrice = null;
         $takeProfitTriggerPrice = null;
-        if ($isSL) {
-            $stopLossTriggerPrice = $this->safe_number($params, 'stopLossPrice', $triggerPrice);
-        } else {
-            $takeProfitTriggerPrice = $this->safe_number($params, 'takeProfitPrice', $triggerPrice);
+        if ($isStop) {
+            if (!$basePrice) {
+                throw new InvalidOrder($this->id . ' createOrder() requires both the $triggerPrice and $basePrice $params for ' . $type . ' orders');
+            }
+            if ($triggerPrice > $basePrice) {
+                $takeProfitTriggerPrice = $triggerPrice;
+            } else {
+                $stopLossTriggerPrice = $triggerPrice;
+            }
         }
-        if ($stopPrice !== null) {
+        if ($isStop) {
             $triggerBy = 'LastPrice';
             if ($params['trigger'] === 'Index') {
                 $triggerBy = 'IndexPrice';
@@ -3576,7 +3585,7 @@ class bybit extends Exchange {
         $isTakeProfitTriggerOrder = $takeProfitTriggerPrice !== null;
         $isStopLoss = $stopLoss !== null;
         $isTakeProfit = $takeProfit !== null;
-        if ($triggerPrice !== null) {
+        if ($isStop) {
             $isBuy = $side === 'buy';
             $ascending = $stopLossTriggerPrice ? !$isBuy : $isBuy;
             $request['triggerDirection'] = $ascending ? 2 : 1;

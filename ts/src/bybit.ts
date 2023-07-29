@@ -3574,18 +3574,27 @@ export default class bybit extends Exchange {
             request['tpOrderType'] = 'Market';
             request['slOrderType'] = 'Market';
         }
-        const triggerPrice = this.safeNumber2 (params, 'triggerPrice', 'stopPrice');
-        const stopPrice = this.safeNumber (params, 'stopPrice');
+        const triggerPrice = this.safeNumber2 (params, 'stopPrice', 'triggerPrice');
+        if (isStop && triggerPrice === undefined) {
+            throw new InvalidOrder (this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
+        }
         const basePrice = this.safeNumber (params, 'basePrice');
-        const isSL = triggerPrice !== undefined && basePrice !== undefined && triggerPrice < basePrice;
+        if (isStop && basePrice === undefined) {
+            throw new InvalidOrder (this.id + ' createOrder() requires a basePrice param for ' + type + ' orders');
+        }
         let stopLossTriggerPrice = undefined;
         let takeProfitTriggerPrice = undefined;
-        if (isSL) {
-            stopLossTriggerPrice = this.safeNumber (params, 'stopLossPrice', triggerPrice);
-        } else {
-            takeProfitTriggerPrice = this.safeNumber (params, 'takeProfitPrice', triggerPrice);
+        if (isStop) {
+            if (!basePrice) {
+                throw new InvalidOrder (this.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders');
+            }
+            if (triggerPrice > basePrice) {
+                takeProfitTriggerPrice = triggerPrice;
+            } else {
+                stopLossTriggerPrice = triggerPrice;
+            }
         }
-        if (stopPrice !== undefined) {
+        if (isStop) {
             let triggerBy = 'LastPrice';
             if (params['trigger'] === 'Index') {
                 triggerBy = 'IndexPrice';
@@ -3602,7 +3611,7 @@ export default class bybit extends Exchange {
         const isTakeProfitTriggerOrder = takeProfitTriggerPrice !== undefined;
         const isStopLoss = stopLoss !== undefined;
         const isTakeProfit = takeProfit !== undefined;
-        if (triggerPrice !== undefined) {
+        if (isStop) {
             const isBuy = side === 'buy';
             const ascending = stopLossTriggerPrice ? !isBuy : isBuy;
             request['triggerDirection'] = ascending ? 2 : 1;
