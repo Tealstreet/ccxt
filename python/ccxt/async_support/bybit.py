@@ -3403,7 +3403,7 @@ class bybit(Exchange):
         triggerPrice = self.safe_number_2(params, 'triggerPrice', 'stopPrice')
         stopPrice = self.safe_number(params, 'stopPrice')
         basePrice = self.safe_number(params, 'basePrice')
-        isSL = triggerPrice < basePrice
+        isSL = triggerPrice is not None and basePrice is not None and triggerPrice < basePrice
         stopLossTriggerPrice = None
         takeProfitTriggerPrice = None
         if isSL:

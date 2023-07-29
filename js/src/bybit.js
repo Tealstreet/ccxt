@@ -3571,7 +3571,7 @@ export default class bybit extends Exchange {
         const triggerPrice = this.safeNumber2(params, 'triggerPrice', 'stopPrice');
         const stopPrice = this.safeNumber(params, 'stopPrice');
         const basePrice = this.safeNumber(params, 'basePrice');
-        const isSL = triggerPrice < basePrice;
+        const isSL = triggerPrice !== undefined && basePrice !== undefined && triggerPrice < basePrice;
         let stopLossTriggerPrice = undefined;
         let takeProfitTriggerPrice = undefined;
         if (isSL) {

@@ -3522,7 +3522,7 @@ class bybit extends Exchange {
         $triggerPrice = $this->safe_number_2($params, 'triggerPrice', 'stopPrice');
         $stopPrice = $this->safe_number($params, 'stopPrice');
         $basePrice = $this->safe_number($params, 'basePrice');
-        $isSL = $triggerPrice < $basePrice;
+        $isSL = $triggerPrice !== null && $basePrice !== null && $triggerPrice < $basePrice;
         $stopLossTriggerPrice = null;
         $takeProfitTriggerPrice = null;
         if ($isSL) {
