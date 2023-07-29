@@ -3089,6 +3089,19 @@ class bybit(Exchange):
                 type = 'stop'
             else:
                 type = 'stopLimit'
+        trigger = self.safe_string(order, 'triggerBy')
+        slTriggerBy = self.safe_string(order, 'slTriggerBy')
+        if trigger is None and slTriggerBy != '':
+            trigger = slTriggerBy
+        tpTriggerBy = self.safe_string(order, 'tpTriggerBy')
+        if trigger is None and tpTriggerBy != '':
+            trigger = slTriggerBy
+        if trigger == 'LastPrice':
+            trigger = 'Last'
+        elif trigger == 'IndexPrice':
+            trigger = 'Index'
+        elif trigger == 'MarkPrice':
+            trigger = 'Mark'
         return self.safe_order({
             'info': order,
             'id': id,
@@ -3113,6 +3126,11 @@ class bybit(Exchange):
             'status': status,
             'fee': fee,
             'trades': None,
+            # TEALSTREET
+            'reduce': self.safe_value(order, 'reduceOnly'),
+            'trigger': trigger,
+            'close': self.safe_value(order, 'closeOnTrigger'),
+            # TEALSTREET
         }, market)
 
     def parse_spot_order(self, order, market=None):
@@ -3304,6 +3322,7 @@ class bybit(Exchange):
         if (price is None) and (lowerCaseType == 'limit'):
             raise ArgumentsRequired(self.id + ' createOrder requires a price argument for limit orders')
         closeOnTrigger = params['close'] is not None and params['close'] is True
+        reduceOnly = self.safe_value(params, 'reduceOnly', False)
         request = {
             'symbol': market['id'],
             'side': self.capitalize(side),
@@ -3311,7 +3330,7 @@ class bybit(Exchange):
             # 'timeInForce': 'GTC',  # IOC, FOK, PostOnly
             # 'takeProfit': 123.45,  # take profit price, only take effect upon opening the position
             # 'stopLoss': 123.45,  # stop loss price, only take effect upon opening the position
-            # 'reduceOnly': False,  # reduce only, required for linear orders
+            'reduceOnly': reduceOnly,  # reduce only, required for linear orders
             # when creating a closing order, bybit recommends a True value for
             #  closeOnTrigger to avoid failing due to insufficient available margin
             'closeOnTrigger': closeOnTrigger,  # required for linear orders
@@ -3370,7 +3389,6 @@ class bybit(Exchange):
         # TEALSTREET  #
         positionMode = self.safe_value(params, 'positionMode', 'oneway')
         request['positionIdx'] = 0
-        reduceOnly = self.safe_value(params, 'reduceOnly', False)
         if positionMode != 'oneway':
             if reduceOnly:
                 request['positionIdx'] = 2 if (side == 'buy') else 1
@@ -3382,8 +3400,24 @@ class bybit(Exchange):
             request['tpOrderType'] = 'Market'
             request['slOrderType'] = 'Market'
         triggerPrice = self.safe_number_2(params, 'triggerPrice', 'stopPrice')
-        stopLossTriggerPrice = self.safe_number(params, 'stopLossPrice', triggerPrice)
-        takeProfitTriggerPrice = self.safe_number(params, 'takeProfitPrice')
+        stopPrice = self.safe_number(params, 'stopPrice')
+        basePrice = self.safe_number(params, 'basePrice')
+        isSL = triggerPrice < basePrice
+        stopLossTriggerPrice = None
+        takeProfitTriggerPrice = None
+        if isSL:
+            stopLossTriggerPrice = self.safe_number(params, 'stopLossPrice', triggerPrice)
+        else:
+            takeProfitTriggerPrice = self.safe_number(params, 'takeProfitPrice', triggerPrice)
+        if stopPrice is not None:
+            triggerBy = 'LastPrice'
+            if params['trigger'] == 'Index':
+                triggerBy = 'IndexPrice'
+            elif params['trigger'] == 'Mark':
+                triggerBy = 'MarkPrice'
+            request['triggerBy'] = triggerBy
+            request['slTriggerBy'] = triggerBy
+            request['tpTriggerBy'] = triggerBy
         stopLoss = self.safe_number(params, 'stopLoss')
         takeProfit = self.safe_number(params, 'takeProfit')
         isStopLossTriggerOrder = stopLossTriggerPrice is not None
@@ -3408,10 +3442,6 @@ class bybit(Exchange):
                 request['stopLoss'] = self.price_to_precision(symbol, stopLoss)
             if isTakeProfit:
                 request['takeProfit'] = self.price_to_precision(symbol, takeProfit)
-        if market['spot']:
-            # only works for spot market
-            if triggerPrice is not None or stopLossTriggerPrice is not None or takeProfitTriggerPrice is not None or isStopLoss or isTakeProfit:
-                request['orderFilter'] = 'tpslOrder'
         clientOrderId = self.safe_string(params, 'clientOrderId')
         if clientOrderId is not None:
             request['orderLinkId'] = clientOrderId
