@@ -6475,7 +6475,7 @@ class bybit(Exchange):
         promises = [
             self.fetch_position(symbol, {}, False),
         ]
-        isUnified = self.is_unified_enabled() and market['linear']
+        isUnified = market['linear'] and self.is_unified_enabled()
         if isUnified:
             promises.append(self.privateGetV5AccountInfo())
         promises = promises

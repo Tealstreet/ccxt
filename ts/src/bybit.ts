@@ -6913,7 +6913,7 @@ export default class bybit extends Exchange {
         let promises = [
             this.fetchPosition (symbol, {}, false),
         ];
-        const isUnified = this.isUnifiedEnabled () && market['linear'];
+        const isUnified = market['linear'] && await this.isUnifiedEnabled ();
         if (isUnified) {
             promises.push ((this as any).privateGetV5AccountInfo ());
         }

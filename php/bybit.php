@@ -6844,7 +6844,7 @@ class bybit extends Exchange {
         $promises = array(
             $this->fetch_position($symbol, array(), false),
         );
-        $isUnified = $this->is_unified_enabled() && $market['linear'];
+        $isUnified = $market['linear'] && $this->is_unified_enabled();
         if ($isUnified) {
             $promises[] = $this->privateGetV5AccountInfo ();
         }
