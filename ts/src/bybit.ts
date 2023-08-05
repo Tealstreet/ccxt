@@ -7192,9 +7192,9 @@ export default class bybit extends Exchange {
         const unrealisedPnl = this.omitZero (this.safeString (position, 'unrealisedPnl'));
         let initialMarginString = this.safeString (position, 'positionIM');
         let maintenanceMarginString = this.safeString (position, 'positionMM');
-        let timestamp = this.parse8601 (this.safeString2 (position, 'updated_at', 'created_time'));
+        let timestamp = this.parse8601 (this.safeString2 (position, 'updated_at', 'updated_time'));
         if (timestamp === undefined) {
-            timestamp = this.safeInteger2 (position, 'updatedAt', 'createdTime');
+            timestamp = this.safeInteger2 (position, 'updatedAt', 'updatedTime');
         }
         // default to cross of USDC margined positions
         const tradeMode = this.safeInteger (position, 'tradeMode', 0);

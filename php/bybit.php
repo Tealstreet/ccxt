@@ -7121,9 +7121,9 @@ class bybit extends Exchange {
         $unrealisedPnl = $this->omit_zero($this->safe_string($position, 'unrealisedPnl'));
         $initialMarginString = $this->safe_string($position, 'positionIM');
         $maintenanceMarginString = $this->safe_string($position, 'positionMM');
-        $timestamp = $this->parse8601($this->safe_string_2($position, 'updated_at', 'created_time'));
+        $timestamp = $this->parse8601($this->safe_string_2($position, 'updated_at', 'updated_time'));
         if ($timestamp === null) {
-            $timestamp = $this->safe_integer_2($position, 'updatedAt', 'createdTime');
+            $timestamp = $this->safe_integer_2($position, 'updatedAt', 'updatedTime');
         }
         // default to cross of USDC margined positions
         $tradeMode = $this->safe_integer($position, 'tradeMode', 0);
