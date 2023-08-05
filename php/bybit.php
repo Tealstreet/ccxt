@@ -2817,20 +2817,8 @@ class bybit extends Exchange {
         list($enableUnifiedMargin, $enableUnifiedAccount) = $this->is_unified_enabled();
         $type = null;
         list($type, $params) = $this->handle_market_type_and_params('fetchBalance', null, $params);
-        $isSpot = ($type === 'spot');
-        if ($isSpot) {
-            if ($enableUnifiedAccount || $enableUnifiedMargin) {
-                $method = 'privateGetSpotV3PrivateAccount';
-            } else {
-                $marginMode = null;
-                list($marginMode, $params) = $this->handle_margin_mode_and_params('fetchBalance', $params);
-                if ($marginMode !== null) {
-                    $method = 'privateGetSpotV3PrivateCrossMarginAccount';
-                } else {
-                    $method = 'privateGetSpotV3PrivateAccount';
-                }
-            }
-        } elseif ($enableUnifiedAccount || $enableUnifiedMargin) {
+        $category = $this->safe_string($this->options, 'defaultSubType', 'spot');
+        if ($enableUnifiedAccount || $enableUnifiedMargin) {
             if ($type === 'swap') {
                 $type = 'unified';
             }
@@ -2839,22 +2827,20 @@ class bybit extends Exchange {
                 $type = 'contract';
             }
         }
-        if (!$isSpot) {
-            $accountTypes = $this->safe_value($this->options, 'accountsByType', array());
-            $unifiedType = $this->safe_string_upper($accountTypes, $type, $type);
-            if ($unifiedType === 'FUND') {
-                // use this endpoint only we have no other choice
-                // because it requires transfer permission
-                $method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery';
+        $accountTypes = $this->safe_value($this->options, 'accountsByType', array());
+        $unifiedType = $this->safe_string_upper($accountTypes, $type, $type);
+        if ($unifiedType === 'FUND') {
+            // use this endpoint only we have no other choice
+            // because it requires transfer permission
+            $method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery';
+        } else {
+            if ($enableUnifiedAccount && $category !== 'inverse') {
+                $method = 'privateGetV5AccountWalletBalance';
             } else {
-                if ($enableUnifiedAccount) {
-                    $method = 'privateGetV5AccountWalletBalance';
-                } else {
-                    $method = 'privateGetContractV3PrivateAccountWalletBalance';
-                }
+                $method = 'privateGetContractV3PrivateAccountWalletBalance';
             }
-            $request['accountType'] = $unifiedType;
         }
+        $request['accountType'] = $unifiedType;
         $response = $this->$method (array_merge($request, $params));
         //
         // spot wallet

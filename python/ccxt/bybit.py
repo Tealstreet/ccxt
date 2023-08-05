@@ -2746,36 +2746,25 @@ class bybit(Exchange):
         enableUnifiedMargin, enableUnifiedAccount = self.is_unified_enabled()
         type = None
         type, params = self.handle_market_type_and_params('fetchBalance', None, params)
-        isSpot = (type == 'spot')
-        if isSpot:
-            if enableUnifiedAccount or enableUnifiedMargin:
-                method = 'privateGetSpotV3PrivateAccount'
-            else:
-                marginMode = None
-                marginMode, params = self.handle_margin_mode_and_params('fetchBalance', params)
-                if marginMode is not None:
-                    method = 'privateGetSpotV3PrivateCrossMarginAccount'
-                else:
-                    method = 'privateGetSpotV3PrivateAccount'
-        elif enableUnifiedAccount or enableUnifiedMargin:
+        category = self.safe_string(self.options, 'defaultSubType', 'spot')
+        if enableUnifiedAccount or enableUnifiedMargin:
             if type == 'swap':
                 type = 'unified'
         else:
             if type == 'swap':
                 type = 'contract'
-        if not isSpot:
-            accountTypes = self.safe_value(self.options, 'accountsByType', {})
-            unifiedType = self.safe_string_upper(accountTypes, type, type)
-            if unifiedType == 'FUND':
-                # use self endpoint only we have no other choice
-                # because it requires transfer permission
-                method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery'
+        accountTypes = self.safe_value(self.options, 'accountsByType', {})
+        unifiedType = self.safe_string_upper(accountTypes, type, type)
+        if unifiedType == 'FUND':
+            # use self endpoint only we have no other choice
+            # because it requires transfer permission
+            method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery'
+        else:
+            if enableUnifiedAccount and category != 'inverse':
+                method = 'privateGetV5AccountWalletBalance'
             else:
-                if enableUnifiedAccount:
-                    method = 'privateGetV5AccountWalletBalance'
-                else:
-                    method = 'privateGetContractV3PrivateAccountWalletBalance'
-            request['accountType'] = unifiedType
+                method = 'privateGetContractV3PrivateAccountWalletBalance'
+        request['accountType'] = unifiedType
         response = getattr(self, method)(self.extend(request, params))
         #
         # spot wallet

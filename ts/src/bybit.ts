@@ -2853,20 +2853,8 @@ export default class bybit extends Exchange {
         const [ enableUnifiedMargin, enableUnifiedAccount ] = await this.isUnifiedEnabled ();
         let type = undefined;
         [ type, params ] = this.handleMarketTypeAndParams ('fetchBalance', undefined, params);
-        const isSpot = (type === 'spot');
-        if (isSpot) {
-            if (enableUnifiedAccount || enableUnifiedMargin) {
-                method = 'privateGetSpotV3PrivateAccount';
-            } else {
-                let marginMode = undefined;
-                [ marginMode, params ] = this.handleMarginModeAndParams ('fetchBalance', params);
-                if (marginMode !== undefined) {
-                    method = 'privateGetSpotV3PrivateCrossMarginAccount';
-                } else {
-                    method = 'privateGetSpotV3PrivateAccount';
-                }
-            }
-        } else if (enableUnifiedAccount || enableUnifiedMargin) {
+        const category = this.safeString (this.options, 'defaultSubType', 'spot');
+        if (enableUnifiedAccount || enableUnifiedMargin) {
             if (type === 'swap') {
                 type = 'unified';
             }
@@ -2875,22 +2863,20 @@ export default class bybit extends Exchange {
                 type = 'contract';
             }
         }
-        if (!isSpot) {
-            const accountTypes = this.safeValue (this.options, 'accountsByType', {});
-            const unifiedType = this.safeStringUpper (accountTypes, type, type);
-            if (unifiedType === 'FUND') {
-                // use this endpoint only we have no other choice
-                // because it requires transfer permission
-                method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery';
+        const accountTypes = this.safeValue (this.options, 'accountsByType', {});
+        const unifiedType = this.safeStringUpper (accountTypes, type, type);
+        if (unifiedType === 'FUND') {
+            // use this endpoint only we have no other choice
+            // because it requires transfer permission
+            method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery';
+        } else {
+            if (enableUnifiedAccount && category !== 'inverse') {
+                method = 'privateGetV5AccountWalletBalance';
             } else {
-                if (enableUnifiedAccount) {
-                    method = 'privateGetV5AccountWalletBalance';
-                } else {
-                    method = 'privateGetContractV3PrivateAccountWalletBalance';
-                }
+                method = 'privateGetContractV3PrivateAccountWalletBalance';
             }
-            request['accountType'] = unifiedType;
         }
+        request['accountType'] = unifiedType;
         const response = await this[method] (this.extend (request, params));
         //
         // spot wallet
