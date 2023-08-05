@@ -3327,6 +3327,69 @@ class bybit(Exchange):
         else:
             return await self.create_contract_v3_order(symbol, type, side, amount, price, params)
 
+    async def create_position_trade_stop(self, symbol, type, side, amount, price=None, params={}):
+        await self.load_markets()
+        market = self.market(symbol)
+        reduceOnly = self.safe_value(params, 'reduceOnly', False)
+        request = {
+            'symbol': market['id'],
+        }
+        if market['linear']:
+            request['category'] = 'linear'
+        elif market['option']:
+            request['category'] = 'option'
+        else:
+            raise NotSupported(self.id + ' createOrder does not allow inverse market orders for ' + symbol + ' markets')
+        # TEALSTREET  #
+        positionMode = self.safe_value(params, 'positionMode', 'oneway')
+        request['positionIdx'] = 0
+        if positionMode != 'oneway':
+            if reduceOnly:
+                request['positionIdx'] = 2 if (side == 'buy') else 1
+            else:
+                request['positionIdx'] = 1 if (side == 'buy') else 2
+        request['tpslMode'] = 'Partial'
+        if amount == 0:
+            request['tpslMode'] = 'Full'
+            request['tpOrderType'] = 'Market'
+            request['slOrderType'] = 'Market'
+        stopPrice = self.safe_string(params, 'stopPrice')
+        basePrice = self.safe_string(params, 'basePrice')
+        if not basePrice:
+            raise InvalidOrder(self.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders')
+        triggerBy = 'LastPrice'
+        if params['trigger'] == 'Index':
+            triggerBy = 'IndexPrice'
+        elif params['trigger'] == 'Mark':
+            triggerBy = 'MarkPrice'
+        size = self.amount_to_precision(symbol, amount)
+        if Precise.string_gt(stopPrice, basePrice):
+            if side == 'buy':
+                request['stopLoss'] = stopPrice
+                if amount != 0:
+                    request['slSize'] = size
+                request['slTriggerBy'] = triggerBy
+            else:
+                request['takeProfit'] = stopPrice
+                if amount != 0:
+                    request['tpSize'] = size
+                request['tpTriggerBy'] = triggerBy
+        else:
+            if side == 'buy':
+                request['takeProfit'] = stopPrice
+                if amount != 0:
+                    request['tpSize'] = size
+                request['tpTriggerBy'] = triggerBy
+            else:
+                request['stopLoss'] = stopPrice
+                if amount != 0:
+                    request['slSize'] = size
+                request['slTriggerBy'] = triggerBy
+        params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice'])
+        response = await self.privatePostV5PositionTradingStop(self.extend(request, params))
+        order = self.safe_value(response, 'result', {})
+        return self.parse_order(order)
+
     async def create_unified_account_order(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
@@ -3335,6 +3398,7 @@ class bybit(Exchange):
         if lowerCaseType == 'stop':
             isStop = True
             lowerCaseType = 'market'
+            return self.create_position_trade_stop(symbol, type, side, amount, price, params)
         elif lowerCaseType == 'stopLimit':
             isStop = True
             lowerCaseType = 'limit'
@@ -3345,27 +3409,9 @@ class bybit(Exchange):
         request = {
             'symbol': market['id'],
             'side': self.capitalize(side),
-            'orderType': self.capitalize(lowerCaseType),  # limit or market
-            # 'timeInForce': 'GTC',  # IOC, FOK, PostOnly
-            # 'takeProfit': 123.45,  # take profit price, only take effect upon opening the position
-            # 'stopLoss': 123.45,  # stop loss price, only take effect upon opening the position
-            'reduceOnly': reduceOnly,  # reduce only, required for linear orders
-            # when creating a closing order, bybit recommends a True value for
-            #  closeOnTrigger to avoid failing due to insufficient available margin
-            'closeOnTrigger': closeOnTrigger,  # required for linear orders
-            # 'orderLinkId': 'string',  # unique client order id, max 36 characters
-            # 'triggerPrice': 123.45,  # trigger price, required for conditional orders
-            # 'triggerBy': 'MarkPrice',  # IndexPrice, MarkPrice, LastPrice
-            # 'tpTriggerby': 'MarkPrice',  # IndexPrice, MarkPrice, LastPrice
-            # 'slTriggerBy': 'MarkPrice',  # IndexPrice, MarkPrice, LastPrice
-            # 'mmp': False  # market maker protection
-            # 'positionIdx': 0,  # Position mode. Unified account has one-way mode only(0)
-            # 'triggerDirection': 1,  # Conditional order param. Used to identify the expected direction of the conditional order. 1: triggered when market price rises to triggerPrice 2: triggered when market price falls to triggerPrice
-            # Valid for spot only.
-            # 'isLeverage': 0,  # Whether to borrow. 0(default): False, 1: True
-            # 'orderFilter': 'Order'  # Order,tpslOrder. If not passed, Order by default
-            # Valid for option only.
-            # 'orderIv': '0',  # Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
+            'orderType': self.capitalize(lowerCaseType),
+            'reduceOnly': reduceOnly,
+            'closeOnTrigger': closeOnTrigger,
             'qty': self.amount_to_precision(symbol, amount),
             'orderLinkId': getattr(self, 'refCode') + self.uuid22(),
         }
@@ -3431,18 +3477,6 @@ class bybit(Exchange):
                 request['triggerDirection'] = 2
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close'])
         response = await self.privatePostV5OrderCreate(self.extend(request, params))
-        #
-        #     {
-        #         "retCode": 0,
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "orderId": "1321003749386327552",
-        #             "orderLinkId": "spot-test-postonly"
-        #         },
-        #         "retExtInfo": {},
-        #         "time": 1672211918471
-        #     }
-        #
         order = self.safe_value(response, 'result', {})
         return self.parse_order(order)
 

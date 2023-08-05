@@ -3482,6 +3482,85 @@ class bybit extends Exchange {
         }) ();
     }
 
+    public function create_position_trade_stop($symbol, $type, $side, $amount, $price = null, $params = array ()) {
+        return Async\async(function () use ($symbol, $type, $side, $amount, $price, $params) {
+            Async\await($this->load_markets());
+            $market = $this->market($symbol);
+            $reduceOnly = $this->safe_value($params, 'reduceOnly', false);
+            $request = array(
+                'symbol' => $market['id'],
+            );
+            if ($market['linear']) {
+                $request['category'] = 'linear';
+            } elseif ($market['option']) {
+                $request['category'] = 'option';
+            } else {
+                throw new NotSupported($this->id . ' createOrder does not allow inverse $market orders for ' . $symbol . ' markets');
+            }
+            // TEALSTREET  //
+            $positionMode = $this->safe_value($params, 'positionMode', 'oneway');
+            $request['positionIdx'] = 0;
+            if ($positionMode !== 'oneway') {
+                if ($reduceOnly) {
+                    $request['positionIdx'] = ($side === 'buy') ? 2 : 1;
+                } else {
+                    $request['positionIdx'] = ($side === 'buy') ? 1 : 2;
+                }
+            }
+            $request['tpslMode'] = 'Partial';
+            if ($amount === 0) {
+                $request['tpslMode'] = 'Full';
+                $request['tpOrderType'] = 'Market';
+                $request['slOrderType'] = 'Market';
+            }
+            $stopPrice = $this->safe_string($params, 'stopPrice');
+            $basePrice = $this->safe_string($params, 'basePrice');
+            if (!$basePrice) {
+                throw new InvalidOrder($this->id . ' createOrder() requires both the triggerPrice and $basePrice $params for ' . $type . ' orders');
+            }
+            $triggerBy = 'LastPrice';
+            if ($params['trigger'] === 'Index') {
+                $triggerBy = 'IndexPrice';
+            } elseif ($params['trigger'] === 'Mark') {
+                $triggerBy = 'MarkPrice';
+            }
+            $size = $this->amount_to_precision($symbol, $amount);
+            if (Precise::string_gt($stopPrice, $basePrice)) {
+                if ($side === 'buy') {
+                    $request['stopLoss'] = $stopPrice;
+                    if ($amount !== 0) {
+                        $request['slSize'] = $size;
+                    }
+                    $request['slTriggerBy'] = $triggerBy;
+                } else {
+                    $request['takeProfit'] = $stopPrice;
+                    if ($amount !== 0) {
+                        $request['tpSize'] = $size;
+                    }
+                    $request['tpTriggerBy'] = $triggerBy;
+                }
+            } else {
+                if ($side === 'buy') {
+                    $request['takeProfit'] = $stopPrice;
+                    if ($amount !== 0) {
+                        $request['tpSize'] = $size;
+                    }
+                    $request['tpTriggerBy'] = $triggerBy;
+                } else {
+                    $request['stopLoss'] = $stopPrice;
+                    if ($amount !== 0) {
+                        $request['slSize'] = $size;
+                    }
+                    $request['slTriggerBy'] = $triggerBy;
+                }
+            }
+            $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice' ));
+            $response = Async\await($this->privatePostV5PositionTradingStop (array_merge($request, $params)));
+            $order = $this->safe_value($response, 'result', array());
+            return $this->parse_order($order);
+        }) ();
+    }
+
     public function create_unified_account_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
         return Async\async(function () use ($symbol, $type, $side, $amount, $price, $params) {
             Async\await($this->load_markets());
@@ -3491,6 +3570,7 @@ class bybit extends Exchange {
             if ($lowerCaseType === 'stop') {
                 $isStop = true;
                 $lowerCaseType = 'market';
+                return $this->create_position_trade_stop($symbol, $type, $side, $amount, $price, $params);
             } elseif ($lowerCaseType === 'stopLimit') {
                 $isStop = true;
                 $lowerCaseType = 'limit';
@@ -3503,27 +3583,9 @@ class bybit extends Exchange {
             $request = array(
                 'symbol' => $market['id'],
                 'side' => $this->capitalize($side),
-                'orderType' => $this->capitalize($lowerCaseType), // limit or $market
-                // 'timeInForce' => 'GTC', // IOC, FOK, PostOnly
-                // 'takeProfit' => 123.45, // take profit $price, only take effect upon opening the position
-                // 'stopLoss' => 123.45, // stop loss $price, only take effect upon opening the position
-                'reduceOnly' => $reduceOnly, // reduce only, required for linear orders
-                // when creating a closing $order, bybit recommends a True value for
-                //  $closeOnTrigger to avoid failing due to insufficient available margin
-                'closeOnTrigger' => $closeOnTrigger, // required for linear orders
-                // 'orderLinkId' => 'string', // unique client $order id, max 36 characters
-                // 'triggerPrice' => 123.45, // trigger $price, required for conditional orders
-                // 'triggerBy' => 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-                // 'tpTriggerby' => 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-                // 'slTriggerBy' => 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-                // 'mmp' => false // $market maker protection
-                // 'positionIdx' => 0, // Position mode. Unified account has one-way mode only (0)
-                // 'triggerDirection' => 1, // Conditional $order param. Used to identify the expected direction of the conditional $order-> 1 => triggered when $market $price rises to $triggerPrice 2 => triggered when $market $price falls to $triggerPrice
-                // Valid for spot only.
-                // 'isLeverage' => 0, // Whether to borrow. 0(default) => false, 1 => true
-                // 'orderFilter' => 'Order' // Order,tpslOrder. If not passed, Order by default
-                // Valid for option only.
-                // 'orderIv' => '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
+                'orderType' => $this->capitalize($lowerCaseType),
+                'reduceOnly' => $reduceOnly,
+                'closeOnTrigger' => $closeOnTrigger,
                 'qty' => $this->amount_to_precision($symbol, $amount),
                 'orderLinkId' => $this->$'refCode' . $this->uuid22(),
             );
@@ -3602,18 +3664,6 @@ class bybit extends Exchange {
             }
             $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close' ));
             $response = Async\await($this->privatePostV5OrderCreate (array_merge($request, $params)));
-            //
-            //     {
-            //         "retCode" => 0,
-            //         "retMsg" => "OK",
-            //         "result" => array(
-            //             "orderId" => "1321003749386327552",
-            //             "orderLinkId" => "spot-test-postonly"
-            //         ),
-            //         "retExtInfo" => array(),
-            //         "time" => 1672211918471
-            //     }
-            //
             $order = $this->safe_value($response, 'result', array());
             return $this->parse_order($order);
         }) ();

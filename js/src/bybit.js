@@ -3472,6 +3472,89 @@ export default class bybit extends Exchange {
             return await this.createContractV3Order(symbol, type, side, amount, price, params);
         }
     }
+    async createPositionTradeStop(symbol, type, side, amount, price = undefined, params = {}) {
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const reduceOnly = this.safeValue(params, 'reduceOnly', false);
+        const request = {
+            'symbol': market['id'],
+        };
+        if (market['linear']) {
+            request['category'] = 'linear';
+        }
+        else if (market['option']) {
+            request['category'] = 'option';
+        }
+        else {
+            throw new NotSupported(this.id + ' createOrder does not allow inverse market orders for ' + symbol + ' markets');
+        }
+        // TEALSTREET  //
+        const positionMode = this.safeValue(params, 'positionMode', 'oneway');
+        request['positionIdx'] = 0;
+        if (positionMode !== 'oneway') {
+            if (reduceOnly) {
+                request['positionIdx'] = (side === 'buy') ? 2 : 1;
+            }
+            else {
+                request['positionIdx'] = (side === 'buy') ? 1 : 2;
+            }
+        }
+        request['tpslMode'] = 'Partial';
+        if (amount === 0) {
+            request['tpslMode'] = 'Full';
+            request['tpOrderType'] = 'Market';
+            request['slOrderType'] = 'Market';
+        }
+        const stopPrice = this.safeString(params, 'stopPrice');
+        const basePrice = this.safeString(params, 'basePrice');
+        if (!basePrice) {
+            throw new InvalidOrder(this.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders');
+        }
+        let triggerBy = 'LastPrice';
+        if (params['trigger'] === 'Index') {
+            triggerBy = 'IndexPrice';
+        }
+        else if (params['trigger'] === 'Mark') {
+            triggerBy = 'MarkPrice';
+        }
+        const size = this.amountToPrecision(symbol, amount);
+        if (Precise.stringGt(stopPrice, basePrice)) {
+            if (side === 'buy') {
+                request['stopLoss'] = stopPrice;
+                if (amount !== 0) {
+                    request['slSize'] = size;
+                }
+                request['slTriggerBy'] = triggerBy;
+            }
+            else {
+                request['takeProfit'] = stopPrice;
+                if (amount !== 0) {
+                    request['tpSize'] = size;
+                }
+                request['tpTriggerBy'] = triggerBy;
+            }
+        }
+        else {
+            if (side === 'buy') {
+                request['takeProfit'] = stopPrice;
+                if (amount !== 0) {
+                    request['tpSize'] = size;
+                }
+                request['tpTriggerBy'] = triggerBy;
+            }
+            else {
+                request['stopLoss'] = stopPrice;
+                if (amount !== 0) {
+                    request['slSize'] = size;
+                }
+                request['slTriggerBy'] = triggerBy;
+            }
+        }
+        params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice']);
+        const response = await this.privatePostV5PositionTradingStop(this.extend(request, params));
+        const order = this.safeValue(response, 'result', {});
+        return this.parseOrder(order);
+    }
     async createUnifiedAccountOrder(symbol, type, side, amount, price = undefined, params = {}) {
         await this.loadMarkets();
         const market = this.market(symbol);
@@ -3480,6 +3563,7 @@ export default class bybit extends Exchange {
         if (lowerCaseType === 'stop') {
             isStop = true;
             lowerCaseType = 'market';
+            return this.createPositionTradeStop(symbol, type, side, amount, price, params);
         }
         else if (lowerCaseType === 'stopLimit') {
             isStop = true;
@@ -3494,26 +3578,8 @@ export default class bybit extends Exchange {
             'symbol': market['id'],
             'side': this.capitalize(side),
             'orderType': this.capitalize(lowerCaseType),
-            // 'timeInForce': 'GTC', // IOC, FOK, PostOnly
-            // 'takeProfit': 123.45, // take profit price, only take effect upon opening the position
-            // 'stopLoss': 123.45, // stop loss price, only take effect upon opening the position
             'reduceOnly': reduceOnly,
-            // when creating a closing order, bybit recommends a True value for
-            //  closeOnTrigger to avoid failing due to insufficient available margin
             'closeOnTrigger': closeOnTrigger,
-            // 'orderLinkId': 'string', // unique client order id, max 36 characters
-            // 'triggerPrice': 123.45, // trigger price, required for conditional orders
-            // 'triggerBy': 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-            // 'tpTriggerby': 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-            // 'slTriggerBy': 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-            // 'mmp': false // market maker protection
-            // 'positionIdx': 0, // Position mode. Unified account has one-way mode only (0)
-            // 'triggerDirection': 1, // Conditional order param. Used to identify the expected direction of the conditional order. 1: triggered when market price rises to triggerPrice 2: triggered when market price falls to triggerPrice
-            // Valid for spot only.
-            // 'isLeverage': 0, // Whether to borrow. 0(default): false, 1: true
-            // 'orderFilter': 'Order' // Order,tpslOrder. If not passed, Order by default
-            // Valid for option only.
-            // 'orderIv': '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
             'qty': this.amountToPrecision(symbol, amount),
             'orderLinkId': this['refCode'] + this.uuid22(),
         };
@@ -3600,18 +3666,6 @@ export default class bybit extends Exchange {
         }
         params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close']);
         const response = await this.privatePostV5OrderCreate(this.extend(request, params));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "orderId": "1321003749386327552",
-        //             "orderLinkId": "spot-test-postonly"
-        //         },
-        //         "retExtInfo": {},
-        //         "time": 1672211918471
-        //     }
-        //
         const order = this.safeValue(response, 'result', {});
         return this.parseOrder(order);
     }
