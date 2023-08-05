@@ -1750,6 +1750,7 @@ class bybit extends Exchange {
         $market = $this->safe_market($marketId, $market, null, $defaultType);
         $symbol = $this->safe_symbol($marketId, $market, null, $defaultType);
         $last = $this->safe_string($ticker, 'lastPrice');
+        $mark = $this->safe_string($ticker, 'markPrice');
         $open = $this->safe_string($ticker, 'prevPrice24h');
         $percentage = $this->safe_string($ticker, 'price24hPcnt');
         $percentage = Precise::string_mul($percentage, '100');
@@ -1773,6 +1774,7 @@ class bybit extends Exchange {
             'open' => $open,
             'close' => $last,
             'last' => $last,
+            'mark' => $mark,
             'previousClose' => null,
             'change' => null,
             'percentage' => $percentage,

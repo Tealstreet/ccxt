@@ -1752,6 +1752,7 @@ export default class bybit extends Exchange {
         market = this.safeMarket(marketId, market, undefined, defaultType);
         const symbol = this.safeSymbol(marketId, market, undefined, defaultType);
         const last = this.safeString(ticker, 'lastPrice');
+        const mark = this.safeString(ticker, 'markPrice');
         const open = this.safeString(ticker, 'prevPrice24h');
         let percentage = this.safeString(ticker, 'price24hPcnt');
         percentage = Precise.stringMul(percentage, '100');
@@ -1775,6 +1776,7 @@ export default class bybit extends Exchange {
             'open': open,
             'close': last,
             'last': last,
+            'mark': mark,
             'previousClose': undefined,
             'change': undefined,
             'percentage': percentage,

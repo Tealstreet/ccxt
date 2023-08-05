@@ -1736,6 +1736,7 @@ class bybit(Exchange):
         market = self.safe_market(marketId, market, None, defaultType)
         symbol = self.safe_symbol(marketId, market, None, defaultType)
         last = self.safe_string(ticker, 'lastPrice')
+        mark = self.safe_string(ticker, 'markPrice')
         open = self.safe_string(ticker, 'prevPrice24h')
         percentage = self.safe_string(ticker, 'price24hPcnt')
         percentage = Precise.string_mul(percentage, '100')
@@ -1759,6 +1760,7 @@ class bybit(Exchange):
             'open': open,
             'close': last,
             'last': last,
+            'mark': mark,
             'previousClose': None,
             'change': None,
             'percentage': percentage,
