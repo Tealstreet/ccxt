@@ -3019,10 +3019,6 @@ export default class bybit extends Exchange {
     }
 
     parseOrder (order, market = undefined) {
-        const orderCategoryExists = ('orderCategory' in order);
-        if (orderCategoryExists) {
-            return this.parseSpotOrder (order, market);
-        }
         return this.parseContractOrder (order, market);
     }
 
@@ -3066,12 +3062,6 @@ export default class bybit extends Exchange {
         if (market !== undefined) {
             marketType = market['type'];
         }
-        const category = this.safeString (order, 'category');
-        if (category !== undefined) {
-            if (category === 'spot') {
-                marketType = 'spot';
-            }
-        }
         market = this.safeMarket (marketId, market, undefined, marketType);
         const symbol = market['symbol'];
         const timestamp = this.safeInteger (order, 'createdTime');
@@ -3105,7 +3095,7 @@ export default class bybit extends Exchange {
         const rawTimeInForce = this.safeString (order, 'timeInForce');
         const timeInForce = this.parseTimeInForce (rawTimeInForce);
         const stopPrice = this.omitZero (this.safeString (order, 'triggerPrice'));
-        if (stopOrderType !== undefined) {
+        if (stopOrderType !== undefined && stopOrderType !== 'unknown') {
             if (type === 'market') {
                 type = 'stop';
             } else {
@@ -3157,84 +3147,6 @@ export default class bybit extends Exchange {
             'trigger': trigger,
             'close': this.safeValue (order, 'closeOnTrigger'),
             // TEALSTREET
-        }, market);
-    }
-
-    parseSpotOrder (order, market = undefined) {
-        //
-        //  createOrder, cancelOrer
-        //
-        //     {
-        //         "orderId": "1274754916287346280",
-        //         "orderLinkId": "1666798627015730",
-        //         "symbol": "AAVEUSDT",
-        //         "createTime": "1666698629821",
-        //         "orderPrice": "80",
-        //         "orderQty": "0.11",
-        //         "orderType": "LIMIT",
-        //         "side": "BUY",
-        //         "status": "NEW",
-        //         "timeInForce": "GTC",
-        //         "accountId": "13380434",
-        //         "execQty": "0",
-        //         "orderCategory": "0"
-        //     }
-        //
-        //     fetchOrder, fetchOpenOrders, fetchClosedOrders (and also for conditional orders) there are also present these additional fields:
-        //     {
-        //         "cummulativeQuoteQty": "0",
-        //         "avgPrice": "0",
-        //         "stopPrice": "0.0",
-        //         "icebergQty": "0.0",
-        //         "updateTime": "1666733357444",
-        //         "isWorking": "1",
-        //         "locked": "8.8",
-        //         "executedOrderId": "1279094037543962113", // in conditional order
-        //         "triggerPrice": "0.99", // in conditional order
-        //     }
-        //
-        const marketId = this.safeString (order, 'symbol');
-        market = this.safeMarket (marketId, market, undefined, 'spot');
-        const timestamp = this.safeInteger (order, 'createTime');
-        const type = this.safeStringLower (order, 'orderType');
-        let price = this.safeString (order, 'orderPrice');
-        if (price === '0' && type === 'market') {
-            price = undefined;
-        }
-        const filled = this.safeString (order, 'execQty');
-        const side = this.safeStringLower (order, 'side');
-        const timeInForce = this.parseTimeInForce (this.safeString (order, 'timeInForce'));
-        const triggerPrice = this.safeString (order, 'triggerPrice');
-        const postOnly = (timeInForce === 'PO');
-        let amount = undefined;
-        if (market['spot'] && type === 'market' && side === 'buy') {
-            amount = filled;
-        } else {
-            amount = this.safeString (order, 'orderQty');
-        }
-        return this.safeOrder ({
-            'id': this.safeString (order, 'orderId'),
-            'clientOrderId': this.safeString (order, 'orderLinkId'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'lastTradeTimestamp': this.safeInteger (order, 'updateTime'),
-            'symbol': market['symbol'],
-            'type': type,
-            'timeInForce': timeInForce,
-            'postOnly': postOnly,
-            'side': side,
-            'price': price,
-            'triggerPrice': triggerPrice,
-            'stopPrice': triggerPrice, // deprecated field
-            'amount': amount,
-            'cost': this.safeString (order, 'cummulativeQuoteQty'),
-            'average': this.safeString (order, 'avgPrice'),
-            'filled': filled,
-            'remaining': undefined,
-            'status': this.parseOrderStatus (this.safeString (order, 'status')),
-            'fee': undefined,
-            'trades': undefined,
-            'info': order,
         }, market);
     }
 

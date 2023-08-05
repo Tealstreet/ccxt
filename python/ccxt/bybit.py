@@ -2901,9 +2901,6 @@ class bybit(Exchange):
         return self.safe_string(timeInForces, timeInForce, timeInForce)
 
     def parse_order(self, order, market=None):
-        orderCategoryExists = ('orderCategory' in order)
-        if orderCategoryExists:
-            return self.parse_spot_order(order, market)
         return self.parse_contract_order(order, market)
 
     def parse_contract_order(self, order, market=None):
@@ -2945,10 +2942,6 @@ class bybit(Exchange):
         marketType = 'contract'
         if market is not None:
             marketType = market['type']
-        category = self.safe_string(order, 'category')
-        if category is not None:
-            if category == 'spot':
-                marketType = 'spot'
         market = self.safe_market(marketId, market, None, marketType)
         symbol = market['symbol']
         timestamp = self.safe_integer(order, 'createdTime')
@@ -2979,7 +2972,7 @@ class bybit(Exchange):
         rawTimeInForce = self.safe_string(order, 'timeInForce')
         timeInForce = self.parse_time_in_force(rawTimeInForce)
         stopPrice = self.omit_zero(self.safe_string(order, 'triggerPrice'))
-        if stopOrderType is not None:
+        if stopOrderType is not None and stopOrderType != 'unknown':
             if type == 'market':
                 type = 'stop'
             else:
@@ -3026,81 +3019,6 @@ class bybit(Exchange):
             'trigger': trigger,
             'close': self.safe_value(order, 'closeOnTrigger'),
             # TEALSTREET
-        }, market)
-
-    def parse_spot_order(self, order, market=None):
-        #
-        #  createOrder, cancelOrer
-        #
-        #     {
-        #         "orderId": "1274754916287346280",
-        #         "orderLinkId": "1666798627015730",
-        #         "symbol": "AAVEUSDT",
-        #         "createTime": "1666698629821",
-        #         "orderPrice": "80",
-        #         "orderQty": "0.11",
-        #         "orderType": "LIMIT",
-        #         "side": "BUY",
-        #         "status": "NEW",
-        #         "timeInForce": "GTC",
-        #         "accountId": "13380434",
-        #         "execQty": "0",
-        #         "orderCategory": "0"
-        #     }
-        #
-        #     fetchOrder, fetchOpenOrders, fetchClosedOrders(and also for conditional orders) there are also present these additional fields:
-        #     {
-        #         "cummulativeQuoteQty": "0",
-        #         "avgPrice": "0",
-        #         "stopPrice": "0.0",
-        #         "icebergQty": "0.0",
-        #         "updateTime": "1666733357444",
-        #         "isWorking": "1",
-        #         "locked": "8.8",
-        #         "executedOrderId": "1279094037543962113",  # in conditional order
-        #         "triggerPrice": "0.99",  # in conditional order
-        #     }
-        #
-        marketId = self.safe_string(order, 'symbol')
-        market = self.safe_market(marketId, market, None, 'spot')
-        timestamp = self.safe_integer(order, 'createTime')
-        type = self.safe_string_lower(order, 'orderType')
-        price = self.safe_string(order, 'orderPrice')
-        if price == '0' and type == 'market':
-            price = None
-        filled = self.safe_string(order, 'execQty')
-        side = self.safe_string_lower(order, 'side')
-        timeInForce = self.parse_time_in_force(self.safe_string(order, 'timeInForce'))
-        triggerPrice = self.safe_string(order, 'triggerPrice')
-        postOnly = (timeInForce == 'PO')
-        amount = None
-        if market['spot'] and type == 'market' and side == 'buy':
-            amount = filled
-        else:
-            amount = self.safe_string(order, 'orderQty')
-        return self.safe_order({
-            'id': self.safe_string(order, 'orderId'),
-            'clientOrderId': self.safe_string(order, 'orderLinkId'),
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'lastTradeTimestamp': self.safe_integer(order, 'updateTime'),
-            'symbol': market['symbol'],
-            'type': type,
-            'timeInForce': timeInForce,
-            'postOnly': postOnly,
-            'side': side,
-            'price': price,
-            'triggerPrice': triggerPrice,
-            'stopPrice': triggerPrice,  # deprecated field
-            'amount': amount,
-            'cost': self.safe_string(order, 'cummulativeQuoteQty'),
-            'average': self.safe_string(order, 'avgPrice'),
-            'filled': filled,
-            'remaining': None,
-            'status': self.parse_order_status(self.safe_string(order, 'status')),
-            'fee': None,
-            'trades': None,
-            'info': order,
         }, market)
 
     def parse_stop_trigger(self, trigger):

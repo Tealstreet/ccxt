@@ -2983,10 +2983,6 @@ class bybit extends Exchange {
     }
 
     public function parse_order($order, $market = null) {
-        $orderCategoryExists = (is_array($order) && array_key_exists('orderCategory', $order));
-        if ($orderCategoryExists) {
-            return $this->parse_spot_order($order, $market);
-        }
         return $this->parse_contract_order($order, $market);
     }
 
@@ -3030,12 +3026,6 @@ class bybit extends Exchange {
         if ($market !== null) {
             $marketType = $market['type'];
         }
-        $category = $this->safe_string($order, 'category');
-        if ($category !== null) {
-            if ($category === 'spot') {
-                $marketType = 'spot';
-            }
-        }
         $market = $this->safe_market($marketId, $market, null, $marketType);
         $symbol = $market['symbol'];
         $timestamp = $this->safe_integer($order, 'createdTime');
@@ -3069,7 +3059,7 @@ class bybit extends Exchange {
         $rawTimeInForce = $this->safe_string($order, 'timeInForce');
         $timeInForce = $this->parse_time_in_force($rawTimeInForce);
         $stopPrice = $this->omit_zero($this->safe_string($order, 'triggerPrice'));
-        if ($stopOrderType !== null) {
+        if ($stopOrderType !== null && $stopOrderType !== 'unknown') {
             if ($type === 'market') {
                 $type = 'stop';
             } else {
@@ -3121,84 +3111,6 @@ class bybit extends Exchange {
             'trigger' => $trigger,
             'close' => $this->safe_value($order, 'closeOnTrigger'),
             // TEALSTREET
-        ), $market);
-    }
-
-    public function parse_spot_order($order, $market = null) {
-        //
-        //  createOrder, cancelOrer
-        //
-        //     {
-        //         "orderId" => "1274754916287346280",
-        //         "orderLinkId" => "1666798627015730",
-        //         "symbol" => "AAVEUSDT",
-        //         "createTime" => "1666698629821",
-        //         "orderPrice" => "80",
-        //         "orderQty" => "0.11",
-        //         "orderType" => "LIMIT",
-        //         "side" => "BUY",
-        //         "status" => "NEW",
-        //         "timeInForce" => "GTC",
-        //         "accountId" => "13380434",
-        //         "execQty" => "0",
-        //         "orderCategory" => "0"
-        //     }
-        //
-        //     fetchOrder, fetchOpenOrders, fetchClosedOrders (and also for conditional orders) there are also present these additional fields:
-        //     {
-        //         "cummulativeQuoteQty" => "0",
-        //         "avgPrice" => "0",
-        //         "stopPrice" => "0.0",
-        //         "icebergQty" => "0.0",
-        //         "updateTime" => "1666733357444",
-        //         "isWorking" => "1",
-        //         "locked" => "8.8",
-        //         "executedOrderId" => "1279094037543962113", // in conditional $order
-        //         "triggerPrice" => "0.99", // in conditional $order
-        //     }
-        //
-        $marketId = $this->safe_string($order, 'symbol');
-        $market = $this->safe_market($marketId, $market, null, 'spot');
-        $timestamp = $this->safe_integer($order, 'createTime');
-        $type = $this->safe_string_lower($order, 'orderType');
-        $price = $this->safe_string($order, 'orderPrice');
-        if ($price === '0' && $type === 'market') {
-            $price = null;
-        }
-        $filled = $this->safe_string($order, 'execQty');
-        $side = $this->safe_string_lower($order, 'side');
-        $timeInForce = $this->parse_time_in_force($this->safe_string($order, 'timeInForce'));
-        $triggerPrice = $this->safe_string($order, 'triggerPrice');
-        $postOnly = ($timeInForce === 'PO');
-        $amount = null;
-        if ($market['spot'] && $type === 'market' && $side === 'buy') {
-            $amount = $filled;
-        } else {
-            $amount = $this->safe_string($order, 'orderQty');
-        }
-        return $this->safe_order(array(
-            'id' => $this->safe_string($order, 'orderId'),
-            'clientOrderId' => $this->safe_string($order, 'orderLinkId'),
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'lastTradeTimestamp' => $this->safe_integer($order, 'updateTime'),
-            'symbol' => $market['symbol'],
-            'type' => $type,
-            'timeInForce' => $timeInForce,
-            'postOnly' => $postOnly,
-            'side' => $side,
-            'price' => $price,
-            'triggerPrice' => $triggerPrice,
-            'stopPrice' => $triggerPrice, // deprecated field
-            'amount' => $amount,
-            'cost' => $this->safe_string($order, 'cummulativeQuoteQty'),
-            'average' => $this->safe_string($order, 'avgPrice'),
-            'filled' => $filled,
-            'remaining' => null,
-            'status' => $this->parse_order_status($this->safe_string($order, 'status')),
-            'fee' => null,
-            'trades' => null,
-            'info' => $order,
         ), $market);
     }
 
