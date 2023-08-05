@@ -1324,123 +1324,14 @@ class bybit(Exchange):
         if self.options['adjustForTimeDifference']:
             await self.load_time_difference()
         unresolvedPromises = [
-            self.fetch_spot_markets(params),
             self.fetch_derivatives_markets({'category': 'linear'}),
             self.fetch_derivatives_markets({'category': 'inverse'}),
         ]
         promises = await asyncio.gather(*unresolvedPromises)
-        spotMarkets = promises[0]
-        linearMarkets = promises[1]
-        inverseMarkets = promises[2]
-        markets = spotMarkets
-        markets = self.array_concat(markets, linearMarkets)
+        linearMarkets = promises[0]
+        inverseMarkets = promises[1]
+        markets = linearMarkets
         return self.array_concat(markets, inverseMarkets)
-
-    async def fetch_spot_markets(self, params):
-        request = {
-            'category': 'spot',
-        }
-        response = await self.publicGetV5MarketInstrumentsInfo(self.extend(request, params))
-        #
-        #     {
-        #         "retCode": 0,
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "category": "spot",
-        #             "list": [
-        #                 {
-        #                     "symbol": "BTCUSDT",
-        #                     "baseCoin": "BTC",
-        #                     "quoteCoin": "USDT",
-        #                     "innovation": "0",
-        #                     "status": "Trading",
-        #                     "lotSizeFilter": {
-        #                         "basePrecision": "0.000001",
-        #                         "quotePrecision": "0.00000001",
-        #                         "minOrderQty": "0.00004",
-        #                         "maxOrderQty": "63.01197227",
-        #                         "minOrderAmt": "1",
-        #                         "maxOrderAmt": "100000"
-        #                     },
-        #                     "priceFilter": {
-        #                         "tickSize": "0.01"
-        #                     }
-        #                 }
-        #             ]
-        #         },
-        #         "retExtInfo": {},
-        #         "time": 1672712468011
-        #     }
-        #
-        responseResult = self.safe_value(response, 'result', {})
-        markets = self.safe_value(responseResult, 'list', [])
-        result = []
-        takerFee = self.parse_number('0.001')
-        makerFee = self.parse_number('0.001')
-        for i in range(0, len(markets)):
-            market = markets[i]
-            id = self.safe_string(market, 'symbol')
-            baseId = self.safe_string(market, 'baseCoin')
-            quoteId = self.safe_string(market, 'quoteCoin')
-            base = self.safe_currency_code(baseId)
-            quote = self.safe_currency_code(quoteId)
-            symbol = base + '/' + quote
-            status = self.safe_string(market, 'status')
-            active = (status == 'Trading')
-            lotSizeFilter = self.safe_value(market, 'lotSizeFilter')
-            priceFilter = self.safe_value(market, 'priceFilter')
-            quotePrecision = self.safe_number(lotSizeFilter, 'quotePrecision')
-            result.append({
-                'id': id,
-                'symbol': symbol,
-                'base': base,
-                'quote': quote,
-                'settle': None,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'settleId': None,
-                'type': 'spot',
-                'spot': True,
-                'margin': None,
-                'swap': False,
-                'future': False,
-                'option': False,
-                'active': active,
-                'contract': False,
-                'linear': None,
-                'inverse': None,
-                'taker': takerFee,
-                'maker': makerFee,
-                'contractSize': None,
-                'expiry': None,
-                'expiryDatetime': None,
-                'strike': None,
-                'optionType': None,
-                'precision': {
-                    'amount': self.safe_number(lotSizeFilter, 'basePrecision'),
-                    'price': self.safe_number(priceFilter, 'tickSize', quotePrecision),
-                },
-                'limits': {
-                    'leverage': {
-                        'min': self.parse_number('1'),
-                        'max': None,
-                    },
-                    'amount': {
-                        'min': self.safe_number(lotSizeFilter, 'minOrderQty'),
-                        'max': self.safe_number(lotSizeFilter, 'maxOrderQty'),
-                    },
-                    'price': {
-                        'min': None,
-                        'max': None,
-                    },
-                    'cost': {
-                        'min': self.safe_number(lotSizeFilter, 'minOrderAmt'),
-                        'max': self.safe_number(lotSizeFilter, 'maxOrderAmt'),
-                    },
-                },
-                'info': market,
-            })
-        return result
 
     async def fetch_derivatives_markets(self, params):
         params['limit'] = 1000  # minimize number of requests
@@ -3578,6 +3469,8 @@ class bybit(Exchange):
             # mandatory field for options
             request['orderLinkId'] = self.uuid16()
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId'])
+        request['category'] = 'inverse'
+        print(self.extend(request, params))
         response = await self.privatePostContractV3PrivateOrderCreate(self.extend(request, params))
         #
         #     {
@@ -6110,14 +6003,9 @@ class bybit(Exchange):
         method = None
         enableUnifiedMargin, enableUnifiedAccount = await self.is_unified_enabled()
         isUsdcSettled = market['settle'] == 'USDC'
+        request['category'] = self.safe_string(self.options, 'defaultSubType', 'spot')
         if enableUnifiedMargin or enableUnifiedAccount:
             method = 'privateGetV5PositionList' if (enableUnifiedAccount) else 'privateGetUnifiedV3PrivatePositionList'
-            if market['option']:
-                request['category'] = 'option'
-            elif market['linear']:
-                request['category'] = 'linear'
-            else:
-                request['category'] = 'inverse'
         elif isUsdcSettled:
             method = 'privatePostOptionUsdcOpenapiPrivateV1QueryPosition'
             if market['option']:
@@ -6125,12 +6013,6 @@ class bybit(Exchange):
             elif market['linear']:
                 request['category'] = 'PERPETUAL'
         else:
-            if market['linear']:
-                request['category'] = 'linear'
-            elif market['inverse']:
-                request['category'] = 'inverse'
-            else:
-                raise NotSupported(self.id + ' fetchPosition() does not allow option market orders for ' + symbol + ' markets')
             method = 'privateGetV5PositionList'
         response = await getattr(self, method)(self.extend(request, params))
         #

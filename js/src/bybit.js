@@ -1323,124 +1323,14 @@ export default class bybit extends Exchange {
             await this.loadTimeDifference();
         }
         const unresolvedPromises = [
-            this.fetchSpotMarkets(params),
             this.fetchDerivativesMarkets({ 'category': 'linear' }),
             this.fetchDerivativesMarkets({ 'category': 'inverse' }),
         ];
         const promises = await Promise.all(unresolvedPromises);
-        const spotMarkets = promises[0];
-        const linearMarkets = promises[1];
-        const inverseMarkets = promises[2];
-        let markets = spotMarkets;
-        markets = this.arrayConcat(markets, linearMarkets);
+        const linearMarkets = promises[0];
+        const inverseMarkets = promises[1];
+        const markets = linearMarkets;
         return this.arrayConcat(markets, inverseMarkets);
-    }
-    async fetchSpotMarkets(params) {
-        const request = {
-            'category': 'spot',
-        };
-        const response = await this.publicGetV5MarketInstrumentsInfo(this.extend(request, params));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "category": "spot",
-        //             "list": [
-        //                 {
-        //                     "symbol": "BTCUSDT",
-        //                     "baseCoin": "BTC",
-        //                     "quoteCoin": "USDT",
-        //                     "innovation": "0",
-        //                     "status": "Trading",
-        //                     "lotSizeFilter": {
-        //                         "basePrecision": "0.000001",
-        //                         "quotePrecision": "0.00000001",
-        //                         "minOrderQty": "0.00004",
-        //                         "maxOrderQty": "63.01197227",
-        //                         "minOrderAmt": "1",
-        //                         "maxOrderAmt": "100000"
-        //                     },
-        //                     "priceFilter": {
-        //                         "tickSize": "0.01"
-        //                     }
-        //                 }
-        //             ]
-        //         },
-        //         "retExtInfo": {},
-        //         "time": 1672712468011
-        //     }
-        //
-        const responseResult = this.safeValue(response, 'result', {});
-        const markets = this.safeValue(responseResult, 'list', []);
-        const result = [];
-        const takerFee = this.parseNumber('0.001');
-        const makerFee = this.parseNumber('0.001');
-        for (let i = 0; i < markets.length; i++) {
-            const market = markets[i];
-            const id = this.safeString(market, 'symbol');
-            const baseId = this.safeString(market, 'baseCoin');
-            const quoteId = this.safeString(market, 'quoteCoin');
-            const base = this.safeCurrencyCode(baseId);
-            const quote = this.safeCurrencyCode(quoteId);
-            const symbol = base + '/' + quote;
-            const status = this.safeString(market, 'status');
-            const active = (status === 'Trading');
-            const lotSizeFilter = this.safeValue(market, 'lotSizeFilter');
-            const priceFilter = this.safeValue(market, 'priceFilter');
-            const quotePrecision = this.safeNumber(lotSizeFilter, 'quotePrecision');
-            result.push({
-                'id': id,
-                'symbol': symbol,
-                'base': base,
-                'quote': quote,
-                'settle': undefined,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'settleId': undefined,
-                'type': 'spot',
-                'spot': true,
-                'margin': undefined,
-                'swap': false,
-                'future': false,
-                'option': false,
-                'active': active,
-                'contract': false,
-                'linear': undefined,
-                'inverse': undefined,
-                'taker': takerFee,
-                'maker': makerFee,
-                'contractSize': undefined,
-                'expiry': undefined,
-                'expiryDatetime': undefined,
-                'strike': undefined,
-                'optionType': undefined,
-                'precision': {
-                    'amount': this.safeNumber(lotSizeFilter, 'basePrecision'),
-                    'price': this.safeNumber(priceFilter, 'tickSize', quotePrecision),
-                },
-                'limits': {
-                    'leverage': {
-                        'min': this.parseNumber('1'),
-                        'max': undefined,
-                    },
-                    'amount': {
-                        'min': this.safeNumber(lotSizeFilter, 'minOrderQty'),
-                        'max': this.safeNumber(lotSizeFilter, 'maxOrderQty'),
-                    },
-                    'price': {
-                        'min': undefined,
-                        'max': undefined,
-                    },
-                    'cost': {
-                        'min': this.safeNumber(lotSizeFilter, 'minOrderAmt'),
-                        'max': this.safeNumber(lotSizeFilter, 'maxOrderAmt'),
-                    },
-                },
-                'info': market,
-            });
-        }
-        return result;
     }
     async fetchDerivativesMarkets(params) {
         params['limit'] = 1000; // minimize number of requests
@@ -6573,17 +6463,9 @@ export default class bybit extends Exchange {
         let method = undefined;
         const [enableUnifiedMargin, enableUnifiedAccount] = await this.isUnifiedEnabled();
         const isUsdcSettled = market['settle'] === 'USDC';
+        request['category'] = this.safeString(this.options, 'defaultSubType', 'spot');
         if (enableUnifiedMargin || enableUnifiedAccount) {
             method = (enableUnifiedAccount) ? 'privateGetV5PositionList' : 'privateGetUnifiedV3PrivatePositionList';
-            if (market['option']) {
-                request['category'] = 'option';
-            }
-            else if (market['linear']) {
-                request['category'] = 'linear';
-            }
-            else {
-                request['category'] = 'inverse';
-            }
         }
         else if (isUsdcSettled) {
             method = 'privatePostOptionUsdcOpenapiPrivateV1QueryPosition';
@@ -6595,15 +6477,6 @@ export default class bybit extends Exchange {
             }
         }
         else {
-            if (market['linear']) {
-                request['category'] = 'linear';
-            }
-            else if (market['inverse']) {
-                request['category'] = 'inverse';
-            }
-            else {
-                throw new NotSupported(this.id + ' fetchPosition() does not allow option market orders for ' + symbol + ' markets');
-            }
             method = 'privateGetV5PositionList';
         }
         const response = await this[method](this.extend(request, params));

@@ -1342,127 +1342,14 @@ class bybit extends Exchange {
                 Async\await($this->load_time_difference());
             }
             $unresolvedPromises = array(
-                $this->fetch_spot_markets($params),
                 $this->fetch_derivatives_markets(array( 'category' => 'linear' )),
                 $this->fetch_derivatives_markets(array( 'category' => 'inverse' )),
             );
             $promises = Async\await(Promise\all($unresolvedPromises));
-            $spotMarkets = $promises[0];
-            $linearMarkets = $promises[1];
-            $inverseMarkets = $promises[2];
-            $markets = $spotMarkets;
-            $markets = $this->array_concat($markets, $linearMarkets);
+            $linearMarkets = $promises[0];
+            $inverseMarkets = $promises[1];
+            $markets = $linearMarkets;
             return $this->array_concat($markets, $inverseMarkets);
-        }) ();
-    }
-
-    public function fetch_spot_markets($params) {
-        return Async\async(function () use ($params) {
-            $request = array(
-                'category' => 'spot',
-            );
-            $response = Async\await($this->publicGetV5MarketInstrumentsInfo (array_merge($request, $params)));
-            //
-            //     {
-            //         "retCode" => 0,
-            //         "retMsg" => "OK",
-            //         "result" => {
-            //             "category" => "spot",
-            //             "list" => array(
-            //                 {
-            //                     "symbol" => "BTCUSDT",
-            //                     "baseCoin" => "BTC",
-            //                     "quoteCoin" => "USDT",
-            //                     "innovation" => "0",
-            //                     "status" => "Trading",
-            //                     "lotSizeFilter" => array(
-            //                         "basePrecision" => "0.000001",
-            //                         "quotePrecision" => "0.00000001",
-            //                         "minOrderQty" => "0.00004",
-            //                         "maxOrderQty" => "63.01197227",
-            //                         "minOrderAmt" => "1",
-            //                         "maxOrderAmt" => "100000"
-            //                     ),
-            //                     "priceFilter" => array(
-            //                         "tickSize" => "0.01"
-            //                     }
-            //                 }
-            //             )
-            //         ),
-            //         "retExtInfo" => array(),
-            //         "time" => 1672712468011
-            //     }
-            //
-            $responseResult = $this->safe_value($response, 'result', array());
-            $markets = $this->safe_value($responseResult, 'list', array());
-            $result = array();
-            $takerFee = $this->parse_number('0.001');
-            $makerFee = $this->parse_number('0.001');
-            for ($i = 0; $i < count($markets); $i++) {
-                $market = $markets[$i];
-                $id = $this->safe_string($market, 'symbol');
-                $baseId = $this->safe_string($market, 'baseCoin');
-                $quoteId = $this->safe_string($market, 'quoteCoin');
-                $base = $this->safe_currency_code($baseId);
-                $quote = $this->safe_currency_code($quoteId);
-                $symbol = $base . '/' . $quote;
-                $status = $this->safe_string($market, 'status');
-                $active = ($status === 'Trading');
-                $lotSizeFilter = $this->safe_value($market, 'lotSizeFilter');
-                $priceFilter = $this->safe_value($market, 'priceFilter');
-                $quotePrecision = $this->safe_number($lotSizeFilter, 'quotePrecision');
-                $result[] = array(
-                    'id' => $id,
-                    'symbol' => $symbol,
-                    'base' => $base,
-                    'quote' => $quote,
-                    'settle' => null,
-                    'baseId' => $baseId,
-                    'quoteId' => $quoteId,
-                    'settleId' => null,
-                    'type' => 'spot',
-                    'spot' => true,
-                    'margin' => null,
-                    'swap' => false,
-                    'future' => false,
-                    'option' => false,
-                    'active' => $active,
-                    'contract' => false,
-                    'linear' => null,
-                    'inverse' => null,
-                    'taker' => $takerFee,
-                    'maker' => $makerFee,
-                    'contractSize' => null,
-                    'expiry' => null,
-                    'expiryDatetime' => null,
-                    'strike' => null,
-                    'optionType' => null,
-                    'precision' => array(
-                        'amount' => $this->safe_number($lotSizeFilter, 'basePrecision'),
-                        'price' => $this->safe_number($priceFilter, 'tickSize', $quotePrecision),
-                    ),
-                    'limits' => array(
-                        'leverage' => array(
-                            'min' => $this->parse_number('1'),
-                            'max' => null,
-                        ),
-                        'amount' => array(
-                            'min' => $this->safe_number($lotSizeFilter, 'minOrderQty'),
-                            'max' => $this->safe_number($lotSizeFilter, 'maxOrderQty'),
-                        ),
-                        'price' => array(
-                            'min' => null,
-                            'max' => null,
-                        ),
-                        'cost' => array(
-                            'min' => $this->safe_number($lotSizeFilter, 'minOrderAmt'),
-                            'max' => $this->safe_number($lotSizeFilter, 'maxOrderAmt'),
-                        ),
-                    ),
-                    'info' => $market,
-                );
-            }
-            return $result;
         }) ();
     }
 
@@ -6600,15 +6487,9 @@ class bybit extends Exchange {
             $method = null;
             list($enableUnifiedMargin, $enableUnifiedAccount) = Async\await($this->is_unified_enabled());
             $isUsdcSettled = $market['settle'] === 'USDC';
+            $request['category'] = $this->safe_string($this->options, 'defaultSubType', 'spot');
             if ($enableUnifiedMargin || $enableUnifiedAccount) {
                 $method = ($enableUnifiedAccount) ? 'privateGetV5PositionList' : 'privateGetUnifiedV3PrivatePositionList';
-                if ($market['option']) {
-                    $request['category'] = 'option';
-                } elseif ($market['linear']) {
-                    $request['category'] = 'linear';
-                } else {
-                    $request['category'] = 'inverse';
-                }
             } elseif ($isUsdcSettled) {
                 $method = 'privatePostOptionUsdcOpenapiPrivateV1QueryPosition';
                 if ($market['option']) {
@@ -6617,13 +6498,6 @@ class bybit extends Exchange {
                     $request['category'] = 'PERPETUAL';
                 }
             } else {
-                if ($market['linear']) {
-                    $request['category'] = 'linear';
-                } elseif ($market['inverse']) {
-                    $request['category'] = 'inverse';
-                } else {
-                    throw new NotSupported($this->id . ' fetchPosition() does not allow option $market orders for ' . $symbol . ' markets');
-                }
                 $method = 'privateGetV5PositionList';
             }
             $response = Async\await($this->$method (array_merge($request, $params)));
