@@ -3226,12 +3226,12 @@ class bybit(Exchange):
         request = {
             'symbol': market['id'],
         }
-        if market['linear']:
+        if market['linear'] or market['spot']:
             request['category'] = 'linear'
         elif market['option']:
             request['category'] = 'option'
-        else:
-            raise NotSupported(self.id + ' createOrder does not allow inverse market orders for ' + symbol + ' markets')
+        elif market['inverse']:
+            request['category'] = 'inverse'
         # TEALSTREET  #
         positionMode = self.safe_value(params, 'positionMode', 'oneway')
         request['positionIdx'] = 0
@@ -3389,18 +3389,21 @@ class bybit(Exchange):
         return self.parse_order(order)
 
     def create_contract_v3_order(self, symbol, type, side, amount, price=None, params={}):
-        print('=====')
-        print(symbol)
-        print(type)
-        print(side)
-        print(amount)
-        print(price)
-        print(params)
         self.load_markets()
         market = self.market(symbol)
         lowerCaseType = type.lower()
+        isStop = False
+        if lowerCaseType == 'stop':
+            isStop = True
+            lowerCaseType = 'market'
+            return self.create_position_trade_stop(symbol, type, side, amount, price, params)
+        elif lowerCaseType == 'stopLimit':
+            isStop = True
+            lowerCaseType = 'limit'
         if (price is None) and (lowerCaseType == 'limit'):
             raise ArgumentsRequired(self.id + ' createContractV3Order requires a price argument for limit orders')
+        closeOnTrigger = self.safe_value(params, 'close', False)
+        reduceOnly = self.safe_value(params, 'reduceOnly', False)
         request = {
             'symbol': market['id'],
             'side': self.capitalize(side),
@@ -3409,10 +3412,10 @@ class bybit(Exchange):
             'qty': self.amount_to_precision(symbol, amount),
             # 'takeProfit': 123.45,  # take profit price, only take effect upon opening the position
             # 'stopLoss': 123.45,  # stop loss price, only take effect upon opening the position
-            # 'reduceOnly': False,  # reduce only, required for linear orders
+            'reduceOnly': reduceOnly,
             # when creating a closing order, bybit recommends a True value for
             #  closeOnTrigger to avoid failing due to insufficient available margin
-            # 'closeOnTrigger': False, required for linear orders
+            'closeOnTrigger': closeOnTrigger,
             # 'orderLinkId': 'string',  # unique client order id, max 36 characters
             # 'triggerPrice': 123.45,  # trigger price, required for conditional orders
             # 'triggerBy': 'MarkPrice',  # IndexPrice, MarkPrice
@@ -3441,42 +3444,45 @@ class bybit(Exchange):
             request['timeInForce'] = 'FillOrKill'
         elif timeInForce == 'ioc':
             request['timeInForce'] = 'ImmediateOrCancel'
-        triggerPrice = self.safe_number_2(params, 'triggerPrice', 'stopPrice')
-        stopLossTriggerPrice = self.safe_number(params, 'stopLossPrice', triggerPrice)
-        takeProfitTriggerPrice = self.safe_number(params, 'takeProfitPrice')
-        stopLoss = self.safe_number(params, 'stopLoss')
-        takeProfit = self.safe_number(params, 'takeProfit')
-        isStopLossTriggerOrder = stopLossTriggerPrice is not None
-        isTakeProfitTriggerOrder = takeProfitTriggerPrice is not None
-        isStopLoss = stopLoss is not None
-        isTakeProfit = takeProfit is not None
-        if triggerPrice:
-            isBuy = side == 'buy'
-            ascending = not isBuy if stopLossTriggerPrice else isBuy
-            request['triggerDirection'] = 2 if ascending else 1
-            request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
-        elif isStopLossTriggerOrder or isTakeProfitTriggerOrder:
-            if isStopLossTriggerOrder:
-                request['triggerPrice'] = self.price_to_precision(symbol, stopLossTriggerPrice)
-                request['triggerDirection'] = 2
+        positionMode = self.safe_value(params, 'positionMode', 'oneway')
+        request['positionIdx'] = 0
+        if positionMode != 'oneway':
+            if isStop:
+                if (side == 'buy' and not closeOnTrigger) or (side == 'sell' and closeOnTrigger):
+                    request['positionIdx'] = 1
+                elif (side == 'sell' and not closeOnTrigger) or (side == 'buy' and closeOnTrigger):
+                    request['positionIdx'] = 2
             else:
-                request['triggerPrice'] = self.price_to_precision(symbol, takeProfitTriggerPrice)
+                if (side == 'buy' and not reduceOnly) or (side == 'sell' and reduceOnly):
+                    request['positionIdx'] = 1
+                elif (side == 'sell' and not reduceOnly) or (side == 'buy' and reduceOnly):
+                    request['positionIdx'] = 2
+        request['tpslOrderType'] = 'Partial'
+        if amount == 0:
+            request['tpslOrderType'] = 'Full'
+            request['tpOrderType'] = 'Market'
+            request['slOrderType'] = 'Market'
+        triggerPrice = self.safe_number_2(params, 'stopPrice', 'triggerPrice')
+        basePrice = self.safe_number(params, 'basePrice')
+        if isStop:
+            if not basePrice:
+                raise InvalidOrder(self.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders')
+            if triggerPrice is None:
+                raise InvalidOrder(self.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders')
+            triggerBy = 'LastPrice'
+            if params['trigger'] == 'Index':
+                triggerBy = 'IndexPrice'
+            elif params['trigger'] == 'Mark':
+                triggerBy = 'MarkPrice'
+            request['triggerBy'] = triggerBy
+            request['slTriggerBy'] = triggerBy
+            request['tpTriggerBy'] = triggerBy
+            request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
+            if triggerPrice > basePrice:
                 request['triggerDirection'] = 1
-            request['reduceOnly'] = True
-        elif isStopLoss or isTakeProfit:
-            if isStopLoss:
-                request['stopLoss'] = self.price_to_precision(symbol, stopLoss)
-            if isTakeProfit:
-                request['takeProfit'] = self.price_to_precision(symbol, takeProfit)
-        clientOrderId = self.safe_string(params, 'clientOrderId')
-        if clientOrderId is not None:
-            request['orderLinkId'] = clientOrderId
-        elif market['option']:
-            # mandatory field for options
-            request['orderLinkId'] = self.uuid16()
+            else:
+                request['triggerDirection'] = 2
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId'])
-        request['category'] = 'inverse'
-        print(self.extend(request, params))
         response = self.privatePostContractV3PrivateOrderCreate(self.extend(request, params))
         #
         #     {
@@ -3777,7 +3783,7 @@ class bybit(Exchange):
         self.load_markets()
         market = self.market(symbol)
         enableUnifiedMargin, enableUnifiedAccount = self.is_unified_enabled()
-        if enableUnifiedAccount:
+        if enableUnifiedAccount and not market['inverse']:
             return self.edit_unified_account_order(id, symbol, type, side, amount, price, params)
         elif market['spot']:
             raise NotSupported(self.id + ' editOrder() does not support spot markets')
@@ -3944,7 +3950,7 @@ class bybit(Exchange):
         market = self.market(symbol)
         enableUnifiedMargin, enableUnifiedAccount = self.is_unified_enabled()
         isUsdcSettled = market['settle'] == 'USDC'
-        if enableUnifiedAccount:
+        if enableUnifiedAccount and not market['inverse']:
             return self.cancel_unified_account_order(id, symbol, params)
         elif enableUnifiedMargin and not market['inverse']:
             return self.cancel_unified_margin_order(id, symbol, params)
