@@ -3316,15 +3316,11 @@ class bybit(Exchange):
         self.check_required_symbol('createOrder', symbol)
         market = self.market(symbol)
         symbol = market['symbol']
+        # eslint-disable-next-line no-unused-vars
         enableUnifiedMargin, enableUnifiedAccount = await self.is_unified_enabled()
         isUSDCSettled = market['settle'] == 'USDC'
         if enableUnifiedAccount and not market['inverse']:
             return await self.create_unified_account_order(symbol, type, side, amount, price, params)
-        elif market['spot']:
-            return await self.create_spot_order(symbol, type, side, amount, price, params)
-        elif enableUnifiedMargin and not market['inverse']:
-            # self should not be used or hit(unified account is always 'true')
-            return await self.create_unified_margin_order(symbol, type, side, amount, price, params)
         elif isUSDCSettled:
             return await self.create_usdc_order(symbol, type, side, amount, price, params)
         else:
@@ -3369,6 +3365,7 @@ class bybit(Exchange):
             # 'orderFilter': 'Order'  # Order,tpslOrder. If not passed, Order by default
             # Valid for option only.
             # 'orderIv': '0',  # Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
+            'qty': self.amount_to_precision(symbol, amount),
         }
         if isStop:
             close = self.safe_value(params, 'close', False)
@@ -3376,29 +3373,12 @@ class bybit(Exchange):
                 request['closeOnTrigger'] = True
             triggerType = self.safe_string_2(params, 'trigger', 'triggerType', 'Last')
             request['triggerBy'] = self.format_stop_trigger(triggerType)
-        if market['spot']:
-            request['category'] = 'spot'
-        elif market['linear']:
+        if market['linear']:
             request['category'] = 'linear'
         elif market['option']:
             request['category'] = 'option'
         else:
             raise NotSupported(self.id + ' createOrder does not allow inverse market orders for ' + symbol + ' markets')
-        if market['spot'] and (type == 'market') and (side == 'buy'):
-            # for market buy it requires the amount of quote currency to spend
-            if self.options['createMarketBuyOrderRequiresPrice']:
-                cost = self.safe_number(params, 'cost')
-                params = self.omit(params, 'cost')
-                if price is None and cost is None:
-                    raise InvalidOrder(self.id + " createOrder() requires the price argument with market buy orders to calculate total order cost(amount to spend), where cost = amount * price. Supply a price argument to createOrder() call if you want the cost to be calculated for you from price and amount, or, alternatively, add .options['createMarketBuyOrderRequiresPrice'] = False to supply the cost in the amount argument(the exchange-specific behaviour)")
-                else:
-                    amountString = self.number_to_string(amount)
-                    priceString = self.number_to_string(price)
-                    quoteAmount = Precise.string_mul(amountString, priceString)
-                    amount = cost if (cost is not None) else self.parse_number(quoteAmount)
-                    request['qty'] = self.cost_to_precision(symbol, amount)
-        else:
-            request['qty'] = self.amount_to_precision(symbol, amount)
         isMarket = lowerCaseType == 'market'
         isLimit = lowerCaseType == 'limit'
         if isLimit:
@@ -3465,174 +3445,6 @@ class bybit(Exchange):
         #         },
         #         "retExtInfo": {},
         #         "time": 1672211918471
-        #     }
-        #
-        order = self.safe_value(response, 'result', {})
-        return self.parse_order(order)
-
-    async def create_spot_order(self, symbol, type, side, amount, price=None, params={}):
-        await self.load_markets()
-        market = self.market(symbol)
-        upperCaseType = type.upper()
-        request = {
-            'symbol': market['id'],
-            'side': self.capitalize(side),
-            'orderType': upperCaseType,  # limit, market or limit_maker
-            'timeInForce': 'GTC',  # FOK, IOC
-            # 'orderLinkId': 'string',  # unique client order id, max 36 characters
-        }
-        if (type == 'market') and (side == 'buy'):
-            # for market buy it requires the amount of quote currency to spend
-            if self.options['createMarketBuyOrderRequiresPrice']:
-                cost = self.safe_number(params, 'cost')
-                params = self.omit(params, 'cost')
-                if price is None and cost is None:
-                    raise InvalidOrder(self.id + " createOrder() requires the price argument with market buy orders to calculate total order cost(amount to spend), where cost = amount * price. Supply a price argument to createOrder() call if you want the cost to be calculated for you from price and amount, or, alternatively, add .options['createMarketBuyOrderRequiresPrice'] = False to supply the cost in the amount argument(the exchange-specific behaviour)")
-                else:
-                    amountString = self.number_to_string(amount)
-                    priceString = self.number_to_string(price)
-                    quoteAmount = Precise.string_mul(amountString, priceString)
-                    amount = cost if (cost is not None) else self.parse_number(quoteAmount)
-                    request['orderQty'] = self.cost_to_precision(symbol, amount)
-        else:
-            request['orderQty'] = self.amount_to_precision(symbol, amount)
-        if (upperCaseType == 'LIMIT') or (upperCaseType == 'LIMIT_MAKER'):
-            if price is None:
-                raise InvalidOrder(self.id + ' createOrder requires a price argument for a ' + type + ' order')
-            request['orderPrice'] = self.price_to_precision(symbol, price)
-        isPostOnly = self.is_post_only(upperCaseType == 'MARKET', type == 'LIMIT_MAKER', params)
-        if isPostOnly:
-            request['orderType'] = 'LIMIT_MAKER'
-        clientOrderId = self.safe_string_2(params, 'clientOrderId', 'orderLinkId')
-        if clientOrderId is not None:
-            request['orderLinkId'] = clientOrderId
-        params = self.omit(params, ['clientOrderId', 'orderLinkId', 'postOnly'])
-        brokerId = self.safe_string(self.options, 'brokerId')
-        if brokerId is not None:
-            request['agentSource'] = brokerId
-        triggerPrice = self.safe_number_2(params, 'triggerPrice', 'stopPrice')
-        if triggerPrice is not None:
-            request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
-        params = self.omit(params, 'stopPrice')
-        response = await self.privatePostSpotV3PrivateOrder(self.extend(request, params))
-        #
-        #    {
-        #        "retCode": "0",
-        #        "retMsg": "OK",
-        #        "result": {
-        #            "orderId": "1274754916287346280",
-        #            "orderLinkId": "1666798627015730",
-        #            "symbol": "AAVEUSDT",
-        #            "createTime": "1666698629821",
-        #            "orderPrice": "80",
-        #            "orderQty": "0.11",
-        #            "orderType": "LIMIT",
-        #            "side": "BUY",
-        #            "status": "NEW",
-        #            "timeInForce": "GTC",
-        #            "accountId": "13380434",
-        #            "execQty": "0",
-        #            "orderCategory": "0"
-        #        },
-        #        "retExtMap": {},
-        #        "retExtInfo": null,
-        #        "time": "1666698627926"
-        #    }
-        #
-        order = self.safe_value(response, 'result', {})
-        return self.parse_order(order)
-
-    async def create_unified_margin_order(self, symbol, type, side, amount, price=None, params={}):
-        await self.load_markets()
-        market = self.market(symbol)
-        if not market['linear'] and not market['option']:
-            raise NotSupported(self.id + ' createOrder does not allow inverse market orders for ' + symbol + ' markets')
-        lowerCaseType = type.lower()
-        if (price is None) and (lowerCaseType == 'limit'):
-            raise ArgumentsRequired(self.id + ' createOrder requires a price argument for limit orders')
-        request = {
-            'symbol': market['id'],
-            'side': self.capitalize(side),
-            'orderType': self.capitalize(lowerCaseType),  # limit or market
-            'timeInForce': 'GoodTillCancel',  # ImmediateOrCancel, FillOrKill, PostOnly
-            'qty': self.amount_to_precision(symbol, amount),
-            # 'takeProfit': 123.45,  # take profit price, only take effect upon opening the position
-            # 'stopLoss': 123.45,  # stop loss price, only take effect upon opening the position
-            # 'reduceOnly': False,  # reduce only, required for linear orders
-            # when creating a closing order, bybit recommends a True value for
-            #  closeOnTrigger to avoid failing due to insufficient available margin
-            # 'closeOnTrigger': False, required for linear orders
-            # 'orderLinkId': 'string',  # unique client order id, max 36 characters
-            # 'triggerPrice': 123.45,  # trigger price, required for conditional orders
-            # 'triggerBy': 'MarkPrice',  # IndexPrice, MarkPrice
-            # 'tptriggerby': 'MarkPrice',  # IndexPrice, MarkPrice
-            # 'slTriggerBy': 'MarkPrice',  # IndexPrice, MarkPrice
-            # 'mmp': False  # market maker protection
-            # 'positionIdx': 0,  # Position mode. unified margin account is only available in One-Way mode, which is 0
-            # 'basePrice': '0',  # It will be used to compare with the value of triggerPrice, to decide whether your conditional order will be triggered by crossing trigger price from upper side or lower side. Mainly used to identify the expected direction of the current conditional order.
-            # 'iv': '0',  # Implied volatility, for options only; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
-        }
-        if market['linear']:
-            request['category'] = 'linear'
-        else:
-            request['category'] = 'option'
-        isMarket = lowerCaseType == 'market'
-        isLimit = lowerCaseType == 'limit'
-        if isLimit:
-            request['price'] = self.price_to_precision(symbol, price)
-        exchangeSpecificParam = self.safe_string(params, 'time_in_force')
-        timeInForce = self.safe_string_lower(params, 'timeInForce')
-        postOnly = self.is_post_only(isMarket, exchangeSpecificParam == 'PostOnly', params)
-        if postOnly:
-            request['timeInForce'] = 'PostOnly'
-        elif timeInForce == 'gtc':
-            request['timeInForce'] = 'GoodTillCancel'
-        elif timeInForce == 'fok':
-            request['timeInForce'] = 'FillOrKill'
-        elif timeInForce == 'ioc':
-            request['timeInForce'] = 'ImmediateOrCancel'
-        triggerPrice = self.safe_number_2(params, 'stopPrice', 'triggerPrice')
-        stopLossTriggerPrice = self.safe_number(params, 'stopLossPrice', triggerPrice)
-        takeProfitTriggerPrice = self.safe_number(params, 'takeProfitPrice')
-        stopLoss = self.safe_number(params, 'stopLoss')
-        takeProfit = self.safe_number(params, 'takeProfit')
-        isStopLossTriggerOrder = stopLossTriggerPrice is not None
-        isTakeProfitTriggerOrder = takeProfitTriggerPrice is not None
-        isStopLoss = stopLoss is not None
-        isTakeProfit = takeProfit is not None
-        if isStopLossTriggerOrder or isTakeProfitTriggerOrder:
-            request['triggerBy'] = 'LastPrice'
-            triggerAt = stopLossTriggerPrice if isStopLossTriggerOrder else takeProfitTriggerPrice
-            preciseTriggerPrice = self.price_to_precision(symbol, triggerAt)
-            request['triggerPrice'] = preciseTriggerPrice
-            isBuy = side == 'buy'
-            # logical xor
-            ascending = not isBuy if stopLossTriggerPrice else isBuy
-            delta = self.number_to_string(market['precision']['price'])
-            request['basePrice'] = Precise.string_add(preciseTriggerPrice, delta) if ascending else Precise.string_sub(preciseTriggerPrice, delta)
-        elif isStopLoss or isTakeProfit:
-            if isStopLoss:
-                request['stopLoss'] = self.price_to_precision(symbol, stopLoss)
-            if isTakeProfit:
-                request['takeProfit'] = self.price_to_precision(symbol, takeProfit)
-        clientOrderId = self.safe_string(params, 'clientOrderId')
-        if clientOrderId is not None:
-            request['orderLinkId'] = clientOrderId
-        elif market['option']:
-            # mandatory field for options
-            request['orderLinkId'] = self.uuid16()
-        params = self.omit(params, ['stopPrice', 'timeInForce', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId'])
-        response = await self.privatePostUnifiedV3PrivateOrderCreate(self.extend(request, params))
-        #
-        #     {
-        #         "retCode": 0,
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "orderId": "e10b0716-7c91-4091-b98a-1fa0f401c7d5",
-        #             "orderLinkId": "test0000003"
-        #         },
-        #         "retExtInfo": null,
-        #         "time": 1664441344238
         #     }
         #
         order = self.safe_value(response, 'result', {})
