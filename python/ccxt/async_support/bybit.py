@@ -6716,9 +6716,9 @@ class bybit(Exchange):
         unrealisedPnl = self.omit_zero(self.safe_string(position, 'unrealisedPnl'))
         initialMarginString = self.safe_string(position, 'positionIM')
         maintenanceMarginString = self.safe_string(position, 'positionMM')
-        timestamp = self.parse8601(self.safe_string(position, 'updated_at'))
+        timestamp = self.parse8601(self.safe_string_2(position, 'updated_at', 'created_time'))
         if timestamp is None:
-            timestamp = self.safe_integer(position, 'updatedAt')
+            timestamp = self.safe_integer_2(position, 'updatedAt', 'createdTime')
         # default to cross of USDC margined positions
         tradeMode = self.safe_integer(position, 'tradeMode', 0)
         marginMode = 'isolated' if tradeMode else 'cross'
