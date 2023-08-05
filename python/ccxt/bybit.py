@@ -3876,43 +3876,6 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         return self.parse_order(result, market)
 
-    def cancel_spot_order(self, id, symbol=None, params={}):
-        self.load_markets()
-        market = self.market(symbol)
-        request = {
-            # 'order_link_id': 'string',  # one of order_id, stop_order_id or order_link_id is required
-            # 'orderId': id
-        }
-        if id is not None:  # The user can also use argument params["order_link_id"]
-            request['orderId'] = id
-        response = self.privatePostSpotV3PrivateCancelOrder(self.extend(request, params))
-        #
-        #     {
-        #         "retCode": "0",
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "orderId": "1275046248585414144",
-        #             "orderLinkId": "1666733357434617",
-        #             "symbol": "AAVEUSDT",
-        #             "status": "NEW",
-        #             "accountId": "13380434",
-        #             "createTime": "1666733357438",
-        #             "orderPrice": "80",
-        #             "orderQty": "0.11",
-        #             "execQty": "0",
-        #             "timeInForce": "GTC",
-        #             "orderType": "LIMIT",
-        #             "side": "BUY",
-        #             "orderCategory": "0"
-        #         },
-        #         "retExtMap": {},
-        #         "retExtInfo": null,
-        #         "time": "1666733839493"
-        #     }
-        #
-        result = self.safe_value(response, 'result', {})
-        return self.parse_order(result, market)
-
     def cancel_unified_margin_order(self, id, symbol=None, params={}):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelUnifiedMarginOrder() requires a symbol argument')
@@ -4031,8 +3994,6 @@ class bybit(Exchange):
         isUsdcSettled = market['settle'] == 'USDC'
         if enableUnifiedAccount:
             return self.cancel_unified_account_order(id, symbol, params)
-        elif market['spot']:
-            return self.cancel_spot_order(id, symbol, params)
         elif enableUnifiedMargin and not market['inverse']:
             return self.cancel_unified_margin_order(id, symbol, params)
         elif isUsdcSettled:

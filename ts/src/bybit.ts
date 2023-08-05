@@ -4092,45 +4092,6 @@ export default class bybit extends Exchange {
         return this.parseOrder (result, market);
     }
 
-    async cancelSpotOrder (id, symbol: string = undefined, params = {}) {
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            // 'order_link_id': 'string', // one of order_id, stop_order_id or order_link_id is required
-            // 'orderId': id
-        };
-        if (id !== undefined) { // The user can also use argument params["order_link_id"]
-            request['orderId'] = id;
-        }
-        const response = await (this as any).privatePostSpotV3PrivateCancelOrder (this.extend (request, params));
-        //
-        //     {
-        //         "retCode": "0",
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "orderId": "1275046248585414144",
-        //             "orderLinkId": "1666733357434617",
-        //             "symbol": "AAVEUSDT",
-        //             "status": "NEW",
-        //             "accountId": "13380434",
-        //             "createTime": "1666733357438",
-        //             "orderPrice": "80",
-        //             "orderQty": "0.11",
-        //             "execQty": "0",
-        //             "timeInForce": "GTC",
-        //             "orderType": "LIMIT",
-        //             "side": "BUY",
-        //             "orderCategory": "0"
-        //         },
-        //         "retExtMap": {},
-        //         "retExtInfo": null,
-        //         "time": "1666733839493"
-        //     }
-        //
-        const result = this.safeValue (response, 'result', {});
-        return this.parseOrder (result, market);
-    }
-
     async cancelUnifiedMarginOrder (id, symbol: string = undefined, params = {}) {
         if (symbol === undefined) {
             throw new ArgumentsRequired (this.id + ' cancelUnifiedMarginOrder() requires a symbol argument');
@@ -4262,8 +4223,6 @@ export default class bybit extends Exchange {
         const isUsdcSettled = market['settle'] === 'USDC';
         if (enableUnifiedAccount) {
             return await this.cancelUnifiedAccountOrder (id, symbol, params);
-        } else if (market['spot']) {
-            return await this.cancelSpotOrder (id, symbol, params);
         } else if (enableUnifiedMargin && !market['inverse']) {
             return await this.cancelUnifiedMarginOrder (id, symbol, params);
         } else if (isUsdcSettled) {

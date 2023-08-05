@@ -4053,45 +4053,6 @@ class bybit extends Exchange {
         return $this->parse_order($result, $market);
     }
 
-    public function cancel_spot_order($id, $symbol = null, $params = array ()) {
-        $this->load_markets();
-        $market = $this->market($symbol);
-        $request = array(
-            // 'order_link_id' => 'string', // one of order_id, stop_order_id or order_link_id is required
-            // 'orderId' => $id
-        );
-        if ($id !== null) { // The user can also use argument $params["order_link_id"]
-            $request['orderId'] = $id;
-        }
-        $response = $this->privatePostSpotV3PrivateCancelOrder (array_merge($request, $params));
-        //
-        //     {
-        //         "retCode" => "0",
-        //         "retMsg" => "OK",
-        //         "result" => array(
-        //             "orderId" => "1275046248585414144",
-        //             "orderLinkId" => "1666733357434617",
-        //             "symbol" => "AAVEUSDT",
-        //             "status" => "NEW",
-        //             "accountId" => "13380434",
-        //             "createTime" => "1666733357438",
-        //             "orderPrice" => "80",
-        //             "orderQty" => "0.11",
-        //             "execQty" => "0",
-        //             "timeInForce" => "GTC",
-        //             "orderType" => "LIMIT",
-        //             "side" => "BUY",
-        //             "orderCategory" => "0"
-        //         ),
-        //         "retExtMap" => array(),
-        //         "retExtInfo" => null,
-        //         "time" => "1666733839493"
-        //     }
-        //
-        $result = $this->safe_value($response, 'result', array());
-        return $this->parse_order($result, $market);
-    }
-
     public function cancel_unified_margin_order($id, $symbol = null, $params = array ()) {
         if ($symbol === null) {
             throw new ArgumentsRequired($this->id . ' cancelUnifiedMarginOrder() requires a $symbol argument');
@@ -4221,8 +4182,6 @@ class bybit extends Exchange {
         $isUsdcSettled = $market['settle'] === 'USDC';
         if ($enableUnifiedAccount) {
             return $this->cancel_unified_account_order($id, $symbol, $params);
-        } elseif ($market['spot']) {
-            return $this->cancel_spot_order($id, $symbol, $params);
         } elseif ($enableUnifiedMargin && !$market['inverse']) {
             return $this->cancel_unified_margin_order($id, $symbol, $params);
         } elseif ($isUsdcSettled) {
