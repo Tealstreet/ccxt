@@ -733,7 +733,8 @@ class bingx(ccxt.async_support.bingx):
         marketId = self.safe_string(ticker, 'symbol')
         market = self.safe_market(marketId)
         symbol = self.safe_symbol(marketId)
-        last = self.safe_string(ticker, 'fairPrice')
+        last = self.safe_string(ticker, 'tradePrice')
+        mark = self.safe_string(ticker, 'fairPrice')
         open = self.safe_string(ticker, 'open')
         percentage = self.safe_string(ticker, 'changePercentage')
         # quoteVolume = self.safe_string(ticker, 'volume2')
@@ -756,6 +757,7 @@ class bingx(ccxt.async_support.bingx):
             'open': open,
             'close': last,
             'last': last,
+            'mark': mark,
             'previousClose': None,
             'change': None,
             'percentage': percentage,

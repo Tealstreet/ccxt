@@ -784,7 +784,8 @@ export default class bingx extends bingxRest {
         const marketId = this.safeString(ticker, 'symbol');
         market = this.safeMarket(marketId);
         const symbol = this.safeSymbol(marketId);
-        const last = this.safeString(ticker, 'fairPrice');
+        const last = this.safeString(ticker, 'tradePrice');
+        const mark = this.safeString(ticker, 'fairPrice');
         const open = this.safeString(ticker, 'open');
         const percentage = this.safeString(ticker, 'changePercentage');
         // const quoteVolume = this.safeString (ticker, 'volume2');
@@ -807,6 +808,7 @@ export default class bingx extends bingxRest {
             'open': open,
             'close': last,
             'last': last,
+            'mark': mark,
             'previousClose': undefined,
             'change': undefined,
             'percentage': percentage,

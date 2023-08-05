@@ -812,7 +812,8 @@ class bingx extends \ccxt\async\bingx {
         $marketId = $this->safe_string($ticker, 'symbol');
         $market = $this->safe_market($marketId);
         $symbol = $this->safe_symbol($marketId);
-        $last = $this->safe_string($ticker, 'fairPrice');
+        $last = $this->safe_string($ticker, 'tradePrice');
+        $mark = $this->safe_string($ticker, 'fairPrice');
         $open = $this->safe_string($ticker, 'open');
         $percentage = $this->safe_string($ticker, 'changePercentage');
         // $quoteVolume = $this->safe_string($ticker, 'volume2');
@@ -835,6 +836,7 @@ class bingx extends \ccxt\async\bingx {
             'open' => $open,
             'close' => $last,
             'last' => $last,
+            'mark' => $mark,
             'previousClose' => null,
             'change' => null,
             'percentage' => $percentage,
