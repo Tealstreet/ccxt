@@ -1637,7 +1637,7 @@ class bitget extends Exchange {
         //
         //     {
         //         $symbol => 'BTCUSDT_UMCBL',
-        //         last => '39086',
+        //         $last => '39086',
         //         bestAsk => '39087',
         //         bestBid => '39086',
         //         high24h => '40312',
@@ -1656,6 +1656,8 @@ class bitget extends Exchange {
         $symbol = $this->safe_symbol($marketId, $market);
         $high = $this->safe_string($ticker, 'high24h');
         $low = $this->safe_string($ticker, 'low24h');
+        $last = $this->safe_string($ticker, 'last');
+        $mark = $this->safe_string($ticker, 'markPrice');
         $close = $this->safe_string_2($ticker, 'close', 'last');
         $quoteVolume = $this->safe_string_2($ticker, 'quoteVol', 'quoteVolume');
         $baseVolume = $this->safe_string_2($ticker, 'baseVol', 'baseVolume');
@@ -1677,7 +1679,8 @@ class bitget extends Exchange {
             'vwap' => null,
             'open' => null,
             'close' => $close,
-            'last' => null,
+            'last' => $last,
+            'mark' => $mark,
             'previousClose' => null,
             'change' => null,
             'percentage' => $percentage,

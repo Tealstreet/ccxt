@@ -216,6 +216,7 @@ class bitget extends \ccxt\async\bitget {
         $marketId = $this->get_market_id_from_arg($arg);
         $market = $this->safe_market($marketId, $market);
         $close = $this->safe_string($ticker, 'last');
+        $mark = $this->safe_string($ticker, 'markPrice');
         $open = $this->safe_string($ticker, 'open24h');
         $high = $this->safe_string($ticker, 'high24h');
         $low = $this->safe_string($ticker, 'low24h');
@@ -237,6 +238,7 @@ class bitget extends \ccxt\async\bitget {
             'open' => $open,
             'close' => $close,
             'last' => $close,
+            'mark' => $mark,
             'previousClose' => null,
             'change' => null,
             'percentage' => null,

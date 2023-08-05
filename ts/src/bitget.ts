@@ -1674,6 +1674,8 @@ export default class bitget extends Exchange {
         const symbol = this.safeSymbol (marketId, market);
         const high = this.safeString (ticker, 'high24h');
         const low = this.safeString (ticker, 'low24h');
+        const last = this.safeString (ticker, 'last');
+        const mark = this.safeString (ticker, 'markPrice');
         const close = this.safeString2 (ticker, 'close', 'last');
         const quoteVolume = this.safeString2 (ticker, 'quoteVol', 'quoteVolume');
         const baseVolume = this.safeString2 (ticker, 'baseVol', 'baseVolume');
@@ -1695,7 +1697,8 @@ export default class bitget extends Exchange {
             'vwap': undefined,
             'open': undefined,
             'close': close,
-            'last': undefined,
+            'last': last,
+            'mark': mark,
             'previousClose': undefined,
             'change': undefined,
             'percentage': percentage,

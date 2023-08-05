@@ -1621,6 +1621,8 @@ class bitget(Exchange):
         symbol = self.safe_symbol(marketId, market)
         high = self.safe_string(ticker, 'high24h')
         low = self.safe_string(ticker, 'low24h')
+        last = self.safe_string(ticker, 'last')
+        mark = self.safe_string(ticker, 'markPrice')
         close = self.safe_string_2(ticker, 'close', 'last')
         quoteVolume = self.safe_string_2(ticker, 'quoteVol', 'quoteVolume')
         baseVolume = self.safe_string_2(ticker, 'baseVol', 'baseVolume')
@@ -1642,7 +1644,8 @@ class bitget(Exchange):
             'vwap': None,
             'open': None,
             'close': close,
-            'last': None,
+            'last': last,
+            'mark': mark,
             'previousClose': None,
             'change': None,
             'percentage': percentage,

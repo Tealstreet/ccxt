@@ -214,6 +214,7 @@ export default class bitget extends bitgetRest {
         const marketId = this.getMarketIdFromArg(arg);
         market = this.safeMarket(marketId, market);
         const close = this.safeString(ticker, 'last');
+        const mark = this.safeString(ticker, 'markPrice');
         const open = this.safeString(ticker, 'open24h');
         const high = this.safeString(ticker, 'high24h');
         const low = this.safeString(ticker, 'low24h');
@@ -235,6 +236,7 @@ export default class bitget extends bitgetRest {
             'open': open,
             'close': close,
             'last': close,
+            'mark': mark,
             'previousClose': undefined,
             'change': undefined,
             'percentage': undefined,

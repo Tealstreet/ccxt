@@ -207,6 +207,7 @@ class bitget(ccxt.async_support.bitget):
         marketId = self.get_market_id_from_arg(arg)
         market = self.safe_market(marketId, market)
         close = self.safe_string(ticker, 'last')
+        mark = self.safe_string(ticker, 'markPrice')
         open = self.safe_string(ticker, 'open24h')
         high = self.safe_string(ticker, 'high24h')
         low = self.safe_string(ticker, 'low24h')
@@ -228,6 +229,7 @@ class bitget(ccxt.async_support.bitget):
             'open': open,
             'close': close,
             'last': close,
+            'mark': mark,
             'previousClose': None,
             'change': None,
             'percentage': None,
