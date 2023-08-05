@@ -31,6 +31,7 @@ export default class bybit extends Exchange {
             'userAgent': undefined,
             'rateLimit': 20,
             'hostname': 'bybit.com', // bybit.com, bytick.com
+            'refCode': 'Tealstreet',
             'pro': true,
             'certified': true,
             'has': {
@@ -3517,6 +3518,7 @@ export default class bybit extends Exchange {
             // Valid for option only.
             // 'orderIv': '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
             'qty': this.amountToPrecision (symbol, amount),
+            'orderLinkId': this['refCode'] + this.uuid22 (),
         };
         if (isStop) {
             const close = this.safeValue (params, 'close', false);
@@ -3591,13 +3593,6 @@ export default class bybit extends Exchange {
                 request['triggerDirection'] = 2;
             }
         }
-        const clientOrderId = this.safeString (params, 'clientOrderId');
-        if (clientOrderId !== undefined) {
-            request['orderLinkId'] = clientOrderId;
-        } else if (market['option']) {
-            // mandatory field for options
-            request['orderLinkId'] = this.uuid16 ();
-        }
         params = this.omit (params, [ 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close' ]);
         const response = await (this as any).privatePostV5OrderCreate (this.extend (request, params));
         //
@@ -3642,6 +3637,7 @@ export default class bybit extends Exchange {
             // 'slTriggerBy': 'MarkPrice', // IndexPrice, MarkPrice
             // 'positionIdx': 0, // Position mode. unified margin account is only available in One-Way mode, which is 0
             // 'triggerDirection': 1, // Trigger direction. Mainly used in conditional order. Trigger the order when market price rises to triggerPrice or falls to triggerPrice. 1: rise; 2: fall
+            'orderLinkId': this['refCode'] + this.uuid22 (),
         };
         if (market['future']) {
             const positionIdx = this.safeInteger (params, 'position_idx', 0); // 0 One-Way Mode, 1 Buy-side, 2 Sell-side

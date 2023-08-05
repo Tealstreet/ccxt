@@ -18,6 +18,7 @@ class bybit extends Exchange {
             'userAgent' => null,
             'rateLimit' => 20,
             'hostname' => 'bybit.com', // bybit.com, bytick.com
+            'refCode' => 'Tealstreet',
             'pro' => true,
             'certified' => true,
             'has' => array(
@@ -3478,6 +3479,7 @@ class bybit extends Exchange {
             // Valid for option only.
             // 'orderIv' => '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
             'qty' => $this->amount_to_precision($symbol, $amount),
+            'orderLinkId' => $this->$'refCode' . $this->uuid22(),
         );
         if ($isStop) {
             $close = $this->safe_value($params, 'close', false);
@@ -3552,13 +3554,6 @@ class bybit extends Exchange {
                 $request['triggerDirection'] = 2;
             }
         }
-        $clientOrderId = $this->safe_string($params, 'clientOrderId');
-        if ($clientOrderId !== null) {
-            $request['orderLinkId'] = $clientOrderId;
-        } elseif ($market['option']) {
-            // mandatory field for options
-            $request['orderLinkId'] = $this->uuid16();
-        }
         $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close' ));
         $response = $this->privatePostV5OrderCreate (array_merge($request, $params));
         //
@@ -3603,6 +3598,7 @@ class bybit extends Exchange {
             // 'slTriggerBy' => 'MarkPrice', // IndexPrice, MarkPrice
             // 'positionIdx' => 0, // Position mode. unified margin account is only available in One-Way mode, which is 0
             // 'triggerDirection' => 1, // Trigger direction. Mainly used in conditional $order-> Trigger the $order when $market $price rises to $triggerPrice or falls to $triggerPrice-> 1 => rise; 2 => fall
+            'orderLinkId' => $this->$'refCode' . $this->uuid22(),
         );
         if ($market['future']) {
             $positionIdx = $this->safe_integer($params, 'position_idx', 0); // 0 One-Way Mode, 1 Buy-$side, 2 Sell-$side

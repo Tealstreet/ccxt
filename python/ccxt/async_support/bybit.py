@@ -33,6 +33,7 @@ class bybit(Exchange):
             'userAgent': None,
             'rateLimit': 20,
             'hostname': 'bybit.com',  # bybit.com, bytick.com
+            'refCode': 'Tealstreet',
             'pro': True,
             'certified': True,
             'has': {
@@ -3366,6 +3367,7 @@ class bybit(Exchange):
             # Valid for option only.
             # 'orderIv': '0',  # Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
             'qty': self.amount_to_precision(symbol, amount),
+            'orderLinkId': getattr(self, 'refCode') + self.uuid22(),
         }
         if isStop:
             close = self.safe_value(params, 'close', False)
@@ -3427,12 +3429,6 @@ class bybit(Exchange):
                 request['triggerDirection'] = 1
             else:
                 request['triggerDirection'] = 2
-        clientOrderId = self.safe_string(params, 'clientOrderId')
-        if clientOrderId is not None:
-            request['orderLinkId'] = clientOrderId
-        elif market['option']:
-            # mandatory field for options
-            request['orderLinkId'] = self.uuid16()
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close'])
         response = await self.privatePostV5OrderCreate(self.extend(request, params))
         #
@@ -3475,6 +3471,7 @@ class bybit(Exchange):
             # 'slTriggerBy': 'MarkPrice',  # IndexPrice, MarkPrice
             # 'positionIdx': 0,  # Position mode. unified margin account is only available in One-Way mode, which is 0
             # 'triggerDirection': 1,  # Trigger direction. Mainly used in conditional order. Trigger the order when market price rises to triggerPrice or falls to triggerPrice. 1: rise; 2: fall
+            'orderLinkId': getattr(self, 'refCode') + self.uuid22(),
         }
         if market['future']:
             positionIdx = self.safe_integer(params, 'position_idx', 0)  # 0 One-Way Mode, 1 Buy-side, 2 Sell-side
