@@ -3497,9 +3497,9 @@ export default class bybit extends Exchange {
         request['positionIdx'] = 0;
         if (positionMode !== 'oneway') {
             if (reduceOnly) {
-                request['positionIdx'] = (side === 'buy') ? 2 : 1;
+                request['positionIdx'] = (side === 'sell') ? 2 : 1;
             } else {
-                request['positionIdx'] = (side === 'buy') ? 1 : 2;
+                request['positionIdx'] = (side === 'sell') ? 1 : 2;
             }
         }
         const trailingStop = this.safeString (params, 'trailingStop');
@@ -3631,10 +3631,18 @@ export default class bybit extends Exchange {
         const positionMode = this.safeValue (params, 'positionMode', 'oneway');
         request['positionIdx'] = 0;
         if (positionMode !== 'oneway') {
-            if (reduceOnly) {
-                request['positionIdx'] = (side === 'buy') ? 2 : 1;
+            if (isStop) {
+                if ((side === 'buy' && !closeOnTrigger) || (side === 'sell' && closeOnTrigger)) {
+                    request['positionIdx'] = 1;
+                } else if ((side === 'sell' && !closeOnTrigger) || (side === 'buy' && closeOnTrigger)) {
+                    request['positionIdx'] = 2;
+                }
             } else {
-                request['positionIdx'] = (side === 'buy') ? 1 : 2;
+                if ((side === 'buy' && !reduceOnly) || (side === 'sell' && reduceOnly)) {
+                    request['positionIdx'] = 1;
+                } else if ((side === 'sell' && !reduceOnly) || (side === 'buy' && reduceOnly)) {
+                    request['positionIdx'] = 2;
+                }
             }
         }
         request['tpslOrderType'] = 'Partial';

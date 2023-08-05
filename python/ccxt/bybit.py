@@ -3346,9 +3346,9 @@ class bybit(Exchange):
         request['positionIdx'] = 0
         if positionMode != 'oneway':
             if reduceOnly:
-                request['positionIdx'] = 2 if (side == 'buy') else 1
+                request['positionIdx'] = 2 if (side == 'sell') else 1
             else:
-                request['positionIdx'] = 1 if (side == 'buy') else 2
+                request['positionIdx'] = 1 if (side == 'sell') else 2
         trailingStop = self.safe_string(params, 'trailingStop')
         if trailingStop is None:
             request['tpslMode'] = 'Partial'
@@ -3457,10 +3457,16 @@ class bybit(Exchange):
         positionMode = self.safe_value(params, 'positionMode', 'oneway')
         request['positionIdx'] = 0
         if positionMode != 'oneway':
-            if reduceOnly:
-                request['positionIdx'] = 2 if (side == 'buy') else 1
+            if isStop:
+                if (side == 'buy' and not closeOnTrigger) or (side == 'sell' and closeOnTrigger):
+                    request['positionIdx'] = 1
+                elif (side == 'sell' and not closeOnTrigger) or (side == 'buy' and closeOnTrigger):
+                    request['positionIdx'] = 2
             else:
-                request['positionIdx'] = 1 if (side == 'buy') else 2
+                if (side == 'buy' and not reduceOnly) or (side == 'sell' and reduceOnly):
+                    request['positionIdx'] = 1
+                elif (side == 'sell' and not reduceOnly) or (side == 'buy' and reduceOnly):
+                    request['positionIdx'] = 2
         request['tpslOrderType'] = 'Partial'
         if amount == 0:
             request['tpslOrderType'] = 'Full'
