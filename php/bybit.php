@@ -3461,11 +3461,14 @@ class bybit extends Exchange {
                 $request['positionIdx'] = ($side === 'buy') ? 1 : 2;
             }
         }
-        $request['tpslMode'] = 'Partial';
-        if ($amount === 0) {
-            $request['tpslMode'] = 'Full';
-            $request['tpOrderType'] = 'Market';
-            $request['slOrderType'] = 'Market';
+        $trailingStop = $this->safe_string($params, 'trailingStop');
+        if ($trailingStop === null) {
+            $request['tpslMode'] = 'Partial';
+            if ($amount === 0) {
+                $request['tpslMode'] = 'Full';
+                $request['tpOrderType'] = 'Market';
+                $request['slOrderType'] = 'Market';
+            }
         }
         $stopPrice = $this->safe_string($params, 'stopPrice');
         $basePrice = $this->safe_string($params, 'basePrice');
@@ -3481,13 +3484,18 @@ class bybit extends Exchange {
         $size = $this->amount_to_precision($symbol, $amount);
         if (Precise::string_gt($stopPrice, $basePrice)) {
             if ($side === 'buy') {
-                $request['stopLoss'] = $stopPrice;
-                if ($amount !== 0) {
-                    $request['slSize'] = $size;
+                if ($trailingStop !== null) {
+                    // $request['tpslMode'] = 'Full';
+                    $request['trailingStop'] = $this->price_to_precision($symbol, $trailingStop);
+                } else {
+                    $request['stopLoss'] = $this->price_to_precision($symbol, $stopPrice);
+                    if ($amount !== 0) {
+                        $request['slSize'] = $size;
+                    }
+                    $request['slTriggerBy'] = $triggerBy;
                 }
-                $request['slTriggerBy'] = $triggerBy;
             } else {
-                $request['takeProfit'] = $stopPrice;
+                $request['takeProfit'] = $this->price_to_precision($symbol, $stopPrice);
                 if ($amount !== 0) {
                     $request['tpSize'] = $size;
                 }
@@ -3495,20 +3503,25 @@ class bybit extends Exchange {
             }
         } else {
             if ($side === 'buy') {
-                $request['takeProfit'] = $stopPrice;
+                $request['takeProfit'] = $this->price_to_precision($symbol, $stopPrice);
                 if ($amount !== 0) {
                     $request['tpSize'] = $size;
                 }
                 $request['tpTriggerBy'] = $triggerBy;
             } else {
-                $request['stopLoss'] = $stopPrice;
-                if ($amount !== 0) {
-                    $request['slSize'] = $size;
+                if ($trailingStop !== null) {
+                    // $request['tpslMode'] = 'Full';
+                    $request['trailingStop'] = $this->price_to_precision($symbol, $trailingStop);
+                } else {
+                    $request['stopLoss'] = $this->price_to_precision($symbol, $stopPrice);
+                    if ($amount !== 0) {
+                        $request['slSize'] = $size;
+                    }
+                    $request['slTriggerBy'] = $triggerBy;
                 }
-                $request['slTriggerBy'] = $triggerBy;
             }
         }
-        $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice' ));
+        $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop' ));
         $response = $this->privatePostV5PositionTradingStop (array_merge($request, $params));
         $order = $this->safe_value($response, 'result', array());
         return $this->parse_order($order);

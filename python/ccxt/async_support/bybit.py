@@ -3348,11 +3348,13 @@ class bybit(Exchange):
                 request['positionIdx'] = 2 if (side == 'buy') else 1
             else:
                 request['positionIdx'] = 1 if (side == 'buy') else 2
-        request['tpslMode'] = 'Partial'
-        if amount == 0:
-            request['tpslMode'] = 'Full'
-            request['tpOrderType'] = 'Market'
-            request['slOrderType'] = 'Market'
+        trailingStop = self.safe_string(params, 'trailingStop')
+        if trailingStop is None:
+            request['tpslMode'] = 'Partial'
+            if amount == 0:
+                request['tpslMode'] = 'Full'
+                request['tpOrderType'] = 'Market'
+                request['slOrderType'] = 'Market'
         stopPrice = self.safe_string(params, 'stopPrice')
         basePrice = self.safe_string(params, 'basePrice')
         if not basePrice:
@@ -3365,27 +3367,35 @@ class bybit(Exchange):
         size = self.amount_to_precision(symbol, amount)
         if Precise.string_gt(stopPrice, basePrice):
             if side == 'buy':
-                request['stopLoss'] = stopPrice
-                if amount != 0:
-                    request['slSize'] = size
-                request['slTriggerBy'] = triggerBy
+                if trailingStop is not None:
+                    # request['tpslMode'] = 'Full'
+                    request['trailingStop'] = self.price_to_precision(symbol, trailingStop)
+                else:
+                    request['stopLoss'] = self.price_to_precision(symbol, stopPrice)
+                    if amount != 0:
+                        request['slSize'] = size
+                    request['slTriggerBy'] = triggerBy
             else:
-                request['takeProfit'] = stopPrice
+                request['takeProfit'] = self.price_to_precision(symbol, stopPrice)
                 if amount != 0:
                     request['tpSize'] = size
                 request['tpTriggerBy'] = triggerBy
         else:
             if side == 'buy':
-                request['takeProfit'] = stopPrice
+                request['takeProfit'] = self.price_to_precision(symbol, stopPrice)
                 if amount != 0:
                     request['tpSize'] = size
                 request['tpTriggerBy'] = triggerBy
             else:
-                request['stopLoss'] = stopPrice
-                if amount != 0:
-                    request['slSize'] = size
-                request['slTriggerBy'] = triggerBy
-        params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice'])
+                if trailingStop is not None:
+                    # request['tpslMode'] = 'Full'
+                    request['trailingStop'] = self.price_to_precision(symbol, trailingStop)
+                else:
+                    request['stopLoss'] = self.price_to_precision(symbol, stopPrice)
+                    if amount != 0:
+                        request['slSize'] = size
+                    request['slTriggerBy'] = triggerBy
+        params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop'])
         response = await self.privatePostV5PositionTradingStop(self.extend(request, params))
         order = self.safe_value(response, 'result', {})
         return self.parse_order(order)

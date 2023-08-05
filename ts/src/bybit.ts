@@ -3500,11 +3500,14 @@ export default class bybit extends Exchange {
                 request['positionIdx'] = (side === 'buy') ? 1 : 2;
             }
         }
-        request['tpslMode'] = 'Partial';
-        if (amount === 0) {
-            request['tpslMode'] = 'Full';
-            request['tpOrderType'] = 'Market';
-            request['slOrderType'] = 'Market';
+        const trailingStop = this.safeString (params, 'trailingStop');
+        if (trailingStop === undefined) {
+            request['tpslMode'] = 'Partial';
+            if (amount === 0) {
+                request['tpslMode'] = 'Full';
+                request['tpOrderType'] = 'Market';
+                request['slOrderType'] = 'Market';
+            }
         }
         const stopPrice = this.safeString (params, 'stopPrice');
         const basePrice = this.safeString (params, 'basePrice');
@@ -3520,13 +3523,18 @@ export default class bybit extends Exchange {
         const size = this.amountToPrecision (symbol, amount);
         if (Precise.stringGt (stopPrice, basePrice)) {
             if (side === 'buy') {
-                request['stopLoss'] = stopPrice;
-                if (amount !== 0) {
-                    request['slSize'] = size;
+                if (trailingStop !== undefined) {
+                    // request['tpslMode'] = 'Full';
+                    request['trailingStop'] = this.priceToPrecision (symbol, trailingStop);
+                } else {
+                    request['stopLoss'] = this.priceToPrecision (symbol, stopPrice);
+                    if (amount !== 0) {
+                        request['slSize'] = size;
+                    }
+                    request['slTriggerBy'] = triggerBy;
                 }
-                request['slTriggerBy'] = triggerBy;
             } else {
-                request['takeProfit'] = stopPrice;
+                request['takeProfit'] = this.priceToPrecision (symbol, stopPrice);
                 if (amount !== 0) {
                     request['tpSize'] = size;
                 }
@@ -3534,20 +3542,25 @@ export default class bybit extends Exchange {
             }
         } else {
             if (side === 'buy') {
-                request['takeProfit'] = stopPrice;
+                request['takeProfit'] = this.priceToPrecision (symbol, stopPrice);
                 if (amount !== 0) {
                     request['tpSize'] = size;
                 }
                 request['tpTriggerBy'] = triggerBy;
             } else {
-                request['stopLoss'] = stopPrice;
-                if (amount !== 0) {
-                    request['slSize'] = size;
+                if (trailingStop !== undefined) {
+                    // request['tpslMode'] = 'Full';
+                    request['trailingStop'] = this.priceToPrecision (symbol, trailingStop);
+                } else {
+                    request['stopLoss'] = this.priceToPrecision (symbol, stopPrice);
+                    if (amount !== 0) {
+                        request['slSize'] = size;
+                    }
+                    request['slTriggerBy'] = triggerBy;
                 }
-                request['slTriggerBy'] = triggerBy;
             }
         }
-        params = this.omit (params, [ 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice' ]);
+        params = this.omit (params, [ 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop' ]);
         const response = await (this as any).privatePostV5PositionTradingStop (this.extend (request, params));
         const order = this.safeValue (response, 'result', {});
         return this.parseOrder (order);
