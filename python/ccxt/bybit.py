@@ -3083,7 +3083,6 @@ class bybit(Exchange):
             triggerBy = 'IndexPrice'
         elif params['trigger'] == 'Mark':
             triggerBy = 'MarkPrice'
-        size = self.amount_to_precision(symbol, amount)
         if Precise.string_gt(stopPrice, basePrice):
             if side == 'buy':
                 if trailingStop is not None:
@@ -3092,18 +3091,18 @@ class bybit(Exchange):
                 else:
                     request['stopLoss'] = self.price_to_precision(symbol, stopPrice)
                     if amount != 0:
-                        request['slSize'] = size
+                        request['slSize'] = self.amount_to_precision(symbol, amount)
                     request['slTriggerBy'] = triggerBy
             else:
                 request['takeProfit'] = self.price_to_precision(symbol, stopPrice)
                 if amount != 0:
-                    request['tpSize'] = size
+                    request['tpSize'] = self.amount_to_precision(symbol, amount)
                 request['tpTriggerBy'] = triggerBy
         else:
             if side == 'buy':
                 request['takeProfit'] = self.price_to_precision(symbol, stopPrice)
                 if amount != 0:
-                    request['tpSize'] = size
+                    request['tpSize'] = self.amount_to_precision(symbol, amount)
                 request['tpTriggerBy'] = triggerBy
             else:
                 if trailingStop is not None:
@@ -3112,7 +3111,7 @@ class bybit(Exchange):
                 else:
                     request['stopLoss'] = self.price_to_precision(symbol, stopPrice)
                     if amount != 0:
-                        request['slSize'] = size
+                        request['slSize'] = self.amount_to_precision(symbol, amount)
                     request['slTriggerBy'] = triggerBy
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop'])
         response = self.privatePostV5PositionTradingStop(self.extend(request, params))

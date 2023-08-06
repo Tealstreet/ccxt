@@ -3227,7 +3227,6 @@ class bybit extends Exchange {
             } elseif ($params['trigger'] === 'Mark') {
                 $triggerBy = 'MarkPrice';
             }
-            $size = $this->amount_to_precision($symbol, $amount);
             if (Precise::string_gt($stopPrice, $basePrice)) {
                 if ($side === 'buy') {
                     if ($trailingStop !== null) {
@@ -3236,14 +3235,14 @@ class bybit extends Exchange {
                     } else {
                         $request['stopLoss'] = $this->price_to_precision($symbol, $stopPrice);
                         if ($amount !== 0) {
-                            $request['slSize'] = $size;
+                            $request['slSize'] = $this->amount_to_precision($symbol, $amount);
                         }
                         $request['slTriggerBy'] = $triggerBy;
                     }
                 } else {
                     $request['takeProfit'] = $this->price_to_precision($symbol, $stopPrice);
                     if ($amount !== 0) {
-                        $request['tpSize'] = $size;
+                        $request['tpSize'] = $this->amount_to_precision($symbol, $amount);
                     }
                     $request['tpTriggerBy'] = $triggerBy;
                 }
@@ -3251,7 +3250,7 @@ class bybit extends Exchange {
                 if ($side === 'buy') {
                     $request['takeProfit'] = $this->price_to_precision($symbol, $stopPrice);
                     if ($amount !== 0) {
-                        $request['tpSize'] = $size;
+                        $request['tpSize'] = $this->amount_to_precision($symbol, $amount);
                     }
                     $request['tpTriggerBy'] = $triggerBy;
                 } else {
@@ -3261,7 +3260,7 @@ class bybit extends Exchange {
                     } else {
                         $request['stopLoss'] = $this->price_to_precision($symbol, $stopPrice);
                         if ($amount !== 0) {
-                            $request['slSize'] = $size;
+                            $request['slSize'] = $this->amount_to_precision($symbol, $amount);
                         }
                         $request['slTriggerBy'] = $triggerBy;
                     }

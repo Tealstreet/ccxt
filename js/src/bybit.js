@@ -3220,7 +3220,6 @@ export default class bybit extends Exchange {
         else if (params['trigger'] === 'Mark') {
             triggerBy = 'MarkPrice';
         }
-        const size = this.amountToPrecision(symbol, amount);
         if (Precise.stringGt(stopPrice, basePrice)) {
             if (side === 'buy') {
                 if (trailingStop !== undefined) {
@@ -3230,7 +3229,7 @@ export default class bybit extends Exchange {
                 else {
                     request['stopLoss'] = this.priceToPrecision(symbol, stopPrice);
                     if (amount !== 0) {
-                        request['slSize'] = size;
+                        request['slSize'] = this.amountToPrecision(symbol, amount);
                     }
                     request['slTriggerBy'] = triggerBy;
                 }
@@ -3238,7 +3237,7 @@ export default class bybit extends Exchange {
             else {
                 request['takeProfit'] = this.priceToPrecision(symbol, stopPrice);
                 if (amount !== 0) {
-                    request['tpSize'] = size;
+                    request['tpSize'] = this.amountToPrecision(symbol, amount);
                 }
                 request['tpTriggerBy'] = triggerBy;
             }
@@ -3247,7 +3246,7 @@ export default class bybit extends Exchange {
             if (side === 'buy') {
                 request['takeProfit'] = this.priceToPrecision(symbol, stopPrice);
                 if (amount !== 0) {
-                    request['tpSize'] = size;
+                    request['tpSize'] = this.amountToPrecision(symbol, amount);
                 }
                 request['tpTriggerBy'] = triggerBy;
             }
@@ -3259,7 +3258,7 @@ export default class bybit extends Exchange {
                 else {
                     request['stopLoss'] = this.priceToPrecision(symbol, stopPrice);
                     if (amount !== 0) {
-                        request['slSize'] = size;
+                        request['slSize'] = this.amountToPrecision(symbol, amount);
                     }
                     request['slTriggerBy'] = triggerBy;
                 }
