@@ -3221,12 +3221,12 @@ export default class bybit extends Exchange {
         if (!basePrice) {
             throw new InvalidOrder (this.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders');
         }
-        let triggerBy = 'LastPrice';
-        if (params['trigger'] === 'Index') {
-            triggerBy = 'IndexPrice';
-        } else if (params['trigger'] === 'Mark') {
-            triggerBy = 'MarkPrice';
-        }
+        // let triggerBy = 'LastPrice';
+        // if (params['trigger'] === 'Index') {
+        //     triggerBy = 'IndexPrice';
+        // } else if (params['trigger'] === 'Mark') {
+        //     triggerBy = 'MarkPrice';
+        // }
         if (Precise.stringGt (stopPrice, basePrice)) {
             if (side === 'buy') {
                 if (trailingStop !== undefined) {
@@ -3237,14 +3237,14 @@ export default class bybit extends Exchange {
                     if (amount !== 0) {
                         request['slSize'] = this.amountToPrecision (symbol, amount);
                     }
-                    request['slTriggerBy'] = triggerBy;
+                    request['slTriggerBy'] = 'MarkPrice';
                 }
             } else {
                 request['takeProfit'] = this.priceToPrecision (symbol, stopPrice);
                 if (amount !== 0) {
                     request['tpSize'] = this.amountToPrecision (symbol, amount);
                 }
-                request['tpTriggerBy'] = triggerBy;
+                request['tpTriggerBy'] = 'LastPrice';
             }
         } else {
             if (side === 'buy') {
@@ -3252,7 +3252,7 @@ export default class bybit extends Exchange {
                 if (amount !== 0) {
                     request['tpSize'] = this.amountToPrecision (symbol, amount);
                 }
-                request['tpTriggerBy'] = triggerBy;
+                request['tpTriggerBy'] = 'LastPrice';
             } else {
                 if (trailingStop !== undefined) {
                     // request['tpslMode'] = 'Full';
@@ -3262,7 +3262,7 @@ export default class bybit extends Exchange {
                     if (amount !== 0) {
                         request['slSize'] = this.amountToPrecision (symbol, amount);
                     }
-                    request['slTriggerBy'] = triggerBy;
+                    request['slTriggerBy'] = 'MarkPrice';
                 }
             }
         }
@@ -3364,15 +3364,18 @@ export default class bybit extends Exchange {
             if (triggerPrice === undefined) {
                 throw new InvalidOrder (this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
             }
-            let triggerBy = 'LastPrice';
-            if (params['trigger'] === 'Index') {
-                triggerBy = 'IndexPrice';
-            } else if (params['trigger'] === 'Mark') {
-                triggerBy = 'MarkPrice';
-            }
-            request['triggerBy'] = triggerBy;
-            request['slTriggerBy'] = triggerBy;
-            request['tpTriggerBy'] = triggerBy;
+            // let triggerBy = 'LastPrice';
+            // if (params['trigger'] === 'Index') {
+            //     triggerBy = 'IndexPrice';
+            // } else if (params['trigger'] === 'Mark') {
+            //     triggerBy = 'MarkPrice';
+            // }
+            // request['triggerBy'] = triggerBy;
+            // request['slTriggerBy'] = triggerBy;
+            // request['tpTriggerBy'] = triggerBy;
+            request['triggerBy'] = 'MarkPrice';
+            request['slTriggerBy'] = 'MarkPrice';
+            request['tpTriggerBy'] = 'LastPrice';
             request['triggerPrice'] = this.priceToPrecision (symbol, triggerPrice);
             if (triggerPrice > basePrice) {
                 request['triggerDirection'] = 1;
@@ -3479,15 +3482,18 @@ export default class bybit extends Exchange {
             if (triggerPrice === undefined) {
                 throw new InvalidOrder (this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
             }
-            let triggerBy = 'LastPrice';
-            if (params['trigger'] === 'Index') {
-                triggerBy = 'IndexPrice';
-            } else if (params['trigger'] === 'Mark') {
-                triggerBy = 'MarkPrice';
-            }
-            request['triggerBy'] = triggerBy;
-            request['slTriggerBy'] = triggerBy;
-            request['tpTriggerBy'] = triggerBy;
+            // let triggerBy = 'LastPrice';
+            // if (params['trigger'] === 'Index') {
+            //     triggerBy = 'IndexPrice';
+            // } else if (params['trigger'] === 'Mark') {
+            //     triggerBy = 'MarkPrice';
+            // }
+            // request['triggerBy'] = triggerBy;
+            // request['slTriggerBy'] = triggerBy;
+            // request['tpTriggerBy'] = triggerBy;
+            request['triggerBy'] = 'MarkPrice';
+            request['slTriggerBy'] = 'MarkPrice';
+            request['tpTriggerBy'] = 'LastPrice';
             request['triggerPrice'] = this.priceToPrecision (symbol, triggerPrice);
             if (triggerPrice > basePrice) {
                 request['triggerDirection'] = 1;

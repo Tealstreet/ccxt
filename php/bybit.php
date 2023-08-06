@@ -3181,12 +3181,12 @@ class bybit extends Exchange {
         if (!$basePrice) {
             throw new InvalidOrder($this->id . ' createOrder() requires both the triggerPrice and $basePrice $params for ' . $type . ' orders');
         }
-        $triggerBy = 'LastPrice';
-        if ($params['trigger'] === 'Index') {
-            $triggerBy = 'IndexPrice';
-        } elseif ($params['trigger'] === 'Mark') {
-            $triggerBy = 'MarkPrice';
-        }
+        // $triggerBy = 'LastPrice';
+        // if ($params['trigger'] === 'Index') {
+        //     $triggerBy = 'IndexPrice';
+        // } elseif ($params['trigger'] === 'Mark') {
+        //     $triggerBy = 'MarkPrice';
+        // }
         if (Precise::string_gt($stopPrice, $basePrice)) {
             if ($side === 'buy') {
                 if ($trailingStop !== null) {
@@ -3197,14 +3197,14 @@ class bybit extends Exchange {
                     if ($amount !== 0) {
                         $request['slSize'] = $this->amount_to_precision($symbol, $amount);
                     }
-                    $request['slTriggerBy'] = $triggerBy;
+                    $request['slTriggerBy'] = 'MarkPrice';
                 }
             } else {
                 $request['takeProfit'] = $this->price_to_precision($symbol, $stopPrice);
                 if ($amount !== 0) {
                     $request['tpSize'] = $this->amount_to_precision($symbol, $amount);
                 }
-                $request['tpTriggerBy'] = $triggerBy;
+                $request['tpTriggerBy'] = 'LastPrice';
             }
         } else {
             if ($side === 'buy') {
@@ -3212,7 +3212,7 @@ class bybit extends Exchange {
                 if ($amount !== 0) {
                     $request['tpSize'] = $this->amount_to_precision($symbol, $amount);
                 }
-                $request['tpTriggerBy'] = $triggerBy;
+                $request['tpTriggerBy'] = 'LastPrice';
             } else {
                 if ($trailingStop !== null) {
                     // $request['tpslMode'] = 'Full';
@@ -3222,7 +3222,7 @@ class bybit extends Exchange {
                     if ($amount !== 0) {
                         $request['slSize'] = $this->amount_to_precision($symbol, $amount);
                     }
-                    $request['slTriggerBy'] = $triggerBy;
+                    $request['slTriggerBy'] = 'MarkPrice';
                 }
             }
         }
@@ -3324,15 +3324,18 @@ class bybit extends Exchange {
             if ($triggerPrice === null) {
                 throw new InvalidOrder($this->id . ' createOrder() requires a $triggerPrice param for ' . $type . ' orders');
             }
-            $triggerBy = 'LastPrice';
-            if ($params['trigger'] === 'Index') {
-                $triggerBy = 'IndexPrice';
-            } elseif ($params['trigger'] === 'Mark') {
-                $triggerBy = 'MarkPrice';
-            }
-            $request['triggerBy'] = $triggerBy;
-            $request['slTriggerBy'] = $triggerBy;
-            $request['tpTriggerBy'] = $triggerBy;
+            // $triggerBy = 'LastPrice';
+            // if ($params['trigger'] === 'Index') {
+            //     $triggerBy = 'IndexPrice';
+            // } elseif ($params['trigger'] === 'Mark') {
+            //     $triggerBy = 'MarkPrice';
+            // }
+            // $request['triggerBy'] = $triggerBy;
+            // $request['slTriggerBy'] = $triggerBy;
+            // $request['tpTriggerBy'] = $triggerBy;
+            $request['triggerBy'] = 'MarkPrice';
+            $request['slTriggerBy'] = 'MarkPrice';
+            $request['tpTriggerBy'] = 'LastPrice';
             $request['triggerPrice'] = $this->price_to_precision($symbol, $triggerPrice);
             if ($triggerPrice > $basePrice) {
                 $request['triggerDirection'] = 1;
@@ -3439,15 +3442,18 @@ class bybit extends Exchange {
             if ($triggerPrice === null) {
                 throw new InvalidOrder($this->id . ' createOrder() requires a $triggerPrice param for ' . $type . ' orders');
             }
-            $triggerBy = 'LastPrice';
-            if ($params['trigger'] === 'Index') {
-                $triggerBy = 'IndexPrice';
-            } elseif ($params['trigger'] === 'Mark') {
-                $triggerBy = 'MarkPrice';
-            }
-            $request['triggerBy'] = $triggerBy;
-            $request['slTriggerBy'] = $triggerBy;
-            $request['tpTriggerBy'] = $triggerBy;
+            // $triggerBy = 'LastPrice';
+            // if ($params['trigger'] === 'Index') {
+            //     $triggerBy = 'IndexPrice';
+            // } elseif ($params['trigger'] === 'Mark') {
+            //     $triggerBy = 'MarkPrice';
+            // }
+            // $request['triggerBy'] = $triggerBy;
+            // $request['slTriggerBy'] = $triggerBy;
+            // $request['tpTriggerBy'] = $triggerBy;
+            $request['triggerBy'] = 'MarkPrice';
+            $request['slTriggerBy'] = 'MarkPrice';
+            $request['tpTriggerBy'] = 'LastPrice';
             $request['triggerPrice'] = $this->price_to_precision($symbol, $triggerPrice);
             if ($triggerPrice > $basePrice) {
                 $request['triggerDirection'] = 1;
