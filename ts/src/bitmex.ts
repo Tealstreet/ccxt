@@ -2722,8 +2722,8 @@ export default class bitmex extends Exchange {
         }
         leverage = buyLeverage || sellLeverage;
         if (buyLeverage !== undefined && sellLeverage !== undefined) {
-            if ((leverage < 0.01) || (leverage > 100)) {
-                throw new BadRequest (this.id + ' leverage should be between 0.01 and 100');
+            if ((leverage < 0) || (leverage > 100)) {
+                throw new BadRequest (this.id + ' leverage should be between 0 (cross-margin) and 100');
             }
         }
         await this.loadMarkets ();
@@ -2782,7 +2782,7 @@ export default class bitmex extends Exchange {
         if ((market['type'] !== 'swap') && (market['type'] !== 'future')) {
             throw new BadSymbol (this.id + ' setMarginMode() supports swap and future contracts only');
         }
-        const enabled = (marginMode === 'cross') ? false : true;
+        const enabled = (marginMode === 'cross') ? 'false' : 'true';
         const request = {
             'symbol': market['id'],
             'enabled': enabled,

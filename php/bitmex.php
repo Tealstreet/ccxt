@@ -2679,8 +2679,8 @@ class bitmex extends Exchange {
         }
         $leverage = $buyLeverage || $sellLeverage;
         if ($buyLeverage !== null && $sellLeverage !== null) {
-            if (($leverage < 0.01) || ($leverage > 100)) {
-                throw new BadRequest($this->id . ' $leverage should be between 0.01 and 100');
+            if (($leverage < 0) || ($leverage > 100)) {
+                throw new BadRequest($this->id . ' $leverage should be between 0 (cross-margin) and 100');
             }
         }
         $this->load_markets();
@@ -2737,7 +2737,7 @@ class bitmex extends Exchange {
         if (($market['type'] !== 'swap') && ($market['type'] !== 'future')) {
             throw new BadSymbol($this->id . ' setMarginMode() supports swap and future contracts only');
         }
-        $enabled = ($marginMode === 'cross') ? false : true;
+        $enabled = ($marginMode === 'cross') ? 'false' : 'true';
         $request = array(
             'symbol' => $market['id'],
             'enabled' => $enabled,

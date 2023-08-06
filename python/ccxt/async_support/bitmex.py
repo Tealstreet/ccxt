@@ -2565,8 +2565,8 @@ class bitmex(Exchange):
             raise BadRequest(self.id + ' setLeverage() requires buyLeverage and sellLeverage to match')
         leverage = buyLeverage or sellLeverage
         if buyLeverage is not None and sellLeverage is not None:
-            if (leverage < 0.01) or (leverage > 100):
-                raise BadRequest(self.id + ' leverage should be between 0.01 and 100')
+            if (leverage < 0) or (leverage > 100):
+                raise BadRequest(self.id + ' leverage should be between 0(cross-margin) and 100')
         await self.load_markets()
         market = self.market(symbol)
         if market['type'] != 'swap' and market['type'] != 'future':
@@ -2612,7 +2612,7 @@ class bitmex(Exchange):
         market = self.market(symbol)
         if (market['type'] != 'swap') and (market['type'] != 'future'):
             raise BadSymbol(self.id + ' setMarginMode() supports swap and future contracts only')
-        enabled = False if (marginMode == 'cross') else True
+        enabled = 'false' if (marginMode == 'cross') else 'true'
         request = {
             'symbol': market['id'],
             'enabled': enabled,
