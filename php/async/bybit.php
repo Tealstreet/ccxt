@@ -2191,83 +2191,7 @@ class bybit extends Exchange {
     }
 
     public function parse_trade($trade, $market = null) {
-        $isSpotTrade = (is_array($trade) && array_key_exists('isBuyerMaker', $trade)) || (is_array($trade) && array_key_exists('feeTokenId', $trade));
-        if ($isSpotTrade) {
-            return $this->parse_spot_trade($trade, $market);
-        } else {
-            return $this->parse_contract_trade($trade, $market);
-        }
-    }
-
-    public function parse_spot_trade($trade, $market = null) {
-        //
-        //   public:
-        //     {
-        //        "price" => "39548.68",
-        //        "time" => "1651748717850",
-        //        "qty" => "0.166872",
-        //        "isBuyerMaker" => 0
-        //     }
-        //
-        //   private:
-        //     {
-        //         "orderPrice" => "82.5",
-        //         "creatTime" => "1666702226326",
-        //         "orderQty" => "0.016",
-        //         "isBuyer" => "0",
-        //         "isMaker" => "0",
-        //         "symbol" => "AAVEUSDT",
-        //         "id" => "1274785101965716992",
-        //         "orderId" => "1274784252359089664",
-        //         "tradeId" => "2270000000031365639",
-        //         "execFee" => "0",
-        //         "feeTokenId" => "AAVE",
-        //         "matchOrderId" => "1274785101865076224",
-        //         "makerRebate" => "0",
-        //         "executionTime" => "1666702226335"
-        //     }
-        //
-        $timestamp = $this->safe_integer_n($trade, array( 'time', 'creatTime' ));
-        $takerOrMaker = null;
-        $side = null;
-        $isBuyerMaker = $this->safe_integer($trade, 'isBuyerMaker');
-        if ($isBuyerMaker !== null) {
-            // if public response
-            $side = ($isBuyerMaker === 1) ? 'buy' : 'sell';
-        } else {
-            // if private response
-            $isBuyer = $this->safe_integer($trade, 'isBuyer');
-            $isMaker = $this->safe_integer($trade, 'isMaker');
-            $takerOrMaker = ($isMaker === 0) ? 'maker' : 'taker';
-            $side = ($isBuyer === 0) ? 'buy' : 'sell';
-        }
-        $marketId = $this->safe_string($trade, 'symbol');
-        $market = $this->safe_market($marketId, $market, null, 'spot');
-        $fee = null;
-        $feeCost = $this->safe_string($trade, 'execFee');
-        if ($feeCost !== null) {
-            $feeToken = $this->safe_string($trade, 'feeTokenId');
-            $feeCurrency = $this->safe_currency_code($feeToken);
-            $fee = array(
-                'cost' => $feeCost,
-                'currency' => $feeCurrency,
-            );
-        }
-        return $this->safe_trade(array(
-            'id' => $this->safe_string($trade, 'tradeId'),
-            'info' => $trade,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'symbol' => $market['symbol'],
-            'order' => $this->safe_string($trade, 'orderId'),
-            'type' => null,
-            'side' => $side,
-            'takerOrMaker' => $takerOrMaker,
-            'price' => $this->safe_string_2($trade, 'price', 'orderPrice'),
-            'amount' => $this->safe_string_2($trade, 'qty', 'orderQty'),
-            'cost' => null,
-            'fee' => $fee,
-        ), $market);
+        return $this->parse_contract_trade($trade, $market);
     }
 
     public function parse_contract_trade($trade, $market = null) {
@@ -2363,12 +2287,6 @@ class bybit extends Exchange {
         if ($market !== null) {
             $marketType = $market['type'];
         }
-        $category = $this->safe_string($trade, 'category');
-        if ($category !== null) {
-            if ($category === 'spot') {
-                $marketType = 'spot';
-            }
-        }
         $market = $this->safe_market($marketId, $market, null, $marketType);
         $symbol = $market['symbol'];
         $amountString = $this->safe_string_n($trade, array( 'execQty', 'orderQty', 'size' ));
@@ -2406,12 +2324,7 @@ class bybit extends Exchange {
         $feeCostString = $this->safe_string($trade, 'execFee');
         $fee = null;
         if ($feeCostString !== null) {
-            $feeCurrencyCode = null;
-            if ($market['spot']) {
-                $feeCurrencyCode = $this->safe_string($trade, 'commissionAsset');
-            } else {
-                $feeCurrencyCode = $market['inverse'] ? $market['base'] : $market['settle'];
-            }
+            $feeCurrencyCode = $market['inverse'] ? $market['base'] : $market['settle'];
             $fee = array(
                 'cost' => $feeCostString,
                 'currency' => $feeCurrencyCode,
@@ -5337,13 +5250,13 @@ class bybit extends Exchange {
             $market = null;
             $request = array(
                 // 'symbol' => $market['id'],
-                // 'category' => '', // Product $type-> spot,linear,option
+                // 'category' => '', // Product type. spot,linear,option
                 // 'orderId' => '', // Order ID
                 // 'orderLinkId' => '', // User customised order ID
                 // 'baseCoin' => '', // Base coin
                 // 'startTime' => 0, // The start timestamp (ms)
                 // 'endTime' => 0, // The end timestamp (ms)
-                // 'execType' => '', // Execution $type
+                // 'execType' => '', // Execution type
                 // 'limit' => 0, // Limit for data size per page. [1, 100]. Default => 50
                 // 'cursor' => '', // Cursor. Used for pagination
             );
@@ -5351,18 +5264,12 @@ class bybit extends Exchange {
                 $market = $this->market($symbol);
                 $request['symbol'] = $market['id'];
             }
-            $type = null;
-            list($type, $params) = $this->handle_market_type_and_params('fetchMyTrades', $market, $params);
-            if ($type === 'spot') {
-                $request['category'] = 'spot';
-            } else {
-                $subType = null;
-                list($subType, $params) = $this->handle_sub_type_and_params('fetchMyTrades', $market, $params);
-                if ($subType === 'inverse') {
-                    throw new NotSupported($this->id . ' fetchMyTrades() does not support ' . $subType . ' markets.');
-                }
-                $request['category'] = $subType;
+            $subType = null;
+            list($subType, $params) = $this->handle_sub_type_and_params('fetchMyTrades', $market, $params);
+            if ($subType === 'inverse') {
+                throw new NotSupported($this->id . ' fetchMyTrades() does not support ' . $subType . ' markets.');
             }
+            $request['category'] = $subType;
             if ($since !== null) {
                 $request['startTime'] = $since;
             }
@@ -5408,64 +5315,6 @@ class bybit extends Exchange {
             //         ),
             //         "retExtInfo" => array(),
             //         "time" => 1672283754510
-            //     }
-            //
-            $result = $this->safe_value($response, 'result', array());
-            $trades = $this->safe_value($result, 'list', array());
-            return $this->parse_trades($trades, $market, $since, $limit);
-        }) ();
-    }
-
-    public function fetch_my_spot_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($symbol, $since, $limit, $params) {
-            if ($symbol === null) {
-                throw new ArgumentsRequired($this->id . ' fetchMySpotTrades() requires a $symbol argument');
-            }
-            Async\await($this->load_markets());
-            $market = $this->market($symbol);
-            $request = array(
-                'symbol' => $market['id'],
-                // 'orderId' => 'f185806b-b801-40ff-adec-52289370ed62', // if not provided will return user's trading records
-                // 'startTime' => intval($since / 1000),
-                // 'endTime' => 0,
-                // 'fromTradeId' => '',
-                // 'toTradeId' => '',
-                // 'limit' 20, // max 50
-            );
-            if ($since !== null) {
-                $request['startTime'] = $since;
-            }
-            if ($limit !== null) {
-                $request['limit'] = $limit; // default 20, max 50
-            }
-            $response = Async\await($this->privateGetSpotV3PrivateMyTrades (array_merge($request, $params)));
-            //
-            //    {
-            //         "retCode" => "0",
-            //         "retMsg" => "OK",
-            //         "result" => array(
-            //             "list" => array(
-            //                 array(
-            //                     "symbol" => "AAVEUSDT",
-            //                     "id" => "1274785101965716992",
-            //                     "orderId" => "1274784252359089664",
-            //                     "tradeId" => "2270000000031365639",
-            //                     "orderPrice" => "82.5",
-            //                     "orderQty" => "0.016",
-            //                     "execFee" => "0",
-            //                     "feeTokenId" => "AAVE",
-            //                     "creatTime" => "1666702226326",
-            //                     "isBuyer" => "0",
-            //                     "isMaker" => "0",
-            //                     "matchOrderId" => "1274785101865076224",
-            //                     "makerRebate" => "0",
-            //                     "executionTime" => "1666702226335"
-            //                 ),
-            //             )
-            //         ),
-            //         "retExtMap" => array(),
-            //         "retExtInfo" => null,
-            //         "time" => "1666768215157"
             //     }
             //
             $result = $this->safe_value($response, 'result', array());
@@ -5693,12 +5542,18 @@ class bybit extends Exchange {
             }
             $subType = null;
             list($subType, $params) = $this->handle_sub_type_and_params('fetchMyTrades', $market, $params);
+            $splitId = explode(':', $symbol);
+            $settleSuffix = $this->safe_string($splitId, 2);
+            if ($settleSuffix === 'USDC') {
+                $settle = 'USDC';
+            }
             $isInverse = $subType === 'inverse';
             $isUsdcSettled = $settle === 'USDC';
             $isLinearSettle = $isUsdcSettled || ($settle === 'USDT');
             if ($isInverse && $isLinearSettle) {
                 throw new ArgumentsRequired($this->id . ' fetchMyTrades with inverse $subType requires $settle to not be USDT or USDC');
             }
+            // eslint-disable-next-line no-unused-vars
             list($type, $query) = $this->handle_market_type_and_params('fetchMyTrades', $market, $params);
             list($enableUnifiedMargin, $enableUnifiedAccount) = Async\await($this->is_unified_enabled());
             if ($enableUnifiedAccount && !$isInverse) {
@@ -5707,8 +5562,6 @@ class bybit extends Exchange {
                     $this->check_required_symbol('fetchMyTrades', $symbol);
                 }
                 return Async\await($this->fetch_my_unified_trades($symbol, $since, $limit, $query));
-            } elseif ($type === 'spot') {
-                return Async\await($this->fetch_my_spot_trades($symbol, $since, $limit, $query));
             } elseif ($enableUnifiedMargin && !$isInverse) {
                 return Async\await($this->fetch_my_unified_margin_trades($symbol, $since, $limit, $query));
             } elseif ($isUsdcSettled) {

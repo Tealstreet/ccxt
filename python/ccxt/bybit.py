@@ -2119,79 +2119,7 @@ class bybit(Exchange):
         return self.filter_by_symbol_since_limit(sorted, symbol, since, limit)
 
     def parse_trade(self, trade, market=None):
-        isSpotTrade = ('isBuyerMaker' in trade) or ('feeTokenId' in trade)
-        if isSpotTrade:
-            return self.parse_spot_trade(trade, market)
-        else:
-            return self.parse_contract_trade(trade, market)
-
-    def parse_spot_trade(self, trade, market=None):
-        #
-        #   public:
-        #     {
-        #        "price": "39548.68",
-        #        "time": "1651748717850",
-        #        "qty": "0.166872",
-        #        "isBuyerMaker": 0
-        #     }
-        #
-        #   private:
-        #     {
-        #         "orderPrice": "82.5",
-        #         "creatTime": "1666702226326",
-        #         "orderQty": "0.016",
-        #         "isBuyer": "0",
-        #         "isMaker": "0",
-        #         "symbol": "AAVEUSDT",
-        #         "id": "1274785101965716992",
-        #         "orderId": "1274784252359089664",
-        #         "tradeId": "2270000000031365639",
-        #         "execFee": "0",
-        #         "feeTokenId": "AAVE",
-        #         "matchOrderId": "1274785101865076224",
-        #         "makerRebate": "0",
-        #         "executionTime": "1666702226335"
-        #     }
-        #
-        timestamp = self.safe_integer_n(trade, ['time', 'creatTime'])
-        takerOrMaker = None
-        side = None
-        isBuyerMaker = self.safe_integer(trade, 'isBuyerMaker')
-        if isBuyerMaker is not None:
-            # if public response
-            side = 'buy' if (isBuyerMaker == 1) else 'sell'
-        else:
-            # if private response
-            isBuyer = self.safe_integer(trade, 'isBuyer')
-            isMaker = self.safe_integer(trade, 'isMaker')
-            takerOrMaker = 'maker' if (isMaker == 0) else 'taker'
-            side = 'buy' if (isBuyer == 0) else 'sell'
-        marketId = self.safe_string(trade, 'symbol')
-        market = self.safe_market(marketId, market, None, 'spot')
-        fee = None
-        feeCost = self.safe_string(trade, 'execFee')
-        if feeCost is not None:
-            feeToken = self.safe_string(trade, 'feeTokenId')
-            feeCurrency = self.safe_currency_code(feeToken)
-            fee = {
-                'cost': feeCost,
-                'currency': feeCurrency,
-            }
-        return self.safe_trade({
-            'id': self.safe_string(trade, 'tradeId'),
-            'info': trade,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'symbol': market['symbol'],
-            'order': self.safe_string(trade, 'orderId'),
-            'type': None,
-            'side': side,
-            'takerOrMaker': takerOrMaker,
-            'price': self.safe_string_2(trade, 'price', 'orderPrice'),
-            'amount': self.safe_string_2(trade, 'qty', 'orderQty'),
-            'cost': None,
-            'fee': fee,
-        }, market)
+        return self.parse_contract_trade(trade, market)
 
     def parse_contract_trade(self, trade, market=None):
         #
@@ -2285,10 +2213,6 @@ class bybit(Exchange):
         marketType = 'contract'
         if market is not None:
             marketType = market['type']
-        category = self.safe_string(trade, 'category')
-        if category is not None:
-            if category == 'spot':
-                marketType = 'spot'
         market = self.safe_market(marketId, market, None, marketType)
         symbol = market['symbol']
         amountString = self.safe_string_n(trade, ['execQty', 'orderQty', 'size'])
@@ -2319,11 +2243,7 @@ class bybit(Exchange):
         feeCostString = self.safe_string(trade, 'execFee')
         fee = None
         if feeCostString is not None:
-            feeCurrencyCode = None
-            if market['spot']:
-                feeCurrencyCode = self.safe_string(trade, 'commissionAsset')
-            else:
-                feeCurrencyCode = market['base'] if market['inverse'] else market['settle']
+            feeCurrencyCode = market['base'] if market['inverse'] else market['settle']
             fee = {
                 'cost': feeCostString,
                 'currency': feeCurrencyCode,
@@ -4946,16 +4866,11 @@ class bybit(Exchange):
         if symbol is not None:
             market = self.market(symbol)
             request['symbol'] = market['id']
-        type = None
-        type, params = self.handle_market_type_and_params('fetchMyTrades', market, params)
-        if type == 'spot':
-            request['category'] = 'spot'
-        else:
-            subType = None
-            subType, params = self.handle_sub_type_and_params('fetchMyTrades', market, params)
-            if subType == 'inverse':
-                raise NotSupported(self.id + ' fetchMyTrades() does not support ' + subType + ' markets.')
-            request['category'] = subType
+        subType = None
+        subType, params = self.handle_sub_type_and_params('fetchMyTrades', market, params)
+        if subType == 'inverse':
+            raise NotSupported(self.id + ' fetchMyTrades() does not support ' + subType + ' markets.')
+        request['category'] = subType
         if since is not None:
             request['startTime'] = since
         if limit is not None:
@@ -4999,58 +4914,6 @@ class bybit(Exchange):
         #         },
         #         "retExtInfo": {},
         #         "time": 1672283754510
-        #     }
-        #
-        result = self.safe_value(response, 'result', {})
-        trades = self.safe_value(result, 'list', [])
-        return self.parse_trades(trades, market, since, limit)
-
-    def fetch_my_spot_trades(self, symbol=None, since=None, limit=None, params={}):
-        if symbol is None:
-            raise ArgumentsRequired(self.id + ' fetchMySpotTrades() requires a symbol argument')
-        self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'symbol': market['id'],
-            # 'orderId': 'f185806b-b801-40ff-adec-52289370ed62',  # if not provided will return user's trading records
-            # 'startTime': int(since / 1000),
-            # 'endTime': 0,
-            # 'fromTradeId': '',
-            # 'toTradeId': '',
-            # 'limit' 20,  # max 50
-        }
-        if since is not None:
-            request['startTime'] = since
-        if limit is not None:
-            request['limit'] = limit  # default 20, max 50
-        response = self.privateGetSpotV3PrivateMyTrades(self.extend(request, params))
-        #
-        #    {
-        #         "retCode": "0",
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "list": [
-        #                 {
-        #                     "symbol": "AAVEUSDT",
-        #                     "id": "1274785101965716992",
-        #                     "orderId": "1274784252359089664",
-        #                     "tradeId": "2270000000031365639",
-        #                     "orderPrice": "82.5",
-        #                     "orderQty": "0.016",
-        #                     "execFee": "0",
-        #                     "feeTokenId": "AAVE",
-        #                     "creatTime": "1666702226326",
-        #                     "isBuyer": "0",
-        #                     "isMaker": "0",
-        #                     "matchOrderId": "1274785101865076224",
-        #                     "makerRebate": "0",
-        #                     "executionTime": "1666702226335"
-        #                 },
-        #             ]
-        #         },
-        #         "retExtMap": {},
-        #         "retExtInfo": null,
-        #         "time": "1666768215157"
         #     }
         #
         result = self.safe_value(response, 'result', {})
@@ -5255,11 +5118,16 @@ class bybit(Exchange):
             settle = market['settle']
         subType = None
         subType, params = self.handle_sub_type_and_params('fetchMyTrades', market, params)
+        splitId = symbol.split(':')
+        settleSuffix = self.safe_string(splitId, 2)
+        if settleSuffix == 'USDC':
+            settle = 'USDC'
         isInverse = subType == 'inverse'
         isUsdcSettled = settle == 'USDC'
         isLinearSettle = isUsdcSettled or (settle == 'USDT')
         if isInverse and isLinearSettle:
             raise ArgumentsRequired(self.id + ' fetchMyTrades with inverse subType requires settle to not be USDT or USDC')
+        # eslint-disable-next-line no-unused-vars
         type, query = self.handle_market_type_and_params('fetchMyTrades', market, params)
         enableUnifiedMargin, enableUnifiedAccount = self.is_unified_enabled()
         if enableUnifiedAccount and not isInverse:
@@ -5267,8 +5135,6 @@ class bybit(Exchange):
             if orderId is None:
                 self.check_required_symbol('fetchMyTrades', symbol)
             return self.fetch_my_unified_trades(symbol, since, limit, query)
-        elif type == 'spot':
-            return self.fetch_my_spot_trades(symbol, since, limit, query)
         elif enableUnifiedMargin and not isInverse:
             return self.fetch_my_unified_margin_trades(symbol, since, limit, query)
         elif isUsdcSettled:

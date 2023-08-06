@@ -2188,83 +2188,7 @@ export default class bybit extends Exchange {
     }
 
     parseTrade (trade, market = undefined) {
-        const isSpotTrade = ('isBuyerMaker' in trade) || ('feeTokenId' in trade);
-        if (isSpotTrade) {
-            return this.parseSpotTrade (trade, market);
-        } else {
-            return this.parseContractTrade (trade, market);
-        }
-    }
-
-    parseSpotTrade (trade, market = undefined) {
-        //
-        //   public:
-        //     {
-        //        "price": "39548.68",
-        //        "time": "1651748717850",
-        //        "qty": "0.166872",
-        //        "isBuyerMaker": 0
-        //     }
-        //
-        //   private:
-        //     {
-        //         "orderPrice": "82.5",
-        //         "creatTime": "1666702226326",
-        //         "orderQty": "0.016",
-        //         "isBuyer": "0",
-        //         "isMaker": "0",
-        //         "symbol": "AAVEUSDT",
-        //         "id": "1274785101965716992",
-        //         "orderId": "1274784252359089664",
-        //         "tradeId": "2270000000031365639",
-        //         "execFee": "0",
-        //         "feeTokenId": "AAVE",
-        //         "matchOrderId": "1274785101865076224",
-        //         "makerRebate": "0",
-        //         "executionTime": "1666702226335"
-        //     }
-        //
-        const timestamp = this.safeIntegerN (trade, [ 'time', 'creatTime' ]);
-        let takerOrMaker = undefined;
-        let side = undefined;
-        const isBuyerMaker = this.safeInteger (trade, 'isBuyerMaker');
-        if (isBuyerMaker !== undefined) {
-            // if public response
-            side = (isBuyerMaker === 1) ? 'buy' : 'sell';
-        } else {
-            // if private response
-            const isBuyer = this.safeInteger (trade, 'isBuyer');
-            const isMaker = this.safeInteger (trade, 'isMaker');
-            takerOrMaker = (isMaker === 0) ? 'maker' : 'taker';
-            side = (isBuyer === 0) ? 'buy' : 'sell';
-        }
-        const marketId = this.safeString (trade, 'symbol');
-        market = this.safeMarket (marketId, market, undefined, 'spot');
-        let fee = undefined;
-        const feeCost = this.safeString (trade, 'execFee');
-        if (feeCost !== undefined) {
-            const feeToken = this.safeString (trade, 'feeTokenId');
-            const feeCurrency = this.safeCurrencyCode (feeToken);
-            fee = {
-                'cost': feeCost,
-                'currency': feeCurrency,
-            };
-        }
-        return this.safeTrade ({
-            'id': this.safeString (trade, 'tradeId'),
-            'info': trade,
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'symbol': market['symbol'],
-            'order': this.safeString (trade, 'orderId'),
-            'type': undefined,
-            'side': side,
-            'takerOrMaker': takerOrMaker,
-            'price': this.safeString2 (trade, 'price', 'orderPrice'),
-            'amount': this.safeString2 (trade, 'qty', 'orderQty'),
-            'cost': undefined,
-            'fee': fee,
-        }, market);
+        return this.parseContractTrade (trade, market);
     }
 
     parseContractTrade (trade, market = undefined) {
@@ -2360,12 +2284,6 @@ export default class bybit extends Exchange {
         if (market !== undefined) {
             marketType = market['type'];
         }
-        const category = this.safeString (trade, 'category');
-        if (category !== undefined) {
-            if (category === 'spot') {
-                marketType = 'spot';
-            }
-        }
         market = this.safeMarket (marketId, market, undefined, marketType);
         const symbol = market['symbol'];
         const amountString = this.safeStringN (trade, [ 'execQty', 'orderQty', 'size' ]);
@@ -2403,12 +2321,7 @@ export default class bybit extends Exchange {
         const feeCostString = this.safeString (trade, 'execFee');
         let fee = undefined;
         if (feeCostString !== undefined) {
-            let feeCurrencyCode = undefined;
-            if (market['spot']) {
-                feeCurrencyCode = this.safeString (trade, 'commissionAsset');
-            } else {
-                feeCurrencyCode = market['inverse'] ? market['base'] : market['settle'];
-            }
+            const feeCurrencyCode = market['inverse'] ? market['base'] : market['settle'];
             fee = {
                 'cost': feeCostString,
                 'currency': feeCurrencyCode,
@@ -5295,18 +5208,12 @@ export default class bybit extends Exchange {
             market = this.market (symbol);
             request['symbol'] = market['id'];
         }
-        let type = undefined;
-        [ type, params ] = this.handleMarketTypeAndParams ('fetchMyTrades', market, params);
-        if (type === 'spot') {
-            request['category'] = 'spot';
-        } else {
-            let subType = undefined;
-            [ subType, params ] = this.handleSubTypeAndParams ('fetchMyTrades', market, params);
-            if (subType === 'inverse') {
-                throw new NotSupported (this.id + ' fetchMyTrades() does not support ' + subType + ' markets.');
-            }
-            request['category'] = subType;
+        let subType = undefined;
+        [ subType, params ] = this.handleSubTypeAndParams ('fetchMyTrades', market, params);
+        if (subType === 'inverse') {
+            throw new NotSupported (this.id + ' fetchMyTrades() does not support ' + subType + ' markets.');
         }
+        request['category'] = subType;
         if (since !== undefined) {
             request['startTime'] = since;
         }
@@ -5352,62 +5259,6 @@ export default class bybit extends Exchange {
         //         },
         //         "retExtInfo": {},
         //         "time": 1672283754510
-        //     }
-        //
-        const result = this.safeValue (response, 'result', {});
-        const trades = this.safeValue (result, 'list', []);
-        return this.parseTrades (trades, market, since, limit);
-    }
-
-    async fetchMySpotTrades (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        if (symbol === undefined) {
-            throw new ArgumentsRequired (this.id + ' fetchMySpotTrades() requires a symbol argument');
-        }
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'symbol': market['id'],
-            // 'orderId': 'f185806b-b801-40ff-adec-52289370ed62', // if not provided will return user's trading records
-            // 'startTime': parseInt (since / 1000),
-            // 'endTime': 0,
-            // 'fromTradeId': '',
-            // 'toTradeId': '',
-            // 'limit' 20, // max 50
-        };
-        if (since !== undefined) {
-            request['startTime'] = since;
-        }
-        if (limit !== undefined) {
-            request['limit'] = limit; // default 20, max 50
-        }
-        const response = await (this as any).privateGetSpotV3PrivateMyTrades (this.extend (request, params));
-        //
-        //    {
-        //         "retCode": "0",
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "list": [
-        //                 {
-        //                     "symbol": "AAVEUSDT",
-        //                     "id": "1274785101965716992",
-        //                     "orderId": "1274784252359089664",
-        //                     "tradeId": "2270000000031365639",
-        //                     "orderPrice": "82.5",
-        //                     "orderQty": "0.016",
-        //                     "execFee": "0",
-        //                     "feeTokenId": "AAVE",
-        //                     "creatTime": "1666702226326",
-        //                     "isBuyer": "0",
-        //                     "isMaker": "0",
-        //                     "matchOrderId": "1274785101865076224",
-        //                     "makerRebate": "0",
-        //                     "executionTime": "1666702226335"
-        //                 },
-        //             ]
-        //         },
-        //         "retExtMap": {},
-        //         "retExtInfo": null,
-        //         "time": "1666768215157"
         //     }
         //
         const result = this.safeValue (response, 'result', {});
@@ -5629,12 +5480,18 @@ export default class bybit extends Exchange {
         }
         let subType = undefined;
         [ subType, params ] = this.handleSubTypeAndParams ('fetchMyTrades', market, params);
+        const splitId = symbol.split (':');
+        const settleSuffix = this.safeString (splitId, 2);
+        if (settleSuffix === 'USDC') {
+            settle = 'USDC';
+        }
         const isInverse = subType === 'inverse';
         const isUsdcSettled = settle === 'USDC';
         const isLinearSettle = isUsdcSettled || (settle === 'USDT');
         if (isInverse && isLinearSettle) {
             throw new ArgumentsRequired (this.id + ' fetchMyTrades with inverse subType requires settle to not be USDT or USDC');
         }
+        // eslint-disable-next-line no-unused-vars
         const [ type, query ] = this.handleMarketTypeAndParams ('fetchMyTrades', market, params);
         const [ enableUnifiedMargin, enableUnifiedAccount ] = await this.isUnifiedEnabled ();
         if (enableUnifiedAccount && !isInverse) {
@@ -5643,8 +5500,6 @@ export default class bybit extends Exchange {
                 this.checkRequiredSymbol ('fetchMyTrades', symbol);
             }
             return await this.fetchMyUnifiedTrades (symbol, since, limit, query);
-        } else if (type === 'spot') {
-            return await this.fetchMySpotTrades (symbol, since, limit, query);
         } else if (enableUnifiedMargin && !isInverse) {
             return await this.fetchMyUnifiedMarginTrades (symbol, since, limit, query);
         } else if (isUsdcSettled) {
