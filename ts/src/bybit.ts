@@ -2968,7 +2968,11 @@ export default class bybit extends Exchange {
         let type = this.safeStringLower (order, 'orderType');
         const stopOrderType = this.safeStringLower (order, 'stopOrderType');
         const price = this.safeString (order, 'price');
-        const amount = this.safeString (order, 'qty');
+        let amount = this.safeString (order, 'qty');
+        const tpslMode = this.safeString (order, 'tpslMode');
+        if (tpslMode === 'Full') {
+            amount = '0';
+        }
         const cost = this.safeString (order, 'cumExecValue');
         const filled = this.safeString (order, 'cumExecQty');
         const remaining = this.safeString (order, 'leavesQty');

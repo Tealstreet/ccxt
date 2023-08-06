@@ -2859,6 +2859,9 @@ class bybit(Exchange):
         stopOrderType = self.safe_string_lower(order, 'stopOrderType')
         price = self.safe_string(order, 'price')
         amount = self.safe_string(order, 'qty')
+        tpslMode = self.safe_string(order, 'tpslMode')
+        if tpslMode == 'Full':
+            amount = 0
         cost = self.safe_string(order, 'cumExecValue')
         filled = self.safe_string(order, 'cumExecQty')
         remaining = self.safe_string(order, 'leavesQty')

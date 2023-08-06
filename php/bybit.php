@@ -2933,6 +2933,10 @@ class bybit extends Exchange {
         $stopOrderType = $this->safe_string_lower($order, 'stopOrderType');
         $price = $this->safe_string($order, 'price');
         $amount = $this->safe_string($order, 'qty');
+        $tpslMode = $this->safe_string($order, 'tpslMode');
+        if ($tpslMode === 'Full') {
+            $amount = '0';
+        }
         $cost = $this->safe_string($order, 'cumExecValue');
         $filled = $this->safe_string($order, 'cumExecQty');
         $remaining = $this->safe_string($order, 'leavesQty');
