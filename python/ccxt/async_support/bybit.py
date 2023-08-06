@@ -6367,6 +6367,21 @@ class bybit(Exchange):
         positions = self.safe_value(result, 'list', [])
         return self.parse_positions(positions, symbols, params)
 
+    async def fetch_all_positions(self, params={}):
+        """
+        fetch all open positions for all currencies
+        """
+        linearSettleCoins = ['USDT', 'USDC']
+        promises = []
+        for i in range(0, len(linearSettleCoins)):
+            promises.append(self.fetch_positions(None, {'subType': 'linear', 'settleCoin': linearSettleCoins[i]}))
+        promises.append(self.fetch_positions(None, {'subType': 'inverse'}))
+        promises = await asyncio.gather(*promises)
+        result = []
+        for i in range(0, len(promises)):
+            result = self.array_concat(result, promises[i])
+        return result
+
     async def fetch_positions(self, symbols=None, params={}):
         """
         fetch all open positions

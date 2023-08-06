@@ -6747,6 +6747,24 @@ class bybit extends Exchange {
         return $this->parse_positions($positions, $symbols, $params);
     }
 
+    public function fetch_all_positions($params = array ()) {
+        /**
+         * fetch all open positions for all currencies
+         */
+        $linearSettleCoins = array( 'USDT', 'USDC' );
+        $promises = array();
+        for ($i = 0; $i < count($linearSettleCoins); $i++) {
+            $promises[] = $this->fetch_positions(null, array( 'subType' => 'linear', 'settleCoin' => $linearSettleCoins[$i] ));
+        }
+        $promises[] = $this->fetch_positions(null, array( 'subType' => 'inverse' ));
+        $promises = $promises;
+        $result = array();
+        for ($i = 0; $i < count($promises); $i++) {
+            $result = $this->array_concat($result, $promises[$i]);
+        }
+        return $result;
+    }
+
     public function fetch_positions($symbols = null, $params = array ()) {
         /**
          * fetch all open positions
