@@ -6606,12 +6606,12 @@ class bybit extends Exchange {
         /**
          * fetch all open positions for all currencies
          */
-        $linearSettleCoins = array( 'USDT', 'USDC' );
+        $linearSettleCoins = array( 'USDT' );
         $promises = array();
         for ($i = 0; $i < count($linearSettleCoins); $i++) {
             $promises[] = $this->fetch_positions(null, array( 'subType' => 'linear', 'settleCoin' => $linearSettleCoins[$i] ));
         }
-        $promises[] = $this->fetch_positions(null, array( 'subType' => 'inverse' ));
+        $promises[] = $this->fetch_positions(null, array( 'subType' => 'inverse', 'settleCoin' => 'BTC' ));
         $promises = $promises;
         $result = array();
         for ($i = 0; $i < count($promises); $i++) {

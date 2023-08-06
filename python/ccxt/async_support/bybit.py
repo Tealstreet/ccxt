@@ -6237,11 +6237,11 @@ class bybit(Exchange):
         """
         fetch all open positions for all currencies
         """
-        linearSettleCoins = ['USDT', 'USDC']
+        linearSettleCoins = ['USDT']
         promises = []
         for i in range(0, len(linearSettleCoins)):
             promises.append(self.fetch_positions(None, {'subType': 'linear', 'settleCoin': linearSettleCoins[i]}))
-        promises.append(self.fetch_positions(None, {'subType': 'inverse'}))
+        promises.append(self.fetch_positions(None, {'subType': 'inverse', 'settleCoin': 'BTC'}))
         promises = await asyncio.gather(*promises)
         result = []
         for i in range(0, len(promises)):
