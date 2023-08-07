@@ -4444,6 +4444,7 @@ class bybit(Exchange):
 
     async def fetch_unified_account_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
+        limit = limit or 50
         request = {
             # 'symbol': market['id'],
             # 'category': string, Type of derivatives product: linear or option.
@@ -4550,7 +4551,13 @@ class bybit(Exchange):
         #
         result = self.safe_value(response, 'result', {})
         data = self.safe_value(result, 'list', [])
-        return self.parse_orders(data, market, since, limit)
+        parsedOrders = self.parse_orders(data, market, since, limit)
+        if len(data) >= 50 and result['nextPageCursor'] is not None:
+            params['cursor'] = result['nextPageCursor']
+            rest = await self.fetch_orders(symbol, since, limit, params)
+            for i in range(0, len(rest)):
+                parsedOrders.append(rest[i])
+        return parsedOrders
 
     async def fetch_spot_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -4601,6 +4608,7 @@ class bybit(Exchange):
 
     async def fetch_unified_margin_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
+        limit = limit or 50
         request = {}
         market = None
         if symbol is None:
@@ -4670,11 +4678,18 @@ class bybit(Exchange):
         #     }
         #
         result = self.safe_value(response, 'result', {})
-        orders = self.safe_value(result, 'list', [])
-        return self.parse_orders(orders, market, since, limit)
+        data = self.safe_value(result, 'list', [])
+        parsedOrders = self.parse_orders(data, market, since, limit)
+        if len(data) >= 50 and result['nextPageCursor'] is not None:
+            params['cursor'] = result['nextPageCursor']
+            rest = await self.fetch_orders(symbol, since, limit, params)
+            for i in range(0, len(rest)):
+                parsedOrders.append(rest[i])
+        return parsedOrders
 
     async def fetch_derivatives_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
+        limit = limit or 50
         market = None
         settle = None
         request = {
@@ -4764,11 +4779,18 @@ class bybit(Exchange):
         #     }
         #
         result = self.safe_value(response, 'result', {})
-        orders = self.safe_value(result, 'list', [])
-        return self.parse_orders(orders, market, since, limit)
+        data = self.safe_value(result, 'list', [])
+        parsedOrders = self.parse_orders(data, market, since, limit)
+        if len(data) >= 50 and result['nextPageCursor'] is not None:
+            params['cursor'] = result['nextPageCursor']
+            rest = await self.fetch_orders(symbol, since, limit, params)
+            for i in range(0, len(rest)):
+                parsedOrders.append(rest[i])
+        return parsedOrders
 
     async def fetch_usdc_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
+        limit = limit or 50
         request = {}
         market = None
         if symbol is not None:
@@ -4779,7 +4801,7 @@ class bybit(Exchange):
         request['category'] = 'perpetual' if (type == 'swap') else 'option'
         response = await self.privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders(self.extend(request, params))
         result = self.safe_value(response, 'result', {})
-        orders = self.safe_value(result, 'dataList', [])
+        data = self.safe_value(result, 'dataList', [])
         #
         #     {
         #         "retCode": 0,
@@ -4806,7 +4828,13 @@ class bybit(Exchange):
         #         }
         #     }
         #
-        return self.parse_orders(orders, market, since, limit)
+        parsedOrders = self.parse_orders(data, market, since, limit)
+        if len(data) >= 50 and result['cursor'] is not None:
+            params['cursor'] = result['cursor']
+            rest = await self.fetch_orders(symbol, since, limit, params)
+            for i in range(0, len(rest)):
+                parsedOrders.append(rest[i])
+        return parsedOrders
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
         """

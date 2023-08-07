@@ -4698,6 +4698,7 @@ class bybit extends Exchange {
 
     public function fetch_unified_account_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
+        $limit = $limit || 50;
         $request = array(
             // 'symbol' => $market['id'],
             // 'category' => string, Type of derivatives product => linear or option.
@@ -4810,7 +4811,15 @@ class bybit extends Exchange {
         //
         $result = $this->safe_value($response, 'result', array());
         $data = $this->safe_value($result, 'list', array());
-        return $this->parse_orders($data, $market, $since, $limit);
+        $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
+        if (strlen($data) >= 50 && $result['nextPageCursor'] !== null) {
+            $params['cursor'] = $result['nextPageCursor'];
+            $rest = $this->fetch_orders($symbol, $since, $limit, $params);
+            for ($i = 0; $i < count($rest); $i++) {
+                $parsedOrders[] = $rest[$i];
+            }
+        }
+        return $parsedOrders;
     }
 
     public function fetch_spot_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -4865,6 +4874,7 @@ class bybit extends Exchange {
 
     public function fetch_unified_margin_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
+        $limit = $limit || 50;
         $request = array();
         $market = null;
         if ($symbol === null) {
@@ -4879,7 +4889,7 @@ class bybit extends Exchange {
             } elseif ($market['linear']) {
                 $request['category'] = 'linear';
             } else {
-                throw new NotSupported($this->id . ' fetchUnifiedMarginOpenOrders() does not allow inverse $market $orders for ' . $symbol . ' markets');
+                throw new NotSupported($this->id . ' fetchUnifiedMarginOpenOrders() does not allow inverse $market orders for ' . $symbol . ' markets');
             }
         }
         $type = null;
@@ -4938,12 +4948,21 @@ class bybit extends Exchange {
         //     }
         //
         $result = $this->safe_value($response, 'result', array());
-        $orders = $this->safe_value($result, 'list', array());
-        return $this->parse_orders($orders, $market, $since, $limit);
+        $data = $this->safe_value($result, 'list', array());
+        $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
+        if (strlen($data) >= 50 && $result['nextPageCursor'] !== null) {
+            $params['cursor'] = $result['nextPageCursor'];
+            $rest = $this->fetch_orders($symbol, $since, $limit, $params);
+            for ($i = 0; $i < count($rest); $i++) {
+                $parsedOrders[] = $rest[$i];
+            }
+        }
+        return $parsedOrders;
     }
 
     public function fetch_derivatives_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
+        $limit = $limit || 50;
         $market = null;
         $settle = null;
         $request = array(
@@ -4954,7 +4973,7 @@ class bybit extends Exchange {
             // 'orderId' => string, Order ID
             // 'orderLinkId' => string, Unique user-set order ID
             // 'orderFilter' => string, Conditional order or active order
-            // 'limit' => number, Data quantity per page => Max data value per page is 50, and default value at 20.
+            // 'limit' => number, Data quantity per page => Max $data value per page is 50, and default value at 20.
             // 'cursor' => string, API pass-through. accountType . category . cursor +. If inconsistent, the following should be returned => The account $type does not match the service inquiry.
             // 'openOnly' => 0,
         );
@@ -5039,12 +5058,21 @@ class bybit extends Exchange {
         //     }
         //
         $result = $this->safe_value($response, 'result', array());
-        $orders = $this->safe_value($result, 'list', array());
-        return $this->parse_orders($orders, $market, $since, $limit);
+        $data = $this->safe_value($result, 'list', array());
+        $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
+        if (strlen($data) >= 50 && $result['nextPageCursor'] !== null) {
+            $params['cursor'] = $result['nextPageCursor'];
+            $rest = $this->fetch_orders($symbol, $since, $limit, $params);
+            for ($i = 0; $i < count($rest); $i++) {
+                $parsedOrders[] = $rest[$i];
+            }
+        }
+        return $parsedOrders;
     }
 
     public function fetch_usdc_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
+        $limit = $limit || 50;
         $request = array();
         $market = null;
         if ($symbol !== null) {
@@ -5056,7 +5084,7 @@ class bybit extends Exchange {
         $request['category'] = ($type === 'swap') ? 'perpetual' : 'option';
         $response = $this->privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders (array_merge($request, $params));
         $result = $this->safe_value($response, 'result', array());
-        $orders = $this->safe_value($result, 'dataList', array());
+        $data = $this->safe_value($result, 'dataList', array());
         //
         //     {
         //         "retCode" => 0,
@@ -5083,7 +5111,15 @@ class bybit extends Exchange {
         //         }
         //     }
         //
-        return $this->parse_orders($orders, $market, $since, $limit);
+        $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
+        if (strlen($data) >= 50 && $result['cursor'] !== null) {
+            $params['cursor'] = $result['cursor'];
+            $rest = $this->fetch_orders($symbol, $since, $limit, $params);
+            for ($i = 0; $i < count($rest); $i++) {
+                $parsedOrders[] = $rest[$i];
+            }
+        }
+        return $parsedOrders;
     }
 
     public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {

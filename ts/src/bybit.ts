@@ -4748,6 +4748,7 @@ export default class bybit extends Exchange {
 
     async fetchUnifiedAccountOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
         await this.loadMarkets ();
+        limit = limit || 50;
         const request = {
             // 'symbol': market['id'],
             // 'category': string, Type of derivatives product: linear or option.
@@ -4860,7 +4861,15 @@ export default class bybit extends Exchange {
         //
         const result = this.safeValue (response, 'result', {});
         const data = this.safeValue (result, 'list', []);
-        return this.parseOrders (data, market, since, limit);
+        const parsedOrders = this.parseOrders (data, market, since, limit);
+        if (data.length >= 50 && result['nextPageCursor'] !== undefined) {
+            params['cursor'] = result['nextPageCursor'];
+            const rest = await this.fetchOrders (symbol, since, limit, params);
+            for (let i = 0; i < rest.length; i++) {
+                parsedOrders.push (rest[i]);
+            }
+        }
+        return parsedOrders;
     }
 
     async fetchSpotOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
@@ -4915,6 +4924,7 @@ export default class bybit extends Exchange {
 
     async fetchUnifiedMarginOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
         await this.loadMarkets ();
+        limit = limit || 50;
         const request = {};
         let market = undefined;
         if (symbol === undefined) {
@@ -4988,12 +4998,21 @@ export default class bybit extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'result', {});
-        const orders = this.safeValue (result, 'list', []);
-        return this.parseOrders (orders, market, since, limit);
+        const data = this.safeValue (result, 'list', []);
+        const parsedOrders = this.parseOrders (data, market, since, limit);
+        if (data.length >= 50 && result['nextPageCursor'] !== undefined) {
+            params['cursor'] = result['nextPageCursor'];
+            const rest = await this.fetchOrders (symbol, since, limit, params);
+            for (let i = 0; i < rest.length; i++) {
+                parsedOrders.push (rest[i]);
+            }
+        }
+        return parsedOrders;
     }
 
     async fetchDerivativesOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
         await this.loadMarkets ();
+        limit = limit || 50;
         let market = undefined;
         let settle = undefined;
         const request = {
@@ -5089,12 +5108,21 @@ export default class bybit extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'result', {});
-        const orders = this.safeValue (result, 'list', []);
-        return this.parseOrders (orders, market, since, limit);
+        const data = this.safeValue (result, 'list', []);
+        const parsedOrders = this.parseOrders (data, market, since, limit);
+        if (data.length >= 50 && result['nextPageCursor'] !== undefined) {
+            params['cursor'] = result['nextPageCursor'];
+            const rest = await this.fetchOrders (symbol, since, limit, params);
+            for (let i = 0; i < rest.length; i++) {
+                parsedOrders.push (rest[i]);
+            }
+        }
+        return parsedOrders;
     }
 
     async fetchUSDCOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
         await this.loadMarkets ();
+        limit = limit || 50;
         const request = {};
         let market = undefined;
         if (symbol !== undefined) {
@@ -5106,7 +5134,7 @@ export default class bybit extends Exchange {
         request['category'] = (type === 'swap') ? 'perpetual' : 'option';
         const response = await (this as any).privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders (this.extend (request, params));
         const result = this.safeValue (response, 'result', {});
-        const orders = this.safeValue (result, 'dataList', []);
+        const data = this.safeValue (result, 'dataList', []);
         //
         //     {
         //         "retCode": 0,
@@ -5133,7 +5161,15 @@ export default class bybit extends Exchange {
         //         }
         //     }
         //
-        return this.parseOrders (orders, market, since, limit);
+        const parsedOrders = this.parseOrders (data, market, since, limit);
+        if (data.length >= 50 && result['cursor'] !== undefined) {
+            params['cursor'] = result['cursor'];
+            const rest = await this.fetchOrders (symbol, since, limit, params);
+            for (let i = 0; i < rest.length; i++) {
+                parsedOrders.push (rest[i]);
+            }
+        }
+        return parsedOrders;
     }
 
     async fetchOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
