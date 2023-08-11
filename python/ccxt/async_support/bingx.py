@@ -840,6 +840,13 @@ class bingx(Exchange):
             'quantity': amount,
             'positionSide': positionSide,
         }
+        if type == 'stop' or type == 'stopLimit':
+            triggerBy = 'MARK_PRICE'
+            if params['trigger'] == 'Index':
+                triggerBy = 'INDEX_PRICE'
+            elif params['trigger'] == 'Last':
+                triggerBy = 'CONTRACT_PRICE'
+            request['workingType'] = triggerBy
         if triggerPrice is not None:
             request['stopPrice'] = self.price_to_precision(symbol, triggerPrice)
             if convertedType == 'TRIGGER_LIMIT':

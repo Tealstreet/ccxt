@@ -891,6 +891,15 @@ class bingx extends Exchange {
             'quantity' => $amount,
             'positionSide' => $positionSide,
         );
+        if ($type === 'stop' || $type === 'stopLimit') {
+            $triggerBy = 'MARK_PRICE';
+            if ($params['trigger'] === 'Index') {
+                $triggerBy = 'INDEX_PRICE';
+            } elseif ($params['trigger'] === 'Last') {
+                $triggerBy = 'CONTRACT_PRICE';
+            }
+            $request['workingType'] = $triggerBy;
+        }
         if ($triggerPrice !== null) {
             $request['stopPrice'] = $this->price_to_precision($symbol, $triggerPrice);
             if ($convertedType === 'TRIGGER_LIMIT') {

@@ -905,6 +905,15 @@ export default class bingx extends Exchange {
             'quantity': amount,
             'positionSide': positionSide,
         };
+        if (type === 'stop' || type === 'stopLimit') {
+            let triggerBy = 'MARK_PRICE';
+            if (params['trigger'] === 'Index') {
+                triggerBy = 'INDEX_PRICE';
+            } else if (params['trigger'] === 'Last') {
+                triggerBy = 'CONTRACT_PRICE';
+            }
+            request['workingType'] = triggerBy;
+        }
         if (triggerPrice !== undefined) {
             request['stopPrice'] = this.priceToPrecision (symbol, triggerPrice);
             if (convertedType === 'TRIGGER_LIMIT') {
