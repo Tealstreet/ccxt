@@ -3326,6 +3326,12 @@ class bybit(Exchange):
                 request['triggerDirection'] = 1
             else:
                 request['triggerDirection'] = 2
+        takeProfit = self.safe_string(params, 'takeProfit')
+        if takeProfit is not None:
+            request['takeProfit'] = self.price_to_precision(symbol, takeProfit)
+        stopLoss = self.safe_string(params, 'stopLoss')
+        if stopLoss is not None:
+            request['stopLoss'] = self.price_to_precision(symbol, stopLoss)
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId'])
         response = self.privatePostContractV3PrivateOrderCreate(self.extend(request, params))
         #

@@ -3517,6 +3517,14 @@ class bybit extends Exchange {
                     $request['triggerDirection'] = 2;
                 }
             }
+            $takeProfit = $this->safe_string($params, 'takeProfit');
+            if ($takeProfit !== null) {
+                $request['takeProfit'] = $this->price_to_precision($symbol, $takeProfit);
+            }
+            $stopLoss = $this->safe_string($params, 'stopLoss');
+            if ($stopLoss !== null) {
+                $request['stopLoss'] = $this->price_to_precision($symbol, $stopLoss);
+            }
             $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId' ));
             $response = Async\await($this->privatePostContractV3PrivateOrderCreate (array_merge($request, $params)));
             //

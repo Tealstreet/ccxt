@@ -3526,6 +3526,14 @@ export default class bybit extends Exchange {
                 request['triggerDirection'] = 2;
             }
         }
+        const takeProfit = this.safeString(params, 'takeProfit');
+        if (takeProfit !== undefined) {
+            request['takeProfit'] = this.priceToPrecision(symbol, takeProfit);
+        }
+        const stopLoss = this.safeString(params, 'stopLoss');
+        if (stopLoss !== undefined) {
+            request['stopLoss'] = this.priceToPrecision(symbol, stopLoss);
+        }
         params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId']);
         const response = await this.privatePostContractV3PrivateOrderCreate(this.extend(request, params));
         //
