@@ -3486,9 +3486,9 @@ class bybit(Exchange):
         if price is not None:
             request['price'] = self.price_to_precision(symbol, price)
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        stopLossPrice = self.safe_value(params, 'stopLossPrice')
+        stopLossPrice = self.safe_value_2(params, 'stopLossPrice', 'stopLoss')
         isStopLossOrder = stopLossPrice is not None
-        takeProfitPrice = self.safe_value(params, 'takeProfitPrice')
+        takeProfitPrice = self.safe_value_2(params, 'takeProfitPrice', 'takeProfit')
         isTakeProfitOrder = takeProfitPrice is not None
         if isStopLossOrder:
             request['stopLoss'] = self.price_to_precision(symbol, stopLossPrice)
@@ -3496,7 +3496,7 @@ class bybit(Exchange):
             request['takeProfit'] = self.price_to_precision(symbol, takeProfitPrice)
         if triggerPrice is not None:
             request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
-        params = self.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice'])
+        params = self.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit'])
         response = await self.privatePostV5OrderAmend(self.extend(request, params))
         #
         #     {
@@ -3600,9 +3600,9 @@ class bybit(Exchange):
         if price is not None:
             request['price'] = self.price_to_precision(symbol, price)
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        stopLossPrice = self.safe_value(params, 'stopLossPrice')
+        stopLossPrice = self.safe_value_2(params, 'stopLossPrice', 'stopLoss')
         isStopLossOrder = stopLossPrice is not None
-        takeProfitPrice = self.safe_value(params, 'takeProfitPrice')
+        takeProfitPrice = self.safe_value_2(params, 'takeProfitPrice', 'takeProfit')
         isTakeProfitOrder = takeProfitPrice is not None
         if isStopLossOrder:
             request['stopLoss'] = self.price_to_precision(symbol, stopLossPrice)
@@ -3610,7 +3610,7 @@ class bybit(Exchange):
             request['takeProfit'] = self.price_to_precision(symbol, takeProfitPrice)
         if triggerPrice is not None:
             request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
-        params = self.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice'])
+        params = self.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit'])
         response = await self.privatePostContractV3PrivateOrderReplace(self.extend(request, params))
         #
         # contract v3

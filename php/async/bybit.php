@@ -3696,9 +3696,9 @@ class bybit extends Exchange {
                 $request['price'] = $this->price_to_precision($symbol, $price);
             }
             $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-            $stopLossPrice = $this->safe_value($params, 'stopLossPrice');
+            $stopLossPrice = $this->safe_value_2($params, 'stopLossPrice', 'stopLoss');
             $isStopLossOrder = $stopLossPrice !== null;
-            $takeProfitPrice = $this->safe_value($params, 'takeProfitPrice');
+            $takeProfitPrice = $this->safe_value_2($params, 'takeProfitPrice', 'takeProfit');
             $isTakeProfitOrder = $takeProfitPrice !== null;
             if ($isStopLossOrder) {
                 $request['stopLoss'] = $this->price_to_precision($symbol, $stopLossPrice);
@@ -3709,7 +3709,7 @@ class bybit extends Exchange {
             if ($triggerPrice !== null) {
                 $request['triggerPrice'] = $this->price_to_precision($symbol, $triggerPrice);
             }
-            $params = $this->omit($params, array( 'stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice' ));
+            $params = $this->omit($params, array( 'stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit' ));
             $response = Async\await($this->privatePostV5OrderAmend (array_merge($request, $params)));
             //
             //     {
@@ -3829,9 +3829,9 @@ class bybit extends Exchange {
                 $request['price'] = $this->price_to_precision($symbol, $price);
             }
             $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-            $stopLossPrice = $this->safe_value($params, 'stopLossPrice');
+            $stopLossPrice = $this->safe_value_2($params, 'stopLossPrice', 'stopLoss');
             $isStopLossOrder = $stopLossPrice !== null;
-            $takeProfitPrice = $this->safe_value($params, 'takeProfitPrice');
+            $takeProfitPrice = $this->safe_value_2($params, 'takeProfitPrice', 'takeProfit');
             $isTakeProfitOrder = $takeProfitPrice !== null;
             if ($isStopLossOrder) {
                 $request['stopLoss'] = $this->price_to_precision($symbol, $stopLossPrice);
@@ -3842,7 +3842,7 @@ class bybit extends Exchange {
             if ($triggerPrice !== null) {
                 $request['triggerPrice'] = $this->price_to_precision($symbol, $triggerPrice);
             }
-            $params = $this->omit($params, array( 'stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice' ));
+            $params = $this->omit($params, array( 'stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit' ));
             $response = Async\await($this->privatePostContractV3PrivateOrderReplace (array_merge($request, $params)));
             //
             // contract v3

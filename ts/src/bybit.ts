@@ -3684,9 +3684,9 @@ export default class bybit extends Exchange {
             request['price'] = this.priceToPrecision (symbol, price);
         }
         const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
-        const stopLossPrice = this.safeValue (params, 'stopLossPrice');
+        const stopLossPrice = this.safeValue2 (params, 'stopLossPrice', 'stopLoss');
         const isStopLossOrder = stopLossPrice !== undefined;
-        const takeProfitPrice = this.safeValue (params, 'takeProfitPrice');
+        const takeProfitPrice = this.safeValue2 (params, 'takeProfitPrice', 'takeProfit');
         const isTakeProfitOrder = takeProfitPrice !== undefined;
         if (isStopLossOrder) {
             request['stopLoss'] = this.priceToPrecision (symbol, stopLossPrice);
@@ -3697,7 +3697,7 @@ export default class bybit extends Exchange {
         if (triggerPrice !== undefined) {
             request['triggerPrice'] = this.priceToPrecision (symbol, triggerPrice);
         }
-        params = this.omit (params, [ 'stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice' ]);
+        params = this.omit (params, [ 'stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit' ]);
         const response = await (this as any).privatePostV5OrderAmend (this.extend (request, params));
         //
         //     {
@@ -3813,9 +3813,9 @@ export default class bybit extends Exchange {
             request['price'] = this.priceToPrecision (symbol, price);
         }
         const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
-        const stopLossPrice = this.safeValue (params, 'stopLossPrice');
+        const stopLossPrice = this.safeValue2 (params, 'stopLossPrice', 'stopLoss');
         const isStopLossOrder = stopLossPrice !== undefined;
-        const takeProfitPrice = this.safeValue (params, 'takeProfitPrice');
+        const takeProfitPrice = this.safeValue2 (params, 'takeProfitPrice', 'takeProfit');
         const isTakeProfitOrder = takeProfitPrice !== undefined;
         if (isStopLossOrder) {
             request['stopLoss'] = this.priceToPrecision (symbol, stopLossPrice);
@@ -3826,7 +3826,7 @@ export default class bybit extends Exchange {
         if (triggerPrice !== undefined) {
             request['triggerPrice'] = this.priceToPrecision (symbol, triggerPrice);
         }
-        params = this.omit (params, [ 'stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice' ]);
+        params = this.omit (params, [ 'stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit' ]);
         const response = await (this as any).privatePostContractV3PrivateOrderReplace (this.extend (request, params));
         //
         // contract v3
