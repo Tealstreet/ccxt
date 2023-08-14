@@ -3016,6 +3016,8 @@ export default class bybit extends Exchange {
         else if (trigger === 'MarkPrice') {
             trigger = 'Mark';
         }
+        const takeProfit = this.safeString(order, 'takeProfit');
+        const stopLoss = this.safeString(order, 'stopLoss');
         return this.safeOrder({
             'info': order,
             'id': id,
@@ -3040,6 +3042,8 @@ export default class bybit extends Exchange {
             'status': status,
             'fee': fee,
             'trades': undefined,
+            'takeProfit': takeProfit,
+            'stopLoss': stopLoss,
             // TEALSTREET
             'reduce': this.safeValue(order, 'reduceOnly'),
             'trigger': trigger,

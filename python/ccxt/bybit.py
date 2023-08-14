@@ -2902,6 +2902,8 @@ class bybit(Exchange):
             trigger = 'Index'
         elif trigger == 'MarkPrice':
             trigger = 'Mark'
+        takeProfit = self.safe_string(order, 'takeProfit')
+        stopLoss = self.safe_string(order, 'stopLoss')
         return self.safe_order({
             'info': order,
             'id': id,
@@ -2926,6 +2928,8 @@ class bybit(Exchange):
             'status': status,
             'fee': fee,
             'trades': None,
+            'takeProfit': takeProfit,
+            'stopLoss': stopLoss,
             # TEALSTREET
             'reduce': self.safe_value(order, 'reduceOnly'),
             'trigger': trigger,

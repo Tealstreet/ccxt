@@ -2985,6 +2985,8 @@ class bybit extends Exchange {
         } elseif ($trigger === 'MarkPrice') {
             $trigger = 'Mark';
         }
+        $takeProfit = $this->safe_string($order, 'takeProfit');
+        $stopLoss = $this->safe_string($order, 'stopLoss');
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,
@@ -3009,6 +3011,8 @@ class bybit extends Exchange {
             'status' => $status,
             'fee' => $fee,
             'trades' => null,
+            'takeProfit' => $takeProfit,
+            'stopLoss' => $stopLoss,
             // TEALSTREET
             'reduce' => $this->safe_value($order, 'reduceOnly'),
             'trigger' => $trigger,
