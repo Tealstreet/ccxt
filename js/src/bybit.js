@@ -3358,9 +3358,9 @@ export default class bybit extends Exchange {
                 }
             }
         }
-        request['tpslOrderType'] = 'Partial';
+        request['tpslMode'] = 'Partial';
         if (amount === 0) {
-            request['tpslOrderType'] = 'Full';
+            request['tpslMode'] = 'Full';
             request['tpOrderType'] = 'Market';
             request['slOrderType'] = 'Market';
         }
@@ -3392,6 +3392,14 @@ export default class bybit extends Exchange {
             else {
                 request['triggerDirection'] = 2;
             }
+        }
+        const takeProfit = this.safeString(params, 'takeProfit');
+        if (takeProfit !== undefined) {
+            request['takeProfit'] = this.priceToPrecision(symbol, takeProfit);
+        }
+        const stopLoss = this.safeString(params, 'stopLoss');
+        if (stopLoss !== undefined) {
+            request['stopLoss'] = this.priceToPrecision(symbol, stopLoss);
         }
         params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close']);
         const response = await this.privatePostV5OrderCreate(this.extend(request, params));
@@ -3483,9 +3491,9 @@ export default class bybit extends Exchange {
                 }
             }
         }
-        request['tpslOrderType'] = 'Partial';
+        request['tpslMode'] = 'Partial';
         if (amount === 0) {
-            request['tpslOrderType'] = 'Full';
+            request['tpslMode'] = 'Full';
             request['tpOrderType'] = 'Market';
             request['slOrderType'] = 'Market';
         }

@@ -3188,9 +3188,9 @@ class bybit(Exchange):
                     request['positionIdx'] = 1
                 elif (side == 'sell' and not reduceOnly) or (side == 'buy' and reduceOnly):
                     request['positionIdx'] = 2
-        request['tpslOrderType'] = 'Partial'
+        request['tpslMode'] = 'Partial'
         if amount == 0:
-            request['tpslOrderType'] = 'Full'
+            request['tpslMode'] = 'Full'
             request['tpOrderType'] = 'Market'
             request['slOrderType'] = 'Market'
         triggerPrice = self.safe_number_2(params, 'stopPrice', 'triggerPrice')
@@ -3217,6 +3217,12 @@ class bybit(Exchange):
                 request['triggerDirection'] = 1
             else:
                 request['triggerDirection'] = 2
+        takeProfit = self.safe_string(params, 'takeProfit')
+        if takeProfit is not None:
+            request['takeProfit'] = self.price_to_precision(symbol, takeProfit)
+        stopLoss = self.safe_string(params, 'stopLoss')
+        if stopLoss is not None:
+            request['stopLoss'] = self.price_to_precision(symbol, stopLoss)
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close'])
         response = self.privatePostV5OrderCreate(self.extend(request, params))
         order = self.safe_value(response, 'result', {})
@@ -3291,9 +3297,9 @@ class bybit(Exchange):
                     request['positionIdx'] = 1
                 elif (side == 'sell' and not reduceOnly) or (side == 'buy' and reduceOnly):
                     request['positionIdx'] = 2
-        request['tpslOrderType'] = 'Partial'
+        request['tpslMode'] = 'Partial'
         if amount == 0:
-            request['tpslOrderType'] = 'Full'
+            request['tpslMode'] = 'Full'
             request['tpOrderType'] = 'Market'
             request['slOrderType'] = 'Market'
         triggerPrice = self.safe_number_2(params, 'stopPrice', 'triggerPrice')

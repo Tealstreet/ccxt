@@ -3309,9 +3309,9 @@ class bybit extends Exchange {
                 }
             }
         }
-        $request['tpslOrderType'] = 'Partial';
+        $request['tpslMode'] = 'Partial';
         if ($amount === 0) {
-            $request['tpslOrderType'] = 'Full';
+            $request['tpslMode'] = 'Full';
             $request['tpOrderType'] = 'Market';
             $request['slOrderType'] = 'Market';
         }
@@ -3342,6 +3342,14 @@ class bybit extends Exchange {
             } else {
                 $request['triggerDirection'] = 2;
             }
+        }
+        $takeProfit = $this->safe_string($params, 'takeProfit');
+        if ($takeProfit !== null) {
+            $request['takeProfit'] = $this->price_to_precision($symbol, $takeProfit);
+        }
+        $stopLoss = $this->safe_string($params, 'stopLoss');
+        if ($stopLoss !== null) {
+            $request['stopLoss'] = $this->price_to_precision($symbol, $stopLoss);
         }
         $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close' ));
         $response = $this->privatePostV5OrderCreate (array_merge($request, $params));
@@ -3427,9 +3435,9 @@ class bybit extends Exchange {
                 }
             }
         }
-        $request['tpslOrderType'] = 'Partial';
+        $request['tpslMode'] = 'Partial';
         if ($amount === 0) {
-            $request['tpslOrderType'] = 'Full';
+            $request['tpslMode'] = 'Full';
             $request['tpOrderType'] = 'Market';
             $request['slOrderType'] = 'Market';
         }
