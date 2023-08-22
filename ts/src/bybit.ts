@@ -4881,12 +4881,16 @@ export default class bybit extends Exchange {
         //
         const result = this.safeValue (response, 'result', {});
         const data = this.safeValue (result, 'list', []);
-        const parsedOrders = this.parseOrders (data, market, since, limit);
-        if (data.length >= 50 && result['nextPageCursor'] !== undefined) {
-            params['cursor'] = result['nextPageCursor'];
-            const rest = await this.fetchOrders (symbol, since, limit, params);
-            for (let i = 0; i < rest.length; i++) {
-                parsedOrders.push (rest[i]);
+        let parsedOrders = this.parseOrders (data, market, since, limit);
+        let paginationCursor = this.safeString (result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privateGetV5OrderRealtime (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const data = this.safeValue (result, 'list', []);
+                parsedOrders = this.arrayConcat (parsedOrders, this.parseOrders (data, market, since, limit));
+                paginationCursor = this.safeString (result, 'nextPageCursor');
             }
         }
         return parsedOrders;
@@ -4938,8 +4942,20 @@ export default class bybit extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'result', {});
-        const orders = this.safeValue (result, 'list', []);
-        return this.parseOrders (orders, market, since, limit);
+        const data = this.safeValue (result, 'list', []);
+        let parsedOrders = this.parseOrders (data, market, since, limit);
+        let paginationCursor = this.safeString (result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privateGetSpotV3PrivateOpenOrders (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const data = this.safeValue (result, 'list', []);
+                parsedOrders = this.arrayConcat (parsedOrders, this.parseOrders (data, market, since, limit));
+                paginationCursor = this.safeString (result, 'nextPageCursor');
+            }
+        }
+        return parsedOrders;
     }
 
     async fetchUnifiedMarginOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
@@ -5019,12 +5035,16 @@ export default class bybit extends Exchange {
         //
         const result = this.safeValue (response, 'result', {});
         const data = this.safeValue (result, 'list', []);
-        const parsedOrders = this.parseOrders (data, market, since, limit);
-        if (data.length >= 50 && result['nextPageCursor'] !== undefined) {
-            params['cursor'] = result['nextPageCursor'];
-            const rest = await this.fetchOrders (symbol, since, limit, params);
-            for (let i = 0; i < rest.length; i++) {
-                parsedOrders.push (rest[i]);
+        let parsedOrders = this.parseOrders (data, market, since, limit);
+        let paginationCursor = this.safeString (result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privateGetUnifiedV3PrivateOrderUnfilledOrders (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const data = this.safeValue (result, 'list', []);
+                parsedOrders = this.arrayConcat (parsedOrders, this.parseOrders (data, market, since, limit));
+                paginationCursor = this.safeString (result, 'nextPageCursor');
             }
         }
         return parsedOrders;
@@ -5129,12 +5149,16 @@ export default class bybit extends Exchange {
         //
         const result = this.safeValue (response, 'result', {});
         const data = this.safeValue (result, 'list', []);
-        const parsedOrders = this.parseOrders (data, market, since, limit);
-        if (data.length >= 50 && result['nextPageCursor'] !== undefined) {
-            params['cursor'] = result['nextPageCursor'];
-            const rest = await this.fetchOrders (symbol, since, limit, params);
-            for (let i = 0; i < rest.length; i++) {
-                parsedOrders.push (rest[i]);
+        let parsedOrders = this.parseOrders (data, market, since, limit);
+        let paginationCursor = this.safeString (result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privateGetV5OrderRealtime (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const data = this.safeValue (result, 'list', []);
+                parsedOrders = this.arrayConcat (parsedOrders, this.parseOrders (data, market, since, limit));
+                paginationCursor = this.safeString (result, 'nextPageCursor');
             }
         }
         return parsedOrders;
@@ -5153,8 +5177,6 @@ export default class bybit extends Exchange {
         [ type, params ] = this.handleMarketTypeAndParams ('fetchUSDCOpenOrders', market, params);
         request['category'] = (type === 'swap') ? 'perpetual' : 'option';
         const response = await (this as any).privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders (this.extend (request, params));
-        const result = this.safeValue (response, 'result', {});
-        const data = this.safeValue (result, 'dataList', []);
         //
         //     {
         //         "retCode": 0,
@@ -5181,12 +5203,18 @@ export default class bybit extends Exchange {
         //         }
         //     }
         //
-        const parsedOrders = this.parseOrders (data, market, since, limit);
-        if (data.length >= 50 && result['cursor'] !== undefined) {
-            params['cursor'] = result['cursor'];
-            const rest = await this.fetchOrders (symbol, since, limit, params);
-            for (let i = 0; i < rest.length; i++) {
-                parsedOrders.push (rest[i]);
+        const result = this.safeValue (response, 'result', {});
+        const data = this.safeValue (result, 'dataList', []);
+        let parsedOrders = this.parseOrders (data, market, since, limit);
+        let paginationCursor = this.safeString (result, 'cursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const data = this.safeValue (result, 'dataList', []);
+                parsedOrders = this.arrayConcat (parsedOrders, this.parseOrders (data, market, since, limit));
+                paginationCursor = this.safeString (result, 'cursor');
             }
         }
         return parsedOrders;
@@ -5328,7 +5356,19 @@ export default class bybit extends Exchange {
         //
         const result = this.safeValue (response, 'result', {});
         const trades = this.safeValue (result, 'list', []);
-        return this.parseTrades (trades, market, since, limit);
+        let parsedTrades = this.parseTrades (trades, market, since, limit);
+        let paginationCursor = this.safeString (result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privateGetV5ExecutionList (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const trades = this.safeValue (result, 'list', []);
+                parsedTrades = this.arrayConcat (parsedTrades, this.parseTrades (trades, market, since, limit));
+                paginationCursor = this.safeString (result, 'nextPageCursor');
+            }
+        }
+        return parsedTrades;
     }
 
     async fetchMyUnifiedMarginTrades (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
@@ -5397,7 +5437,19 @@ export default class bybit extends Exchange {
         //
         const result = this.safeValue (response, 'result', {});
         const trades = this.safeValue (result, 'list', []);
-        return this.parseTrades (trades, market, since, limit);
+        let parsedTrades = this.parseTrades (trades, market, since, limit);
+        let paginationCursor = this.safeString (result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privateGetUnifiedV3PrivateExecutionList (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const trades = this.safeValue (result, 'list', []);
+                parsedTrades = this.arrayConcat (parsedTrades, this.parseTrades (trades, market, since, limit));
+                paginationCursor = this.safeString (result, 'nextPageCursor');
+            }
+        }
+        return parsedTrades;
     }
 
     async fetchMyContractTrades (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
@@ -5474,7 +5526,19 @@ export default class bybit extends Exchange {
         //
         const result = this.safeValue (response, 'result', {});
         const trades = this.safeValue (result, 'list', []);
-        return this.parseTrades (trades, market, since, limit);
+        let parsedTrades = this.parseTrades (trades, market, since, limit);
+        let paginationCursor = this.safeString (result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privateGetV5ExecutionList (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const trades = this.safeValue (result, 'list', []);
+                parsedTrades = this.arrayConcat (parsedTrades, this.parseTrades (trades, market, since, limit));
+                paginationCursor = this.safeString (result, 'nextPageCursor');
+            }
+        }
+        return parsedTrades;
     }
 
     async fetchMyUsdcTrades (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
@@ -5518,8 +5582,20 @@ export default class bybit extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'result', {});
-        const dataList = this.safeValue (result, 'dataList', []);
-        return this.parseTrades (dataList, market, since, limit);
+        const trades = this.safeValue (result, 'dataList', []);
+        let parsedTrades = this.parseTrades (trades, market, since, limit);
+        let paginationCursor = this.safeString (result, 'cursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await (this as any).privatePostOptionUsdcOpenapiPrivateV1ExecutionList (this.extend (request, params));
+                const result = this.safeValue (response, 'result', {});
+                const trades = this.safeValue (result, 'dataList', []);
+                parsedTrades = this.arrayConcat (parsedTrades, this.parseTrades (trades, market, since, limit));
+                paginationCursor = this.safeString (result, 'cursor');
+            }
+        }
+        return parsedTrades;
     }
 
     async fetchMyTrades (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {

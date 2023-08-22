@@ -4832,11 +4832,15 @@ class bybit extends Exchange {
         $result = $this->safe_value($response, 'result', array());
         $data = $this->safe_value($result, 'list', array());
         $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
-        if (strlen($data) >= 50 && $result['nextPageCursor'] !== null) {
-            $params['cursor'] = $result['nextPageCursor'];
-            $rest = $this->fetch_orders($symbol, $since, $limit, $params);
-            for ($i = 0; $i < count($rest); $i++) {
-                $parsedOrders[] = $rest[$i];
+        $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privateGetV5OrderRealtime (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $data = $this->safe_value($result, 'list', array());
+                $parsedOrders = $this->array_concat($parsedOrders, $this->parse_orders($data, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'nextPageCursor');
             }
         }
         return $parsedOrders;
@@ -4888,8 +4892,20 @@ class bybit extends Exchange {
         //     }
         //
         $result = $this->safe_value($response, 'result', array());
-        $orders = $this->safe_value($result, 'list', array());
-        return $this->parse_orders($orders, $market, $since, $limit);
+        $data = $this->safe_value($result, 'list', array());
+        $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
+        $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privateGetSpotV3PrivateOpenOrders (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $data = $this->safe_value($result, 'list', array());
+                $parsedOrders = $this->array_concat($parsedOrders, $this->parse_orders($data, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+            }
+        }
+        return $parsedOrders;
     }
 
     public function fetch_unified_margin_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -4970,11 +4986,15 @@ class bybit extends Exchange {
         $result = $this->safe_value($response, 'result', array());
         $data = $this->safe_value($result, 'list', array());
         $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
-        if (strlen($data) >= 50 && $result['nextPageCursor'] !== null) {
-            $params['cursor'] = $result['nextPageCursor'];
-            $rest = $this->fetch_orders($symbol, $since, $limit, $params);
-            for ($i = 0; $i < count($rest); $i++) {
-                $parsedOrders[] = $rest[$i];
+        $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privateGetUnifiedV3PrivateOrderUnfilledOrders (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $data = $this->safe_value($result, 'list', array());
+                $parsedOrders = $this->array_concat($parsedOrders, $this->parse_orders($data, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'nextPageCursor');
             }
         }
         return $parsedOrders;
@@ -5080,11 +5100,15 @@ class bybit extends Exchange {
         $result = $this->safe_value($response, 'result', array());
         $data = $this->safe_value($result, 'list', array());
         $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
-        if (strlen($data) >= 50 && $result['nextPageCursor'] !== null) {
-            $params['cursor'] = $result['nextPageCursor'];
-            $rest = $this->fetch_orders($symbol, $since, $limit, $params);
-            for ($i = 0; $i < count($rest); $i++) {
-                $parsedOrders[] = $rest[$i];
+        $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privateGetV5OrderRealtime (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $data = $this->safe_value($result, 'list', array());
+                $parsedOrders = $this->array_concat($parsedOrders, $this->parse_orders($data, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'nextPageCursor');
             }
         }
         return $parsedOrders;
@@ -5103,8 +5127,6 @@ class bybit extends Exchange {
         list($type, $params) = $this->handle_market_type_and_params('fetchUSDCOpenOrders', $market, $params);
         $request['category'] = ($type === 'swap') ? 'perpetual' : 'option';
         $response = $this->privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders (array_merge($request, $params));
-        $result = $this->safe_value($response, 'result', array());
-        $data = $this->safe_value($result, 'dataList', array());
         //
         //     {
         //         "retCode" => 0,
@@ -5131,12 +5153,18 @@ class bybit extends Exchange {
         //         }
         //     }
         //
+        $result = $this->safe_value($response, 'result', array());
+        $data = $this->safe_value($result, 'dataList', array());
         $parsedOrders = $this->parse_orders($data, $market, $since, $limit);
-        if (strlen($data) >= 50 && $result['cursor'] !== null) {
-            $params['cursor'] = $result['cursor'];
-            $rest = $this->fetch_orders($symbol, $since, $limit, $params);
-            for ($i = 0; $i < count($rest); $i++) {
-                $parsedOrders[] = $rest[$i];
+        $paginationCursor = $this->safe_string($result, 'cursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $data = $this->safe_value($result, 'dataList', array());
+                $parsedOrders = $this->array_concat($parsedOrders, $this->parse_orders($data, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'cursor');
             }
         }
         return $parsedOrders;
@@ -5274,7 +5302,19 @@ class bybit extends Exchange {
         //
         $result = $this->safe_value($response, 'result', array());
         $trades = $this->safe_value($result, 'list', array());
-        return $this->parse_trades($trades, $market, $since, $limit);
+        $parsedTrades = $this->parse_trades($trades, $market, $since, $limit);
+        $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privateGetV5ExecutionList (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $trades = $this->safe_value($result, 'list', array());
+                $parsedTrades = $this->array_concat($parsedTrades, $this->parse_trades($trades, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+            }
+        }
+        return $parsedTrades;
     }
 
     public function fetch_my_unified_margin_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -5343,7 +5383,19 @@ class bybit extends Exchange {
         //
         $result = $this->safe_value($response, 'result', array());
         $trades = $this->safe_value($result, 'list', array());
-        return $this->parse_trades($trades, $market, $since, $limit);
+        $parsedTrades = $this->parse_trades($trades, $market, $since, $limit);
+        $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privateGetUnifiedV3PrivateExecutionList (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $trades = $this->safe_value($result, 'list', array());
+                $parsedTrades = $this->array_concat($parsedTrades, $this->parse_trades($trades, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+            }
+        }
+        return $parsedTrades;
     }
 
     public function fetch_my_contract_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -5420,7 +5472,19 @@ class bybit extends Exchange {
         //
         $result = $this->safe_value($response, 'result', array());
         $trades = $this->safe_value($result, 'list', array());
-        return $this->parse_trades($trades, $market, $since, $limit);
+        $parsedTrades = $this->parse_trades($trades, $market, $since, $limit);
+        $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privateGetV5ExecutionList (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $trades = $this->safe_value($result, 'list', array());
+                $parsedTrades = $this->array_concat($parsedTrades, $this->parse_trades($trades, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'nextPageCursor');
+            }
+        }
+        return $parsedTrades;
     }
 
     public function fetch_my_usdc_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
@@ -5464,8 +5528,20 @@ class bybit extends Exchange {
         //     }
         //
         $result = $this->safe_value($response, 'result', array());
-        $dataList = $this->safe_value($result, 'dataList', array());
-        return $this->parse_trades($dataList, $market, $since, $limit);
+        $trades = $this->safe_value($result, 'dataList', array());
+        $parsedTrades = $this->parse_trades($trades, $market, $since, $limit);
+        $paginationCursor = $this->safe_string($result, 'cursor');
+        if ($paginationCursor !== null) {
+            while ($paginationCursor !== null) {
+                $params['cursor'] = $paginationCursor;
+                $response = $this->privatePostOptionUsdcOpenapiPrivateV1ExecutionList (array_merge($request, $params));
+                $result = $this->safe_value($response, 'result', array());
+                $trades = $this->safe_value($result, 'dataList', array());
+                $parsedTrades = $this->array_concat($parsedTrades, $this->parse_trades($trades, $market, $since, $limit));
+                $paginationCursor = $this->safe_string($result, 'cursor');
+            }
+        }
+        return $parsedTrades;
     }
 
     public function fetch_my_trades($symbol = null, $since = null, $limit = null, $params = array ()) {

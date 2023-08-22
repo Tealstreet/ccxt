@@ -4568,11 +4568,15 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         data = self.safe_value(result, 'list', [])
         parsedOrders = self.parse_orders(data, market, since, limit)
-        if len(data) >= 50 and result['nextPageCursor'] is not None:
-            params['cursor'] = result['nextPageCursor']
-            rest = await self.fetch_orders(symbol, since, limit, params)
-            for i in range(0, len(rest)):
-                parsedOrders.append(rest[i])
+        paginationCursor = self.safe_string(result, 'nextPageCursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privateGetV5OrderRealtime(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                data = self.safe_value(result, 'list', [])
+                parsedOrders = self.array_concat(parsedOrders, self.parse_orders(data, market, since, limit))
+                paginationCursor = self.safe_string(result, 'nextPageCursor')
         return parsedOrders
 
     async def fetch_spot_open_orders(self, symbol=None, since=None, limit=None, params={}):
@@ -4619,8 +4623,18 @@ class bybit(Exchange):
         #     }
         #
         result = self.safe_value(response, 'result', {})
-        orders = self.safe_value(result, 'list', [])
-        return self.parse_orders(orders, market, since, limit)
+        data = self.safe_value(result, 'list', [])
+        parsedOrders = self.parse_orders(data, market, since, limit)
+        paginationCursor = self.safe_string(result, 'nextPageCursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privateGetSpotV3PrivateOpenOrders(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                data = self.safe_value(result, 'list', [])
+                parsedOrders = self.array_concat(parsedOrders, self.parse_orders(data, market, since, limit))
+                paginationCursor = self.safe_string(result, 'nextPageCursor')
+        return parsedOrders
 
     async def fetch_unified_margin_open_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -4696,11 +4710,15 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         data = self.safe_value(result, 'list', [])
         parsedOrders = self.parse_orders(data, market, since, limit)
-        if len(data) >= 50 and result['nextPageCursor'] is not None:
-            params['cursor'] = result['nextPageCursor']
-            rest = await self.fetch_orders(symbol, since, limit, params)
-            for i in range(0, len(rest)):
-                parsedOrders.append(rest[i])
+        paginationCursor = self.safe_string(result, 'nextPageCursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privateGetUnifiedV3PrivateOrderUnfilledOrders(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                data = self.safe_value(result, 'list', [])
+                parsedOrders = self.array_concat(parsedOrders, self.parse_orders(data, market, since, limit))
+                paginationCursor = self.safe_string(result, 'nextPageCursor')
         return parsedOrders
 
     async def fetch_derivatives_open_orders(self, symbol=None, since=None, limit=None, params={}):
@@ -4797,11 +4815,15 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         data = self.safe_value(result, 'list', [])
         parsedOrders = self.parse_orders(data, market, since, limit)
-        if len(data) >= 50 and result['nextPageCursor'] is not None:
-            params['cursor'] = result['nextPageCursor']
-            rest = await self.fetch_orders(symbol, since, limit, params)
-            for i in range(0, len(rest)):
-                parsedOrders.append(rest[i])
+        paginationCursor = self.safe_string(result, 'nextPageCursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privateGetV5OrderRealtime(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                data = self.safe_value(result, 'list', [])
+                parsedOrders = self.array_concat(parsedOrders, self.parse_orders(data, market, since, limit))
+                paginationCursor = self.safe_string(result, 'nextPageCursor')
         return parsedOrders
 
     async def fetch_usdc_open_orders(self, symbol=None, since=None, limit=None, params={}):
@@ -4816,8 +4838,6 @@ class bybit(Exchange):
         type, params = self.handle_market_type_and_params('fetchUSDCOpenOrders', market, params)
         request['category'] = 'perpetual' if (type == 'swap') else 'option'
         response = await self.privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders(self.extend(request, params))
-        result = self.safe_value(response, 'result', {})
-        data = self.safe_value(result, 'dataList', [])
         #
         #     {
         #         "retCode": 0,
@@ -4844,12 +4864,18 @@ class bybit(Exchange):
         #         }
         #     }
         #
+        result = self.safe_value(response, 'result', {})
+        data = self.safe_value(result, 'dataList', [])
         parsedOrders = self.parse_orders(data, market, since, limit)
-        if len(data) >= 50 and result['cursor'] is not None:
-            params['cursor'] = result['cursor']
-            rest = await self.fetch_orders(symbol, since, limit, params)
-            for i in range(0, len(rest)):
-                parsedOrders.append(rest[i])
+        paginationCursor = self.safe_string(result, 'cursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                data = self.safe_value(result, 'dataList', [])
+                parsedOrders = self.array_concat(parsedOrders, self.parse_orders(data, market, since, limit))
+                paginationCursor = self.safe_string(result, 'cursor')
         return parsedOrders
 
     async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
@@ -4974,7 +5000,17 @@ class bybit(Exchange):
         #
         result = self.safe_value(response, 'result', {})
         trades = self.safe_value(result, 'list', [])
-        return self.parse_trades(trades, market, since, limit)
+        parsedTrades = self.parse_trades(trades, market, since, limit)
+        paginationCursor = self.safe_string(result, 'nextPageCursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privateGetV5ExecutionList(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                trades = self.safe_value(result, 'list', [])
+                parsedTrades = self.array_concat(parsedTrades, self.parse_trades(trades, market, since, limit))
+                paginationCursor = self.safe_string(result, 'nextPageCursor')
+        return parsedTrades
 
     async def fetch_my_unified_margin_trades(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -5038,7 +5074,17 @@ class bybit(Exchange):
         #
         result = self.safe_value(response, 'result', {})
         trades = self.safe_value(result, 'list', [])
-        return self.parse_trades(trades, market, since, limit)
+        parsedTrades = self.parse_trades(trades, market, since, limit)
+        paginationCursor = self.safe_string(result, 'nextPageCursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privateGetUnifiedV3PrivateExecutionList(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                trades = self.safe_value(result, 'list', [])
+                parsedTrades = self.array_concat(parsedTrades, self.parse_trades(trades, market, since, limit))
+                paginationCursor = self.safe_string(result, 'nextPageCursor')
+        return parsedTrades
 
     async def fetch_my_contract_trades(self, symbol=None, since=None, limit=None, params={}):
         if symbol is None:
@@ -5110,7 +5156,17 @@ class bybit(Exchange):
         #
         result = self.safe_value(response, 'result', {})
         trades = self.safe_value(result, 'list', [])
-        return self.parse_trades(trades, market, since, limit)
+        parsedTrades = self.parse_trades(trades, market, since, limit)
+        paginationCursor = self.safe_string(result, 'nextPageCursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privateGetV5ExecutionList(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                trades = self.safe_value(result, 'list', [])
+                parsedTrades = self.array_concat(parsedTrades, self.parse_trades(trades, market, since, limit))
+                paginationCursor = self.safe_string(result, 'nextPageCursor')
+        return parsedTrades
 
     async def fetch_my_usdc_trades(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
@@ -5152,8 +5208,18 @@ class bybit(Exchange):
         #     }
         #
         result = self.safe_value(response, 'result', {})
-        dataList = self.safe_value(result, 'dataList', [])
-        return self.parse_trades(dataList, market, since, limit)
+        trades = self.safe_value(result, 'dataList', [])
+        parsedTrades = self.parse_trades(trades, market, since, limit)
+        paginationCursor = self.safe_string(result, 'cursor')
+        if paginationCursor is not None:
+            while(paginationCursor is not None):
+                params['cursor'] = paginationCursor
+                response = await self.privatePostOptionUsdcOpenapiPrivateV1ExecutionList(self.extend(request, params))
+                result = self.safe_value(response, 'result', {})
+                trades = self.safe_value(result, 'dataList', [])
+                parsedTrades = self.array_concat(parsedTrades, self.parse_trades(trades, market, since, limit))
+                paginationCursor = self.safe_string(result, 'cursor')
+        return parsedTrades
 
     async def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         """
