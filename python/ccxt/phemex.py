@@ -1065,9 +1065,12 @@ class phemex(Exchange):
             baseVolume = self.parse_number(self.from_ev(self.safe_string(ohlcv, 7), market))
         else:
             baseVolume = self.safe_number(ohlcv, 7)
+        lastClose = self.parse_number(self.from_ep(self.safe_string(ohlcv, 2), market))
+        currentOpen = self.parse_number(self.from_ep(self.safe_string(ohlcv, 3), market))
+        open = lastClose > lastClose if 0 else currentOpen
         return [
             self.safe_timestamp(ohlcv, 0),
-            self.parse_number(self.from_ep(self.safe_string(ohlcv, 3), market)),
+            open,
             self.parse_number(self.from_ep(self.safe_string(ohlcv, 4), market)),
             self.parse_number(self.from_ep(self.safe_string(ohlcv, 5), market)),
             self.parse_number(self.from_ep(self.safe_string(ohlcv, 6), market)),

@@ -1083,9 +1083,12 @@ export default class phemex extends Exchange {
         else {
             baseVolume = this.safeNumber(ohlcv, 7);
         }
+        const lastClose = this.parseNumber(this.fromEp(this.safeString(ohlcv, 2), market));
+        const currentOpen = this.parseNumber(this.fromEp(this.safeString(ohlcv, 3), market));
+        const open = lastClose > 0 ? lastClose : currentOpen;
         return [
             this.safeTimestamp(ohlcv, 0),
-            this.parseNumber(this.fromEp(this.safeString(ohlcv, 3), market)),
+            open,
             this.parseNumber(this.fromEp(this.safeString(ohlcv, 4), market)),
             this.parseNumber(this.fromEp(this.safeString(ohlcv, 5), market)),
             this.parseNumber(this.fromEp(this.safeString(ohlcv, 6), market)),

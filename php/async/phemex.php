@@ -1087,7 +1087,7 @@ class phemex extends Exchange {
         //         1592467200, // timestamp
         //         300, // interval
         //         23376000000, // last
-        //         23322000000, // open
+        //         23322000000, // $open
         //         23381000000, // high
         //         23315000000, // low
         //         23367000000, // close
@@ -1101,9 +1101,12 @@ class phemex extends Exchange {
         } else {
             $baseVolume = $this->safe_number($ohlcv, 7);
         }
+        $lastClose = $this->parse_number($this->from_ep($this->safe_string($ohlcv, 2), $market));
+        $currentOpen = $this->parse_number($this->from_ep($this->safe_string($ohlcv, 3), $market));
+        $open = $lastClose > 0 ? $lastClose : $currentOpen;
         return array(
             $this->safe_timestamp($ohlcv, 0),
-            $this->parse_number($this->from_ep($this->safe_string($ohlcv, 3), $market)),
+            $open,
             $this->parse_number($this->from_ep($this->safe_string($ohlcv, 4), $market)),
             $this->parse_number($this->from_ep($this->safe_string($ohlcv, 5), $market)),
             $this->parse_number($this->from_ep($this->safe_string($ohlcv, 6), $market)),
