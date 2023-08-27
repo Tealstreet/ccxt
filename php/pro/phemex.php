@@ -513,6 +513,7 @@ class phemex extends \ccxt\async\phemex {
                 'id' => $requestId,
                 'params' => [
                     $market['id'],
+                    true,
                 ],
             );
             $request = $this->deep_extend($subscribe, $params);

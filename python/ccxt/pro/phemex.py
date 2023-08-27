@@ -471,6 +471,7 @@ class phemex(ccxt.async_support.phemex):
             'id': requestId,
             'params': [
                 market['id'],
+                True,
             ],
         }
         request = self.deep_extend(subscribe, params)

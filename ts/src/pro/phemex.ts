@@ -510,6 +510,7 @@ export default class phemex extends phemexRest {
             'id': requestId,
             'params': [
                 market['id'],
+                true,
             ],
         };
         const request = this.deepExtend (subscribe, params);
