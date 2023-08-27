@@ -1062,6 +1062,7 @@ class woo(Exchange):
         if since is not None:
             request['start_t'] = since
         request['size'] = 500
+        request['status'] = 'INCOMPLETE'
         ordersResponse = self.v1PrivateGetOrders(self.extend(request, params))
         #
         #     {

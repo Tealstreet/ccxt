@@ -1125,6 +1125,7 @@ export default class woo extends Exchange {
             request['start_t'] = since;
         }
         request['size'] = 500;
+        request['status'] = 'INCOMPLETE';
         const ordersResponse = await (this as any).v1PrivateGetOrders (this.extend (request, params));
         //
         //     {

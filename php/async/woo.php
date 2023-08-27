@@ -1132,6 +1132,7 @@ class woo extends Exchange {
                 $request['start_t'] = $since;
             }
             $request['size'] = 500;
+            $request['status'] = 'INCOMPLETE';
             $ordersResponse = Async\await($this->v1PrivateGetOrders (array_merge($request, $params)));
             //
             //     {
