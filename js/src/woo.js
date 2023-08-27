@@ -827,7 +827,7 @@ export default class woo extends Exchange {
             //     this.parseOrder (rows[0], market),
             //     { 'type': type }
             // );
-            return this.parseOrder(rows[0], market);
+            return this.extend(this.parseOrder(rows[0], market), { 'status': 'open' });
         }
         else {
             await this.loadMarkets();
@@ -877,7 +877,7 @@ export default class woo extends Exchange {
             //     order_amount: null, // NOT-null for 'MARKET' order
             //     client_order_id: '0'
             // }
-            return this.extend(this.parseOrder(response, market), { 'type': type });
+            return this.extend(this.parseOrder(response, market), { 'type': type, 'status': 'open' });
         }
     }
     async editOrder(id, symbol, type, side, amount, price = undefined, params = {}) {

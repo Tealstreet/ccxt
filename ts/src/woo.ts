@@ -832,7 +832,10 @@ export default class woo extends Exchange {
             //     this.parseOrder (rows[0], market),
             //     { 'type': type }
             // );
-            return this.parseOrder (rows[0], market);
+            return this.extend (
+                this.parseOrder (rows[0], market),
+                { 'status': 'open' }
+            );
         } else {
             await this.loadMarkets ();
             const market = this.market (symbol);
@@ -881,7 +884,7 @@ export default class woo extends Exchange {
             // }
             return this.extend (
                 this.parseOrder (response, market),
-                { 'type': type }
+                { 'type': type, 'status': 'open' }
             );
         }
     }

@@ -835,7 +835,10 @@ class woo extends Exchange {
                 //     $this->parse_order($rows[0], $market),
                 //     array( 'type' => $type )
                 // );
-                return $this->parse_order($rows[0], $market);
+                return array_merge(
+                    $this->parse_order($rows[0], $market),
+                    array( 'status' => 'open' )
+                );
             } else {
                 Async\await($this->load_markets());
                 $market = $this->market($symbol);
@@ -884,7 +887,7 @@ class woo extends Exchange {
                 // }
                 return array_merge(
                     $this->parse_order($response, $market),
-                    array( 'type' => $type )
+                    array( 'type' => $type, 'status' => 'open' )
                 );
             }
         }) ();

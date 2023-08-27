@@ -808,7 +808,10 @@ class woo(Exchange):
             #     self.parse_order(rows[0], market),
             #     {'type': type}
             # )
-            return self.parse_order(rows[0], market)
+            return self.extend(
+                self.parse_order(rows[0], market),
+                {'status': 'open'}
+            )
         else:
             await self.load_markets()
             market = self.market(symbol)
@@ -852,7 +855,7 @@ class woo(Exchange):
             # }
             return self.extend(
                 self.parse_order(response, market),
-                {'type': type}
+                {'type': type, 'status': 'open'}
             )
 
     async def edit_order(self, id, symbol, type, side, amount, price=None, params={}):
