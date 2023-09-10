@@ -1329,6 +1329,12 @@ export default class woo extends Exchange {
                 'currency': feeCurrency,
             },
             'info': order,
+            // TEALSTREET
+            'reduce': this.safeValue(order, 'reduceOnly'),
+            'trigger': 'Mark',
+            // we don't know this from api
+            // 'close': this.safeValue (order, 'closeOnTrigger'),
+            // TEALSTREET
         }, market);
     }
     parseOrderStatus(status) {

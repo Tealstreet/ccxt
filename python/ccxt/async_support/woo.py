@@ -1268,6 +1268,12 @@ class woo(Exchange):
                 'currency': feeCurrency,
             },
             'info': order,
+            # TEALSTREET
+            'reduce': self.safe_value(order, 'reduceOnly'),
+            'trigger': 'Mark',
+            # we don't know self from api
+            # 'close': self.safe_value(order, 'closeOnTrigger'),
+            # TEALSTREET
         }, market)
 
     def parse_order_status(self, status):

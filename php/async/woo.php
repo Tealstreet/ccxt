@@ -1351,6 +1351,12 @@ class woo extends Exchange {
                 'currency' => $feeCurrency,
             ),
             'info' => $order,
+            // TEALSTREET
+            'reduce' => $this->safe_value($order, 'reduceOnly'),
+            'trigger' => 'Mark',
+            // we don't know this from api
+            // 'close' => $this->safe_value($order, 'closeOnTrigger'),
+            // TEALSTREET
         ), $market);
     }
 
