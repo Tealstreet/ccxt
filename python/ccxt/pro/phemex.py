@@ -28,7 +28,7 @@ class phemex(ccxt.async_support.phemex):
                     'ws': 'wss://testnet.phemex.com/ws',
                 },
                 'api': {
-                    'ws': 'wss://phemex.com/ws',
+                    'ws': 'wss://ws.phemex.com/',
                 },
             },
             'options': {
