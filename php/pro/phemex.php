@@ -28,7 +28,7 @@ class phemex extends \ccxt\async\phemex {
                     'ws' => 'wss://testnet.phemex.com/ws',
                 ),
                 'api' => array(
-                    'ws' => 'wss://phemex.com/ws',
+                    'ws' => 'wss://ws.phemex.com/',
                 ),
             ),
             'options' => array(

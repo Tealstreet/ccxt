@@ -21,7 +21,7 @@ export default class WsClient extends Client {
     }
     this.connectionStarted = milliseconds();
     this.setConnectionTimeout();
-    const url = `${this.url}${
+    const url = this.url.includes('phemex') ? this.url : `${this.url}${
       this.url.includes("?") ? "&" : "?"
     }${+new Date()}`;
     const wsClass = safeValue(this.options, "wsClass", WebSocketPlatform);
