@@ -3806,8 +3806,6 @@ class phemex(Exchange):
             else:
                 request['leverage'] = effectiveLeverage
         params = self.omit(params, 'leverage', 'buyLeverage', 'sellLeverage', 'marginMode', 'positionMode')
-        print(method)
-        print(self.extend(request, params))
         return getattr(self, method)(self.extend(request, params))
 
     def transfer(self, code, amount, fromAccount, toAccount, params={}):

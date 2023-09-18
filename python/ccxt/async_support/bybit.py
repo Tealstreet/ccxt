@@ -3132,10 +3132,12 @@ class bybit(Exchange):
         market = self.market(symbol)
         lowerCaseType = type.lower()
         isStop = False
+        bindStops = self.safe_value(params, 'bindStops', True)
         if lowerCaseType == 'stop':
             isStop = True
             lowerCaseType = 'market'
-            return self.create_position_trade_stop(symbol, type, side, amount, price, params)
+            if bindStops:
+                return self.create_position_trade_stop(symbol, type, side, amount, price, params)
         elif lowerCaseType == 'stopLimit':
             isStop = True
             lowerCaseType = 'limit'
@@ -3149,9 +3151,12 @@ class bybit(Exchange):
             'orderType': self.capitalize(lowerCaseType),
             'reduceOnly': reduceOnly,
             'closeOnTrigger': closeOnTrigger,
-            'qty': self.amount_to_precision(symbol, amount),
             'orderLinkId': getattr(self, 'refCode') + self.uuid22(),
         }
+        if amount:
+            request['qty'] = self.amount_to_precision(symbol, amount)
+        else:
+            request['qty'] = '0'
         if isStop:
             close = self.safe_value(params, 'close', False)
             if close:
@@ -3468,7 +3473,6 @@ class bybit(Exchange):
         request = {
             'symbol': market['id'],
             'orderId': id,
-            'qty': self.amount_to_precision(symbol, amount),
             # 'orderLinkId': 'string',  # unique client order id, max 36 characters
             # 'takeProfit': 123.45,  # take profit price, only take effect upon opening the position
             # 'stopLoss': 123.45,  # stop loss price, only take effect upon opening the position
@@ -3479,6 +3483,10 @@ class bybit(Exchange):
             # Valid for option only.
             # 'orderIv': '0',  # Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
         }
+        if amount:
+            request['qty'] = self.amount_to_precision(symbol, amount)
+        else:
+            request['qty'] = '0'
         if market['linear']:
             request['category'] = 'linear'
         else:

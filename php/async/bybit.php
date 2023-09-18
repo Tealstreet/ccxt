@@ -3287,10 +3287,13 @@ class bybit extends Exchange {
             $market = $this->market($symbol);
             $lowerCaseType = strtolower($type);
             $isStop = false;
+            $bindStops = $this->safe_value($params, 'bindStops', true);
             if ($lowerCaseType === 'stop') {
                 $isStop = true;
                 $lowerCaseType = 'market';
-                return $this->create_position_trade_stop($symbol, $type, $side, $amount, $price, $params);
+                if ($bindStops) {
+                    return $this->create_position_trade_stop($symbol, $type, $side, $amount, $price, $params);
+                }
             } elseif ($lowerCaseType === 'stopLimit') {
                 $isStop = true;
                 $lowerCaseType = 'limit';
@@ -3306,9 +3309,13 @@ class bybit extends Exchange {
                 'orderType' => $this->capitalize($lowerCaseType),
                 'reduceOnly' => $reduceOnly,
                 'closeOnTrigger' => $closeOnTrigger,
-                'qty' => $this->amount_to_precision($symbol, $amount),
                 'orderLinkId' => $this->$'refCode' . $this->uuid22(),
             );
+            if ($amount) {
+                $request['qty'] = $this->amount_to_precision($symbol, $amount);
+            } else {
+                $request['qty'] = '0';
+            }
             if ($isStop) {
                 $close = $this->safe_value($params, 'close', false);
                 if ($close) {
@@ -3676,7 +3683,6 @@ class bybit extends Exchange {
             $request = array(
                 'symbol' => $market['id'],
                 'orderId' => $id,
-                'qty' => $this->amount_to_precision($symbol, $amount),
                 // 'orderLinkId' => 'string', // unique client order $id, max 36 characters
                 // 'takeProfit' => 123.45, // take profit $price, only take effect upon opening the position
                 // 'stopLoss' => 123.45, // stop loss $price, only take effect upon opening the position
@@ -3687,6 +3693,11 @@ class bybit extends Exchange {
                 // Valid for option only.
                 // 'orderIv' => '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
             );
+            if ($amount) {
+                $request['qty'] = $this->amount_to_precision($symbol, $amount);
+            } else {
+                $request['qty'] = '0';
+            }
             if ($market['linear']) {
                 $request['category'] = 'linear';
             } else {

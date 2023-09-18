@@ -3281,10 +3281,13 @@ export default class bybit extends Exchange {
         const market = this.market (symbol);
         let lowerCaseType = type.toLowerCase ();
         let isStop = false;
+        const bindStops = this.safeValue (params, 'bindStops', true);
         if (lowerCaseType === 'stop') {
             isStop = true;
             lowerCaseType = 'market';
-            return this.createPositionTradeStop (symbol, type, side, amount, price, params);
+            if (bindStops) {
+                return this.createPositionTradeStop (symbol, type, side, amount, price, params);
+            }
         } else if (lowerCaseType === 'stopLimit') {
             isStop = true;
             lowerCaseType = 'limit';
@@ -3300,9 +3303,13 @@ export default class bybit extends Exchange {
             'orderType': this.capitalize (lowerCaseType),
             'reduceOnly': reduceOnly,
             'closeOnTrigger': closeOnTrigger,
-            'qty': this.amountToPrecision (symbol, amount),
             'orderLinkId': this['refCode'] + this.uuid22 (),
         };
+        if (amount) {
+            request['qty'] = this.amountToPrecision (symbol, amount);
+        } else {
+            request['qty'] = '0';
+        }
         if (isStop) {
             const close = this.safeValue (params, 'close', false);
             if (close) {
@@ -3664,7 +3671,6 @@ export default class bybit extends Exchange {
         const request = {
             'symbol': market['id'],
             'orderId': id,
-            'qty': this.amountToPrecision (symbol, amount),
             // 'orderLinkId': 'string', // unique client order id, max 36 characters
             // 'takeProfit': 123.45, // take profit price, only take effect upon opening the position
             // 'stopLoss': 123.45, // stop loss price, only take effect upon opening the position
@@ -3675,6 +3681,11 @@ export default class bybit extends Exchange {
             // Valid for option only.
             // 'orderIv': '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
         };
+        if (amount) {
+            request['qty'] = this.amountToPrecision (symbol, amount);
+        } else {
+            request['qty'] = '0';
+        }
         if (market['linear']) {
             request['category'] = 'linear';
         } else {
