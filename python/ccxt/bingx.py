@@ -314,6 +314,8 @@ class bingx(Exchange):
         # }
         buyLeverage = self.safe_float(leverageData, 'longLeverage')
         sellLeverage = self.safe_float(leverageData, 'shortLeverage')
+        maxBuyLeverage = self.safe_float(leverageData, 'maxLongLeverage')
+        maxSellLeverage = self.safe_float(leverageData, 'maxShortLeverage')
         marginType = self.safe_string(marginTypeData, 'marginType')
         isIsolated = (marginType == 'CROSSED')
         accountConfig = {
@@ -325,6 +327,8 @@ class bingx(Exchange):
         leverageConfigs[market['symbol']] = {
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
+            'maxBuyLeverage': maxBuyLeverage,
+            'maxSellLeverage': maxSellLeverage,
         }
         return accountConfig
 

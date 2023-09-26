@@ -328,6 +328,8 @@ class bingx extends Exchange {
         // );
         $buyLeverage = $this->safe_float($leverageData, 'longLeverage');
         $sellLeverage = $this->safe_float($leverageData, 'shortLeverage');
+        $maxBuyLeverage = $this->safe_float($leverageData, 'maxLongLeverage');
+        $maxSellLeverage = $this->safe_float($leverageData, 'maxShortLeverage');
         $marginType = $this->safe_string($marginTypeData, 'marginType');
         $isIsolated = ($marginType === 'CROSSED');
         $accountConfig = array(
@@ -339,6 +341,8 @@ class bingx extends Exchange {
         $leverageConfigs[$market['symbol']] = array(
             'buyLeverage' => $buyLeverage,
             'sellLeverage' => $sellLeverage,
+            'maxBuyLeverage' => $maxBuyLeverage,
+            'maxSellLeverage' => $maxSellLeverage,
         );
         return $accountConfig;
     }

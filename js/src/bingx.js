@@ -330,6 +330,8 @@ export default class bingx extends Exchange {
         // };
         const buyLeverage = this.safeFloat(leverageData, 'longLeverage');
         const sellLeverage = this.safeFloat(leverageData, 'shortLeverage');
+        const maxBuyLeverage = this.safeFloat(leverageData, 'maxLongLeverage');
+        const maxSellLeverage = this.safeFloat(leverageData, 'maxShortLeverage');
         const marginType = this.safeString(marginTypeData, 'marginType');
         const isIsolated = (marginType === 'CROSSED');
         const accountConfig = {
@@ -341,6 +343,8 @@ export default class bingx extends Exchange {
         leverageConfigs[market['symbol']] = {
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
+            'maxBuyLeverage': maxBuyLeverage,
+            'maxSellLeverage': maxSellLeverage,
         };
         return accountConfig;
     }
