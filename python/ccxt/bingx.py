@@ -783,6 +783,7 @@ class bingx(Exchange):
         market = self.market(symbol)
         #
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
+        triggerType = self.safe_value_2(params, 'trigger', 'workingType')
         # isTriggerOrder = triggerPrice is not None
         isStopLossOrder = None
         isTakeProfitOrder = None
@@ -845,9 +846,9 @@ class bingx(Exchange):
         }
         if type == 'stop' or type == 'stopLimit':
             triggerBy = 'MARK_PRICE'
-            if params['trigger'] == 'Index':
+            if triggerType == 'Index':
                 triggerBy = 'INDEX_PRICE'
-            elif params['trigger'] == 'Last':
+            elif triggerType == 'Last':
                 triggerBy = 'CONTRACT_PRICE'
             request['workingType'] = triggerBy
         if triggerPrice is not None:
