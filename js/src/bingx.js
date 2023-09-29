@@ -521,24 +521,43 @@ export default class bingx extends Exchange {
         const symbol = this.safeSymbol(undefined, market);
         const timestamp = this.milliseconds();
         const baseVolume = this.safeString(ticker, 'volume');
-        const last = this.safeString(ticker, 'lastPrice');
+        let last = this.safeString(ticker, 'lastPrice');
+        if (last === '-') {
+            last = undefined;
+        }
+        let high = this.safeString(ticker, 'highPrice');
+        if (high === '-') {
+            high = undefined;
+        }
+        let low = this.safeString(ticker, 'lowPrice');
+        if (low === '-') {
+            low = undefined;
+        }
+        let open = this.safeString(ticker, 'openPrice');
+        if (open === '-') {
+            open = undefined;
+        }
+        let percentage = this.safeString(ticker, 'priceChangePercent');
+        if (percentage === '-') {
+            percentage = undefined;
+        }
         return this.safeTicker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
-            'high': this.safeString(ticker, 'highPrice'),
-            'low': this.safeString(ticker, 'lowPrice'),
-            'bid': this.safeString(ticker, 'lastPrice'),
+            'high': high,
+            'low': low,
+            'bid': last,
             'bidVolume': undefined,
-            'ask': this.safeString(ticker, 'lastPrice'),
+            'ask': last,
             'askVolume': undefined,
-            'open': this.safeString(ticker, 'openPrice'),
+            'open': open,
             'close': last,
             'last': last,
             'mark': last,
             'previousClose': undefined,
             'change': undefined,
-            'percentage': this.safeString(ticker, 'priceChangePercent'),
+            'percentage': percentage,
             'average': undefined,
             'baseVolume': baseVolume,
             'info': ticker,

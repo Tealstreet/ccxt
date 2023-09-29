@@ -520,23 +520,42 @@ class bingx extends Exchange {
         $timestamp = $this->milliseconds();
         $baseVolume = $this->safe_string($ticker, 'volume');
         $last = $this->safe_string($ticker, 'lastPrice');
+        if ($last === '-') {
+            $last = null;
+        }
+        $high = $this->safe_string($ticker, 'highPrice');
+        if ($high === '-') {
+            $high = null;
+        }
+        $low = $this->safe_string($ticker, 'lowPrice');
+        if ($low === '-') {
+            $low = null;
+        }
+        $open = $this->safe_string($ticker, 'openPrice');
+        if ($open === '-') {
+            $open = null;
+        }
+        $percentage = $this->safe_string($ticker, 'priceChangePercent');
+        if ($percentage === '-') {
+            $percentage = null;
+        }
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_string($ticker, 'highPrice'),
-            'low' => $this->safe_string($ticker, 'lowPrice'),
-            'bid' => $this->safe_string($ticker, 'lastPrice'),
+            'high' => $high,
+            'low' => $low,
+            'bid' => $last,
             'bidVolume' => null,
-            'ask' => $this->safe_string($ticker, 'lastPrice'),
+            'ask' => $last,
             'askVolume' => null,
-            'open' => $this->safe_string($ticker, 'openPrice'),
+            'open' => $open,
             'close' => $last,
             'last' => $last,
             'mark' => $last,
             'previousClose' => null,
             'change' => null,
-            'percentage' => $this->safe_string($ticker, 'priceChangePercent'),
+            'percentage' => $percentage,
             'average' => null,
             'baseVolume' => $baseVolume,
             'info' => $ticker,
