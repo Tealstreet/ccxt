@@ -330,6 +330,8 @@ export default class bingx extends Exchange {
         // };
         const buyLeverage = this.safeFloat(leverageData, 'longLeverage');
         const sellLeverage = this.safeFloat(leverageData, 'shortLeverage');
+        const maxBuyLeverage = this.safeFloat(leverageData, 'maxLongLeverage');
+        const maxSellLeverage = this.safeFloat(leverageData, 'maxShortLeverage');
         const marginType = this.safeString(marginTypeData, 'marginType');
         const isIsolated = (marginType === 'CROSSED');
         const accountConfig = {
@@ -341,6 +343,8 @@ export default class bingx extends Exchange {
         leverageConfigs[market['symbol']] = {
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
+            'maxBuyLeverage': maxBuyLeverage,
+            'maxSellLeverage': maxSellLeverage,
         };
         return accountConfig;
     }
@@ -517,24 +521,43 @@ export default class bingx extends Exchange {
         const symbol = this.safeSymbol(undefined, market);
         const timestamp = this.milliseconds();
         const baseVolume = this.safeString(ticker, 'volume');
-        const last = this.safeString(ticker, 'lastPrice');
+        let last = this.safeString(ticker, 'lastPrice');
+        if (last === '-') {
+            last = undefined;
+        }
+        let high = this.safeString(ticker, 'highPrice');
+        if (high === '-') {
+            high = undefined;
+        }
+        let low = this.safeString(ticker, 'lowPrice');
+        if (low === '-') {
+            low = undefined;
+        }
+        let open = this.safeString(ticker, 'openPrice');
+        if (open === '-') {
+            open = undefined;
+        }
+        let percentage = this.safeString(ticker, 'priceChangePercent');
+        if (percentage === '-') {
+            percentage = undefined;
+        }
         return this.safeTicker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
-            'high': this.safeString(ticker, 'highPrice'),
-            'low': this.safeString(ticker, 'lowPrice'),
-            'bid': this.safeString(ticker, 'lastPrice'),
+            'high': high,
+            'low': low,
+            'bid': last,
             'bidVolume': undefined,
-            'ask': this.safeString(ticker, 'lastPrice'),
+            'ask': last,
             'askVolume': undefined,
-            'open': this.safeString(ticker, 'openPrice'),
+            'open': open,
             'close': last,
             'last': last,
             'mark': last,
             'previousClose': undefined,
             'change': undefined,
-            'percentage': this.safeString(ticker, 'priceChangePercent'),
+            'percentage': percentage,
             'average': undefined,
             'baseVolume': baseVolume,
             'info': ticker,
@@ -818,6 +841,7 @@ export default class bingx extends Exchange {
         const market = this.market(symbol);
         //
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
+        const triggerType = this.safeValue2(params, 'trigger', 'workingType');
         // const isTriggerOrder = triggerPrice !== undefined;
         let isStopLossOrder = undefined;
         let isTakeProfitOrder = undefined;
@@ -906,10 +930,10 @@ export default class bingx extends Exchange {
         };
         if (type === 'stop' || type === 'stopLimit') {
             let triggerBy = 'MARK_PRICE';
-            if (params['trigger'] === 'Index') {
+            if (triggerType === 'Index') {
                 triggerBy = 'INDEX_PRICE';
             }
-            else if (params['trigger'] === 'Last') {
+            else if (triggerType === 'Last') {
                 triggerBy = 'CONTRACT_PRICE';
             }
             request['workingType'] = triggerBy;

@@ -328,6 +328,8 @@ class bingx extends Exchange {
         // );
         $buyLeverage = $this->safe_float($leverageData, 'longLeverage');
         $sellLeverage = $this->safe_float($leverageData, 'shortLeverage');
+        $maxBuyLeverage = $this->safe_float($leverageData, 'maxLongLeverage');
+        $maxSellLeverage = $this->safe_float($leverageData, 'maxShortLeverage');
         $marginType = $this->safe_string($marginTypeData, 'marginType');
         $isIsolated = ($marginType === 'CROSSED');
         $accountConfig = array(
@@ -339,6 +341,8 @@ class bingx extends Exchange {
         $leverageConfigs[$market['symbol']] = array(
             'buyLeverage' => $buyLeverage,
             'sellLeverage' => $sellLeverage,
+            'maxBuyLeverage' => $maxBuyLeverage,
+            'maxSellLeverage' => $maxSellLeverage,
         );
         return $accountConfig;
     }
@@ -516,23 +520,42 @@ class bingx extends Exchange {
         $timestamp = $this->milliseconds();
         $baseVolume = $this->safe_string($ticker, 'volume');
         $last = $this->safe_string($ticker, 'lastPrice');
+        if ($last === '-') {
+            $last = null;
+        }
+        $high = $this->safe_string($ticker, 'highPrice');
+        if ($high === '-') {
+            $high = null;
+        }
+        $low = $this->safe_string($ticker, 'lowPrice');
+        if ($low === '-') {
+            $low = null;
+        }
+        $open = $this->safe_string($ticker, 'openPrice');
+        if ($open === '-') {
+            $open = null;
+        }
+        $percentage = $this->safe_string($ticker, 'priceChangePercent');
+        if ($percentage === '-') {
+            $percentage = null;
+        }
         return $this->safe_ticker(array(
             'symbol' => $symbol,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_string($ticker, 'highPrice'),
-            'low' => $this->safe_string($ticker, 'lowPrice'),
-            'bid' => $this->safe_string($ticker, 'lastPrice'),
+            'high' => $high,
+            'low' => $low,
+            'bid' => $last,
             'bidVolume' => null,
-            'ask' => $this->safe_string($ticker, 'lastPrice'),
+            'ask' => $last,
             'askVolume' => null,
-            'open' => $this->safe_string($ticker, 'openPrice'),
+            'open' => $open,
             'close' => $last,
             'last' => $last,
             'mark' => $last,
             'previousClose' => null,
             'change' => null,
-            'percentage' => $this->safe_string($ticker, 'priceChangePercent'),
+            'percentage' => $percentage,
             'average' => null,
             'baseVolume' => $baseVolume,
             'info' => $ticker,
@@ -817,6 +840,7 @@ class bingx extends Exchange {
         $market = $this->market($symbol);
         //
         $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
+        $triggerType = $this->safe_value_2($params, 'trigger', 'workingType');
         // $isTriggerOrder = $triggerPrice !== null;
         $isStopLossOrder = null;
         $isTakeProfitOrder = null;
@@ -893,9 +917,9 @@ class bingx extends Exchange {
         );
         if ($type === 'stop' || $type === 'stopLimit') {
             $triggerBy = 'MARK_PRICE';
-            if ($params['trigger'] === 'Index') {
+            if ($triggerType === 'Index') {
                 $triggerBy = 'INDEX_PRICE';
-            } elseif ($params['trigger'] === 'Last') {
+            } elseif ($triggerType === 'Last') {
                 $triggerBy = 'CONTRACT_PRICE';
             }
             $request['workingType'] = $triggerBy;

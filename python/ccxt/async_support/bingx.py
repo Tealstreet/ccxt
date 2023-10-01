@@ -315,6 +315,8 @@ class bingx(Exchange):
         # }
         buyLeverage = self.safe_float(leverageData, 'longLeverage')
         sellLeverage = self.safe_float(leverageData, 'shortLeverage')
+        maxBuyLeverage = self.safe_float(leverageData, 'maxLongLeverage')
+        maxSellLeverage = self.safe_float(leverageData, 'maxShortLeverage')
         marginType = self.safe_string(marginTypeData, 'marginType')
         isIsolated = (marginType == 'CROSSED')
         accountConfig = {
@@ -326,6 +328,8 @@ class bingx(Exchange):
         leverageConfigs[market['symbol']] = {
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
+            'maxBuyLeverage': maxBuyLeverage,
+            'maxSellLeverage': maxSellLeverage,
         }
         return accountConfig
 
@@ -494,23 +498,37 @@ class bingx(Exchange):
         timestamp = self.milliseconds()
         baseVolume = self.safe_string(ticker, 'volume')
         last = self.safe_string(ticker, 'lastPrice')
+        if last == '-':
+            last = None
+        high = self.safe_string(ticker, 'highPrice')
+        if high == '-':
+            high = None
+        low = self.safe_string(ticker, 'lowPrice')
+        if low == '-':
+            low = None
+        open = self.safe_string(ticker, 'openPrice')
+        if open == '-':
+            open = None
+        percentage = self.safe_string(ticker, 'priceChangePercent')
+        if percentage == '-':
+            percentage = None
         return self.safe_ticker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'high': self.safe_string(ticker, 'highPrice'),
-            'low': self.safe_string(ticker, 'lowPrice'),
-            'bid': self.safe_string(ticker, 'lastPrice'),
+            'high': high,
+            'low': low,
+            'bid': last,
             'bidVolume': None,
-            'ask': self.safe_string(ticker, 'lastPrice'),
+            'ask': last,
             'askVolume': None,
-            'open': self.safe_string(ticker, 'openPrice'),
+            'open': open,
             'close': last,
             'last': last,
             'mark': last,
             'previousClose': None,
             'change': None,
-            'percentage': self.safe_string(ticker, 'priceChangePercent'),
+            'percentage': percentage,
             'average': None,
             'baseVolume': baseVolume,
             'info': ticker,
@@ -780,6 +798,7 @@ class bingx(Exchange):
         market = self.market(symbol)
         #
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
+        triggerType = self.safe_value_2(params, 'trigger', 'workingType')
         # isTriggerOrder = triggerPrice is not None
         isStopLossOrder = None
         isTakeProfitOrder = None
@@ -842,9 +861,9 @@ class bingx(Exchange):
         }
         if type == 'stop' or type == 'stopLimit':
             triggerBy = 'MARK_PRICE'
-            if params['trigger'] == 'Index':
+            if triggerType == 'Index':
                 triggerBy = 'INDEX_PRICE'
-            elif params['trigger'] == 'Last':
+            elif triggerType == 'Last':
                 triggerBy = 'CONTRACT_PRICE'
             request['workingType'] = triggerBy
         if triggerPrice is not None:
