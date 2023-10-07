@@ -1143,7 +1143,7 @@ class bybit(Exchange):
         enableUnifiedMargin = self.safe_value(self.options, 'enableUnifiedMargin')
         enableUnifiedAccount = self.safe_value(self.options, 'enableUnifiedAccount')
         if enableUnifiedMargin is None or enableUnifiedAccount is None:
-            # response = await self.privateGetUserV3PrivateQueryApi(params)
+            response = await self.privateGetUserV3PrivateQueryApi(params)
             #
             #     {
             #         "retCode":0,
@@ -1177,11 +1177,11 @@ class bybit(Exchange):
             #         "time":1669735171649
             #     }
             #
-            # result = self.safe_value(response, 'result', {})
-            # self.options['enableUnifiedMargin'] = self.safe_integer(result, 'unified') == 1
-            # self.options['enableUnifiedAccount'] = self.safe_integer(result, 'uta') == 1
-            self.options['enableUnifiedMargin'] = 1
-            self.options['enableUnifiedAccount'] = 1
+            result = self.safe_value(response, 'result', {})
+            self.options['enableUnifiedMargin'] = self.safe_integer(result, 'unified') == 1
+            self.options['enableUnifiedAccount'] = self.safe_integer(result, 'uta') == 1
+            # self.options['enableUnifiedMargin'] = 1
+            # self.options['enableUnifiedAccount'] = 1
         return [self.options['enableUnifiedMargin'], self.options['enableUnifiedAccount']]
 
     async def upgrade_unified_account(self, params={}):
