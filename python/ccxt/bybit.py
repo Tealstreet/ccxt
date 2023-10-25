@@ -3608,9 +3608,9 @@ class bybit(Exchange):
             request['price'] = self.price_to_precision(symbol, price)
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
         stopLossPrice = self.safe_value_2(params, 'stopLossPrice', 'stopLoss')
-        isStopLossOrder = stopLossPrice is not None
+        isStopLossOrder = stopLossPrice is not None and stopLossPrice > 0
         takeProfitPrice = self.safe_value_2(params, 'takeProfitPrice', 'takeProfit')
-        isTakeProfitOrder = takeProfitPrice is not None
+        isTakeProfitOrder = takeProfitPrice is not None and takeProfitPrice > 0
         if isStopLossOrder:
             request['stopLoss'] = self.price_to_precision(symbol, stopLossPrice)
         if isTakeProfitOrder:

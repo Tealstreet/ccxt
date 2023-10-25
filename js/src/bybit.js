@@ -3851,9 +3851,9 @@ export default class bybit extends Exchange {
         }
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
         const stopLossPrice = this.safeValue2(params, 'stopLossPrice', 'stopLoss');
-        const isStopLossOrder = stopLossPrice !== undefined;
+        const isStopLossOrder = stopLossPrice !== undefined && stopLossPrice > 0;
         const takeProfitPrice = this.safeValue2(params, 'takeProfitPrice', 'takeProfit');
-        const isTakeProfitOrder = takeProfitPrice !== undefined;
+        const isTakeProfitOrder = takeProfitPrice !== undefined && takeProfitPrice > 0;
         if (isStopLossOrder) {
             request['stopLoss'] = this.priceToPrecision(symbol, stopLossPrice);
         }

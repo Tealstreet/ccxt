@@ -3841,9 +3841,9 @@ class bybit extends Exchange {
             }
             $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
             $stopLossPrice = $this->safe_value_2($params, 'stopLossPrice', 'stopLoss');
-            $isStopLossOrder = $stopLossPrice !== null;
+            $isStopLossOrder = $stopLossPrice !== null && $stopLossPrice > 0;
             $takeProfitPrice = $this->safe_value_2($params, 'takeProfitPrice', 'takeProfit');
-            $isTakeProfitOrder = $takeProfitPrice !== null;
+            $isTakeProfitOrder = $takeProfitPrice !== null && $takeProfitPrice > 0;
             if ($isStopLossOrder) {
                 $request['stopLoss'] = $this->price_to_precision($symbol, $stopLossPrice);
             }
