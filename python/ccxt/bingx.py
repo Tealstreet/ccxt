@@ -260,7 +260,7 @@ class bingx(Exchange):
         }
         leverageResponse = self.swap2OpenApiPrivateGetSwapV2TradeLeverage(self.extend(request, params))
         leverageData = self.safe_value(leverageResponse, 'data')
-        marginTypeResponse = self.swap2OpenApiPrivateGetSwapV2TradeLeverage(self.extend(request, params))
+        marginTypeResponse = self.swap2OpenApiPrivateGetSwapV2TradeMarginType(self.extend(request, params))
         marginTypeData = self.safe_value(marginTypeResponse, 'data')
         return self.parse_account_configuration(leverageData, marginTypeData, market)
 
@@ -317,7 +317,7 @@ class bingx(Exchange):
         maxBuyLeverage = self.safe_float(leverageData, 'maxLongLeverage')
         maxSellLeverage = self.safe_float(leverageData, 'maxShortLeverage')
         marginType = self.safe_string(marginTypeData, 'marginType')
-        isIsolated = (marginType == 'CROSSED')
+        isIsolated = (marginType == 'ISOLATED')
         accountConfig = {
             'marginMode': 'isolated' if isIsolated else 'cross',
             'positionMode': 'hedged',

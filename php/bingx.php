@@ -273,7 +273,7 @@ class bingx extends Exchange {
         );
         $leverageResponse = $this->swap2OpenApiPrivateGetSwapV2TradeLeverage (array_merge($request, $params));
         $leverageData = $this->safe_value($leverageResponse, 'data');
-        $marginTypeResponse = $this->swap2OpenApiPrivateGetSwapV2TradeLeverage (array_merge($request, $params));
+        $marginTypeResponse = $this->swap2OpenApiPrivateGetSwapV2TradeMarginType (array_merge($request, $params));
         $marginTypeData = $this->safe_value($marginTypeResponse, 'data');
         return $this->parse_account_configuration($leverageData, $marginTypeData, $market);
     }
@@ -331,7 +331,7 @@ class bingx extends Exchange {
         $maxBuyLeverage = $this->safe_float($leverageData, 'maxLongLeverage');
         $maxSellLeverage = $this->safe_float($leverageData, 'maxShortLeverage');
         $marginType = $this->safe_string($marginTypeData, 'marginType');
-        $isIsolated = ($marginType === 'CROSSED');
+        $isIsolated = ($marginType === 'ISOLATED');
         $accountConfig = array(
             'marginMode' => $isIsolated ? 'isolated' : 'cross',
             'positionMode' => 'hedged',

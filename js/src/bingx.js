@@ -276,7 +276,7 @@ export default class bingx extends Exchange {
         };
         const leverageResponse = await this.swap2OpenApiPrivateGetSwapV2TradeLeverage(this.extend(request, params));
         const leverageData = this.safeValue(leverageResponse, 'data');
-        const marginTypeResponse = await this.swap2OpenApiPrivateGetSwapV2TradeLeverage(this.extend(request, params));
+        const marginTypeResponse = await this.swap2OpenApiPrivateGetSwapV2TradeMarginType(this.extend(request, params));
         const marginTypeData = this.safeValue(marginTypeResponse, 'data');
         return this.parseAccountConfiguration(leverageData, marginTypeData, market);
     }
@@ -333,7 +333,7 @@ export default class bingx extends Exchange {
         const maxBuyLeverage = this.safeFloat(leverageData, 'maxLongLeverage');
         const maxSellLeverage = this.safeFloat(leverageData, 'maxShortLeverage');
         const marginType = this.safeString(marginTypeData, 'marginType');
-        const isIsolated = (marginType === 'CROSSED');
+        const isIsolated = (marginType === 'ISOLATED');
         const accountConfig = {
             'marginMode': isIsolated ? 'isolated' : 'cross',
             'positionMode': 'hedged',
