@@ -2902,8 +2902,12 @@ class bybit(Exchange):
             trigger = 'Index'
         elif trigger == 'MarkPrice':
             trigger = 'Mark'
-        takeProfit = self.safe_string(order, 'takeProfit')
-        stopLoss = self.safe_string(order, 'stopLoss')
+        takeProfit = None
+        if self.safe_float(order, 'takeProfit', 0) != 0:
+            takeProfit = self.safe_string(order, 'takeProfit')
+        stopLoss = None
+        if self.safe_float(order, 'stopLoss', 0) != 0:
+            stopLoss = self.safe_string(order, 'stopLoss')
         return self.safe_order({
             'info': order,
             'id': id,
@@ -3123,8 +3127,9 @@ class bybit(Exchange):
                     request['slTriggerBy'] = 'MarkPrice'
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop'])
         response = self.privatePostV5PositionTradingStop(self.extend(request, params))
-        order = self.safe_value(response, 'result', {})
-        return self.parse_order(order)
+        stopOrders = self.fetch_open_orders(symbol, None, None, {'stop': True})
+        filteredStopOrders = self.filter_by_since_limit(stopOrders, self.seconds() - 10)
+        return self.safe_value(filteredStopOrders, 0)
 
     def create_unified_account_order(self, symbol, type, side, amount, price=None, params={}):
         self.load_markets()

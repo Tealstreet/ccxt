@@ -3021,8 +3021,14 @@ export default class bybit extends Exchange {
         } else if (trigger === 'MarkPrice') {
             trigger = 'Mark';
         }
-        const takeProfit = this.safeString (order, 'takeProfit');
-        const stopLoss = this.safeString (order, 'stopLoss');
+        let takeProfit = undefined;
+        if (this.safeFloat (order, 'takeProfit', 0) !== 0) {
+            takeProfit = this.safeString (order, 'takeProfit');
+        }
+        let stopLoss = undefined;
+        if (this.safeFloat (order, 'stopLoss', 0) !== 0) {
+            stopLoss = this.safeString (order, 'stopLoss');
+        }
         return this.safeOrder ({
             'info': order,
             'id': id,
@@ -3272,8 +3278,9 @@ export default class bybit extends Exchange {
         }
         params = this.omit (params, [ 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop' ]);
         const response = await (this as any).privatePostV5PositionTradingStop (this.extend (request, params));
-        const order = this.safeValue (response, 'result', {});
-        return this.parseOrder (order);
+        const stopOrders = await this.fetchOpenOrders (symbol, undefined, undefined, { 'stop': true });
+        const filteredStopOrders = this.filterBySinceLimit (stopOrders, this.seconds () - 10);
+        return this.safeValue (filteredStopOrders, 0);
     }
 
     async createUnifiedAccountOrder (symbol, type, side, amount, price = undefined, params = {}) {
