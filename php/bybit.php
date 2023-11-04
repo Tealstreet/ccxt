@@ -2985,8 +2985,14 @@ class bybit extends Exchange {
         } elseif ($trigger === 'MarkPrice') {
             $trigger = 'Mark';
         }
-        $takeProfit = $this->safe_string($order, 'takeProfit');
-        $stopLoss = $this->safe_string($order, 'stopLoss');
+        $takeProfit = null;
+        if ($this->safe_float($order, 'takeProfit', 0) !== 0) {
+            $takeProfit = $this->safe_string($order, 'takeProfit');
+        }
+        $stopLoss = null;
+        if ($this->safe_float($order, 'stopLoss', 0) !== 0) {
+            $stopLoss = $this->safe_string($order, 'stopLoss');
+        }
         return $this->safe_order(array(
             'info' => $order,
             'id' => $id,
@@ -3232,8 +3238,9 @@ class bybit extends Exchange {
         }
         $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop' ));
         $response = $this->privatePostV5PositionTradingStop (array_merge($request, $params));
-        $order = $this->safe_value($response, 'result', array());
-        return $this->parse_order($order);
+        $stopOrders = $this->fetch_open_orders($symbol, null, null, array( 'stop' => true ));
+        $filteredStopOrders = $this->filter_by_since_limit($stopOrders, $this->seconds() - 10);
+        return $this->safe_value($filteredStopOrders, 0);
     }
 
     public function create_unified_account_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
