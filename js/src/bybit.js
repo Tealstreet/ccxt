@@ -5702,7 +5702,8 @@ export default class bybit extends Exchange {
             return await this.fetchMyUnifiedMarginTrades(symbol, since, limit, query);
         }
         else if (isUsdcSettled) {
-            return await this.fetchMyUsdcTrades(symbol, since, limit, query);
+            // return await this.fetchMyUsdcTrades (symbol, since, limit, query);
+            return [];
         }
         else {
             return await this.fetchMyContractTrades(symbol, since, limit, query);

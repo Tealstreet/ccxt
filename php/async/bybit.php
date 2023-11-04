@@ -5717,7 +5717,8 @@ class bybit extends Exchange {
             } elseif ($enableUnifiedMargin && !$isInverse) {
                 return Async\await($this->fetch_my_unified_margin_trades($symbol, $since, $limit, $query));
             } elseif ($isUsdcSettled) {
-                return Async\await($this->fetch_my_usdc_trades($symbol, $since, $limit, $query));
+                // return Async\await($this->fetch_my_usdc_trades($symbol, $since, $limit, $query));
+                return array();
             } else {
                 return Async\await($this->fetch_my_contract_trades($symbol, $since, $limit, $query));
             }

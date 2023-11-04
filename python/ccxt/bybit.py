@@ -5267,7 +5267,8 @@ class bybit(Exchange):
         elif enableUnifiedMargin and not isInverse:
             return self.fetch_my_unified_margin_trades(symbol, since, limit, query)
         elif isUsdcSettled:
-            return self.fetch_my_usdc_trades(symbol, since, limit, query)
+            # return self.fetch_my_usdc_trades(symbol, since, limit, query)
+            return []
         else:
             return self.fetch_my_contract_trades(symbol, since, limit, query)
 
