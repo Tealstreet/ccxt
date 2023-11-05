@@ -568,7 +568,9 @@ class bitmex extends Exchange {
             $currencyId = $this->safe_string($balance, 'currency');
             $code = $this->safe_currency_code($currencyId);
             $account = array();
-            $free = $this->safe_integer($balance, 'availableMargin', 0);
+            $marginBalance = $this->safe_integer($balance, 'marginBalance', 0);
+            $maintMargin = $this->safe_integer($balance, 'maintMargin', 0);
+            $free = $marginBalance - $maintMargin;
             $total = $this->safe_integer($balance, 'walletBalance');
             $freeStr = (string) $free;
             $totalStr = null;

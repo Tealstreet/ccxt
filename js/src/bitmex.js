@@ -560,7 +560,9 @@ export default class bitmex extends Exchange {
             const currencyId = this.safeString(balance, 'currency');
             const code = this.safeCurrencyCode(currencyId);
             const account = {};
-            const free = this.safeInteger(balance, 'availableMargin', 0);
+            const marginBalance = this.safeInteger(balance, 'marginBalance', 0);
+            const maintMargin = this.safeInteger(balance, 'maintMargin', 0);
+            const free = marginBalance - maintMargin;
             const total = this.safeInteger(balance, 'walletBalance');
             let freeStr = free.toString();
             let totalStr = undefined;
