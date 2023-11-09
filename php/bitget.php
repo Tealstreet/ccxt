@@ -211,6 +211,7 @@ class bitget extends Exchange {
                             'account/setMargin' => 8,
                             'account/setMarginMode' => 8,
                             'order/placeOrder' => 2,
+                            'order/place-tpsl-order' => 2,
                             'order/batch-orders' => 2,
                             'order/cancel-order' => 2,
                             'order/cancel-all-orders' => 2,
@@ -2578,7 +2579,21 @@ class bitget extends Exchange {
                 }
                 $request['holdSide'] = ($side === 'buy') ? 'short' : 'long';
                 if ($isCloseOrder) {
-                    $method = 'privateMixPostPlanPlacePositionsTPSL';
+                    // if position is in hedged mode this is correct
+                    $request['holdSide'] = ($side === 'buy') ? 'short' : 'long';
+                    // otherwise, this is correct
+                    if ($positionMode === 'oneway') {
+                        $request['holdSide'] = ($side === 'buy') ? 'sell' : 'buy';
+                    }
+                    $method = 'privateMixPostOrderPlaceTpslOrder';
+                    $request['symbol'] = strtolower($market['info']['symbolName']);
+                    $request['size'] = '';
+                    $request['productType'] = strtolower($market['info']['quoteCoin']) . '-futures';
+                    if ($isStopLossOrder) {
+                        $request['planType'] = 'pos_loss';
+                    } elseif ($isTakeProfitOrder) {
+                        $request['planType'] = 'pos_profit';
+                    }
                 } else {
                     $method = 'privateMixPostPlanPlaceTPSL';
                 }
@@ -4150,7 +4165,13 @@ class bitget extends Exchange {
     public function sign($path, $api = [], $method = 'GET', $params = array (), $headers = null, $body = null) {
         $signed = $api[0] === 'private';
         $endpoint = $api[1];
-        $pathPart = ($endpoint === 'spot') ? '/api/spot/v1' : '/api/mix/v1';
+        $pathPart = '/api/mix/v1';
+        if ($path === 'order/place-tpsl-order') {
+            $pathPart = '/api/v2/mix';
+        }
+        if ($endpoint === 'spot') {
+            $pathPart = '/api/spot/v1';
+        }
         $request = '/' . $this->implode_params($path, $params);
         $payload = $pathPart . $request;
         $url = $this->implode_hostname($this->urls['api'][$endpoint]) . $payload;
