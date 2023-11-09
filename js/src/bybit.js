@@ -3423,10 +3423,13 @@ export default class bybit extends Exchange {
         const market = this.market(symbol);
         let lowerCaseType = type.toLowerCase();
         let isStop = false;
+        const bindStops = this.safeValue(params, 'bindStops', true);
         if (lowerCaseType === 'stop') {
             isStop = true;
             lowerCaseType = 'market';
+            if (bindStops) {
             return this.createPositionTradeStop(symbol, type, side, amount, price, params);
+            }
         }
         else if (lowerCaseType === 'stopLimit') {
             isStop = true;

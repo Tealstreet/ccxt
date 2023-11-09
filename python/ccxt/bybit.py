@@ -3247,10 +3247,12 @@ class bybit(Exchange):
         market = self.market(symbol)
         lowerCaseType = type.lower()
         isStop = False
+        bindStops = self.safe_value(params, 'bindStops', True)
         if lowerCaseType == 'stop':
             isStop = True
             lowerCaseType = 'market'
-            return self.create_position_trade_stop(symbol, type, side, amount, price, params)
+            if bindStops:
+                return self.create_position_trade_stop(symbol, type, side, amount, price, params)
         elif lowerCaseType == 'stopLimit':
             isStop = True
             lowerCaseType = 'limit'

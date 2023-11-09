@@ -3380,10 +3380,13 @@ class bybit extends Exchange {
         $market = $this->market($symbol);
         $lowerCaseType = strtolower($type);
         $isStop = false;
+        $bindStops = $this->safe_value($params, 'bindStops', true);
         if ($lowerCaseType === 'stop') {
             $isStop = true;
             $lowerCaseType = 'market';
-            return $this->create_position_trade_stop($symbol, $type, $side, $amount, $price, $params);
+            if ($bindStops) {
+                return $this->create_position_trade_stop($symbol, $type, $side, $amount, $price, $params);
+            }
         } elseif ($lowerCaseType === 'stopLimit') {
             $isStop = true;
             $lowerCaseType = 'limit';
