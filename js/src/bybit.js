@@ -3016,8 +3016,14 @@ export default class bybit extends Exchange {
         else if (trigger === 'MarkPrice') {
             trigger = 'Mark';
         }
-        const takeProfit = this.safeString(order, 'takeProfit');
-        const stopLoss = this.safeString(order, 'stopLoss');
+        let takeProfit = undefined;
+        if (this.safeFloat(order, 'takeProfit', 0) !== 0) {
+            takeProfit = this.safeString(order, 'takeProfit');
+        }
+        let stopLoss = undefined;
+        if (this.safeFloat(order, 'stopLoss', 0) !== 0) {
+            stopLoss = this.safeString(order, 'stopLoss');
+        }
         return this.safeOrder({
             'info': order,
             'id': id,
@@ -3273,8 +3279,9 @@ export default class bybit extends Exchange {
         }
         params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop']);
         const response = await this.privatePostV5PositionTradingStop(this.extend(request, params));
-        const order = this.safeValue(response, 'result', {});
-        return this.parseOrder(order);
+        const stopOrders = await this.fetchOpenOrders(symbol, undefined, undefined, { 'stop': true });
+        const filteredStopOrders = this.filterBySinceLimit(stopOrders, this.seconds() - 10);
+        return this.safeValue(filteredStopOrders, 0);
     }
     async createUnifiedAccountOrder(symbol, type, side, amount, price = undefined, params = {}) {
         await this.loadMarkets();
@@ -3428,7 +3435,7 @@ export default class bybit extends Exchange {
             isStop = true;
             lowerCaseType = 'market';
             if (bindStops) {
-            return this.createPositionTradeStop(symbol, type, side, amount, price, params);
+                return this.createPositionTradeStop(symbol, type, side, amount, price, params);
             }
         }
         else if (lowerCaseType === 'stopLimit') {
@@ -6876,12 +6883,17 @@ export default class bybit extends Exchange {
          * @name bybit#fetchAllPositions
          * @description fetch all open positions for all currencies
          */
+        const [subType] = this.handleSubTypeAndParams('fetchAllPositions', undefined, params);
         const linearSettleCoins = ['USDT'];
         let promises = [];
-        for (let i = 0; i < linearSettleCoins.length; i++) {
-            promises.push(this.fetchPositions(undefined, { 'subType': 'linear', 'settleCoin': linearSettleCoins[i] }));
+        if (subType !== 'inverse') {
+            for (let i = 0; i < linearSettleCoins.length; i++) {
+                promises.push(this.fetchPositions(undefined, { 'subType': 'linear', 'settleCoin': linearSettleCoins[i] }));
+            }
         }
-        promises.push(this.fetchPositions(undefined, { 'subType': 'inverse', 'settleCoin': 'BTC' }));
+        else {
+            promises.push(this.fetchPositions(undefined, { 'subType': 'inverse', 'settleCoin': 'BTC' }));
+        }
         promises = await Promise.all(promises);
         let result = [];
         for (let i = 0; i < promises.length; i++) {

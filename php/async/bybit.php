@@ -6911,12 +6911,16 @@ class bybit extends Exchange {
             /**
              * fetch all open positions for all currencies
              */
+            list($subType) = $this->handle_sub_type_and_params('fetchAllPositions', null, $params);
             $linearSettleCoins = array( 'USDT' );
             $promises = array();
-            for ($i = 0; $i < count($linearSettleCoins); $i++) {
-                $promises[] = $this->fetch_positions(null, array( 'subType' => 'linear', 'settleCoin' => $linearSettleCoins[$i] ));
+            if ($subType !== 'inverse') {
+                for ($i = 0; $i < count($linearSettleCoins); $i++) {
+                    $promises[] = $this->fetch_positions(null, array( 'subType' => 'linear', 'settleCoin' => $linearSettleCoins[$i] ));
+                }
+            } else {
+                $promises[] = $this->fetch_positions(null, array( 'subType' => 'inverse', 'settleCoin' => 'BTC' ));
             }
-            $promises[] = $this->fetch_positions(null, array( 'subType' => 'inverse', 'settleCoin' => 'BTC' ));
             $promises = Async\await(Promise\all($promises));
             $result = array();
             for ($i = 0; $i < count($promises); $i++) {

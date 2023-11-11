@@ -6841,12 +6841,16 @@ export default class bybit extends Exchange {
          * @name bybit#fetchAllPositions
          * @description fetch all open positions for all currencies
          */
+        const [ subType ] = this.handleSubTypeAndParams ('fetchAllPositions', undefined, params);
         const linearSettleCoins = [ 'USDT' ];
         let promises = [];
-        for (let i = 0; i < linearSettleCoins.length; i++) {
-            promises.push (this.fetchPositions (undefined, { 'subType': 'linear', 'settleCoin': linearSettleCoins[i] }));
+        if (subType !== 'inverse') {
+            for (let i = 0; i < linearSettleCoins.length; i++) {
+                promises.push (this.fetchPositions (undefined, { 'subType': 'linear', 'settleCoin': linearSettleCoins[i] }));
+            }
+        } else {
+            promises.push (this.fetchPositions (undefined, { 'subType': 'inverse', 'settleCoin': 'BTC' }));
         }
-        promises.push (this.fetchPositions (undefined, { 'subType': 'inverse', 'settleCoin': 'BTC' }));
         promises = await Promise.all (promises);
         let result = [];
         for (let i = 0; i < promises.length; i++) {
