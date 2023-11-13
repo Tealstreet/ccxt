@@ -383,6 +383,7 @@ class bybit extends Exchange {
                         // user
                         'v5/user/query-sub-members' => 10,
                         'v5/user/query-api' => 10,
+                        'v5/user/get-member-type' => 10,
                     ),
                     'post' => array(
                         // inverse swap
@@ -1171,6 +1172,17 @@ class bybit extends Exchange {
             // $this->options['enableUnifiedAccount'] = 1;
         }
         return [ $this->options['enableUnifiedMargin'], $this->options['enableUnifiedAccount'] ];
+    }
+
+    public function query_uid($params = array ()) {
+        $response = array();
+        try {
+            $response = $this->privateGetV5UserGetMemberType ($params);
+        } catch (Exception $e) {
+            $response = array();
+        }
+        $result = $this->safe_value($response, 'result', array());
+        return $result;
     }
 
     public function upgrade_unified_account($params = array ()) {

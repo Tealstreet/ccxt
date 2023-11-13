@@ -397,6 +397,7 @@ class bybit(Exchange):
                         # user
                         'v5/user/query-sub-members': 10,
                         'v5/user/query-api': 10,
+                        'v5/user/get-member-type': 10,
                     },
                     'post': {
                         # inverse swap
@@ -1182,6 +1183,15 @@ class bybit(Exchange):
             # self.options['enableUnifiedMargin'] = 1
             # self.options['enableUnifiedAccount'] = 1
         return [self.options['enableUnifiedMargin'], self.options['enableUnifiedAccount']]
+
+    def query_uid(self, params={}):
+        response = {}
+        try:
+            response = self.privateGetV5UserGetMemberType(params)
+        except Exception as e:
+            response = {}
+        result = self.safe_value(response, 'result', {})
+        return result
 
     def upgrade_unified_account(self, params={}):
         createUnifiedMarginAccount = self.safe_value(self.options, 'createUnifiedMarginAccount')
