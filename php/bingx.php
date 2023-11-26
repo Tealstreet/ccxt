@@ -176,6 +176,33 @@ class bingx extends Exchange {
                 'defaultType' => 'swap',
                 'defaultSubType' => 'linear',
             ),
+            'orderTypes' => array(
+                'market' => 'MARKET',
+                'limit' => 'LIMIT',
+                'stop' => 'STOP',
+                'stoplimit' => 'STOP',
+                'marketiftouched' => 'TAKE_PROFIT_MARKET',
+                'limitiftouched' => 'TAKE_PROFIT',
+            ),
+            'reverseOrderTypes' => array(
+                'market' => 'Market',
+                'limit' => 'Limit',
+                'stop_market' => 'Stop',
+                'stoplimit' => 'StopLimit',
+                'take_profit_market' => 'Stop',
+                'take_profit' => 'StopLimit',
+                'limit_maker' => 'Limit',
+            ),
+            'triggerTypes' => array(
+                'Mark' => 'MARK_PRICE',
+                'Last' => 'CONTRACT_PRICE',
+            ),
+            'timeInForces' => array(
+                'GTC' => 'GTC',
+                'PO' => 'GTX',
+                'IOC' => 'IOC',
+                'FOK' => 'FOK',
+            ),
         ));
     }
 
@@ -1192,6 +1219,12 @@ class bingx extends Exchange {
         $statuses = array(
             'pending' => 'open',
             'new' => 'open',
+            'partially_filled' => 'open',
+            'filled' => 'closed',
+            'canceled' => 'canceled',
+            'pending_cancel' => 'canceling', // currently unused
+            'rejected' => 'rejected',
+            'expired' => 'expired',
         );
         return $this->safe_string($statuses, $status, $status);
     }
