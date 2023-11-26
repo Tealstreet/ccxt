@@ -3290,6 +3290,7 @@ export default class bybit extends Exchange {
             }
         }
         params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop']);
+        // eslint-disable-next-line no-unused-vars
         const response = await this.privatePostV5PositionTradingStop(this.extend(request, params));
         const stopOrders = await this.fetchOpenOrders(symbol, undefined, undefined, { 'stop': true });
         const filteredStopOrders = this.filterBySinceLimit(stopOrders, this.seconds() - 10);

@@ -3249,6 +3249,7 @@ class bybit extends Exchange {
             }
         }
         $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop' ));
+        // eslint-disable-next-line no-unused-vars
         $response = $this->privatePostV5PositionTradingStop (array_merge($request, $params));
         $stopOrders = $this->fetch_open_orders($symbol, null, null, array( 'stop' => true ));
         $filteredStopOrders = $this->filter_by_since_limit($stopOrders, $this->seconds() - 10);

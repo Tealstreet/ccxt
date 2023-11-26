@@ -3137,6 +3137,7 @@ class bybit(Exchange):
                         request['slSize'] = self.amount_to_precision(symbol, amount)
                     request['slTriggerBy'] = 'MarkPrice'
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop'])
+        # eslint-disable-next-line no-unused-vars
         response = await self.privatePostV5PositionTradingStop(self.extend(request, params))
         stopOrders = await self.fetch_open_orders(symbol, None, None, {'stop': True})
         filteredStopOrders = self.filter_by_since_limit(stopOrders, self.seconds() - 10)
