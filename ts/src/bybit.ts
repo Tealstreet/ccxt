@@ -6795,12 +6795,12 @@ export default class bybit extends Exchange {
             }
         }
         [ settle, params ] = this.handleOptionAndParams (params, 'fetchPositions', 'settle', settle);
-        if (settle !== undefined) {
-            request['settleCoin'] = settle;
-        }
         let subType = undefined;
         [ subType, params ] = this.handleSubTypeAndParams ('fetchPositions', market, params, 'linear');
         request['category'] = subType;
+        if (settle !== undefined && subType !== 'inverse') {
+            request['settleCoin'] = settle;
+        }
         const response = await (this as any).privateGetV5PositionList (this.extend (request, params));
         //
         //     {

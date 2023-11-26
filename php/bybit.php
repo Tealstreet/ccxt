@@ -6725,12 +6725,12 @@ class bybit extends Exchange {
             }
         }
         list($settle, $params) = $this->handle_option_and_params($params, 'fetchPositions', 'settle', $settle);
-        if ($settle !== null) {
-            $request['settleCoin'] = $settle;
-        }
         $subType = null;
         list($subType, $params) = $this->handle_sub_type_and_params('fetchPositions', $market, $params, 'linear');
         $request['category'] = $subType;
+        if ($settle !== null && $subType !== 'inverse') {
+            $request['settleCoin'] = $settle;
+        }
         $response = $this->privateGetV5PositionList (array_merge($request, $params));
         //
         //     {

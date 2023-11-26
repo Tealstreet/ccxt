@@ -6330,11 +6330,11 @@ class bybit(Exchange):
                 settle = market['settle']
                 request['symbol'] = market['id']
         settle, params = self.handle_option_and_params(params, 'fetchPositions', 'settle', settle)
-        if settle is not None:
-            request['settleCoin'] = settle
         subType = None
         subType, params = self.handle_sub_type_and_params('fetchPositions', market, params, 'linear')
         request['category'] = subType
+        if settle is not None and subType != 'inverse':
+            request['settleCoin'] = settle
         response = await self.privateGetV5PositionList(self.extend(request, params))
         #
         #     {
