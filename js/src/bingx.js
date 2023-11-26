@@ -52,7 +52,7 @@ export default class bingx extends Exchange {
             'urls': {
                 'logo': '',
                 'api': {
-                    'swap': 'https://api-swap-rest.bingbon.pro/api',
+                    'swap': 'https://api-swap-rest.bingx.com/api',
                     'swap2': 'https://open-api.bingx.com',
                 },
                 'test': {},
