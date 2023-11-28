@@ -868,7 +868,7 @@ export default class bingx extends Exchange {
         const market = this.market(symbol);
         //
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-        const triggerType = this.safeValue2(params, 'trigger', 'workingType');
+        const triggerType = this.safeStringLower2(params, 'trigger', 'workingType');
         // const isTriggerOrder = triggerPrice !== undefined;
         let isStopLossOrder = undefined;
         let isTakeProfitOrder = undefined;
@@ -957,10 +957,10 @@ export default class bingx extends Exchange {
         };
         if (type === 'stop' || type === 'stopLimit') {
             let triggerBy = 'MARK_PRICE';
-            if (triggerType === 'Index') {
+            if (triggerType === 'index') {
                 triggerBy = 'INDEX_PRICE';
             }
-            else if (triggerType === 'Last') {
+            else if (triggerType === 'last') {
                 triggerBy = 'CONTRACT_PRICE';
             }
             request['workingType'] = triggerBy;
@@ -1263,7 +1263,7 @@ export default class bingx extends Exchange {
             'mark_price': 'mark',
             'fill_price': 'last',
             'contract_price': 'last',
-            'index_price': 'index',
+            'index_price': 'index', // unused
         };
         return this.safeString(statuses, status, status);
     }

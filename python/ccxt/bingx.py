@@ -824,7 +824,7 @@ class bingx(Exchange):
         market = self.market(symbol)
         #
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        triggerType = self.safe_value_2(params, 'trigger', 'workingType')
+        triggerType = self.safe_string_lower_2(params, 'trigger', 'workingType')
         # isTriggerOrder = triggerPrice is not None
         isStopLossOrder = None
         isTakeProfitOrder = None
@@ -887,9 +887,9 @@ class bingx(Exchange):
         }
         if type == 'stop' or type == 'stopLimit':
             triggerBy = 'MARK_PRICE'
-            if triggerType == 'Index':
+            if triggerType == 'index':
                 triggerBy = 'INDEX_PRICE'
-            elif triggerType == 'Last':
+            elif triggerType == 'last':
                 triggerBy = 'CONTRACT_PRICE'
             request['workingType'] = triggerBy
         if triggerPrice is not None:
@@ -1147,11 +1147,11 @@ class bingx(Exchange):
 
     def parse_stop_trigger(self, status):
         statuses = {
-            'market_price': 'mark',
+            'market_price': 'mark',  # unused
             'mark_price': 'mark',
-            'fill_price': 'last',
+            'fill_price': 'last',  # unused
             'contract_price': 'last',
-            'index_price': 'index',
+            'index_price': 'index',  # unused
         }
         return self.safe_string(statuses, status, status)
 

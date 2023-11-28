@@ -894,7 +894,7 @@ class bingx extends Exchange {
             $market = $this->market($symbol);
             //
             $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-            $triggerType = $this->safe_value_2($params, 'trigger', 'workingType');
+            $triggerType = $this->safe_string_lower_2($params, 'trigger', 'workingType');
             // $isTriggerOrder = $triggerPrice !== null;
             $isStopLossOrder = null;
             $isTakeProfitOrder = null;
@@ -971,9 +971,9 @@ class bingx extends Exchange {
             );
             if ($type === 'stop' || $type === 'stopLimit') {
                 $triggerBy = 'MARK_PRICE';
-                if ($triggerType === 'Index') {
+                if ($triggerType === 'index') {
                     $triggerBy = 'INDEX_PRICE';
-                } elseif ($triggerType === 'Last') {
+                } elseif ($triggerType === 'last') {
                     $triggerBy = 'CONTRACT_PRICE';
                 }
                 $request['workingType'] = $triggerBy;
@@ -1267,11 +1267,11 @@ class bingx extends Exchange {
 
     public function parse_stop_trigger($status) {
         $statuses = array(
-            'market_price' => 'mark',
+            'market_price' => 'mark', // unused
             'mark_price' => 'mark',
-            'fill_price' => 'last',
+            'fill_price' => 'last', // unused
             'contract_price' => 'last',
-            'index_price' => 'index',
+            'index_price' => 'index', // unused
         );
         return $this->safe_string($statuses, $status, $status);
     }
