@@ -383,6 +383,7 @@ class bybit extends Exchange {
                         // user
                         'v5/user/query-sub-members' => 10,
                         'v5/user/query-api' => 10,
+                        'v5/user/get-member-type' => 10,
                     ),
                     'post' => array(
                         // inverse swap
@@ -1171,6 +1172,17 @@ class bybit extends Exchange {
             // $this->options['enableUnifiedAccount'] = 1;
         }
         return [ $this->options['enableUnifiedMargin'], $this->options['enableUnifiedAccount'] ];
+    }
+
+    public function query_uid($params = array ()) {
+        $response = array();
+        try {
+            $response = $this->privateGetV5UserGetMemberType ($params);
+        } catch (Exception $e) {
+            $response = array();
+        }
+        $result = $this->safe_value($response, 'result', array());
+        return $result;
     }
 
     public function upgrade_unified_account($params = array ()) {
@@ -3237,6 +3249,7 @@ class bybit extends Exchange {
             }
         }
         $params = $this->omit($params, array( 'stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop' ));
+        // eslint-disable-next-line no-unused-vars
         $response = $this->privatePostV5PositionTradingStop (array_merge($request, $params));
         $stopOrders = $this->fetch_open_orders($symbol, null, null, array( 'stop' => true ));
         $filteredStopOrders = $this->filter_by_since_limit($stopOrders, $this->seconds() - 10);
@@ -3380,10 +3393,13 @@ class bybit extends Exchange {
         $market = $this->market($symbol);
         $lowerCaseType = strtolower($type);
         $isStop = false;
+        $bindStops = $this->safe_value($params, 'bindStops', true);
         if ($lowerCaseType === 'stop') {
             $isStop = true;
             $lowerCaseType = 'market';
-            return $this->create_position_trade_stop($symbol, $type, $side, $amount, $price, $params);
+            if ($bindStops) {
+                return $this->create_position_trade_stop($symbol, $type, $side, $amount, $price, $params);
+            }
         } elseif ($lowerCaseType === 'stopLimit') {
             $isStop = true;
             $lowerCaseType = 'limit';
@@ -5606,7 +5622,8 @@ class bybit extends Exchange {
         } elseif ($enableUnifiedMargin && !$isInverse) {
             return $this->fetch_my_unified_margin_trades($symbol, $since, $limit, $query);
         } elseif ($isUsdcSettled) {
-            return $this->fetch_my_usdc_trades($symbol, $since, $limit, $query);
+            // return $this->fetch_my_usdc_trades($symbol, $since, $limit, $query);
+            return array();
         } else {
             return $this->fetch_my_contract_trades($symbol, $since, $limit, $query);
         }
@@ -6709,12 +6726,12 @@ class bybit extends Exchange {
             }
         }
         list($settle, $params) = $this->handle_option_and_params($params, 'fetchPositions', 'settle', $settle);
-        if ($settle !== null) {
-            $request['settleCoin'] = $settle;
-        }
         $subType = null;
         list($subType, $params) = $this->handle_sub_type_and_params('fetchPositions', $market, $params, 'linear');
         $request['category'] = $subType;
+        if ($settle !== null && $subType !== 'inverse') {
+            $request['settleCoin'] = $settle;
+        }
         $response = $this->privateGetV5PositionList (array_merge($request, $params));
         //
         //     {
@@ -6765,12 +6782,16 @@ class bybit extends Exchange {
         /**
          * fetch all open positions for all currencies
          */
+        list($subType) = $this->handle_sub_type_and_params('fetchAllPositions', null, $params);
         $linearSettleCoins = array( 'USDT' );
         $promises = array();
-        for ($i = 0; $i < count($linearSettleCoins); $i++) {
-            $promises[] = $this->fetch_positions(null, array( 'subType' => 'linear', 'settleCoin' => $linearSettleCoins[$i] ));
+        if ($subType !== 'inverse') {
+            for ($i = 0; $i < count($linearSettleCoins); $i++) {
+                $promises[] = $this->fetch_positions(null, array( 'subType' => 'linear', 'settleCoin' => $linearSettleCoins[$i] ));
+            }
+        } else {
+            $promises[] = $this->fetch_positions(null, array( 'subType' => 'inverse', 'settleCoin' => 'BTC' ));
         }
-        $promises[] = $this->fetch_positions(null, array( 'subType' => 'inverse', 'settleCoin' => 'BTC' ));
         $promises = $promises;
         $result = array();
         for ($i = 0; $i < count($promises); $i++) {

@@ -397,7 +397,7 @@ class bybit(Exchange):
                         # user
                         'v5/user/query-sub-members': 10,
                         'v5/user/query-api': 10,
-                        'v5/user/aff-customer-info': 10,
+                        'v5/user/get-member-type': 10,
                     },
                     'post': {
                         # inverse swap
@@ -1183,6 +1183,15 @@ class bybit(Exchange):
             # self.options['enableUnifiedMargin'] = 1
             # self.options['enableUnifiedAccount'] = 1
         return [self.options['enableUnifiedMargin'], self.options['enableUnifiedAccount']]
+
+    def query_uid(self, params={}):
+        response = {}
+        try:
+            response = self.privateGetV5UserGetMemberType(params)
+        except Exception as e:
+            response = {}
+        result = self.safe_value(response, 'result', {})
+        return result
 
     def upgrade_unified_account(self, params={}):
         createUnifiedMarginAccount = self.safe_value(self.options, 'createUnifiedMarginAccount')
@@ -3127,6 +3136,7 @@ class bybit(Exchange):
                         request['slSize'] = self.amount_to_precision(symbol, amount)
                     request['slTriggerBy'] = 'MarkPrice'
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop'])
+        # eslint-disable-next-line no-unused-vars
         response = self.privatePostV5PositionTradingStop(self.extend(request, params))
         stopOrders = self.fetch_open_orders(symbol, None, None, {'stop': True})
         filteredStopOrders = self.filter_by_since_limit(stopOrders, self.seconds() - 10)
@@ -3248,10 +3258,12 @@ class bybit(Exchange):
         market = self.market(symbol)
         lowerCaseType = type.lower()
         isStop = False
+        bindStops = self.safe_value(params, 'bindStops', True)
         if lowerCaseType == 'stop':
             isStop = True
             lowerCaseType = 'market'
-            return self.create_position_trade_stop(symbol, type, side, amount, price, params)
+            if bindStops:
+                return self.create_position_trade_stop(symbol, type, side, amount, price, params)
         elif lowerCaseType == 'stopLimit':
             isStop = True
             lowerCaseType = 'limit'
@@ -5273,7 +5285,8 @@ class bybit(Exchange):
         elif enableUnifiedMargin and not isInverse:
             return self.fetch_my_unified_margin_trades(symbol, since, limit, query)
         elif isUsdcSettled:
-            return self.fetch_my_usdc_trades(symbol, since, limit, query)
+            # return self.fetch_my_usdc_trades(symbol, since, limit, query)
+            return []
         else:
             return self.fetch_my_contract_trades(symbol, since, limit, query)
 
@@ -6317,11 +6330,11 @@ class bybit(Exchange):
                 settle = market['settle']
                 request['symbol'] = market['id']
         settle, params = self.handle_option_and_params(params, 'fetchPositions', 'settle', settle)
-        if settle is not None:
-            request['settleCoin'] = settle
         subType = None
         subType, params = self.handle_sub_type_and_params('fetchPositions', market, params, 'linear')
         request['category'] = subType
+        if settle is not None and subType != 'inverse':
+            request['settleCoin'] = settle
         response = self.privateGetV5PositionList(self.extend(request, params))
         #
         #     {
@@ -6371,11 +6384,14 @@ class bybit(Exchange):
         """
         fetch all open positions for all currencies
         """
+        subType = self.handle_sub_type_and_params('fetchAllPositions', None, params)
         linearSettleCoins = ['USDT']
         promises = []
-        for i in range(0, len(linearSettleCoins)):
-            promises.append(self.fetch_positions(None, {'subType': 'linear', 'settleCoin': linearSettleCoins[i]}))
-        promises.append(self.fetch_positions(None, {'subType': 'inverse', 'settleCoin': 'BTC'}))
+        if subType != 'inverse':
+            for i in range(0, len(linearSettleCoins)):
+                promises.append(self.fetch_positions(None, {'subType': 'linear', 'settleCoin': linearSettleCoins[i]}))
+        else:
+            promises.append(self.fetch_positions(None, {'subType': 'inverse', 'settleCoin': 'BTC'}))
         promises = promises
         result = []
         for i in range(0, len(promises)):

@@ -213,6 +213,7 @@ export default class bitget extends Exchange {
                             'account/setMargin': 8,
                             'account/setMarginMode': 8,
                             'order/placeOrder': 2,
+                            'order/place-tpsl-order': 2,
                             'order/batch-orders': 2,
                             'order/cancel-order': 2,
                             'order/cancel-all-orders': 2,
@@ -2606,7 +2607,22 @@ export default class bitget extends Exchange {
                 }
                 request['holdSide'] = (side === 'buy') ? 'short' : 'long';
                 if (isCloseOrder) {
-                    method = 'privateMixPostPlanPlacePositionsTPSL';
+                    // if position is in hedged mode this is correct
+                    request['holdSide'] = (side === 'buy') ? 'short' : 'long';
+                    // otherwise, this is correct
+                    if (positionMode === 'oneway') {
+                        request['holdSide'] = (side === 'buy') ? 'sell' : 'buy';
+                    }
+                    method = 'privateMixPostOrderPlaceTpslOrder';
+                    request['symbol'] = market['info']['symbolName'].toLowerCase();
+                    request['size'] = '';
+                    request['productType'] = market['info']['quoteCoin'].toLowerCase() + '-futures';
+                    if (isStopLossOrder) {
+                        request['planType'] = 'pos_loss';
+                    }
+                    else if (isTakeProfitOrder) {
+                        request['planType'] = 'pos_profit';
+                    }
                 }
                 else {
                     method = 'privateMixPostPlanPlaceTPSL';
@@ -4199,7 +4215,13 @@ export default class bitget extends Exchange {
     sign(path, api = [], method = 'GET', params = {}, headers = undefined, body = undefined) {
         const signed = api[0] === 'private';
         const endpoint = api[1];
-        const pathPart = (endpoint === 'spot') ? '/api/spot/v1' : '/api/mix/v1';
+        let pathPart = '/api/mix/v1';
+        if (path === 'order/place-tpsl-order') {
+            pathPart = '/api/v2/mix';
+        }
+        if (endpoint === 'spot') {
+            pathPart = '/api/spot/v1';
+        }
         const request = '/' + this.implodeParams(path, params);
         const payload = pathPart + request;
         let url = this.implodeHostname(this.urls['api'][endpoint]) + payload;

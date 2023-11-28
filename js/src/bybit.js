@@ -387,6 +387,7 @@ export default class bybit extends Exchange {
                         // user
                         'v5/user/query-sub-members': 10,
                         'v5/user/query-api': 10,
+                        'v5/user/get-member-type': 10,
                     },
                     'post': {
                         // inverse swap
@@ -1173,6 +1174,17 @@ export default class bybit extends Exchange {
             // this.options['enableUnifiedAccount'] = 1;
         }
         return [this.options['enableUnifiedMargin'], this.options['enableUnifiedAccount']];
+    }
+    async queryUid(params = {}) {
+        let response = {};
+        try {
+            response = await this.privateGetV5UserGetMemberType(params);
+        }
+        catch (e) {
+            response = {};
+        }
+        const result = this.safeValue(response, 'result', {});
+        return result;
     }
     async upgradeUnifiedAccount(params = {}) {
         const createUnifiedMarginAccount = this.safeValue(this.options, 'createUnifiedMarginAccount');
@@ -3016,8 +3028,14 @@ export default class bybit extends Exchange {
         else if (trigger === 'MarkPrice') {
             trigger = 'Mark';
         }
-        const takeProfit = this.safeString(order, 'takeProfit');
-        const stopLoss = this.safeString(order, 'stopLoss');
+        let takeProfit = undefined;
+        if (this.safeFloat(order, 'takeProfit', 0) !== 0) {
+            takeProfit = this.safeString(order, 'takeProfit');
+        }
+        let stopLoss = undefined;
+        if (this.safeFloat(order, 'stopLoss', 0) !== 0) {
+            stopLoss = this.safeString(order, 'stopLoss');
+        }
         return this.safeOrder({
             'info': order,
             'id': id,
@@ -3272,9 +3290,11 @@ export default class bybit extends Exchange {
             }
         }
         params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop']);
+        // eslint-disable-next-line no-unused-vars
         const response = await this.privatePostV5PositionTradingStop(this.extend(request, params));
-        const order = this.safeValue(response, 'result', {});
-        return this.parseOrder(order);
+        const stopOrders = await this.fetchOpenOrders(symbol, undefined, undefined, { 'stop': true });
+        const filteredStopOrders = this.filterBySinceLimit(stopOrders, this.seconds() - 10);
+        return this.safeValue(filteredStopOrders, 0);
     }
     async createUnifiedAccountOrder(symbol, type, side, amount, price = undefined, params = {}) {
         await this.loadMarkets();
@@ -3423,10 +3443,13 @@ export default class bybit extends Exchange {
         const market = this.market(symbol);
         let lowerCaseType = type.toLowerCase();
         let isStop = false;
+        const bindStops = this.safeValue(params, 'bindStops', true);
         if (lowerCaseType === 'stop') {
             isStop = true;
             lowerCaseType = 'market';
-            return this.createPositionTradeStop(symbol, type, side, amount, price, params);
+            if (bindStops) {
+                return this.createPositionTradeStop(symbol, type, side, amount, price, params);
+            }
         }
         else if (lowerCaseType === 'stopLimit') {
             isStop = true;
@@ -5702,7 +5725,8 @@ export default class bybit extends Exchange {
             return await this.fetchMyUnifiedMarginTrades(symbol, since, limit, query);
         }
         else if (isUsdcSettled) {
-            return await this.fetchMyUsdcTrades(symbol, since, limit, query);
+            // return await this.fetchMyUsdcTrades (symbol, since, limit, query);
+            return [];
         }
         else {
             return await this.fetchMyContractTrades(symbol, since, limit, query);
@@ -6815,12 +6839,12 @@ export default class bybit extends Exchange {
             }
         }
         [settle, params] = this.handleOptionAndParams(params, 'fetchPositions', 'settle', settle);
-        if (settle !== undefined) {
-            request['settleCoin'] = settle;
-        }
         let subType = undefined;
         [subType, params] = this.handleSubTypeAndParams('fetchPositions', market, params, 'linear');
         request['category'] = subType;
+        if (settle !== undefined && subType !== 'inverse') {
+            request['settleCoin'] = settle;
+        }
         const response = await this.privateGetV5PositionList(this.extend(request, params));
         //
         //     {
@@ -6872,12 +6896,17 @@ export default class bybit extends Exchange {
          * @name bybit#fetchAllPositions
          * @description fetch all open positions for all currencies
          */
+        const [subType] = this.handleSubTypeAndParams('fetchAllPositions', undefined, params);
         const linearSettleCoins = ['USDT'];
         let promises = [];
-        for (let i = 0; i < linearSettleCoins.length; i++) {
-            promises.push(this.fetchPositions(undefined, { 'subType': 'linear', 'settleCoin': linearSettleCoins[i] }));
+        if (subType !== 'inverse') {
+            for (let i = 0; i < linearSettleCoins.length; i++) {
+                promises.push(this.fetchPositions(undefined, { 'subType': 'linear', 'settleCoin': linearSettleCoins[i] }));
+            }
         }
-        promises.push(this.fetchPositions(undefined, { 'subType': 'inverse', 'settleCoin': 'BTC' }));
+        else {
+            promises.push(this.fetchPositions(undefined, { 'subType': 'inverse', 'settleCoin': 'BTC' }));
+        }
         promises = await Promise.all(promises);
         let result = [];
         for (let i = 0; i < promises.length; i++) {

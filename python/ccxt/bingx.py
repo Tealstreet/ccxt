@@ -54,7 +54,7 @@ class bingx(Exchange):
             'urls': {
                 'logo': '',
                 'api': {
-                    'swap': 'https://api-swap-rest.bingbon.pro/api',
+                    'swap': 'https://api-swap-rest.bingx.com/api',
                     'swap2': 'https://open-api.bingx.com',
                 },
                 'test': {
@@ -178,6 +178,33 @@ class bingx(Exchange):
                 'listenKeyRefreshRate': 1200000,  # 20 mins
                 'defaultType': 'swap',
                 'defaultSubType': 'linear',
+            },
+            'orderTypes': {
+                'market': 'MARKET',
+                'limit': 'LIMIT',
+                'stop': 'STOP',
+                'stoplimit': 'STOP',
+                'marketiftouched': 'TAKE_PROFIT_MARKET',
+                'limitiftouched': 'TAKE_PROFIT',
+            },
+            'reverseOrderTypes': {
+                'market': 'Market',
+                'limit': 'Limit',
+                'stop_market': 'Stop',
+                'stoplimit': 'StopLimit',
+                'take_profit_market': 'Stop',
+                'take_profit': 'StopLimit',
+                'limit_maker': 'Limit',
+            },
+            'triggerTypes': {
+                'Mark': 'MARK_PRICE',
+                'Last': 'CONTRACT_PRICE',
+            },
+            'timeInForces': {
+                'GTC': 'GTC',
+                'PO': 'GTX',
+                'IOC': 'IOC',
+                'FOK': 'FOK',
             },
         })
 
@@ -1109,6 +1136,12 @@ class bingx(Exchange):
         statuses = {
             'pending': 'open',
             'new': 'open',
+            'partially_filled': 'open',
+            'filled': 'closed',
+            'canceled': 'canceled',
+            'pending_cancel': 'canceling',  # currently unused
+            'rejected': 'rejected',
+            'expired': 'expired',
         }
         return self.safe_string(statuses, status, status)
 

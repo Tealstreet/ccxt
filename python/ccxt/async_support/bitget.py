@@ -233,6 +233,7 @@ class bitget(Exchange):
                             'account/setMargin': 8,
                             'account/setMarginMode': 8,
                             'order/placeOrder': 2,
+                            'order/place-tpsl-order': 2,
                             'order/batch-orders': 2,
                             'order/cancel-order': 2,
                             'order/cancel-all-orders': 2,
@@ -2482,7 +2483,19 @@ class bitget(Exchange):
                     request['planType'] = 'profit_plan'
                 request['holdSide'] = 'short' if (side == 'buy') else 'long'
                 if isCloseOrder:
-                    method = 'privateMixPostPlanPlacePositionsTPSL'
+                    # if position is in hedged mode self is correct
+                    request['holdSide'] = 'short' if (side == 'buy') else 'long'
+                    # otherwise, self is correct
+                    if positionMode == 'oneway':
+                        request['holdSide'] = 'sell' if (side == 'buy') else 'buy'
+                    method = 'privateMixPostOrderPlaceTpslOrder'
+                    request['symbol'] = market['info']['symbolName'].lower()
+                    request['size'] = ''
+                    request['productType'] = market['info']['quoteCoin'].lower() + '-futures'
+                    if isStopLossOrder:
+                        request['planType'] = 'pos_loss'
+                    elif isTakeProfitOrder:
+                        request['planType'] = 'pos_profit'
                 else:
                     method = 'privateMixPostPlanPlaceTPSL'
             else:
@@ -3951,7 +3964,11 @@ class bitget(Exchange):
     def sign(self, path, api=[], method='GET', params={}, headers=None, body=None):
         signed = api[0] == 'private'
         endpoint = api[1]
-        pathPart = '/api/spot/v1' if (endpoint == 'spot') else '/api/mix/v1'
+        pathPart = '/api/mix/v1'
+        if path == 'order/place-tpsl-order':
+            pathPart = '/api/v2/mix'
+        if endpoint == 'spot':
+            pathPart = '/api/spot/v1'
         request = '/' + self.implode_params(path, params)
         payload = pathPart + request
         url = self.implode_hostname(self.urls['api'][endpoint]) + payload
