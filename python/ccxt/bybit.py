@@ -397,6 +397,7 @@ class bybit(Exchange):
                         # user
                         'v5/user/query-sub-members': 10,
                         'v5/user/query-api': 10,
+                        'v5/user/aff-customer-info': 10,
                     },
                     'post': {
                         # inverse swap
