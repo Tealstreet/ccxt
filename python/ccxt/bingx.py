@@ -1148,7 +1148,9 @@ class bingx(Exchange):
     def parse_stop_trigger(self, status):
         statuses = {
             'market_price': 'mark',
+            'mark_price': 'mark',
             'fill_price': 'last',
+            'contract_price': 'last',
             'index_price': 'index',
         }
         return self.safe_string(statuses, status, status)
@@ -1257,7 +1259,7 @@ class bingx(Exchange):
         average = self.safe_string(order, 'avgPrice')
         type = self.parse_order_type(self.safe_string_lower(order, 'type'))
         timestamp = self.safe_integer(order, 'time')
-        rawStopTrigger = self.safe_string(order, 'trigger')
+        rawStopTrigger = self.safe_string_lower_2(order, 'trigger', 'workingType')
         trigger = self.parse_stop_trigger(rawStopTrigger)
         side = self.safe_string_lower(order, 'side')
         positionSide = self.safe_string_lower(order, 'positionSide')

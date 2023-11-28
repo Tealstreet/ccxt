@@ -1268,7 +1268,9 @@ class bingx extends Exchange {
     public function parse_stop_trigger($status) {
         $statuses = array(
             'market_price' => 'mark',
+            'mark_price' => 'mark',
             'fill_price' => 'last',
+            'contract_price' => 'last',
             'index_price' => 'index',
         );
         return $this->safe_string($statuses, $status, $status);
@@ -1379,7 +1381,7 @@ class bingx extends Exchange {
         $average = $this->safe_string($order, 'avgPrice');
         $type = $this->parse_order_type($this->safe_string_lower($order, 'type'));
         $timestamp = $this->safe_integer($order, 'time');
-        $rawStopTrigger = $this->safe_string($order, 'trigger');
+        $rawStopTrigger = $this->safe_string_lower_2($order, 'trigger', 'workingType');
         $trigger = $this->parse_stop_trigger($rawStopTrigger);
         $side = $this->safe_string_lower($order, 'side');
         $positionSide = $this->safe_string_lower($order, 'positionSide');

@@ -1260,7 +1260,9 @@ export default class bingx extends Exchange {
     parseStopTrigger(status) {
         const statuses = {
             'market_price': 'mark',
+            'mark_price': 'mark',
             'fill_price': 'last',
+            'contract_price': 'last',
             'index_price': 'index',
         };
         return this.safeString(statuses, status, status);
@@ -1369,7 +1371,7 @@ export default class bingx extends Exchange {
         const average = this.safeString(order, 'avgPrice');
         const type = this.parseOrderType(this.safeStringLower(order, 'type'));
         const timestamp = this.safeInteger(order, 'time');
-        const rawStopTrigger = this.safeString(order, 'trigger');
+        const rawStopTrigger = this.safeStringLower2(order, 'trigger', 'workingType');
         const trigger = this.parseStopTrigger(rawStopTrigger);
         const side = this.safeStringLower(order, 'side');
         const positionSide = this.safeStringLower(order, 'positionSide');
