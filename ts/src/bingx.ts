@@ -1253,11 +1253,11 @@ export default class bingx extends Exchange {
 
     parseStopTrigger (status) {
         const statuses = {
-            'market_price': 'mark',
+            'market_price': 'mark', // unused
             'mark_price': 'mark',
-            'fill_price': 'last',
+            'fill_price': 'last', // unused
             'contract_price': 'last',
-            'index_price': 'index',
+            'index_price': 'index', // unused
         };
         return this.safeString (statuses, status, status);
     }
