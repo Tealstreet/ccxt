@@ -3547,18 +3547,16 @@ export default class bybit extends Exchange {
             if (triggerPrice === undefined) {
                 throw new InvalidOrder(this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
             }
-            // let triggerBy = 'LastPrice';
-            // if (params['trigger'] === 'Index') {
-            //     triggerBy = 'IndexPrice';
-            // } else if (params['trigger'] === 'Mark') {
-            //     triggerBy = 'MarkPrice';
-            // }
-            // request['triggerBy'] = triggerBy;
-            // request['slTriggerBy'] = triggerBy;
-            // request['tpTriggerBy'] = triggerBy;
-            request['triggerBy'] = 'MarkPrice';
-            request['slTriggerBy'] = 'MarkPrice';
-            request['tpTriggerBy'] = 'LastPrice';
+            let triggerBy = 'LastPrice';
+            if (params['trigger'] === 'Index') {
+                triggerBy = 'IndexPrice';
+            }
+            else if (params['trigger'] === 'Mark') {
+                triggerBy = 'MarkPrice';
+            }
+            request['triggerBy'] = triggerBy;
+            request['slTriggerBy'] = triggerBy;
+            request['tpTriggerBy'] = triggerBy;
             request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
             if (triggerPrice > basePrice) {
                 request['triggerDirection'] = 1;
@@ -3655,7 +3653,14 @@ export default class bybit extends Exchange {
             const isStopOrder = isStopLossTriggerOrder || isTakeProfitTriggerOrder;
             if (isStopOrder) {
                 request['orderFilter'] = 'StopOrder';
-                request['trigger_by'] = 'LastPrice';
+                let triggerBy = 'LastPrice';
+                if (params['trigger'] === 'Index') {
+                    triggerBy = 'IndexPrice';
+                }
+                else if (params['trigger'] === 'Mark') {
+                    triggerBy = 'MarkPrice';
+                }
+                request['trigger_by'] = triggerBy;
                 const stopPx = isStopLossTriggerOrder ? stopLossTriggerPrice : takeProfitTriggerPrice;
                 const preciseStopPrice = this.priceToPrecision(symbol, stopPx);
                 request['triggerPrice'] = preciseStopPrice;
@@ -3845,7 +3850,14 @@ export default class bybit extends Exchange {
             request['takeProfit'] = this.priceToPrecision(symbol, takeProfitPrice);
         }
         if (triggerPrice !== undefined) {
-            request['triggerBy'] = 'LastPrice';
+            let triggerBy = 'LastPrice';
+            if (params['trigger'] === 'Index') {
+                triggerBy = 'IndexPrice';
+            }
+            else if (params['trigger'] === 'Mark') {
+                triggerBy = 'MarkPrice';
+            }
+            request['triggerBy'] = triggerBy;
             request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
         }
         const clientOrderId = this.safeString(params, 'clientOrderId');

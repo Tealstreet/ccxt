@@ -3338,18 +3338,14 @@ class bybit(Exchange):
                 raise InvalidOrder(self.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders')
             if triggerPrice is None:
                 raise InvalidOrder(self.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders')
-            # triggerBy = 'LastPrice'
-            # if params['trigger'] == 'Index':
-            #     triggerBy = 'IndexPrice'
-            # elif params['trigger'] == 'Mark':
-            #     triggerBy = 'MarkPrice'
-            # }
-            # request['triggerBy'] = triggerBy
-            # request['slTriggerBy'] = triggerBy
-            # request['tpTriggerBy'] = triggerBy
-            request['triggerBy'] = 'MarkPrice'
-            request['slTriggerBy'] = 'MarkPrice'
-            request['tpTriggerBy'] = 'LastPrice'
+            triggerBy = 'LastPrice'
+            if params['trigger'] == 'Index':
+                triggerBy = 'IndexPrice'
+            elif params['trigger'] == 'Mark':
+                triggerBy = 'MarkPrice'
+            request['triggerBy'] = triggerBy
+            request['slTriggerBy'] = triggerBy
+            request['tpTriggerBy'] = triggerBy
             request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
             if triggerPrice > basePrice:
                 request['triggerDirection'] = 1
@@ -3434,7 +3430,12 @@ class bybit(Exchange):
             isStopOrder = isStopLossTriggerOrder or isTakeProfitTriggerOrder
             if isStopOrder:
                 request['orderFilter'] = 'StopOrder'
-                request['trigger_by'] = 'LastPrice'
+                triggerBy = 'LastPrice'
+                if params['trigger'] == 'Index':
+                    triggerBy = 'IndexPrice'
+                elif params['trigger'] == 'Mark':
+                    triggerBy = 'MarkPrice'
+                request['trigger_by'] = triggerBy
                 stopPx = stopLossTriggerPrice if isStopLossTriggerOrder else takeProfitTriggerPrice
                 preciseStopPrice = self.price_to_precision(symbol, stopPx)
                 request['triggerPrice'] = preciseStopPrice
@@ -3596,7 +3597,12 @@ class bybit(Exchange):
         if isTakeProfitOrder:
             request['takeProfit'] = self.price_to_precision(symbol, takeProfitPrice)
         if triggerPrice is not None:
-            request['triggerBy'] = 'LastPrice'
+            triggerBy = 'LastPrice'
+            if params['trigger'] == 'Index':
+                triggerBy = 'IndexPrice'
+            elif params['trigger'] == 'Mark':
+                triggerBy = 'MarkPrice'
+            request['triggerBy'] = triggerBy
             request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
         clientOrderId = self.safe_string(params, 'clientOrderId')
         if clientOrderId is not None:
