@@ -3099,12 +3099,11 @@ class bybit(Exchange):
         basePrice = self.safe_string(params, 'basePrice')
         if not basePrice:
             raise InvalidOrder(self.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders')
-        # triggerBy = 'LastPrice'
-        # if params['trigger'] == 'Index':
-        #     triggerBy = 'IndexPrice'
-        # elif params['trigger'] == 'Mark':
-        #     triggerBy = 'MarkPrice'
-        # }
+        triggerBy = 'LastPrice'
+        if params['trigger'] == 'Index':
+            triggerBy = 'IndexPrice'
+        elif params['trigger'] == 'Mark':
+            triggerBy = 'MarkPrice'
         if Precise.string_gt(stopPrice, basePrice):
             if side == 'buy':
                 if trailingStop is not None:
@@ -3114,18 +3113,21 @@ class bybit(Exchange):
                     request['stopLoss'] = self.price_to_precision(symbol, stopPrice)
                     if amount != 0:
                         request['slSize'] = self.amount_to_precision(symbol, amount)
-                    request['slTriggerBy'] = 'MarkPrice'
+                    # request['slTriggerBy'] = 'MarkPrice'
+                    request['slTriggerBy'] = triggerBy
             else:
                 request['takeProfit'] = self.price_to_precision(symbol, stopPrice)
                 if amount != 0:
                     request['tpSize'] = self.amount_to_precision(symbol, amount)
-                request['tpTriggerBy'] = 'LastPrice'
+                # request['tpTriggerBy'] = 'LastPrice'
+                request['tpTriggerBy'] = triggerBy
         else:
             if side == 'buy':
                 request['takeProfit'] = self.price_to_precision(symbol, stopPrice)
                 if amount != 0:
                     request['tpSize'] = self.amount_to_precision(symbol, amount)
-                request['tpTriggerBy'] = 'LastPrice'
+                # request['tpTriggerBy'] = 'LastPrice'
+                request['tpTriggerBy'] = triggerBy
             else:
                 if trailingStop is not None:
                     # request['tpslMode'] = 'Full'
@@ -3134,7 +3136,8 @@ class bybit(Exchange):
                     request['stopLoss'] = self.price_to_precision(symbol, stopPrice)
                     if amount != 0:
                         request['slSize'] = self.amount_to_precision(symbol, amount)
-                    request['slTriggerBy'] = 'MarkPrice'
+                    # request['slTriggerBy'] = 'MarkPrice'
+                    request['slTriggerBy'] = triggerBy
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop'])
         # eslint-disable-next-line no-unused-vars
         response = self.privatePostV5PositionTradingStop(self.extend(request, params))
@@ -3225,18 +3228,17 @@ class bybit(Exchange):
                 raise InvalidOrder(self.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders')
             if triggerPrice is None:
                 raise InvalidOrder(self.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders')
-            # triggerBy = 'LastPrice'
-            # if params['trigger'] == 'Index':
-            #     triggerBy = 'IndexPrice'
-            # elif params['trigger'] == 'Mark':
-            #     triggerBy = 'MarkPrice'
-            # }
-            # request['triggerBy'] = triggerBy
-            # request['slTriggerBy'] = triggerBy
-            # request['tpTriggerBy'] = triggerBy
-            request['triggerBy'] = 'MarkPrice'
-            request['slTriggerBy'] = 'MarkPrice'
-            request['tpTriggerBy'] = 'LastPrice'
+            triggerBy = 'LastPrice'
+            if params['trigger'] == 'Index':
+                triggerBy = 'IndexPrice'
+            elif params['trigger'] == 'Mark':
+                triggerBy = 'MarkPrice'
+            request['triggerBy'] = triggerBy
+            request['slTriggerBy'] = triggerBy
+            request['tpTriggerBy'] = triggerBy
+            # request['triggerBy'] = 'MarkPrice'
+            # request['slTriggerBy'] = 'MarkPrice'
+            # request['tpTriggerBy'] = 'LastPrice'
             request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
             if triggerPrice > basePrice:
                 request['triggerDirection'] = 1

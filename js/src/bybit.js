@@ -3239,12 +3239,13 @@ export default class bybit extends Exchange {
         if (!basePrice) {
             throw new InvalidOrder(this.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders');
         }
-        // let triggerBy = 'LastPrice';
-        // if (params['trigger'] === 'Index') {
-        //     triggerBy = 'IndexPrice';
-        // } else if (params['trigger'] === 'Mark') {
-        //     triggerBy = 'MarkPrice';
-        // }
+        let triggerBy = 'LastPrice';
+        if (params['trigger'] === 'Index') {
+            triggerBy = 'IndexPrice';
+        }
+        else if (params['trigger'] === 'Mark') {
+            triggerBy = 'MarkPrice';
+        }
         if (Precise.stringGt(stopPrice, basePrice)) {
             if (side === 'buy') {
                 if (trailingStop !== undefined) {
@@ -3256,7 +3257,8 @@ export default class bybit extends Exchange {
                     if (amount !== 0) {
                         request['slSize'] = this.amountToPrecision(symbol, amount);
                     }
-                    request['slTriggerBy'] = 'MarkPrice';
+                    // request['slTriggerBy'] = 'MarkPrice';
+                    request['slTriggerBy'] = triggerBy;
                 }
             }
             else {
@@ -3264,7 +3266,8 @@ export default class bybit extends Exchange {
                 if (amount !== 0) {
                     request['tpSize'] = this.amountToPrecision(symbol, amount);
                 }
-                request['tpTriggerBy'] = 'LastPrice';
+                // request['tpTriggerBy'] = 'LastPrice';
+                request['tpTriggerBy'] = triggerBy;
             }
         }
         else {
@@ -3273,7 +3276,8 @@ export default class bybit extends Exchange {
                 if (amount !== 0) {
                     request['tpSize'] = this.amountToPrecision(symbol, amount);
                 }
-                request['tpTriggerBy'] = 'LastPrice';
+                // request['tpTriggerBy'] = 'LastPrice';
+                request['tpTriggerBy'] = triggerBy;
             }
             else {
                 if (trailingStop !== undefined) {
@@ -3285,7 +3289,8 @@ export default class bybit extends Exchange {
                     if (amount !== 0) {
                         request['slSize'] = this.amountToPrecision(symbol, amount);
                     }
-                    request['slTriggerBy'] = 'MarkPrice';
+                    // request['slTriggerBy'] = 'MarkPrice';
+                    request['slTriggerBy'] = triggerBy;
                 }
             }
         }
@@ -3405,18 +3410,19 @@ export default class bybit extends Exchange {
             if (triggerPrice === undefined) {
                 throw new InvalidOrder(this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
             }
-            // let triggerBy = 'LastPrice';
-            // if (params['trigger'] === 'Index') {
-            //     triggerBy = 'IndexPrice';
-            // } else if (params['trigger'] === 'Mark') {
-            //     triggerBy = 'MarkPrice';
-            // }
-            // request['triggerBy'] = triggerBy;
-            // request['slTriggerBy'] = triggerBy;
-            // request['tpTriggerBy'] = triggerBy;
-            request['triggerBy'] = 'MarkPrice';
-            request['slTriggerBy'] = 'MarkPrice';
-            request['tpTriggerBy'] = 'LastPrice';
+            let triggerBy = 'LastPrice';
+            if (params['trigger'] === 'Index') {
+                triggerBy = 'IndexPrice';
+            }
+            else if (params['trigger'] === 'Mark') {
+                triggerBy = 'MarkPrice';
+            }
+            request['triggerBy'] = triggerBy;
+            request['slTriggerBy'] = triggerBy;
+            request['tpTriggerBy'] = triggerBy;
+            // request['triggerBy'] = 'MarkPrice';
+            // request['slTriggerBy'] = 'MarkPrice';
+            // request['tpTriggerBy'] = 'LastPrice';
             request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
             if (triggerPrice > basePrice) {
                 request['triggerDirection'] = 1;
