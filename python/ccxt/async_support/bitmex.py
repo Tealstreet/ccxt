@@ -564,7 +564,10 @@ class bitmex(Exchange):
             account = {}
             marginBalance = self.safe_integer(balance, 'marginBalance', 0)
             maintMargin = self.safe_integer(balance, 'maintMargin', 0)
+            availableMargin = self.safe_integer(balance, 'availableMargin', 0)
             free = marginBalance - maintMargin
+            if free == 0 and availableMargin != 0:
+                free = availableMargin
             total = self.safe_integer(balance, 'walletBalance')
             freeStr = str(free)
             totalStr = None
