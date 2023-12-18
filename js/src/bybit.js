@@ -7176,11 +7176,10 @@ export default class bybit extends Exchange {
             }
         }
         let status = true;
-        if (size === '0') {
-            status = false;
-        }
         let active = true;
-        if (this.safeString(position, 'positionStatus') !== 'Normal') {
+        const positionStatus = this.safeString(position, 'positionStatus');
+        if (positionStatus !== 'Normal' || size === '0') {
+            status = false;
             active = false;
         }
         return {

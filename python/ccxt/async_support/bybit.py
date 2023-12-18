@@ -6624,10 +6624,10 @@ class bybit(Exchange):
             if side is not None:
                 id = id + ':' + side
         status = True
-        if size == '0':
-            status = False
         active = True
-        if self.safe_string(position, 'positionStatus') != 'Normal':
+        positionStatus = self.safe_string(position, 'positionStatus')
+        if positionStatus != 'Normal' or size == '0':
+            status = False
             active = False
         return {
             'info': position,

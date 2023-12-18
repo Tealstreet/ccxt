@@ -7048,11 +7048,10 @@ class bybit extends Exchange {
             }
         }
         $status = true;
-        if ($size === '0') {
-            $status = false;
-        }
         $active = true;
-        if ($this->safe_string($position, 'positionStatus') !== 'Normal') {
+        $positionStatus = $this->safe_string($position, 'positionStatus');
+        if ($positionStatus !== 'Normal' || $size === '0') {
+            $status = false;
             $active = false;
         }
         return array(
