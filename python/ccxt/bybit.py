@@ -6196,8 +6196,6 @@ class bybit(Exchange):
             first = self.safe_value(symbols, 0)
             market = self.market(first)
             settle = market['settle']
-        if enableUnified[1]:
-            request['settleCoin'] = settle
         # market None
         type, params = self.handle_market_type_and_params('fetchPositions', None, params)
         subType = None
@@ -6205,6 +6203,8 @@ class bybit(Exchange):
         request['category'] = subType
         if type == 'option':
             request['category'] = 'option'
+        if enableUnified[1] and subType != 'inverse':
+            request['settleCoin'] = settle
         method = 'privateGetV5PositionList' if (enableUnified[1]) else 'privateGetUnifiedV3PrivatePositionList'
         response = getattr(self, method)(self.extend(request, params))
         #

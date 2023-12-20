@@ -6722,9 +6722,6 @@ class bybit extends Exchange {
                 $market = $this->market($first);
                 $settle = $market['settle'];
             }
-            if ($enableUnified[1]) {
-                $request['settleCoin'] = $settle;
-            }
             // $market null
             list($type, $params) = $this->handle_market_type_and_params('fetchPositions', null, $params);
             $subType = null;
@@ -6732,6 +6729,9 @@ class bybit extends Exchange {
             $request['category'] = $subType;
             if ($type === 'option') {
                 $request['category'] = 'option';
+            }
+            if ($enableUnified[1] && $subType !== 'inverse') {
+                $request['settleCoin'] = $settle;
             }
             $method = ($enableUnified[1]) ? 'privateGetV5PositionList' : 'privateGetUnifiedV3PrivatePositionList';
             $response = Async\await($this->$method (array_merge($request, $params)));

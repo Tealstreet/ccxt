@@ -6654,9 +6654,6 @@ export default class bybit extends Exchange {
             const market = this.market (first);
             settle = market['settle'];
         }
-        if (enableUnified[1]) {
-            request['settleCoin'] = settle;
-        }
         // market undefined
         [ type, params ] = this.handleMarketTypeAndParams ('fetchPositions', undefined, params);
         let subType = undefined;
@@ -6664,6 +6661,9 @@ export default class bybit extends Exchange {
         request['category'] = subType;
         if (type === 'option') {
             request['category'] = 'option';
+        }
+        if (enableUnified[1] && subType !== 'inverse') {
+            request['settleCoin'] = settle;
         }
         const method = (enableUnified[1]) ? 'privateGetV5PositionList' : 'privateGetUnifiedV3PrivatePositionList';
         const response = await this[method] (this.extend (request, params));
