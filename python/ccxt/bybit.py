@@ -3874,7 +3874,11 @@ class bybit(Exchange):
         params = self.omit(params, ['stop'])
         if isStop:
             request['orderFilter'] = 'tpslOrder'
-        response = self.privatePostV5OrderCancelAll(self.extend(request, params))
+        # forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        finalParams = self.extend(request, params)
+        if subType == 'inverse':
+            finalParams = self.omit(finalParams, ['settleCoin'])
+        response = self.privatePostV5OrderCancelAll(finalParams)
         #
         #     {
         #         "retCode": 0,
@@ -3941,7 +3945,11 @@ class bybit(Exchange):
         params = self.omit(params, ['stop'])
         if isStop:
             request['orderFilter'] = 'StopOrder'
-        response = self.privatePostUnifiedV3PrivateOrderCancelAll(self.extend(request, params))
+        # forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        finalParams = self.extend(request, params)
+        if subType == 'inverse':
+            finalParams = self.omit(finalParams, ['settleCoin'])
+        response = self.privatePostUnifiedV3PrivateOrderCancelAll(finalParams)
         #
         #     {
         #         "retCode": 0,
@@ -4032,7 +4040,11 @@ class bybit(Exchange):
         settle, params = self.handle_option_and_params(params, 'cancelAllOrders', 'settle', settle)
         if settle is not None:
             request['settleCoin'] = settle
-        response = self.privatePostContractV3PrivateOrderCancelAll(self.extend(request, params))
+        # forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        finalParams = self.extend(request, params)
+        if request['settleCoin'] != 'USDT' and request['settleCoin'] != 'USDC':
+            finalParams = self.omit(finalParams, ['settleCoin'])
+        response = self.privatePostContractV3PrivateOrderCancelAll(finalParams)
         #
         # contract v3
         #
@@ -6206,7 +6218,11 @@ class bybit(Exchange):
         if enableUnified[1] and subType != 'inverse':
             request['settleCoin'] = settle
         method = 'privateGetV5PositionList' if (enableUnified[1]) else 'privateGetUnifiedV3PrivatePositionList'
-        response = getattr(self, method)(self.extend(request, params))
+        finalParams = self.extend(request, params)
+        # forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        if subType == 'inverse':
+            finalParams = self.omit(finalParams, ['settleCoin'])
+        response = getattr(self, method)(finalParams)
         #
         #     {
         #         "retCode": 0,
@@ -6343,7 +6359,11 @@ class bybit(Exchange):
         request['category'] = subType
         if settle is not None and subType != 'inverse':
             request['settleCoin'] = settle
-        response = self.privateGetV5PositionList(self.extend(request, params))
+        # forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        finalParams = self.extend(request, params)
+        if subType == 'inverse':
+            finalParams = self.omit(finalParams, ['settleCoin'])
+        response = self.privateGetV5PositionList(finalParams)
         #
         #     {
         #         "retCode": 0,

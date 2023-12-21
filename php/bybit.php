@@ -4089,7 +4089,12 @@ class bybit extends Exchange {
         if ($isStop) {
             $request['orderFilter'] = 'tpslOrder';
         }
-        $response = $this->privatePostV5OrderCancelAll (array_merge($request, $params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        $finalParams = array_merge($request, $params);
+        if ($subType === 'inverse') {
+            $finalParams = $this->omit($finalParams, array( 'settleCoin' ));
+        }
+        $response = $this->privatePostV5OrderCancelAll ($finalParams);
         //
         //     {
         //         "retCode" => 0,
@@ -4164,7 +4169,12 @@ class bybit extends Exchange {
         if ($isStop) {
             $request['orderFilter'] = 'StopOrder';
         }
-        $response = $this->privatePostUnifiedV3PrivateOrderCancelAll (array_merge($request, $params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        $finalParams = array_merge($request, $params);
+        if ($subType === 'inverse') {
+            $finalParams = $this->omit($finalParams, array( 'settleCoin' ));
+        }
+        $response = $this->privatePostUnifiedV3PrivateOrderCancelAll ($finalParams);
         //
         //     {
         //         "retCode" => 0,
@@ -4264,7 +4274,12 @@ class bybit extends Exchange {
         if ($settle !== null) {
             $request['settleCoin'] = $settle;
         }
-        $response = $this->privatePostContractV3PrivateOrderCancelAll (array_merge($request, $params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        $finalParams = array_merge($request, $params);
+        if ($request['settleCoin'] !== 'USDT' && $request['settleCoin'] !== 'USDC') {
+            $finalParams = $this->omit($finalParams, array( 'settleCoin' ));
+        }
+        $response = $this->privatePostContractV3PrivateOrderCancelAll ($finalParams);
         //
         // contract v3
         //
@@ -6596,7 +6611,12 @@ class bybit extends Exchange {
             $request['settleCoin'] = $settle;
         }
         $method = ($enableUnified[1]) ? 'privateGetV5PositionList' : 'privateGetUnifiedV3PrivatePositionList';
-        $response = $this->$method (array_merge($request, $params));
+        $finalParams = array_merge($request, $params);
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        if ($subType === 'inverse') {
+            $finalParams = $this->omit($finalParams, array( 'settleCoin' ));
+        }
+        $response = $this->$method ($finalParams);
         //
         //     {
         //         "retCode" => 0,
@@ -6745,7 +6765,12 @@ class bybit extends Exchange {
         if ($settle !== null && $subType !== 'inverse') {
             $request['settleCoin'] = $settle;
         }
-        $response = $this->privateGetV5PositionList (array_merge($request, $params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        $finalParams = array_merge($request, $params);
+        if ($subType === 'inverse') {
+            $finalParams = $this->omit($finalParams, array( 'settleCoin' ));
+        }
+        $response = $this->privateGetV5PositionList ($finalParams);
         //
         //     {
         //         "retCode" => 0,

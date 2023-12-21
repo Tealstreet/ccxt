@@ -4169,7 +4169,12 @@ export default class bybit extends Exchange {
         if (isStop) {
             request['orderFilter'] = 'tpslOrder';
         }
-        const response = await this.privatePostV5OrderCancelAll(this.extend(request, params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        let finalParams = this.extend(request, params);
+        if (subType === 'inverse') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        const response = await this.privatePostV5OrderCancelAll(finalParams);
         //
         //     {
         //         "retCode": 0,
@@ -4242,7 +4247,12 @@ export default class bybit extends Exchange {
         if (isStop) {
             request['orderFilter'] = 'StopOrder';
         }
-        const response = await this.privatePostUnifiedV3PrivateOrderCancelAll(this.extend(request, params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        let finalParams = this.extend(request, params);
+        if (subType === 'inverse') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        const response = await this.privatePostUnifiedV3PrivateOrderCancelAll(finalParams);
         //
         //     {
         //         "retCode": 0,
@@ -4342,7 +4352,12 @@ export default class bybit extends Exchange {
         if (settle !== undefined) {
             request['settleCoin'] = settle;
         }
-        const response = await this.privatePostContractV3PrivateOrderCancelAll(this.extend(request, params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        let finalParams = this.extend(request, params);
+        if (request['settleCoin'] !== 'USDT' && request['settleCoin'] !== 'USDC') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        const response = await this.privatePostContractV3PrivateOrderCancelAll(finalParams);
         //
         // contract v3
         //
@@ -6715,7 +6730,12 @@ export default class bybit extends Exchange {
             request['settleCoin'] = settle;
         }
         const method = (enableUnified[1]) ? 'privateGetV5PositionList' : 'privateGetUnifiedV3PrivatePositionList';
-        const response = await this[method](this.extend(request, params));
+        let finalParams = this.extend(request, params);
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        if (subType === 'inverse') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        const response = await this[method](finalParams);
         //
         //     {
         //         "retCode": 0,
@@ -6863,7 +6883,12 @@ export default class bybit extends Exchange {
         if (settle !== undefined && subType !== 'inverse') {
             request['settleCoin'] = settle;
         }
-        const response = await this.privateGetV5PositionList(this.extend(request, params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        let finalParams = this.extend(request, params);
+        if (subType === 'inverse') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        const response = await this.privateGetV5PositionList(finalParams);
         //
         //     {
         //         "retCode": 0,
