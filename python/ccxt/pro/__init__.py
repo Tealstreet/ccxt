@@ -18,6 +18,7 @@ from ccxt.pro.binanceusdm import binanceusdm                              # noqa
 from ccxt.pro.bingx import bingx                                          # noqa: F401
 from ccxt.pro.bitget import bitget                                        # noqa: F401
 from ccxt.pro.bitmex import bitmex                                        # noqa: F401
+from ccxt.pro.blofin import blofin                                        # noqa: F401
 from ccxt.pro.bybit import bybit                                          # noqa: F401
 from ccxt.pro.okex import okex                                            # noqa: F401
 from ccxt.pro.okx import okx                                              # noqa: F401
@@ -31,6 +32,7 @@ exchanges = [
     'bingx',
     'bitget',
     'bitmex',
+    'blofin',
     'bybit',
     'okex',
     'okx',

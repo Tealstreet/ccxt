@@ -59,6 +59,7 @@ from ccxt.async_support.binanceusdm import binanceusdm                          
 from ccxt.async_support.bingx import bingx                                      # noqa: F401
 from ccxt.async_support.bitget import bitget                                    # noqa: F401
 from ccxt.async_support.bitmex import bitmex                                    # noqa: F401
+from ccxt.async_support.blofin import blofin                                    # noqa: F401
 from ccxt.async_support.bybit import bybit                                      # noqa: F401
 from ccxt.async_support.okex import okex                                        # noqa: F401
 from ccxt.async_support.okex5 import okex5                                      # noqa: F401
@@ -73,6 +74,7 @@ exchanges = [
     'bingx',
     'bitget',
     'bitmex',
+    'blofin',
     'bybit',
     'okex',
     'okex5',
