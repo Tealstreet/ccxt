@@ -48,7 +48,6 @@ const version = '3.0.22';
 
 import binance from  './src/binance.js'
 import binancecoinm from  './src/binancecoinm.js'
-import binanceus from  './src/binanceus.js'
 import binanceusdm from  './src/binanceusdm.js'
 import bingx from  './src/bingx.js'
 import bitget from  './src/bitget.js'
@@ -65,7 +64,6 @@ import woo from  './src/woo.js'
 // pro exchanges
 import binancePro from  './src/pro/binance.js'
 import binancecoinmPro from  './src/pro/binancecoinm.js'
-import binanceusPro from  './src/pro/binanceus.js'
 import binanceusdmPro from  './src/pro/binanceusdm.js'
 import bingxPro from  './src/pro/bingx.js'
 import bitgetPro from  './src/pro/bitget.js'
@@ -80,7 +78,6 @@ import wooPro from  './src/pro/woo.js'
 const exchanges = {
     'binance':                binance,
     'binancecoinm':           binancecoinm,
-    'binanceus':              binanceus,
     'binanceusdm':            binanceusdm,
     'bingx':                  bingx,
     'bybit':                  bybit,
@@ -95,7 +92,6 @@ const exchanges = {
 const pro = {
     'binance':                binancePro,
     'binancecoinm':           binancecoinmPro,
-    'binanceus':              binanceusPro,
     'binanceusdm':            binanceusdmPro,
     'bingx':                  bingxPro,
     'bitget':                 bitgetPro,
@@ -179,7 +175,6 @@ export {
     PartialBalances,
     binance,
     binancecoinm,
-    binanceus,
     binanceusdm,
     bingx,
     bitget,
