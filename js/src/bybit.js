@@ -7118,7 +7118,7 @@ export default class bybit extends Exchange {
         let size = Precise.stringAbs(this.safeString(position, 'size'));
         let side = this.safeString(position, 'side');
         const positionIdx = this.safeString(position, 'positionIdx');
-        if (!side && positionIdx !== '0') {
+        if ((!side || side === '' || side === 'None') && positionIdx !== '0') {
             if (positionIdx === '1') {
                 side = 'Buy';
             }

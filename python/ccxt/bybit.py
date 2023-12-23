@@ -6577,7 +6577,7 @@ class bybit(Exchange):
         size = Precise.string_abs(self.safe_string(position, 'size'))
         side = self.safe_string(position, 'side')
         positionIdx = self.safe_string(position, 'positionIdx')
-        if not side and positionIdx != '0':
+        if (not side or side == '' or side == 'None') and positionIdx != '0':
             if positionIdx == '1':
                 side = 'Buy'
             elif positionIdx == '2':

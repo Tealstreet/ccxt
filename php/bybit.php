@@ -6995,7 +6995,7 @@ class bybit extends Exchange {
         $size = Precise::string_abs($this->safe_string($position, 'size'));
         $side = $this->safe_string($position, 'side');
         $positionIdx = $this->safe_string($position, 'positionIdx');
-        if (!$side && $positionIdx !== '0') {
+        if ((!$side || $side === '' || $side === 'None') && $positionIdx !== '0') {
             if ($positionIdx === '1') {
                 $side = 'Buy';
             } elseif ($positionIdx === '2') {
