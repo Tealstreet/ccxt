@@ -53,7 +53,6 @@ import bingx from  './src/bingx.js'
 import bitget from  './src/bitget.js'
 import bitmex from  './src/bitmex.js'
 import bybit from  './src/bybit.js'
-import okcoin from  './src/okcoin.js'
 import okex from  './src/okex.js'
 import okex5 from  './src/okex5.js'
 import okx from  './src/okx.js'
@@ -69,7 +68,6 @@ import bingxPro from  './src/pro/bingx.js'
 import bitgetPro from  './src/pro/bitget.js'
 import bitmexPro from  './src/pro/bitmex.js'
 import bybitPro from  './src/pro/bybit.js'
-import okcoinPro from  './src/pro/okcoin.js'
 import okexPro from  './src/pro/okex.js'
 import okxPro from  './src/pro/okx.js'
 import phemexPro from  './src/pro/phemex.js'
@@ -81,7 +79,6 @@ const exchanges = {
     'binanceusdm':            binanceusdm,
     'bingx':                  bingx,
     'bybit':                  bybit,
-    'okcoin':                 okcoin,
     'okex':                   okex,
     'okex5':                  okex5,
     'okx':                    okx,
@@ -97,7 +94,6 @@ const pro = {
     'bitget':                 bitgetPro,
     'bitmex':                 bitmexPro,
     'bybit':                  bybitPro,
-    'okcoin':                 okcoinPro,
     'okex':                   okexPro,
     'okx':                    okxPro,
     'phemex':                 phemexPro,
@@ -180,7 +176,6 @@ export {
     bitget,
     bitmex,
     bybit,
-    okcoin,
     okex,
     okex5,
     okx,
