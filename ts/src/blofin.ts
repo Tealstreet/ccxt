@@ -60,12 +60,12 @@ export default class blofin extends Exchange {
                 'fetchOHLCV': true,
                 'fetchOpenInterestHistory': false,
                 'fetchOpenOrder': false,
-                'fetchOpenOrders': false,
+                'fetchOpenOrders': true,
                 'fetchOrder': true,
                 'fetchOrderBook': true,
                 'fetchOrders': true,
                 'fetchOrderTrades': true,
-                'fetchPosition': true,
+                'fetchPosition': false,
                 'fetchPositionMode': false,
                 'fetchPositions': true,
                 'fetchPremiumIndexOHLCV': false,
@@ -87,20 +87,22 @@ export default class blofin extends Exchange {
                 'withdraw': false,
             },
             'timeframes': {
-                '1m': '1',
-                '3m': '3',
-                '5m': '5',
-                '15m': '15',
-                '30m': '30',
-                '1h': '60',
-                '2h': '2h',
-                '4h': '4h',
-                '8h': '8h',
-                '12h': '12h',
+                '1m': '1m',
+                '3m': '3m',
+                '5m': '5m',
+                '15m': '15m',
+                '30m': '30m',
+                '1h': '1H',
+                '2h': '2H',
+                '4h': '4H',
+                '6h': '6H',
+                '12h': '12H',
                 '1d': '1D',
-                '3d': '3D',
                 '1w': '1W',
                 '1M': '1M',
+                '3M': '3M',
+                '6M': '6M',
+                '1y': '1Y',
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
@@ -124,6 +126,8 @@ export default class blofin extends Exchange {
                         'get': {
                             'account/leverage-info': 1,
                             'asset/balances': 1,
+                            'account/positions': 1,
+                            'trade/orders-pending': 1,
                             // 'client/token': 1,
                             // 'order/{oid}': 1,
                             // 'client/order/{client_order_id}': 1,
@@ -1045,156 +1049,222 @@ export default class blofin extends Exchange {
     }
 
     parseOrder (order, market = undefined) {
-        const isAlgoOrder = 'algoType' in order;
-        if (isAlgoOrder) {
-            return this.parseAlgoOrder (order, market);
-        } else {
-            return this.parseRegularOrder (order, market);
-        }
-    }
-
-    parseRegularOrder (order, market = undefined) {
         //
-        // Possible input functions:
-        // * createOrder
-        // * cancelOrder
-        // * fetchOrder
-        // * fetchOrders
-        // const isFromFetchOrder = ('order_tag' in order); TO_DO
-        const timestamp = this.safeTimestamp2 (order, 'timestamp', 'created_time');
-        const orderId = this.safeString2 (order, 'order_id', 'orderId');
-        const clientOrderId = this.safeString2 (order, 'client_order_id', 'clientOrderId'); // Somehow, this always returns 0 for limit order
-        const marketId = this.safeString (order, 'symbol');
-        market = this.safeMarket (marketId, market);
-        const symbol = market['symbol'];
-        const price = this.safeString2 (order, 'order_price', 'price');
-        const amount = this.safeString2 (order, 'order_quantity', 'quantity'); // This is base amount
-        const cost = this.safeString2 (order, 'order_amount', 'amount'); // This is quote amount
-        const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'));
-        const status = this.safeValue (order, 'status');
-        const side = this.safeStringLower (order, 'side');
-        const type = this.safeStringUpper (order, 'type');
-        const postOnly = type === 'POST_ONLY';
-        const filled = this.safeValue (order, 'executed');
-        const average = this.safeString2 (order, 'average_executed_price', 'executedPrice');
-        const remaining = Precise.stringSub (cost, filled);
-        const fee = this.safeValue2 (order, 'total_fee', 'totalFee');
-        const feeCurrency = this.safeString2 (order, 'fee_asset', 'feeAsset');
-        const transactions = this.safeValue (order, 'Transactions');
+        // createOrder
+        //
+        //     {
+        //         "clOrdId": "oktswap6",
+        //         "ordId": "312269865356374016",
+        //         "tag": "",
+        //         "sCode": "0",
+        //         "sMsg": ""
+        //     }
+        //
+        // Spot and Swap fetchOrder, fetchOpenOrders
+        //
+        //     {
+        //         "accFillSz": "0",
+        //         "avgPx": "",
+        //         "cTime": "1621910749815",
+        //         "category": "normal",
+        //         "ccy": "",
+        //         "clOrdId": "",
+        //         "fee": "0",
+        //         "feeCcy": "ETH",
+        //         "fillPx": "",
+        //         "fillSz": "0",
+        //         "fillTime": "",
+        //         "instId": "ETH-USDT",
+        //         "instType": "SPOT",
+        //         "lever": "",
+        //         "ordId": "317251910906576896",
+        //         "ordType": "limit",
+        //         "pnl": "0",
+        //         "posSide": "net",
+        //         "px": "2000",
+        //         "rebate": "0",
+        //         "rebateCcy": "USDT",
+        //         "side": "buy",
+        //         "slOrdPx": "",
+        //         "slTriggerPx": "",
+        //         "state": "live",
+        //         "sz": "0.001",
+        //         "tag": "",
+        //         "tdMode": "cash",
+        //         "tpOrdPx": "",
+        //         "tpTriggerPx": "",
+        //         "tradeId": "",
+        //         "uTime": "1621910749815"
+        //     }
+        //
+        // Algo Order fetchOpenOrders, fetchCanceledOrders, fetchClosedOrders
+        //
+        //     {
+        //         "activePx": "",
+        //         "activePxType": "",
+        //         "actualPx": "",
+        //         "actualSide": "buy",
+        //         "actualSz": "0",
+        //         "algoId": "431375349042380800",
+        //         "cTime": "1649119897778",
+        //         "callbackRatio": "",
+        //         "callbackSpread": "",
+        //         "ccy": "",
+        //         "ctVal": "0.01",
+        //         "instId": "BTC-USDT-SWAP",
+        //         "instType": "SWAP",
+        //         "last": "46538.9",
+        //         "lever": "125",
+        //         "moveTriggerPx": "",
+        //         "notionalUsd": "467.059",
+        //         "ordId": "",
+        //         "ordPx": "50000",
+        //         "ordType": "trigger",
+        //         "posSide": "long",
+        //         "pxLimit": "",
+        //         "pxSpread": "",
+        //         "pxVar": "",
+        //         "side": "buy",
+        //         "slOrdPx": "",
+        //         "slTriggerPx": "",
+        //         "slTriggerPxType": "",
+        //         "state": "live",
+        //         "sz": "1",
+        //         "szLimit": "",
+        //         "tag": "",
+        //         "tdMode": "isolated",
+        //         "tgtCcy": "",
+        //         "timeInterval": "",
+        //         "tpOrdPx": "",
+        //         "tpTriggerPx": "",
+        //         "tpTriggerPxType": "",
+        //         "triggerPx": "50000",
+        //         "triggerPxType": "last",
+        //         "triggerTime": "",
+        //         "uly": "BTC-USDT"
+        //     }
+        //
+        const id = this.safeString2 (order, 'algoId', 'orderId');
+        const timestamp = this.safeInteger (order, 'createTime');
+        const lastTradeTimestamp = this.safeInteger (order, 'updateTime');
+        const side = this.safeString (order, 'side');
+        let type = this.safeString (order, 'orderType');
+        const postOnly = undefined;
+        const timeInForce = undefined;
+        // if (type === 'post_only') {
+        //     postOnly = true;
+        //     type = 'limit';
+        // } else if (type === 'fok') {
+        //     timeInForce = 'FOK';
+        //     type = 'limit';
+        // } else if (type === 'ioc') {
+        //     timeInForce = 'IOC';
+        //     type = 'limit';
+        // }
+        type = 'limit';
+        const marketId = this.safeString (order, 'instId');
+        const symbol = this.safeSymbol (marketId, market, '-');
+        const filled = this.safeString (order, 'filledSize');
+        const price = this.safeString2 (order, 'px', 'price');
+        const average = this.safeString (order, 'averagePrice');
+        const status = this.parseOrderStatus (this.safeString (order, 'state'));
+        const feeCostString = this.safeString (order, 'fee');
+        let amount = undefined;
+        // let cost = undefined;
+        // spot market buy: "sz" can refer either to base currency units or to quote currency units
+        // see documentation: https://www.okx.com/docs-v5/en/#rest-api-trade-place-order
+        // const defaultTgtCcy = this.safeString (this.options, 'tgtCcy', 'base_ccy');
+        // const tgtCcy = this.safeString (order, 'tgtCcy', defaultTgtCcy);
+        // const instType = this.safeString (order, 'instType');
+        // "sz" refers to the trade currency amount
+        amount = this.safeString (order, 'size');
+        let fee = undefined;
+        if (feeCostString !== undefined) {
+            const feeCostSigned = Precise.stringNeg (feeCostString);
+            const feeCurrencyId = 'USDT';
+            const feeCurrencyCode = this.safeCurrencyCode (feeCurrencyId);
+            fee = {
+                'cost': this.parseNumber (feeCostSigned),
+                'currency': feeCurrencyCode,
+            };
+        }
+        let clientOrderId = this.safeString (order, 'clientOrderId');
+        if ((clientOrderId !== undefined) && (clientOrderId.length < 1)) {
+            clientOrderId = undefined; // fix empty clientOrderId string
+        }
+        const stopLossPrice = this.safeNumber2 (order, 'slTriggerPrice', 'slOrderPrice');
+        const takeProfitPrice = this.safeNumber2 (order, 'tpTriggerPrice', 'tpOrderPrice');
+        const stopPrice = this.safeNumberN (order, [ 'price' ]);
+        const reduceOnlyRaw = this.safeString (order, 'reduceOnly');
+        let reduceOnly = false;
+        if (reduceOnly !== undefined) {
+            reduceOnly = (reduceOnlyRaw === 'true');
+        }
         return this.safeOrder ({
-            'id': orderId,
+            'info': order,
+            'id': id,
             'clientOrderId': clientOrderId,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
-            'lastTradeTimestamp': undefined,
-            'status': this.parseOrderStatus (status),
+            'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
-            'type': orderType,
-            'timeInForce': this.parseTimeInForce (orderType),
+            'type': type,
+            'timeInForce': timeInForce,
             'postOnly': postOnly,
-            'reduceOnly': this.safeValue (order, 'reduce_only'),
             'side': side,
             'price': price,
-            'stopPrice': undefined,
-            'triggerPrice': undefined,
-            'average': average,
-            'amount': amount,
-            'filled': filled,
-            'remaining': remaining, // TO_DO
-            'cost': cost,
-            'trades': transactions,
-            'fee': {
-                'cost': fee,
-                'currency': feeCurrency,
-            },
-            'info': order,
-        }, market);
-    }
-
-    parseAlgoOrder (order, market = undefined) {
-        //
-        // Possible input functions:
-        // * createOrder
-        // * cancelOrder
-        // * fetchOrder
-        // * fetchOrders
-        // const isFromFetchOrder = ('order_tag' in order); TO_DO
-        const timestamp = this.safeTimestamp2 (order, 'timestamp', 'createdTime');
-        const orderId = this.safeString (order, 'algoOrderId');
-        const clientOrderId = this.safeString (order, 'clientOrderId'); // Somehow, this always returns 0 for limit order
-        const marketId = this.safeString (order, 'symbol');
-        market = this.safeMarket (marketId, market);
-        const symbol = market['symbol'];
-        const price = this.safeString2 (order, 'price', 'triggerPrice');
-        const stopPrice = this.safeString2 (order, 'triggerPrice', 'price');
-        const amount = this.safeString2 (order, 'order_quantity', 'quantity'); // This is base amount
-        const cost = this.safeString2 (order, 'order_amount', 'amount'); // This is quote amount
-        const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'), this.safeStringLower (order, 'algoType'));
-        let tsOrderType = orderType;
-        if (orderType === 'market') {
-            tsOrderType = 'stop';
-        }
-        const status = this.safeValue (order, 'algoStatus');
-        const side = this.safeStringLower (order, 'side');
-        const filled = this.safeValue (order, 'executed');
-        const average = this.safeString (order, 'average_executed_price');
-        const remaining = Precise.stringSub (cost, filled);
-        const fee = this.safeValue (order, 'totalFee');
-        const feeCurrency = this.safeString (order, 'feeAsset');
-        const transactions = this.safeValue (order, 'Transactions');
-        return this.safeOrder ({
-            'id': orderId,
-            'clientOrderId': clientOrderId,
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'lastTradeTimestamp': undefined,
-            'status': this.parseOrderStatus (status),
-            'symbol': symbol,
-            'type': tsOrderType,
-            'timeInForce': this.parseTimeInForce (orderType),
-            'postOnly': undefined, // TO_DO
-            'reduceOnly': this.safeValue (order, 'reduceOnly'),
-            'side': side,
-            'price': price,
+            'stopLossPrice': stopLossPrice,
+            'takeProfitPrice': takeProfitPrice,
             'stopPrice': stopPrice,
-            'triggerPrice': undefined,
+            'triggerPrice': stopPrice,
             'average': average,
+            'cost': undefined,
             'amount': amount,
             'filled': filled,
-            'remaining': remaining, // TO_DO
-            'cost': cost,
-            'trades': transactions,
-            'fee': {
-                'cost': fee,
-                'currency': feeCurrency,
-            },
-            'info': order,
-            // TEALSTREET
-            'reduce': this.safeValue (order, 'reduceOnly'),
-            'trigger': 'Mark',
-            // we don't know this from api
-            // 'close': this.safeValue (order, 'closeOnTrigger'),
-            // TEALSTREET
+            'remaining': undefined,
+            'status': status,
+            'fee': fee,
+            'trades': undefined,
+            'reduceOnly': reduceOnly,
         }, market);
     }
 
     parseOrderStatus (status) {
-        if (status !== undefined) {
-            const statuses = {
-                'NEW': 'open',
-                'FILLED': 'closed',
-                'CANCEL_SENT': 'canceled',
-                'CANCEL_ALL_SENT': 'canceled',
-                'CANCELLED': 'canceled',
-                'PARTIAL_FILLED': 'open',
-                'REJECTED': 'rejected',
-                'INCOMPLETE': 'open',
-                'REPLACED': 'open',
-                'COMPLETED': 'closed',
-            };
-            return this.safeString (statuses, status, status);
+        const statuses = {
+            'canceled': 'canceled',
+            'live': 'open',
+            'partially_filled': 'open',
+            'filled': 'closed',
+            'effective': 'closed',
+        };
+        return this.safeString (statuses, status, status);
+    }
+
+    async fetchOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
+        await this.loadMarkets ();
+        const request = {
+            // 'instType': 'SPOT', // SPOT, MARGIN, SWAP, FUTURES, OPTION
+            // 'uly': currency['id'],
+            // 'instId': market['id'],
+            // 'ordType': 'limit', // market, limit, post_only, fok, ioc, comma-separated, stop orders: conditional, oco, trigger, move_order_stop, iceberg, or twap
+            // 'state': 'live', // live, partially_filled
+            // 'after': orderId,
+            // 'before': orderId,
+            // 'limit': limit, // default 100, max 100
+            'limit': 100,
+        };
+        let market = undefined;
+        if (symbol !== undefined) {
+            market = this.market (symbol);
+            request['instId'] = market['id'];
         }
-        return status;
+        if (limit !== undefined) {
+            request['limit'] = limit; // default 100, max 100
+        }
+        const query = this.omit (params, [ 'method', 'stop' ]);
+        const response = await (this as any).v1PrivateGetTradeOrdersPending (this.extend (request, query));
+        const data = this.safeValue (response, 'data', []);
+        return this.parseOrders (data, market, since, limit);
     }
 
     async fetchOrderBook (symbol, limit = undefined, params = {}) {

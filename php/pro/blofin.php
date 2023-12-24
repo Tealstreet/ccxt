@@ -504,12 +504,7 @@ class blofin extends \ccxt\async\blofin {
     }
 
     public function parse_ws_order($order, $market = null) {
-        $isAlgoOrder = 'algoType' in $order;
-        if ($isAlgoOrder) {
-            return $this->parseAlgoOrder ($order, $market);
-        } else {
-            return $this->parseRegularOrder ($order, $market);
-        }
+        return $this->parse_order($order, $market);
     }
 
     public function handle_order_update($client, $message) {

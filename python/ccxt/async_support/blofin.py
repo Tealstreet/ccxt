@@ -68,12 +68,12 @@ class blofin(Exchange):
                 'fetchOHLCV': True,
                 'fetchOpenInterestHistory': False,
                 'fetchOpenOrder': False,
-                'fetchOpenOrders': False,
+                'fetchOpenOrders': True,
                 'fetchOrder': True,
                 'fetchOrderBook': True,
                 'fetchOrders': True,
                 'fetchOrderTrades': True,
-                'fetchPosition': True,
+                'fetchPosition': False,
                 'fetchPositionMode': False,
                 'fetchPositions': True,
                 'fetchPremiumIndexOHLCV': False,
@@ -95,20 +95,22 @@ class blofin(Exchange):
                 'withdraw': False,
             },
             'timeframes': {
-                '1m': '1',
-                '3m': '3',
-                '5m': '5',
-                '15m': '15',
-                '30m': '30',
-                '1h': '60',
-                '2h': '2h',
-                '4h': '4h',
-                '8h': '8h',
-                '12h': '12h',
+                '1m': '1m',
+                '3m': '3m',
+                '5m': '5m',
+                '15m': '15m',
+                '30m': '30m',
+                '1h': '1H',
+                '2h': '2H',
+                '4h': '4H',
+                '6h': '6H',
+                '12h': '12H',
                 '1d': '1D',
-                '3d': '3D',
                 '1w': '1W',
                 '1M': '1M',
+                '3M': '3M',
+                '6M': '6M',
+                '1y': '1Y',
             },
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
@@ -132,6 +134,8 @@ class blofin(Exchange):
                         'get': {
                             'account/leverage-info': 1,
                             'asset/balances': 1,
+                            'account/positions': 1,
+                            'trade/orders-pending': 1,
                             # 'client/token': 1,
                             # 'order/{oid}': 1,
                             # 'client/order/{client_order_id}': 1,
@@ -974,150 +978,215 @@ class blofin(Exchange):
         return self.safe_string_lower(types, type, type)
 
     def parse_order(self, order, market=None):
-        isAlgoOrder = 'algoType' in order
-        if isAlgoOrder:
-            return self.parse_algo_order(order, market)
-        else:
-            return self.parse_regular_order(order, market)
-
-    def parse_regular_order(self, order, market=None):
         #
-        # Possible input functions:
-        # * createOrder
-        # * cancelOrder
-        # * fetchOrder
-        # * fetchOrders
-        # isFromFetchOrder = ('order_tag' in order); TO_DO
-        timestamp = self.safe_timestamp_2(order, 'timestamp', 'created_time')
-        orderId = self.safe_string_2(order, 'order_id', 'orderId')
-        clientOrderId = self.safe_string_2(order, 'client_order_id', 'clientOrderId')  # Somehow, self always returns 0 for limit order
-        marketId = self.safe_string(order, 'symbol')
-        market = self.safe_market(marketId, market)
-        symbol = market['symbol']
-        price = self.safe_string_2(order, 'order_price', 'price')
-        amount = self.safe_string_2(order, 'order_quantity', 'quantity')  # This is base amount
-        cost = self.safe_string_2(order, 'order_amount', 'amount')  # This is quote amount
-        orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'))
-        status = self.safe_value(order, 'status')
-        side = self.safe_string_lower(order, 'side')
-        type = self.safe_string_upper(order, 'type')
-        postOnly = type == 'POST_ONLY'
-        filled = self.safe_value(order, 'executed')
-        average = self.safe_string_2(order, 'average_executed_price', 'executedPrice')
-        remaining = Precise.string_sub(cost, filled)
-        fee = self.safe_value_2(order, 'total_fee', 'totalFee')
-        feeCurrency = self.safe_string_2(order, 'fee_asset', 'feeAsset')
-        transactions = self.safe_value(order, 'Transactions')
+        # createOrder
+        #
+        #     {
+        #         "clOrdId": "oktswap6",
+        #         "ordId": "312269865356374016",
+        #         "tag": "",
+        #         "sCode": "0",
+        #         "sMsg": ""
+        #     }
+        #
+        # Spot and Swap fetchOrder, fetchOpenOrders
+        #
+        #     {
+        #         "accFillSz": "0",
+        #         "avgPx": "",
+        #         "cTime": "1621910749815",
+        #         "category": "normal",
+        #         "ccy": "",
+        #         "clOrdId": "",
+        #         "fee": "0",
+        #         "feeCcy": "ETH",
+        #         "fillPx": "",
+        #         "fillSz": "0",
+        #         "fillTime": "",
+        #         "instId": "ETH-USDT",
+        #         "instType": "SPOT",
+        #         "lever": "",
+        #         "ordId": "317251910906576896",
+        #         "ordType": "limit",
+        #         "pnl": "0",
+        #         "posSide": "net",
+        #         "px": "2000",
+        #         "rebate": "0",
+        #         "rebateCcy": "USDT",
+        #         "side": "buy",
+        #         "slOrdPx": "",
+        #         "slTriggerPx": "",
+        #         "state": "live",
+        #         "sz": "0.001",
+        #         "tag": "",
+        #         "tdMode": "cash",
+        #         "tpOrdPx": "",
+        #         "tpTriggerPx": "",
+        #         "tradeId": "",
+        #         "uTime": "1621910749815"
+        #     }
+        #
+        # Algo Order fetchOpenOrders, fetchCanceledOrders, fetchClosedOrders
+        #
+        #     {
+        #         "activePx": "",
+        #         "activePxType": "",
+        #         "actualPx": "",
+        #         "actualSide": "buy",
+        #         "actualSz": "0",
+        #         "algoId": "431375349042380800",
+        #         "cTime": "1649119897778",
+        #         "callbackRatio": "",
+        #         "callbackSpread": "",
+        #         "ccy": "",
+        #         "ctVal": "0.01",
+        #         "instId": "BTC-USDT-SWAP",
+        #         "instType": "SWAP",
+        #         "last": "46538.9",
+        #         "lever": "125",
+        #         "moveTriggerPx": "",
+        #         "notionalUsd": "467.059",
+        #         "ordId": "",
+        #         "ordPx": "50000",
+        #         "ordType": "trigger",
+        #         "posSide": "long",
+        #         "pxLimit": "",
+        #         "pxSpread": "",
+        #         "pxVar": "",
+        #         "side": "buy",
+        #         "slOrdPx": "",
+        #         "slTriggerPx": "",
+        #         "slTriggerPxType": "",
+        #         "state": "live",
+        #         "sz": "1",
+        #         "szLimit": "",
+        #         "tag": "",
+        #         "tdMode": "isolated",
+        #         "tgtCcy": "",
+        #         "timeInterval": "",
+        #         "tpOrdPx": "",
+        #         "tpTriggerPx": "",
+        #         "tpTriggerPxType": "",
+        #         "triggerPx": "50000",
+        #         "triggerPxType": "last",
+        #         "triggerTime": "",
+        #         "uly": "BTC-USDT"
+        #     }
+        #
+        id = self.safe_string_2(order, 'algoId', 'orderId')
+        timestamp = self.safe_integer(order, 'createTime')
+        lastTradeTimestamp = self.safe_integer(order, 'updateTime')
+        side = self.safe_string(order, 'side')
+        type = self.safe_string(order, 'orderType')
+        postOnly = None
+        timeInForce = None
+        # if type == 'post_only':
+        #     postOnly = True
+        #     type = 'limit'
+        # elif type == 'fok':
+        #     timeInForce = 'FOK'
+        #     type = 'limit'
+        # elif type == 'ioc':
+        #     timeInForce = 'IOC'
+        #     type = 'limit'
+        # }
+        type = 'limit'
+        marketId = self.safe_string(order, 'instId')
+        symbol = self.safe_symbol(marketId, market, '-')
+        filled = self.safe_string(order, 'filledSize')
+        price = self.safe_string_2(order, 'px', 'price')
+        average = self.safe_string(order, 'averagePrice')
+        status = self.parse_order_status(self.safe_string(order, 'state'))
+        feeCostString = self.safe_string(order, 'fee')
+        amount = None
+        # cost = None
+        # spot market buy: "sz" can refer either to base currency units or to quote currency units
+        # see documentation: https://www.okx.com/docs-v5/en/#rest-api-trade-place-order
+        # defaultTgtCcy = self.safe_string(self.options, 'tgtCcy', 'base_ccy')
+        # tgtCcy = self.safe_string(order, 'tgtCcy', defaultTgtCcy)
+        # instType = self.safe_string(order, 'instType')
+        # "sz" refers to the trade currency amount
+        amount = self.safe_string(order, 'size')
+        fee = None
+        if feeCostString is not None:
+            feeCostSigned = Precise.string_neg(feeCostString)
+            feeCurrencyId = 'USDT'
+            feeCurrencyCode = self.safe_currency_code(feeCurrencyId)
+            fee = {
+                'cost': self.parse_number(feeCostSigned),
+                'currency': feeCurrencyCode,
+            }
+        clientOrderId = self.safe_string(order, 'clientOrderId')
+        if (clientOrderId is not None) and (len(clientOrderId) < 1):
+            clientOrderId = None  # fix empty clientOrderId string
+        stopLossPrice = self.safe_number_2(order, 'slTriggerPrice', 'slOrderPrice')
+        takeProfitPrice = self.safe_number_2(order, 'tpTriggerPrice', 'tpOrderPrice')
+        stopPrice = self.safe_number_n(order, ['price'])
+        reduceOnlyRaw = self.safe_string(order, 'reduceOnly')
+        reduceOnly = False
+        if reduceOnly is not None:
+            reduceOnly = (reduceOnlyRaw == 'true')
         return self.safe_order({
-            'id': orderId,
+            'info': order,
+            'id': id,
             'clientOrderId': clientOrderId,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'lastTradeTimestamp': None,
-            'status': self.parse_order_status(status),
+            'lastTradeTimestamp': lastTradeTimestamp,
             'symbol': symbol,
-            'type': orderType,
-            'timeInForce': self.parse_time_in_force(orderType),
+            'type': type,
+            'timeInForce': timeInForce,
             'postOnly': postOnly,
-            'reduceOnly': self.safe_value(order, 'reduce_only'),
             'side': side,
             'price': price,
-            'stopPrice': None,
-            'triggerPrice': None,
-            'average': average,
-            'amount': amount,
-            'filled': filled,
-            'remaining': remaining,  # TO_DO
-            'cost': cost,
-            'trades': transactions,
-            'fee': {
-                'cost': fee,
-                'currency': feeCurrency,
-            },
-            'info': order,
-        }, market)
-
-    def parse_algo_order(self, order, market=None):
-        #
-        # Possible input functions:
-        # * createOrder
-        # * cancelOrder
-        # * fetchOrder
-        # * fetchOrders
-        # isFromFetchOrder = ('order_tag' in order); TO_DO
-        timestamp = self.safe_timestamp_2(order, 'timestamp', 'createdTime')
-        orderId = self.safe_string(order, 'algoOrderId')
-        clientOrderId = self.safe_string(order, 'clientOrderId')  # Somehow, self always returns 0 for limit order
-        marketId = self.safe_string(order, 'symbol')
-        market = self.safe_market(marketId, market)
-        symbol = market['symbol']
-        price = self.safe_string_2(order, 'price', 'triggerPrice')
-        stopPrice = self.safe_string_2(order, 'triggerPrice', 'price')
-        amount = self.safe_string_2(order, 'order_quantity', 'quantity')  # This is base amount
-        cost = self.safe_string_2(order, 'order_amount', 'amount')  # This is quote amount
-        orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'), self.safe_string_lower(order, 'algoType'))
-        tsOrderType = orderType
-        if orderType == 'market':
-            tsOrderType = 'stop'
-        status = self.safe_value(order, 'algoStatus')
-        side = self.safe_string_lower(order, 'side')
-        filled = self.safe_value(order, 'executed')
-        average = self.safe_string(order, 'average_executed_price')
-        remaining = Precise.string_sub(cost, filled)
-        fee = self.safe_value(order, 'totalFee')
-        feeCurrency = self.safe_string(order, 'feeAsset')
-        transactions = self.safe_value(order, 'Transactions')
-        return self.safe_order({
-            'id': orderId,
-            'clientOrderId': clientOrderId,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'lastTradeTimestamp': None,
-            'status': self.parse_order_status(status),
-            'symbol': symbol,
-            'type': tsOrderType,
-            'timeInForce': self.parse_time_in_force(orderType),
-            'postOnly': None,  # TO_DO
-            'reduceOnly': self.safe_value(order, 'reduceOnly'),
-            'side': side,
-            'price': price,
+            'stopLossPrice': stopLossPrice,
+            'takeProfitPrice': takeProfitPrice,
             'stopPrice': stopPrice,
-            'triggerPrice': None,
+            'triggerPrice': stopPrice,
             'average': average,
+            'cost': None,
             'amount': amount,
             'filled': filled,
-            'remaining': remaining,  # TO_DO
-            'cost': cost,
-            'trades': transactions,
-            'fee': {
-                'cost': fee,
-                'currency': feeCurrency,
-            },
-            'info': order,
-            # TEALSTREET
-            'reduce': self.safe_value(order, 'reduceOnly'),
-            'trigger': 'Mark',
-            # we don't know self from api
-            # 'close': self.safe_value(order, 'closeOnTrigger'),
-            # TEALSTREET
+            'remaining': None,
+            'status': status,
+            'fee': fee,
+            'trades': None,
+            'reduceOnly': reduceOnly,
         }, market)
 
     def parse_order_status(self, status):
-        if status is not None:
-            statuses = {
-                'NEW': 'open',
-                'FILLED': 'closed',
-                'CANCEL_SENT': 'canceled',
-                'CANCEL_ALL_SENT': 'canceled',
-                'CANCELLED': 'canceled',
-                'PARTIAL_FILLED': 'open',
-                'REJECTED': 'rejected',
-                'INCOMPLETE': 'open',
-                'REPLACED': 'open',
-                'COMPLETED': 'closed',
-            }
-            return self.safe_string(statuses, status, status)
-        return status
+        statuses = {
+            'canceled': 'canceled',
+            'live': 'open',
+            'partially_filled': 'open',
+            'filled': 'closed',
+            'effective': 'closed',
+        }
+        return self.safe_string(statuses, status, status)
+
+    async def fetch_open_orders(self, symbol=None, since=None, limit=None, params={}):
+        await self.load_markets()
+        request = {
+            # 'instType': 'SPOT',  # SPOT, MARGIN, SWAP, FUTURES, OPTION
+            # 'uly': currency['id'],
+            # 'instId': market['id'],
+            # 'ordType': 'limit',  # market, limit, post_only, fok, ioc, comma-separated, stop orders: conditional, oco, trigger, move_order_stop, iceberg, or twap
+            # 'state': 'live',  # live, partially_filled
+            # 'after': orderId,
+            # 'before': orderId,
+            # 'limit': limit,  # default 100, max 100
+            'limit': 100,
+        }
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+            request['instId'] = market['id']
+        if limit is not None:
+            request['limit'] = limit  # default 100, max 100
+        query = self.omit(params, ['method', 'stop'])
+        response = await self.v1PrivateGetTradeOrdersPending(self.extend(request, query))
+        data = self.safe_value(response, 'data', [])
+        return self.parse_orders(data, market, since, limit)
 
     async def fetch_order_book(self, symbol, limit=None, params={}):
         """

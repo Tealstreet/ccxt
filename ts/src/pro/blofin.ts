@@ -483,12 +483,7 @@ export default class blofin extends blofinRest {
     }
 
     parseWsOrder (order, market = undefined) {
-        const isAlgoOrder = 'algoType' in order;
-        if (isAlgoOrder) {
-            return this.parseAlgoOrder (order, market);
-        } else {
-            return this.parseRegularOrder (order, market);
-        }
+        return this.parseOrder (order, market);
     }
 
     handleOrderUpdate (client, message) {

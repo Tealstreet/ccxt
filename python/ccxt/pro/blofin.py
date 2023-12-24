@@ -459,11 +459,7 @@ class blofin(ccxt.async_support.blofin):
         return self.filter_by_symbol_since_limit(orders, symbol, since, limit, True)
 
     def parse_ws_order(self, order, market=None):
-        isAlgoOrder = 'algoType' in order
-        if isAlgoOrder:
-            return self.parseAlgoOrder(order, market)
-        else:
-            return self.parseRegularOrder(order, market)
+        return self.parse_order(order, market)
 
     def handle_order_update(self, client, message):
         #

@@ -60,12 +60,12 @@ class blofin extends Exchange {
                 'fetchOHLCV' => true,
                 'fetchOpenInterestHistory' => false,
                 'fetchOpenOrder' => false,
-                'fetchOpenOrders' => false,
+                'fetchOpenOrders' => true,
                 'fetchOrder' => true,
                 'fetchOrderBook' => true,
                 'fetchOrders' => true,
                 'fetchOrderTrades' => true,
-                'fetchPosition' => true,
+                'fetchPosition' => false,
                 'fetchPositionMode' => false,
                 'fetchPositions' => true,
                 'fetchPremiumIndexOHLCV' => false,
@@ -87,20 +87,22 @@ class blofin extends Exchange {
                 'withdraw' => false,
             ),
             'timeframes' => array(
-                '1m' => '1',
-                '3m' => '3',
-                '5m' => '5',
-                '15m' => '15',
-                '30m' => '30',
-                '1h' => '60',
-                '2h' => '2h',
-                '4h' => '4h',
-                '8h' => '8h',
-                '12h' => '12h',
+                '1m' => '1m',
+                '3m' => '3m',
+                '5m' => '5m',
+                '15m' => '15m',
+                '30m' => '30m',
+                '1h' => '1H',
+                '2h' => '2H',
+                '4h' => '4H',
+                '6h' => '6H',
+                '12h' => '12H',
                 '1d' => '1D',
-                '3d' => '3D',
                 '1w' => '1W',
                 '1M' => '1M',
+                '3M' => '3M',
+                '6M' => '6M',
+                '1y' => '1Y',
             ),
             'urls' => array(
                 'logo' => 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
@@ -124,6 +126,8 @@ class blofin extends Exchange {
                         'get' => array(
                             'account/leverage-info' => 1,
                             'asset/balances' => 1,
+                            'account/positions' => 1,
+                            'trade/orders-pending' => 1,
                             // 'client/token' => 1,
                             // 'order/{oid}' => 1,
                             // 'client/order/{client_order_id}' => 1,
@@ -1027,156 +1031,222 @@ class blofin extends Exchange {
     }
 
     public function parse_order($order, $market = null) {
-        $isAlgoOrder = 'algoType' in $order;
-        if ($isAlgoOrder) {
-            return $this->parse_algo_order($order, $market);
-        } else {
-            return $this->parse_regular_order($order, $market);
-        }
-    }
-
-    public function parse_regular_order($order, $market = null) {
         //
-        // Possible input functions:
-        // * createOrder
-        // * cancelOrder
-        // * fetchOrder
-        // * fetchOrders
-        // $isFromFetchOrder = (is_array($order) && array_key_exists('order_tag', $order)); TO_DO
-        $timestamp = $this->safe_timestamp_2($order, 'timestamp', 'created_time');
-        $orderId = $this->safe_string_2($order, 'order_id', 'orderId');
-        $clientOrderId = $this->safe_string_2($order, 'client_order_id', 'clientOrderId'); // Somehow, this always returns 0 for limit $order
-        $marketId = $this->safe_string($order, 'symbol');
-        $market = $this->safe_market($marketId, $market);
-        $symbol = $market['symbol'];
-        $price = $this->safe_string_2($order, 'order_price', 'price');
-        $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
-        $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
-        $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'));
-        $status = $this->safe_value($order, 'status');
-        $side = $this->safe_string_lower($order, 'side');
-        $type = $this->safe_string_upper($order, 'type');
-        $postOnly = $type === 'POST_ONLY';
-        $filled = $this->safe_value($order, 'executed');
-        $average = $this->safe_string_2($order, 'average_executed_price', 'executedPrice');
-        $remaining = Precise::string_sub($cost, $filled);
-        $fee = $this->safe_value_2($order, 'total_fee', 'totalFee');
-        $feeCurrency = $this->safe_string_2($order, 'fee_asset', 'feeAsset');
-        $transactions = $this->safe_value($order, 'Transactions');
+        // createOrder
+        //
+        //     {
+        //         "clOrdId" => "oktswap6",
+        //         "ordId" => "312269865356374016",
+        //         "tag" => "",
+        //         "sCode" => "0",
+        //         "sMsg" => ""
+        //     }
+        //
+        // Spot and Swap fetchOrder, fetchOpenOrders
+        //
+        //     {
+        //         "accFillSz" => "0",
+        //         "avgPx" => "",
+        //         "cTime" => "1621910749815",
+        //         "category" => "normal",
+        //         "ccy" => "",
+        //         "clOrdId" => "",
+        //         "fee" => "0",
+        //         "feeCcy" => "ETH",
+        //         "fillPx" => "",
+        //         "fillSz" => "0",
+        //         "fillTime" => "",
+        //         "instId" => "ETH-USDT",
+        //         "instType" => "SPOT",
+        //         "lever" => "",
+        //         "ordId" => "317251910906576896",
+        //         "ordType" => "limit",
+        //         "pnl" => "0",
+        //         "posSide" => "net",
+        //         "px" => "2000",
+        //         "rebate" => "0",
+        //         "rebateCcy" => "USDT",
+        //         "side" => "buy",
+        //         "slOrdPx" => "",
+        //         "slTriggerPx" => "",
+        //         "state" => "live",
+        //         "sz" => "0.001",
+        //         "tag" => "",
+        //         "tdMode" => "cash",
+        //         "tpOrdPx" => "",
+        //         "tpTriggerPx" => "",
+        //         "tradeId" => "",
+        //         "uTime" => "1621910749815"
+        //     }
+        //
+        // Algo Order fetchOpenOrders, fetchCanceledOrders, fetchClosedOrders
+        //
+        //     {
+        //         "activePx" => "",
+        //         "activePxType" => "",
+        //         "actualPx" => "",
+        //         "actualSide" => "buy",
+        //         "actualSz" => "0",
+        //         "algoId" => "431375349042380800",
+        //         "cTime" => "1649119897778",
+        //         "callbackRatio" => "",
+        //         "callbackSpread" => "",
+        //         "ccy" => "",
+        //         "ctVal" => "0.01",
+        //         "instId" => "BTC-USDT-SWAP",
+        //         "instType" => "SWAP",
+        //         "last" => "46538.9",
+        //         "lever" => "125",
+        //         "moveTriggerPx" => "",
+        //         "notionalUsd" => "467.059",
+        //         "ordId" => "",
+        //         "ordPx" => "50000",
+        //         "ordType" => "trigger",
+        //         "posSide" => "long",
+        //         "pxLimit" => "",
+        //         "pxSpread" => "",
+        //         "pxVar" => "",
+        //         "side" => "buy",
+        //         "slOrdPx" => "",
+        //         "slTriggerPx" => "",
+        //         "slTriggerPxType" => "",
+        //         "state" => "live",
+        //         "sz" => "1",
+        //         "szLimit" => "",
+        //         "tag" => "",
+        //         "tdMode" => "isolated",
+        //         "tgtCcy" => "",
+        //         "timeInterval" => "",
+        //         "tpOrdPx" => "",
+        //         "tpTriggerPx" => "",
+        //         "tpTriggerPxType" => "",
+        //         "triggerPx" => "50000",
+        //         "triggerPxType" => "last",
+        //         "triggerTime" => "",
+        //         "uly" => "BTC-USDT"
+        //     }
+        //
+        $id = $this->safe_string_2($order, 'algoId', 'orderId');
+        $timestamp = $this->safe_integer($order, 'createTime');
+        $lastTradeTimestamp = $this->safe_integer($order, 'updateTime');
+        $side = $this->safe_string($order, 'side');
+        $type = $this->safe_string($order, 'orderType');
+        $postOnly = null;
+        $timeInForce = null;
+        // if ($type === 'post_only') {
+        //     $postOnly = true;
+        //     $type = 'limit';
+        // } elseif ($type === 'fok') {
+        //     $timeInForce = 'FOK';
+        //     $type = 'limit';
+        // } elseif ($type === 'ioc') {
+        //     $timeInForce = 'IOC';
+        //     $type = 'limit';
+        // }
+        $type = 'limit';
+        $marketId = $this->safe_string($order, 'instId');
+        $symbol = $this->safe_symbol($marketId, $market, '-');
+        $filled = $this->safe_string($order, 'filledSize');
+        $price = $this->safe_string_2($order, 'px', 'price');
+        $average = $this->safe_string($order, 'averagePrice');
+        $status = $this->parse_order_status($this->safe_string($order, 'state'));
+        $feeCostString = $this->safe_string($order, 'fee');
+        $amount = null;
+        // $cost = null;
+        // spot $market buy => "sz" can refer either to base currency units or to quote currency units
+        // see documentation => https://www.okx.com/docs-v5/en/#rest-api-trade-place-$order
+        // $defaultTgtCcy = $this->safe_string($this->options, 'tgtCcy', 'base_ccy');
+        // $tgtCcy = $this->safe_string($order, 'tgtCcy', $defaultTgtCcy);
+        // $instType = $this->safe_string($order, 'instType');
+        // "sz" refers to the trade currency $amount
+        $amount = $this->safe_string($order, 'size');
+        $fee = null;
+        if ($feeCostString !== null) {
+            $feeCostSigned = Precise::string_neg($feeCostString);
+            $feeCurrencyId = 'USDT';
+            $feeCurrencyCode = $this->safe_currency_code($feeCurrencyId);
+            $fee = array(
+                'cost' => $this->parse_number($feeCostSigned),
+                'currency' => $feeCurrencyCode,
+            );
+        }
+        $clientOrderId = $this->safe_string($order, 'clientOrderId');
+        if (($clientOrderId !== null) && (strlen($clientOrderId) < 1)) {
+            $clientOrderId = null; // fix empty $clientOrderId string
+        }
+        $stopLossPrice = $this->safe_number_2($order, 'slTriggerPrice', 'slOrderPrice');
+        $takeProfitPrice = $this->safe_number_2($order, 'tpTriggerPrice', 'tpOrderPrice');
+        $stopPrice = $this->safe_number_n($order, array( 'price' ));
+        $reduceOnlyRaw = $this->safe_string($order, 'reduceOnly');
+        $reduceOnly = false;
+        if ($reduceOnly !== null) {
+            $reduceOnly = ($reduceOnlyRaw === 'true');
+        }
         return $this->safe_order(array(
-            'id' => $orderId,
+            'info' => $order,
+            'id' => $id,
             'clientOrderId' => $clientOrderId,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
-            'lastTradeTimestamp' => null,
-            'status' => $this->parse_order_status($status),
+            'lastTradeTimestamp' => $lastTradeTimestamp,
             'symbol' => $symbol,
-            'type' => $orderType,
-            'timeInForce' => $this->parse_time_in_force($orderType),
+            'type' => $type,
+            'timeInForce' => $timeInForce,
             'postOnly' => $postOnly,
-            'reduceOnly' => $this->safe_value($order, 'reduce_only'),
             'side' => $side,
             'price' => $price,
-            'stopPrice' => null,
-            'triggerPrice' => null,
-            'average' => $average,
-            'amount' => $amount,
-            'filled' => $filled,
-            'remaining' => $remaining, // TO_DO
-            'cost' => $cost,
-            'trades' => $transactions,
-            'fee' => array(
-                'cost' => $fee,
-                'currency' => $feeCurrency,
-            ),
-            'info' => $order,
-        ), $market);
-    }
-
-    public function parse_algo_order($order, $market = null) {
-        //
-        // Possible input functions:
-        // * createOrder
-        // * cancelOrder
-        // * fetchOrder
-        // * fetchOrders
-        // $isFromFetchOrder = (is_array($order) && array_key_exists('order_tag', $order)); TO_DO
-        $timestamp = $this->safe_timestamp_2($order, 'timestamp', 'createdTime');
-        $orderId = $this->safe_string($order, 'algoOrderId');
-        $clientOrderId = $this->safe_string($order, 'clientOrderId'); // Somehow, this always returns 0 for limit $order
-        $marketId = $this->safe_string($order, 'symbol');
-        $market = $this->safe_market($marketId, $market);
-        $symbol = $market['symbol'];
-        $price = $this->safe_string_2($order, 'price', 'triggerPrice');
-        $stopPrice = $this->safe_string_2($order, 'triggerPrice', 'price');
-        $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
-        $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
-        $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algoType'));
-        $tsOrderType = $orderType;
-        if ($orderType === 'market') {
-            $tsOrderType = 'stop';
-        }
-        $status = $this->safe_value($order, 'algoStatus');
-        $side = $this->safe_string_lower($order, 'side');
-        $filled = $this->safe_value($order, 'executed');
-        $average = $this->safe_string($order, 'average_executed_price');
-        $remaining = Precise::string_sub($cost, $filled);
-        $fee = $this->safe_value($order, 'totalFee');
-        $feeCurrency = $this->safe_string($order, 'feeAsset');
-        $transactions = $this->safe_value($order, 'Transactions');
-        return $this->safe_order(array(
-            'id' => $orderId,
-            'clientOrderId' => $clientOrderId,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'lastTradeTimestamp' => null,
-            'status' => $this->parse_order_status($status),
-            'symbol' => $symbol,
-            'type' => $tsOrderType,
-            'timeInForce' => $this->parse_time_in_force($orderType),
-            'postOnly' => null, // TO_DO
-            'reduceOnly' => $this->safe_value($order, 'reduceOnly'),
-            'side' => $side,
-            'price' => $price,
+            'stopLossPrice' => $stopLossPrice,
+            'takeProfitPrice' => $takeProfitPrice,
             'stopPrice' => $stopPrice,
-            'triggerPrice' => null,
+            'triggerPrice' => $stopPrice,
             'average' => $average,
+            'cost' => null,
             'amount' => $amount,
             'filled' => $filled,
-            'remaining' => $remaining, // TO_DO
-            'cost' => $cost,
-            'trades' => $transactions,
-            'fee' => array(
-                'cost' => $fee,
-                'currency' => $feeCurrency,
-            ),
-            'info' => $order,
-            // TEALSTREET
-            'reduce' => $this->safe_value($order, 'reduceOnly'),
-            'trigger' => 'Mark',
-            // we don't know this from api
-            // 'close' => $this->safe_value($order, 'closeOnTrigger'),
-            // TEALSTREET
+            'remaining' => null,
+            'status' => $status,
+            'fee' => $fee,
+            'trades' => null,
+            'reduceOnly' => $reduceOnly,
         ), $market);
     }
 
     public function parse_order_status($status) {
-        if ($status !== null) {
-            $statuses = array(
-                'NEW' => 'open',
-                'FILLED' => 'closed',
-                'CANCEL_SENT' => 'canceled',
-                'CANCEL_ALL_SENT' => 'canceled',
-                'CANCELLED' => 'canceled',
-                'PARTIAL_FILLED' => 'open',
-                'REJECTED' => 'rejected',
-                'INCOMPLETE' => 'open',
-                'REPLACED' => 'open',
-                'COMPLETED' => 'closed',
-            );
-            return $this->safe_string($statuses, $status, $status);
+        $statuses = array(
+            'canceled' => 'canceled',
+            'live' => 'open',
+            'partially_filled' => 'open',
+            'filled' => 'closed',
+            'effective' => 'closed',
+        );
+        return $this->safe_string($statuses, $status, $status);
+    }
+
+    public function fetch_open_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
+        $this->load_markets();
+        $request = array(
+            // 'instType' => 'SPOT', // SPOT, MARGIN, SWAP, FUTURES, OPTION
+            // 'uly' => currency['id'],
+            // 'instId' => $market['id'],
+            // 'ordType' => 'limit', // $market, $limit, post_only, fok, ioc, comma-separated, stop orders => conditional, oco, trigger, move_order_stop, iceberg, or twap
+            // 'state' => 'live', // live, partially_filled
+            // 'after' => orderId,
+            // 'before' => orderId,
+            // 'limit' => $limit, // default 100, max 100
+            'limit' => 100,
+        );
+        $market = null;
+        if ($symbol !== null) {
+            $market = $this->market($symbol);
+            $request['instId'] = $market['id'];
         }
-        return $status;
+        if ($limit !== null) {
+            $request['limit'] = $limit; // default 100, max 100
+        }
+        $query = $this->omit($params, array( 'method', 'stop' ));
+        $response = $this->v1PrivateGetTradeOrdersPending (array_merge($request, $query));
+        $data = $this->safe_value($response, 'data', array());
+        return $this->parse_orders($data, $market, $since, $limit);
     }
 
     public function fetch_order_book($symbol, $limit = null, $params = array ()) {
