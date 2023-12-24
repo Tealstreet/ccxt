@@ -125,6 +125,7 @@ export default class blofin extends Exchange {
                     'private': {
                         'get': {
                             'account/leverage-info': 1,
+                            'asset/balances': 1,
                             // 'client/token': 1,
                             // 'order/{oid}': 1,
                             // 'client/order/{client_order_id}': 1,
@@ -1403,7 +1404,9 @@ export default class blofin extends Exchange {
          * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
          */
         await this.loadMarkets();
-        const response = await this.v3PrivateGetBalances(params);
+        const response = await this.v1PrivateGetAssetBalances({
+            'accountType': 'futures',
+        });
         //
         //     {
         //         "success": true,
@@ -1427,20 +1430,19 @@ export default class blofin extends Exchange {
         //         "timestamp": 1673323746259
         //     }
         //
-        const data = this.safeValue(response, 'data');
-        return this.parseBalance(data);
+        return this.parseBalance(response);
     }
     parseBalance(response) {
         const result = {
             'info': response,
         };
-        const balances = this.safeValue(response, 'holding', []);
+        const balances = this.safeValue(response, 'data', []);
         for (let i = 0; i < balances.length; i++) {
             const balance = balances[i];
-            const code = this.safeCurrencyCode(this.safeString(balance, 'token'));
+            const code = this.safeCurrencyCode(this.safeString(balance, 'currency'));
             const account = this.account();
-            account['total'] = this.safeString(balance, 'holding');
-            account['free'] = this.safeString(balance, 'availableBalance');
+            account['total'] = this.safeString(balance, 'balance');
+            account['free'] = Precise.stringAdd(this.safeString(balance, 'available'), this.safeString(balance, 'bonus'));
             result[code] = account;
         }
         return this.safeBalance(result);
@@ -1470,29 +1472,30 @@ export default class blofin extends Exchange {
         const query = this.omit(params, this.extractParams(path));
         let url = this.implodeHostname(this.urls['api']['rest']) + request;
         // const type = this.getPathAuthenticationType (path);
-        if (api === 'public') {
+        if (api[1] === 'public') {
             if (Object.keys(query).length) {
                 url += '?' + this.urlencode(query);
             }
         }
-        else if (api === 'private') {
+        else if (api[1] === 'private') {
             this.checkRequiredCredentials();
-            const timestamp = this.iso8601(this.milliseconds());
+            const timestamp = this.numberToString(this.milliseconds());
+            const nonce = this.uuid();
             headers = {
                 'ACCESS-KEY': this.apiKey,
                 'ACCESS-PASSPHRASE': this.password,
                 'ACCESS-TIMESTAMP': timestamp,
-                'ACCESS-NONCE': this.nonce(),
+                'ACCESS-NONCE': nonce,
                 // 'OK-FROM': '',
                 // 'OK-TO': '',
                 // 'OK-LIMIT': '',
             };
-            let auth = timestamp + method + request;
+            let auth = request + method + timestamp + nonce;
             if (method === 'GET') {
                 if (Object.keys(query).length) {
                     const urlencodedQuery = '?' + this.urlencode(query);
                     url += urlencodedQuery;
-                    auth += urlencodedQuery;
+                    auth = request + urlencodedQuery + method + timestamp + nonce;
                 }
             }
             else {
@@ -1502,7 +1505,7 @@ export default class blofin extends Exchange {
                 }
                 headers['Content-Type'] = 'application/json';
             }
-            const signature = this.hmac(this.encode(auth), this.encode(this.secret), 'sha256', 'base64');
+            const signature = this.binaryToBase64(this.encode(this.hmac(this.encode(auth), this.encode(this.secret), 'sha256', 'hex')));
             headers['ACCESS-SIGN'] = signature;
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };

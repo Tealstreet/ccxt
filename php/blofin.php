@@ -123,6 +123,7 @@ class blofin extends Exchange {
                     'private' => array(
                         'get' => array(
                             'account/leverage-info' => 1,
+                            'asset/balances' => 1,
                             // 'client/token' => 1,
                             // 'order/{oid}' => 1,
                             // 'client/order/{client_order_id}' => 1,
@@ -1401,7 +1402,9 @@ class blofin extends Exchange {
          * @return {array} a ~@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure balance structure~
          */
         $this->load_markets();
-        $response = $this->v3PrivateGetBalances ($params);
+        $response = $this->v1PrivateGetAssetBalances (array(
+            'accountType' => 'futures',
+        ));
         //
         //     {
         //         "success" => true,
@@ -1425,21 +1428,20 @@ class blofin extends Exchange {
         //         "timestamp" => 1673323746259
         //     }
         //
-        $data = $this->safe_value($response, 'data');
-        return $this->parse_balance($data);
+        return $this->parse_balance($response);
     }
 
     public function parse_balance($response) {
         $result = array(
             'info' => $response,
         );
-        $balances = $this->safe_value($response, 'holding', array());
+        $balances = $this->safe_value($response, 'data', array());
         for ($i = 0; $i < count($balances); $i++) {
             $balance = $balances[$i];
-            $code = $this->safe_currency_code($this->safe_string($balance, 'token'));
+            $code = $this->safe_currency_code($this->safe_string($balance, 'currency'));
             $account = $this->account();
-            $account['total'] = $this->safe_string($balance, 'holding');
-            $account['free'] = $this->safe_string($balance, 'availableBalance');
+            $account['total'] = $this->safe_string($balance, 'balance');
+            $account['free'] = Precise::string_add($this->safe_string($balance, 'available'), $this->safe_string($balance, 'bonus'));
             $result[$code] = $account;
         }
         return $this->safe_balance($result);
@@ -1471,28 +1473,29 @@ class blofin extends Exchange {
         $query = $this->omit($params, $this->extract_params($path));
         $url = $this->implode_hostname($this->urls['api']['rest']) . $request;
         // $type = $this->getPathAuthenticationType ($path);
-        if ($api === 'public') {
+        if ($api[1] === 'public') {
             if ($query) {
                 $url .= '?' . $this->urlencode($query);
             }
-        } elseif ($api === 'private') {
+        } elseif ($api[1] === 'private') {
             $this->check_required_credentials();
-            $timestamp = $this->iso8601($this->milliseconds());
+            $timestamp = $this->number_to_string($this->milliseconds());
+            $nonce = $this->uuid();
             $headers = array(
                 'ACCESS-KEY' => $this->apiKey,
                 'ACCESS-PASSPHRASE' => $this->password,
                 'ACCESS-TIMESTAMP' => $timestamp,
-                'ACCESS-NONCE' => $this->nonce(),
+                'ACCESS-NONCE' => $nonce,
                 // 'OK-FROM' => '',
                 // 'OK-TO' => '',
                 // 'OK-LIMIT' => '',
             );
-            $auth = $timestamp . $method . $request;
+            $auth = $request . $method . $timestamp . $nonce;
             if ($method === 'GET') {
                 if ($query) {
                     $urlencodedQuery = '?' . $this->urlencode($query);
                     $url .= $urlencodedQuery;
-                    $auth .= $urlencodedQuery;
+                    $auth = $request . $urlencodedQuery . $method . $timestamp . $nonce;
                 }
             } else {
                 if ($isArray || $query) {
@@ -1501,7 +1504,7 @@ class blofin extends Exchange {
                 }
                 $headers['Content-Type'] = 'application/json';
             }
-            $signature = $this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256', 'base64');
+            $signature = $this->binary_to_base64($this->encode($this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256', 'hex')));
             $headers['ACCESS-SIGN'] = $signature;
         }
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );

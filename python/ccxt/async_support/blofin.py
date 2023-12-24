@@ -131,6 +131,7 @@ class blofin(Exchange):
                     'private': {
                         'get': {
                             'account/leverage-info': 1,
+                            'asset/balances': 1,
                             # 'client/token': 1,
                             # 'order/{oid}': 1,
                             # 'client/order/{client_order_id}': 1,
@@ -1328,7 +1329,9 @@ class blofin(Exchange):
         :returns dict: a `balance structure <https://docs.ccxt.com/en/latest/manual.html?#balance-structure>`
         """
         await self.load_markets()
-        response = await self.v3PrivateGetBalances(params)
+        response = await self.v1PrivateGetAssetBalances({
+            'accountType': 'futures',
+        })
         #
         #     {
         #         "success": True,
@@ -1352,20 +1355,19 @@ class blofin(Exchange):
         #         "timestamp": 1673323746259
         #     }
         #
-        data = self.safe_value(response, 'data')
-        return self.parse_balance(data)
+        return self.parse_balance(response)
 
     def parse_balance(self, response):
         result = {
             'info': response,
         }
-        balances = self.safe_value(response, 'holding', [])
+        balances = self.safe_value(response, 'data', [])
         for i in range(0, len(balances)):
             balance = balances[i]
-            code = self.safe_currency_code(self.safe_string(balance, 'token'))
+            code = self.safe_currency_code(self.safe_string(balance, 'currency'))
             account = self.account()
-            account['total'] = self.safe_string(balance, 'holding')
-            account['free'] = self.safe_string(balance, 'availableBalance')
+            account['total'] = self.safe_string(balance, 'balance')
+            account['free'] = Precise.string_add(self.safe_string(balance, 'available'), self.safe_string(balance, 'bonus'))
             result[code] = account
         return self.safe_balance(result)
 
@@ -1391,33 +1393,34 @@ class blofin(Exchange):
         query = self.omit(params, self.extract_params(path))
         url = self.implode_hostname(self.urls['api']['rest']) + request
         # type = self.getPathAuthenticationType(path)
-        if api == 'public':
+        if api[1] == 'public':
             if query:
                 url += '?' + self.urlencode(query)
-        elif api == 'private':
+        elif api[1] == 'private':
             self.check_required_credentials()
-            timestamp = self.iso8601(self.milliseconds())
+            timestamp = self.number_to_string(self.milliseconds())
+            nonce = self.uuid()
             headers = {
                 'ACCESS-KEY': self.apiKey,
                 'ACCESS-PASSPHRASE': self.password,
                 'ACCESS-TIMESTAMP': timestamp,
-                'ACCESS-NONCE': self.nonce(),
+                'ACCESS-NONCE': nonce,
                 # 'OK-FROM': '',
                 # 'OK-TO': '',
                 # 'OK-LIMIT': '',
             }
-            auth = timestamp + method + request
+            auth = request + method + timestamp + nonce
             if method == 'GET':
                 if query:
                     urlencodedQuery = '?' + self.urlencode(query)
                     url += urlencodedQuery
-                    auth += urlencodedQuery
+                    auth = request + urlencodedQuery + method + timestamp + nonce
             else:
                 if isArray or query:
                     body = self.json(query)
                     auth += body
                 headers['Content-Type'] = 'application/json'
-            signature = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256, 'base64')
+            signature = self.binary_to_base64(self.encode(self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256, 'hex')))
             headers['ACCESS-SIGN'] = signature
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
