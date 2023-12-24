@@ -1681,133 +1681,132 @@ export default class blofin extends Exchange {
         return await (this as any).v1PrivatePostClientLeverage (this.extend (request, params));
     }
 
-    async fetchPosition (symbol: string = undefined, params = {}) {
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'symbol': market['id'],
-        };
-        const response = await (this as any).v1PrivateGetPositionSymbol (this.extend (request, params));
-        //
-        //     {
-        //         "symbol":"PERP_ETC_USDT",
-        //         "holding":0.0,
-        //         "pnl_24_h":0,
-        //         "settle_price":0.0,
-        //         "average_open_price":0,
-        //         "success":true,
-        //         "mark_price":22.6955,
-        //         "pending_short_qty":0.0,
-        //         "pending_long_qty":0.0,
-        //         "fee_24_h":0,
-        //         "timestamp":"1652231044.920"
-        //     }
-        //
-        return this.parsePosition (response, market);
-    }
-
     async fetchPositions (symbols: string[] = undefined, params = {}) {
         await this.loadMarkets ();
-        const response = await (this as any).v3PrivateGetPositions (params);
-        //
-        //     {
-        //         "success": true,
-        //         "data": {
-        //             "positions": [
-        //                 {
-        //                     "symbol": "0_symbol",
-        //                     "holding": 1,
-        //                     "pendingLongQty": 0,
-        //                     "pendingShortQty": 1,
-        //                     "settlePrice": 1,
-        //                     "averageOpenPrice": 1,
-        //                     "pnl24H": 1,
-        //                     "fee24H": 1,
-        //                     "markPrice": 1,
-        //                     "estLiqPrice": 1,
-        //                     "timestamp": 12321321
-        //                 }
-        //             ]
-        //         },
-        //         "timestamp": 1673323880342
-        //     }
-        //
-        const result = this.safeValue (response, 'data', {});
-        const positions = this.safeValue (result, 'positions', []);
-        return this.parsePositions (positions, symbols);
+        const request = {
+            // 'instType': 'MARGIN', // optional string, MARGIN, SWAP, FUTURES, OPTION
+            // 'instId': market['id'], // optional string, e.g. 'BTC-USD-190927-5000-C'
+            // 'posId': '307173036051017730', // optional string, Single or multiple position IDs (no more than 20) separated with commas
+        };
+        if (symbols !== undefined) {
+            const marketIds = [];
+            for (let i = 0; i < symbols.length; i++) {
+                const entry = symbols[i];
+                const market = this.market (entry);
+                marketIds.push (market['id']);
+            }
+            const marketIdsLength = marketIds.length;
+            if (marketIdsLength > 0) {
+                request['instId'] = marketIds.join (',');
+            }
+        }
+        const response = await (this as any).v1PrivateGetAccountPositions (this.extend (request, params));
+        const positions = this.safeValue (response, 'data', []);
+        const result = [];
+        for (let i = 0; i < positions.length; i++) {
+            result.push (this.parsePosition (positions[i]));
+        }
+        return this.filterByArray (result, 'symbol', symbols, false);
     }
 
     parsePosition (position, market = undefined) {
-        //
-        //     {
-        //         "symbol": "0_symbol",
-        //         "holding": 1,
-        //         "pendingLongQty": 0,
-        //         "pendingShortQty": 1,
-        //         "settlePrice": 1,
-        //         "averageOpenPrice": 1,
-        //         "pnl24H": 1,
-        //         "fee24H": 1,
-        //         "markPrice": 1,
-        //         "estLiqPrice": 1,
-        //         "timestamp": 12321321
-        //     }
-        //
-        const contract = this.safeString (position, 'symbol');
-        market = this.safeMarket (contract, market);
-        const size = this.safeString (position, 'holding');
-        let side = undefined;
-        if (Precise.stringGt (size, '0')) {
-            side = 'long';
+        const marketId = this.safeString (position, 'instId');
+        market = this.safeMarket (marketId, market);
+        const symbol = market['symbol'];
+        const pos = this.safeString (position, 'positions'); // 'pos' field: One way mode: 0 if position is not open, 1 if open | Two way (hedge) mode: -1 if short, 1 if long, 0 if position is not open
+        const contractsAbs = Precise.stringAbs (pos);
+        let side = this.safeString (position, 'positionSide');
+        const hedged = side !== 'net';
+        const contracts = this.parseNumber (contractsAbs);
+        if (market['margin']) {
+            // margin position
+            if (side === 'net') {
+                // const posCcy = this.safeString (position, 'posCcy');
+                const posCcy = 'USDT';
+                const parsedCurrency = this.safeCurrencyCode (posCcy);
+                if (parsedCurrency !== undefined) {
+                    side = (market['base'] === parsedCurrency) ? 'long' : 'short';
+                }
+            }
+            if (side === undefined) {
+                side = this.safeString (position, 'direction');
+            }
         } else {
-            side = 'short';
-        }
-        const contractSize = this.safeString (market, 'contractSize');
-        const markPrice = this.safeString (position, 'markPrice');
-        const timestamp = this.safeTimestamp (position, 'timestamp');
-        const entryPrice = this.safeString (position, 'averageOpenPrice');
-        const priceDifference = Precise.stringSub (markPrice, entryPrice);
-        const unrealisedPnl = Precise.stringMul (priceDifference, size);
-        return {
-            'info': position,
-            'id': market['symbol'] + ':' + side,
-            'symbol': market['symbol'],
-            'notional': undefined,
-            'marginMode': 'cross',
-            'liquidationPrice': this.safeNumber (position, 'estLiqPrice'),
-            'entryPrice': this.parseNumber (entryPrice),
-            'realizedPnl': this.safeString (position, 'pnl24H'),
-            'unrealizedPnl': this.parseNumber (unrealisedPnl),
-            'percentage': undefined,
-            'contracts': this.parseNumber (size),
-            'contractSize': this.parseNumber (contractSize),
-            'markPrice': this.parseNumber (markPrice),
-            'side': side,
-            'hedged': false,
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'maintenanceMargin': undefined,
-            'maintenanceMarginPercentage': undefined,
-            'collateral': undefined,
-            'initialMargin': undefined,
-            'initialMarginPercentage': undefined,
-            'leverage': undefined,
-            'marginRatio': undefined,
-        };
-    }
-
-    defaultNetworkCodeForCurrency (code) { // TODO: can be moved into base as an unified method
-        const currencyItem = this.currency (code);
-        const networks = currencyItem['networks'];
-        const networkKeys = Object.keys (networks);
-        for (let i = 0; i < networkKeys.length; i++) {
-            const network = networkKeys[i];
-            if (network === 'ETH') {
-                return network;
+            if (pos !== undefined) {
+                if (side === 'net') {
+                    if (Precise.stringGt (pos, '0')) {
+                        side = 'long';
+                    } else if (Precise.stringLt (pos, '0')) {
+                        side = 'short';
+                    } else {
+                        side = undefined;
+                    }
+                }
             }
         }
-        // if it was not returned according to above options, then return the first network of currency
-        return this.safeValue (networkKeys, 0);
+        const contractSize = this.safeNumber (market, 'contractSize');
+        const contractSizeString = this.numberToString (contractSize);
+        const markPriceString = this.safeString (position, 'markPrice');
+        let notionalString = this.safeString (position, 'notionalUsd');
+        if (market['inverse']) {
+            notionalString = Precise.stringDiv (Precise.stringMul (contractsAbs, contractSizeString), markPriceString);
+        }
+        const notional = this.parseNumber (notionalString);
+        const marginMode = this.safeString (position, 'mgnMode');
+        let initialMarginString = undefined;
+        const entryPriceString = this.safeString (position, 'avgPx');
+        const unrealizedPnlString = this.safeString (position, 'unrealizedPnl');
+        const leverageString = this.safeString (position, 'leverage');
+        let initialMarginPercentage = undefined;
+        let collateralString = undefined;
+        if (marginMode === 'cross') {
+            initialMarginString = this.safeString (position, 'initialMargin');
+            collateralString = Precise.stringAdd (initialMarginString, unrealizedPnlString);
+        } else if (marginMode === 'isolated') {
+            initialMarginPercentage = Precise.stringDiv ('1', leverageString);
+            collateralString = this.safeString (position, 'margin');
+        }
+        const maintenanceMarginString = this.safeString (position, 'maintenanceMargin');
+        const maintenanceMargin = this.parseNumber (maintenanceMarginString);
+        const maintenanceMarginPercentageString = Precise.stringDiv (maintenanceMarginString, notionalString);
+        if (initialMarginPercentage === undefined) {
+            initialMarginPercentage = this.parseNumber (Precise.stringDiv (initialMarginString, notionalString, 4));
+        } else if (initialMarginString === undefined) {
+            initialMarginString = Precise.stringMul (initialMarginPercentage, notionalString);
+        }
+        const rounder = '0.00005'; // round to closest 0.01%
+        const maintenanceMarginPercentage = this.parseNumber (Precise.stringDiv (Precise.stringAdd (maintenanceMarginPercentageString, rounder), '1', 4));
+        const liquidationPrice = this.safeNumber (position, 'liqidationPrice');
+        const percentageString = this.safeString (position, 'uplRatio');
+        const percentage = this.parseNumber (Precise.stringMul (percentageString, '100'));
+        const timestamp = this.safeInteger (position, 'updateTime');
+        const marginRatio = this.parseNumber (Precise.stringDiv (maintenanceMarginString, collateralString, 4));
+        const id = symbol + ':' + side;
+        return {
+            'info': position,
+            'id': id,
+            'symbol': symbol,
+            'notional': notional,
+            'marginMode': marginMode,
+            'liquidationPrice': liquidationPrice,
+            'entryPrice': this.parseNumber (entryPriceString),
+            'unrealizedPnl': this.parseNumber (unrealizedPnlString),
+            'percentage': percentage,
+            'contracts': contracts,
+            'contractSize': contractSize,
+            'markPrice': this.parseNumber (markPriceString),
+            'side': side,
+            'hedged': hedged,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'maintenanceMargin': maintenanceMargin,
+            'maintenanceMarginPercentage': maintenanceMarginPercentage,
+            'collateral': this.parseNumber (collateralString),
+            'initialMargin': this.parseNumber (initialMarginString),
+            'initialMarginPercentage': this.parseNumber (initialMarginPercentage),
+            'leverage': this.parseNumber (leverageString),
+            'marginRatio': marginRatio,
+        };
     }
 
     async fetchAccountConfiguration (symbol, params = {}) {

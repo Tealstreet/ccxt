@@ -1559,127 +1559,117 @@ class blofin(Exchange):
         }
         return self.v1PrivatePostClientLeverage(self.extend(request, params))
 
-    def fetch_position(self, symbol=None, params={}):
-        self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'symbol': market['id'],
-        }
-        response = self.v1PrivateGetPositionSymbol(self.extend(request, params))
-        #
-        #     {
-        #         "symbol":"PERP_ETC_USDT",
-        #         "holding":0.0,
-        #         "pnl_24_h":0,
-        #         "settle_price":0.0,
-        #         "average_open_price":0,
-        #         "success":true,
-        #         "mark_price":22.6955,
-        #         "pending_short_qty":0.0,
-        #         "pending_long_qty":0.0,
-        #         "fee_24_h":0,
-        #         "timestamp":"1652231044.920"
-        #     }
-        #
-        return self.parse_position(response, market)
-
     def fetch_positions(self, symbols=None, params={}):
         self.load_markets()
-        response = self.v3PrivateGetPositions(params)
-        #
-        #     {
-        #         "success": True,
-        #         "data": {
-        #             "positions": [
-        #                 {
-        #                     "symbol": "0_symbol",
-        #                     "holding": 1,
-        #                     "pendingLongQty": 0,
-        #                     "pendingShortQty": 1,
-        #                     "settlePrice": 1,
-        #                     "averageOpenPrice": 1,
-        #                     "pnl24H": 1,
-        #                     "fee24H": 1,
-        #                     "markPrice": 1,
-        #                     "estLiqPrice": 1,
-        #                     "timestamp": 12321321
-        #                 }
-        #             ]
-        #         },
-        #         "timestamp": 1673323880342
-        #     }
-        #
-        result = self.safe_value(response, 'data', {})
-        positions = self.safe_value(result, 'positions', [])
-        return self.parse_positions(positions, symbols)
+        request = {
+            # 'instType': 'MARGIN',  # optional string, MARGIN, SWAP, FUTURES, OPTION
+            # 'instId': market['id'],  # optional string, e.g. 'BTC-USD-190927-5000-C'
+            # 'posId': '307173036051017730',  # optional string, Single or multiple position IDs(no more than 20) separated with commas
+        }
+        if symbols is not None:
+            marketIds = []
+            for i in range(0, len(symbols)):
+                entry = symbols[i]
+                market = self.market(entry)
+                marketIds.append(market['id'])
+            marketIdsLength = len(marketIds)
+            if marketIdsLength > 0:
+                request['instId'] = ','.join(marketIds)
+        response = self.v1PrivateGetAccountPositions(self.extend(request, params))
+        positions = self.safe_value(response, 'data', [])
+        result = []
+        for i in range(0, len(positions)):
+            result.append(self.parse_position(positions[i]))
+        return self.filter_by_array(result, 'symbol', symbols, False)
 
     def parse_position(self, position, market=None):
-        #
-        #     {
-        #         "symbol": "0_symbol",
-        #         "holding": 1,
-        #         "pendingLongQty": 0,
-        #         "pendingShortQty": 1,
-        #         "settlePrice": 1,
-        #         "averageOpenPrice": 1,
-        #         "pnl24H": 1,
-        #         "fee24H": 1,
-        #         "markPrice": 1,
-        #         "estLiqPrice": 1,
-        #         "timestamp": 12321321
-        #     }
-        #
-        contract = self.safe_string(position, 'symbol')
-        market = self.safe_market(contract, market)
-        size = self.safe_string(position, 'holding')
-        side = None
-        if Precise.string_gt(size, '0'):
-            side = 'long'
+        marketId = self.safe_string(position, 'instId')
+        market = self.safe_market(marketId, market)
+        symbol = market['symbol']
+        pos = self.safe_string(position, 'positions')  # 'pos' field: One way mode: 0 if position is not open, 1 if open | Two way(hedge) mode: -1 if short, 1 if long, 0 if position is not open
+        contractsAbs = Precise.string_abs(pos)
+        side = self.safe_string(position, 'positionSide')
+        hedged = side != 'net'
+        contracts = self.parse_number(contractsAbs)
+        if market['margin']:
+            # margin position
+            if side == 'net':
+                # posCcy = self.safe_string(position, 'posCcy')
+                posCcy = 'USDT'
+                parsedCurrency = self.safe_currency_code(posCcy)
+                if parsedCurrency is not None:
+                    side = 'long' if (market['base'] == parsedCurrency) else 'short'
+            if side is None:
+                side = self.safe_string(position, 'direction')
         else:
-            side = 'short'
-        contractSize = self.safe_string(market, 'contractSize')
-        markPrice = self.safe_string(position, 'markPrice')
-        timestamp = self.safe_timestamp(position, 'timestamp')
-        entryPrice = self.safe_string(position, 'averageOpenPrice')
-        priceDifference = Precise.string_sub(markPrice, entryPrice)
-        unrealisedPnl = Precise.string_mul(priceDifference, size)
+            if pos is not None:
+                if side == 'net':
+                    if Precise.string_gt(pos, '0'):
+                        side = 'long'
+                    elif Precise.string_lt(pos, '0'):
+                        side = 'short'
+                    else:
+                        side = None
+        contractSize = self.safe_number(market, 'contractSize')
+        contractSizeString = self.number_to_string(contractSize)
+        markPriceString = self.safe_string(position, 'markPrice')
+        notionalString = self.safe_string(position, 'notionalUsd')
+        if market['inverse']:
+            notionalString = Precise.string_div(Precise.string_mul(contractsAbs, contractSizeString), markPriceString)
+        notional = self.parse_number(notionalString)
+        marginMode = self.safe_string(position, 'mgnMode')
+        initialMarginString = None
+        entryPriceString = self.safe_string(position, 'avgPx')
+        unrealizedPnlString = self.safe_string(position, 'unrealizedPnl')
+        leverageString = self.safe_string(position, 'leverage')
+        initialMarginPercentage = None
+        collateralString = None
+        if marginMode == 'cross':
+            initialMarginString = self.safe_string(position, 'initialMargin')
+            collateralString = Precise.string_add(initialMarginString, unrealizedPnlString)
+        elif marginMode == 'isolated':
+            initialMarginPercentage = Precise.string_div('1', leverageString)
+            collateralString = self.safe_string(position, 'margin')
+        maintenanceMarginString = self.safe_string(position, 'maintenanceMargin')
+        maintenanceMargin = self.parse_number(maintenanceMarginString)
+        maintenanceMarginPercentageString = Precise.string_div(maintenanceMarginString, notionalString)
+        if initialMarginPercentage is None:
+            initialMarginPercentage = self.parse_number(Precise.string_div(initialMarginString, notionalString, 4))
+        elif initialMarginString is None:
+            initialMarginString = Precise.string_mul(initialMarginPercentage, notionalString)
+        rounder = '0.00005'  # round to closest 0.01%
+        maintenanceMarginPercentage = self.parse_number(Precise.string_div(Precise.string_add(maintenanceMarginPercentageString, rounder), '1', 4))
+        liquidationPrice = self.safe_number(position, 'liqidationPrice')
+        percentageString = self.safe_string(position, 'uplRatio')
+        percentage = self.parse_number(Precise.string_mul(percentageString, '100'))
+        timestamp = self.safe_integer(position, 'updateTime')
+        marginRatio = self.parse_number(Precise.string_div(maintenanceMarginString, collateralString, 4))
+        id = symbol + ':' + side
         return {
             'info': position,
-            'id': market['symbol'] + ':' + side,
-            'symbol': market['symbol'],
-            'notional': None,
-            'marginMode': 'cross',
-            'liquidationPrice': self.safe_number(position, 'estLiqPrice'),
-            'entryPrice': self.parse_number(entryPrice),
-            'realizedPnl': self.safe_string(position, 'pnl24H'),
-            'unrealizedPnl': self.parse_number(unrealisedPnl),
-            'percentage': None,
-            'contracts': self.parse_number(size),
-            'contractSize': self.parse_number(contractSize),
-            'markPrice': self.parse_number(markPrice),
+            'id': id,
+            'symbol': symbol,
+            'notional': notional,
+            'marginMode': marginMode,
+            'liquidationPrice': liquidationPrice,
+            'entryPrice': self.parse_number(entryPriceString),
+            'unrealizedPnl': self.parse_number(unrealizedPnlString),
+            'percentage': percentage,
+            'contracts': contracts,
+            'contractSize': contractSize,
+            'markPrice': self.parse_number(markPriceString),
             'side': side,
-            'hedged': False,
+            'hedged': hedged,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
-            'maintenanceMargin': None,
-            'maintenanceMarginPercentage': None,
-            'collateral': None,
-            'initialMargin': None,
-            'initialMarginPercentage': None,
-            'leverage': None,
-            'marginRatio': None,
+            'maintenanceMargin': maintenanceMargin,
+            'maintenanceMarginPercentage': maintenanceMarginPercentage,
+            'collateral': self.parse_number(collateralString),
+            'initialMargin': self.parse_number(initialMarginString),
+            'initialMarginPercentage': self.parse_number(initialMarginPercentage),
+            'leverage': self.parse_number(leverageString),
+            'marginRatio': marginRatio,
         }
-
-    def default_network_code_for_currency(self, code):
-        currencyItem = self.currency(code)
-        networks = currencyItem['networks']
-        networkKeys = list(networks.keys())
-        for i in range(0, len(networkKeys)):
-            network = networkKeys[i]
-            if network == 'ETH':
-                return network
-        # if it was not returned according to above options, then return the first network of currency
-        return self.safe_value(networkKeys, 0)
 
     def fetch_account_configuration(self, symbol, params={}):
         self.load_markets()

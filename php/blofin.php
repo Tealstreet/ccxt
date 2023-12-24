@@ -1653,133 +1653,132 @@ class blofin extends Exchange {
         return $this->v1PrivatePostClientLeverage (array_merge($request, $params));
     }
 
-    public function fetch_position($symbol = null, $params = array ()) {
-        $this->load_markets();
-        $market = $this->market($symbol);
-        $request = array(
-            'symbol' => $market['id'],
-        );
-        $response = $this->v1PrivateGetPositionSymbol (array_merge($request, $params));
-        //
-        //     {
-        //         "symbol":"PERP_ETC_USDT",
-        //         "holding":0.0,
-        //         "pnl_24_h":0,
-        //         "settle_price":0.0,
-        //         "average_open_price":0,
-        //         "success":true,
-        //         "mark_price":22.6955,
-        //         "pending_short_qty":0.0,
-        //         "pending_long_qty":0.0,
-        //         "fee_24_h":0,
-        //         "timestamp":"1652231044.920"
-        //     }
-        //
-        return $this->parse_position($response, $market);
-    }
-
     public function fetch_positions($symbols = null, $params = array ()) {
         $this->load_markets();
-        $response = $this->v3PrivateGetPositions ($params);
-        //
-        //     {
-        //         "success" => true,
-        //         "data" => {
-        //             "positions" => array(
-        //                 array(
-        //                     "symbol" => "0_symbol",
-        //                     "holding" => 1,
-        //                     "pendingLongQty" => 0,
-        //                     "pendingShortQty" => 1,
-        //                     "settlePrice" => 1,
-        //                     "averageOpenPrice" => 1,
-        //                     "pnl24H" => 1,
-        //                     "fee24H" => 1,
-        //                     "markPrice" => 1,
-        //                     "estLiqPrice" => 1,
-        //                     "timestamp" => 12321321
-        //                 }
-        //             )
-        //         ),
-        //         "timestamp" => 1673323880342
-        //     }
-        //
-        $result = $this->safe_value($response, 'data', array());
-        $positions = $this->safe_value($result, 'positions', array());
-        return $this->parse_positions($positions, $symbols);
+        $request = array(
+            // 'instType' => 'MARGIN', // optional string, MARGIN, SWAP, FUTURES, OPTION
+            // 'instId' => $market['id'], // optional string, e.g. 'BTC-USD-190927-5000-C'
+            // 'posId' => '307173036051017730', // optional string, Single or multiple position IDs (no more than 20) separated with commas
+        );
+        if ($symbols !== null) {
+            $marketIds = array();
+            for ($i = 0; $i < count($symbols); $i++) {
+                $entry = $symbols[$i];
+                $market = $this->market($entry);
+                $marketIds[] = $market['id'];
+            }
+            $marketIdsLength = count($marketIds);
+            if ($marketIdsLength > 0) {
+                $request['instId'] = implode(',', $marketIds);
+            }
+        }
+        $response = $this->v1PrivateGetAccountPositions (array_merge($request, $params));
+        $positions = $this->safe_value($response, 'data', array());
+        $result = array();
+        for ($i = 0; $i < count($positions); $i++) {
+            $result[] = $this->parse_position($positions[$i]);
+        }
+        return $this->filter_by_array($result, 'symbol', $symbols, false);
     }
 
     public function parse_position($position, $market = null) {
-        //
-        //     {
-        //         "symbol" => "0_symbol",
-        //         "holding" => 1,
-        //         "pendingLongQty" => 0,
-        //         "pendingShortQty" => 1,
-        //         "settlePrice" => 1,
-        //         "averageOpenPrice" => 1,
-        //         "pnl24H" => 1,
-        //         "fee24H" => 1,
-        //         "markPrice" => 1,
-        //         "estLiqPrice" => 1,
-        //         "timestamp" => 12321321
-        //     }
-        //
-        $contract = $this->safe_string($position, 'symbol');
-        $market = $this->safe_market($contract, $market);
-        $size = $this->safe_string($position, 'holding');
-        $side = null;
-        if (Precise::string_gt($size, '0')) {
-            $side = 'long';
+        $marketId = $this->safe_string($position, 'instId');
+        $market = $this->safe_market($marketId, $market);
+        $symbol = $market['symbol'];
+        $pos = $this->safe_string($position, 'positions'); // 'pos' field => One way mode => 0 if $position is not open, 1 if open | Two way (hedge) mode => -1 if short, 1 if long, 0 if $position is not open
+        $contractsAbs = Precise::string_abs($pos);
+        $side = $this->safe_string($position, 'positionSide');
+        $hedged = $side !== 'net';
+        $contracts = $this->parse_number($contractsAbs);
+        if ($market['margin']) {
+            // margin $position
+            if ($side === 'net') {
+                // $posCcy = $this->safe_string($position, 'posCcy');
+                $posCcy = 'USDT';
+                $parsedCurrency = $this->safe_currency_code($posCcy);
+                if ($parsedCurrency !== null) {
+                    $side = ($market['base'] === $parsedCurrency) ? 'long' : 'short';
+                }
+            }
+            if ($side === null) {
+                $side = $this->safe_string($position, 'direction');
+            }
         } else {
-            $side = 'short';
-        }
-        $contractSize = $this->safe_string($market, 'contractSize');
-        $markPrice = $this->safe_string($position, 'markPrice');
-        $timestamp = $this->safe_timestamp($position, 'timestamp');
-        $entryPrice = $this->safe_string($position, 'averageOpenPrice');
-        $priceDifference = Precise::string_sub($markPrice, $entryPrice);
-        $unrealisedPnl = Precise::string_mul($priceDifference, $size);
-        return array(
-            'info' => $position,
-            'id' => $market['symbol'] . ':' . $side,
-            'symbol' => $market['symbol'],
-            'notional' => null,
-            'marginMode' => 'cross',
-            'liquidationPrice' => $this->safe_number($position, 'estLiqPrice'),
-            'entryPrice' => $this->parse_number($entryPrice),
-            'realizedPnl' => $this->safe_string($position, 'pnl24H'),
-            'unrealizedPnl' => $this->parse_number($unrealisedPnl),
-            'percentage' => null,
-            'contracts' => $this->parse_number($size),
-            'contractSize' => $this->parse_number($contractSize),
-            'markPrice' => $this->parse_number($markPrice),
-            'side' => $side,
-            'hedged' => false,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'maintenanceMargin' => null,
-            'maintenanceMarginPercentage' => null,
-            'collateral' => null,
-            'initialMargin' => null,
-            'initialMarginPercentage' => null,
-            'leverage' => null,
-            'marginRatio' => null,
-        );
-    }
-
-    public function default_network_code_for_currency($code) {
-        $currencyItem = $this->currency($code);
-        $networks = $currencyItem['networks'];
-        $networkKeys = is_array($networks) ? array_keys($networks) : array();
-        for ($i = 0; $i < count($networkKeys); $i++) {
-            $network = $networkKeys[$i];
-            if ($network === 'ETH') {
-                return $network;
+            if ($pos !== null) {
+                if ($side === 'net') {
+                    if (Precise::string_gt($pos, '0')) {
+                        $side = 'long';
+                    } elseif (Precise::string_lt($pos, '0')) {
+                        $side = 'short';
+                    } else {
+                        $side = null;
+                    }
+                }
             }
         }
-        // if it was not returned according to above options, then return the first $network of currency
-        return $this->safe_value($networkKeys, 0);
+        $contractSize = $this->safe_number($market, 'contractSize');
+        $contractSizeString = $this->number_to_string($contractSize);
+        $markPriceString = $this->safe_string($position, 'markPrice');
+        $notionalString = $this->safe_string($position, 'notionalUsd');
+        if ($market['inverse']) {
+            $notionalString = Precise::string_div(Precise::string_mul($contractsAbs, $contractSizeString), $markPriceString);
+        }
+        $notional = $this->parse_number($notionalString);
+        $marginMode = $this->safe_string($position, 'mgnMode');
+        $initialMarginString = null;
+        $entryPriceString = $this->safe_string($position, 'avgPx');
+        $unrealizedPnlString = $this->safe_string($position, 'unrealizedPnl');
+        $leverageString = $this->safe_string($position, 'leverage');
+        $initialMarginPercentage = null;
+        $collateralString = null;
+        if ($marginMode === 'cross') {
+            $initialMarginString = $this->safe_string($position, 'initialMargin');
+            $collateralString = Precise::string_add($initialMarginString, $unrealizedPnlString);
+        } elseif ($marginMode === 'isolated') {
+            $initialMarginPercentage = Precise::string_div('1', $leverageString);
+            $collateralString = $this->safe_string($position, 'margin');
+        }
+        $maintenanceMarginString = $this->safe_string($position, 'maintenanceMargin');
+        $maintenanceMargin = $this->parse_number($maintenanceMarginString);
+        $maintenanceMarginPercentageString = Precise::string_div($maintenanceMarginString, $notionalString);
+        if ($initialMarginPercentage === null) {
+            $initialMarginPercentage = $this->parse_number(Precise::string_div($initialMarginString, $notionalString, 4));
+        } elseif ($initialMarginString === null) {
+            $initialMarginString = Precise::string_mul($initialMarginPercentage, $notionalString);
+        }
+        $rounder = '0.00005'; // round to closest 0.01%
+        $maintenanceMarginPercentage = $this->parse_number(Precise::string_div(Precise::string_add($maintenanceMarginPercentageString, $rounder), '1', 4));
+        $liquidationPrice = $this->safe_number($position, 'liqidationPrice');
+        $percentageString = $this->safe_string($position, 'uplRatio');
+        $percentage = $this->parse_number(Precise::string_mul($percentageString, '100'));
+        $timestamp = $this->safe_integer($position, 'updateTime');
+        $marginRatio = $this->parse_number(Precise::string_div($maintenanceMarginString, $collateralString, 4));
+        $id = $symbol . ':' . $side;
+        return array(
+            'info' => $position,
+            'id' => $id,
+            'symbol' => $symbol,
+            'notional' => $notional,
+            'marginMode' => $marginMode,
+            'liquidationPrice' => $liquidationPrice,
+            'entryPrice' => $this->parse_number($entryPriceString),
+            'unrealizedPnl' => $this->parse_number($unrealizedPnlString),
+            'percentage' => $percentage,
+            'contracts' => $contracts,
+            'contractSize' => $contractSize,
+            'markPrice' => $this->parse_number($markPriceString),
+            'side' => $side,
+            'hedged' => $hedged,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'maintenanceMargin' => $maintenanceMargin,
+            'maintenanceMarginPercentage' => $maintenanceMarginPercentage,
+            'collateral' => $this->parse_number($collateralString),
+            'initialMargin' => $this->parse_number($initialMarginString),
+            'initialMarginPercentage' => $this->parse_number($initialMarginPercentage),
+            'leverage' => $this->parse_number($leverageString),
+            'marginRatio' => $marginRatio,
+        );
     }
 
     public function fetch_account_configuration($symbol, $params = array ()) {
