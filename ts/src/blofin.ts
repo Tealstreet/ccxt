@@ -70,8 +70,8 @@ export default class blofin extends Exchange {
                 'fetchPositions': true,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchStatus': false,
-                'fetchTicker': false,
-                'fetchTickers': false,
+                'fetchTicker': true,
+                'fetchTickers': true,
                 'fetchTime': false,
                 'fetchTrades': true,
                 'fetchTradingFee': false,
@@ -105,47 +105,19 @@ export default class blofin extends Exchange {
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
                 'api': {
-                    'pub': 'https://api-pub.woo.org',
-                    'public': 'https://api.{hostname}',
-                    'private': 'https://api.{hostname}',
+                    'rest': 'https://openapi.blofin.com',
                 },
-                'test': {
-                    'pub': 'https://api-pub.staging.woo.org',
-                    'public': 'https://api.staging.woo.org',
-                    'private': 'https://api.staging.woo.org',
-                },
-                'www': 'https://woo.org/',
+                'www': 'https://blofin.com/',
                 'doc': [
-                    'https://docs.woo.org/',
+                    'https://docs.blofin.com/',
                 ],
-                'fees': [
-                    'https://support.woo.org/hc/en-001/articles/4404611795353--Trading-Fees',
-                ],
-                'referral': 'https://referral.woo.org/BAJS6oNmZb3vi3RGA',
             },
             'api': {
                 'v1': {
-                    'pub': {
-                        'get': {
-                            'hist/kline': 10,
-                            'hist/trades': 1,
-                        },
-                    },
                     'public': {
                         'get': {
-                            'info': 1,
-                            'info/{symbol}': 1,
-                            'system_info': 1,
-                            'kline': 1,
-                            'market_trades': 1,
-                            'token': 1,
-                            'token_network': 1,
-                            'funding_rates': 1,
-                            'funding_rate/{symbol}': 1,
-                            'funding_rate_history': 1,
-                            'futures': 1,
-                            'futures/{symbol}': 1,
-                            'tv/history': 1,
+                            'market/instruments': 1,
+                            'market/tickers': 1,
                         },
                     },
                     'private': {
@@ -184,40 +156,6 @@ export default class blofin extends Exchange {
                             'client/order': 1,
                             'orders': 1,
                             'asset/withdraw': 120,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                        },
-                    },
-                },
-                'v2': {
-                    'private': {
-                        'get': {
-                            'client/holding': 1,
-                        },
-                    },
-                },
-                'v3': {
-                    'private': {
-                        'get': {
-                            'algo/order/{oid}': 1,
-                            'algo/orders': 1,
-                            'balances': 1,
-                            'accountinfo': 60,
-                            'positions': 3.33,
-                            'buypower': 1,
-                        },
-                        'post': {
-                            'algo/order': 5,
-                        },
-                        'put': {
-                            'order/{oid}': 2,
-                            'order/client/{oid}': 2,
-                            'algo/order/{oid}': 2,
-                            'algo/order/client/{oid}': 2,
-                        },
-                        'delete': {
-                            'algo/order/{oid}': 1,
-                            'algo/orders/pending': 1,
-                            'algo/orders/pending/{symbol}': 1,
-                            'orders/pending': 1,
                         },
                     },
                 },
@@ -288,114 +226,199 @@ export default class blofin extends Exchange {
     }
 
     async fetchMarkets (params = {}) {
-        /**
-         * @method
-         * @name woo#fetchMarkets
-         * @description retrieves data on all markets for woo
-         * @param {object} params extra parameters specific to the exchange api endpoint
-         * @returns {[object]} an array of objects representing market data
-         */
-        const response = await (this as any).v1PublicGetInfo (params);
-        //
-        // {
-        //     rows: [
-        //         {
-        //             symbol: "SPOT_AAVE_USDT",
-        //             quote_min: 0,
-        //             quote_max: 100000,
-        //             quote_tick: 0.01,
-        //             base_min: 0.01,
-        //             base_max: 7284,
-        //             base_tick: 0.0001,
-        //             min_notional: 10,
-        //             price_range: 0.1,
-        //             created_time: "0",
-        //             updated_time: "1639107647.988",
-        //             is_stable: 0
-        //         },
-        //         ...
-        //     success: true
-        // }
-        //
+        const response = await (this as any).v1PublicGetMarketInstruments (params);
+        const data = this.safeValue (response, 'data', []);
+        return this.parseMarkets (data);
+    }
+
+    parseMarkets (markets) {
         const result = [];
-        const data = this.safeValue (response, 'rows', []);
-        for (let i = 0; i < data.length; i++) {
-            const market = data[i];
-            const marketId = this.safeString (market, 'symbol');
-            const parts = marketId.split ('_');
-            let marketType = this.safeStringLower (parts, 0);
-            const isSpot = marketType === 'spot';
-            const isSwap = marketType === 'perp';
-            const baseId = this.safeString (parts, 1);
-            const quoteId = this.safeString (parts, 2);
-            const base = this.safeCurrencyCode (baseId);
-            const quote = this.safeCurrencyCode (quoteId);
-            let settleId = undefined;
-            let settle = undefined;
-            let symbol = base + '/' + quote;
-            let contractSize = undefined;
-            let linear = undefined;
-            if (isSpot) {
-                continue;
-            }
-            if (isSwap) {
-                settleId = this.safeString (parts, 2);
-                settle = this.safeCurrencyCode (settleId);
-                symbol = base + '/' + quote + ':' + settle;
-                contractSize = this.parseNumber ('1');
-                marketType = 'swap';
-                linear = true;
-            }
-            result.push ({
-                'id': marketId,
-                'symbol': symbol,
-                'base': base,
-                'quote': quote,
-                'settle': settle,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'settleId': settleId,
-                'type': marketType,
-                'spot': isSpot,
-                'margin': true,
-                'swap': isSwap,
-                'future': false,
-                'option': false,
-                'active': undefined,
-                'contract': isSwap,
-                'linear': linear,
-                'inverse': undefined,
-                'contractSize': contractSize,
-                'expiry': undefined,
-                'expiryDatetime': undefined,
-                'strike': undefined,
-                'optionType': undefined,
-                'precision': {
-                    'amount': this.safeNumber (market, 'base_tick'),
-                    'price': this.safeNumber (market, 'quote_tick'),
-                },
-                'limits': {
-                    'leverage': {
-                        'min': undefined,
-                        'max': undefined,
-                    },
-                    'amount': {
-                        'min': this.safeNumber (market, 'base_min'),
-                        'max': this.safeNumber (market, 'base_max'),
-                    },
-                    'price': {
-                        'min': this.safeNumber (market, 'quote_min'),
-                        'max': this.safeNumber (market, 'quote_max'),
-                    },
-                    'cost': {
-                        'min': this.safeNumber (market, 'min_notional'),
-                        'max': undefined,
-                    },
-                },
-                'info': market,
-            });
+        for (let i = 0; i < markets.length; i++) {
+            result.push (this.parseMarket (markets[i]));
         }
         return result;
+    }
+
+    parseMarket (market) {
+        const id = this.safeString (market, 'instId');
+        const type = 'future';
+        const future = (type === 'future');
+        const contract = true;
+        const baseId = this.safeString (market, 'baseCurrency');
+        const quoteId = this.safeString (market, 'quoteCurrency');
+        const contactType = this.safeString (market, 'contractType');
+        const settleId = this.safeString2 (market, 'settleCcy', 'quoteCurrency'); // safe to assume that on blofin quote == settle for linear markets -- rayana
+        const settle = this.safeCurrencyCode (settleId);
+        const base = this.safeCurrencyCode (baseId);
+        const quote = this.safeCurrencyCode (quoteId);
+        let symbol = base + '/' + quote;
+        let expiry = undefined;
+        if (contract) {
+            symbol = symbol + ':' + settle;
+            expiry = this.safeInteger (market, 'minSize');
+            if (future) {
+                const ymd = this.yymmdd (expiry);
+                symbol = symbol + '-' + ymd;
+            }
+        }
+        const tickSize = this.safeString (market, 'tickSize');
+        const minAmountString = this.safeString (market, 'minSize');
+        const minAmount = this.parseNumber (minAmountString);
+        const fees = this.safeValue2 (this.fees, type, 'trading', {});
+        const precisionPrice = this.parseNumber (tickSize);
+        let maxLeverage = this.safeString (market, 'maxLeverage', '1');
+        maxLeverage = Precise.stringMax (maxLeverage, '1');
+        return this.extend (fees, {
+            'id': id,
+            'symbol': symbol,
+            'base': base,
+            'quote': quote,
+            'settle': settle,
+            'baseId': baseId,
+            'quoteId': quoteId,
+            'settleId': settleId,
+            'type': type,
+            'spot': false,
+            'margin': false,
+            'swap': false,
+            'future': true,
+            'option': false,
+            'active': true,
+            'contract': contract,
+            'linear': contactType === 'linear',
+            'inverse': contactType === 'inverse',
+            'contractSize': contract ? this.safeNumber (market, 'contractValue') : undefined,
+            'expiry': expiry,
+            'expiryDatetime': this.iso8601 (expiry),
+            'strike': undefined,
+            'optionType': undefined,
+            'precision': {
+                'amount': this.safeNumber (market, 'lotSize'),
+                'price': precisionPrice,
+            },
+            'limits': {
+                'leverage': {
+                    'min': this.parseNumber ('1'),
+                    'max': this.parseNumber (maxLeverage),
+                },
+                'amount': {
+                    'min': minAmount,
+                    'max': undefined,
+                },
+                'price': {
+                    'min': precisionPrice,
+                    'max': undefined,
+                },
+                'cost': {
+                    'min': undefined,
+                    'max': undefined,
+                },
+            },
+            'info': market,
+        });
+    }
+
+    parseTicker (ticker, market = undefined) {
+        //
+        //     {
+        //         "instType": "SPOT",
+        //         "instId": "ETH-BTC",
+        //         "last": "0.07319",
+        //         "lastSz": "0.044378",
+        //         "askPx": "0.07322",
+        //         "askSz": "4.2",
+        //         "bidPx": "0.0732",
+        //         "bidSz": "6.050058",
+        //         "open24h": "0.07801",
+        //         "high24h": "0.07975",
+        //         "low24h": "0.06019",
+        //         "volCcy24h": "11788.887619",
+        //         "vol24h": "167493.829229",
+        //         "ts": "1621440583784",
+        //         "sodUtc0": "0.07872",
+        //         "sodUtc8": "0.07345"
+        //     }
+        //
+        const timestamp = this.safeInteger (ticker, 'ts');
+        const marketId = this.safeString (ticker, 'instId');
+        market = this.safeMarket (marketId, market, '-');
+        const symbol = market['symbol'];
+        const last = this.safeString (ticker, 'last');
+        const open = this.safeString (ticker, 'open24h');
+        const spot = this.safeValue (market, 'spot', false);
+        const quoteVolume = spot ? this.safeString (ticker, 'volCcy24h') : undefined;
+        const baseVolume = this.safeString (ticker, 'vol24h');
+        const high = this.safeString (ticker, 'high24h');
+        const low = this.safeString (ticker, 'low24h');
+        return this.safeTicker ({
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': this.iso8601 (timestamp),
+            'high': high,
+            'low': low,
+            'bid': this.safeString (ticker, 'bidPx'),
+            'bidVolume': this.safeString (ticker, 'bidSz'),
+            'ask': this.safeString (ticker, 'askPx'),
+            'askVolume': this.safeString (ticker, 'askSz'),
+            'vwap': undefined,
+            'open': open,
+            'close': last,
+            'last': last,
+            'previousClose': undefined,
+            'change': undefined,
+            'percentage': undefined,
+            'average': undefined,
+            'baseVolume': baseVolume,
+            'quoteVolume': quoteVolume,
+            'info': ticker,
+        }, market);
+    }
+
+    async fetchTicker (symbol, params = {}) {
+        /**
+         * @method
+         * @name okx#fetchTicker
+         * @description fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+         * @param {string} symbol unified symbol of the market to fetch the ticker for
+         * @param {object} params extra parameters specific to the okx api endpoint
+         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         */
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const response = await (this as any).v1PublicGetMarketTickers ();
+        const data = this.safeValue (response, 'data', []);
+        for (let i = 0; i < data.length; i++) {
+            if (data[i]['instId'] === market['id']) {
+                return this.parseTicker (data[i], market);
+            }
+        }
+    }
+
+    async fetchTickersByType (type, symbols: string[] = undefined, params = {}) {
+        await this.loadMarkets ();
+        const response = await (this as any).v1PublicGetMarketTickers ();
+        const tickers = this.safeValue (response, 'data', []);
+        return this.parseTickers (tickers, symbols);
+    }
+
+    async fetchTickers (symbols: string[] = undefined, params = {}) {
+        /**
+         * @method
+         * @name okx#fetchTickers
+         * @description fetches price tickers for multiple markets, statistical calculations with the information calculated over the past 24 hours each market
+         * @param {[string]|undefined} symbols unified symbols of the markets to fetch the ticker for, all market tickers are returned if not assigned
+         * @param {object} params extra parameters specific to the okx api endpoint
+         * @returns {object} a dictionary of [ticker structures]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         */
+        await this.loadMarkets ();
+        symbols = this.marketSymbols (symbols);
+        const first = this.safeString (symbols, 0);
+        let market = undefined;
+        if (first !== undefined) {
+            market = this.market (first);
+        }
+        const [ type, query ] = this.handleMarketTypeAndParams ('fetchTickers', market, params);
+        return await this.fetchTickersByType (type, symbols, query);
     }
 
     async fetchTrades (symbol, since: any = undefined, limit: any = undefined, params = {}) {
@@ -582,143 +605,6 @@ export default class blofin extends Exchange {
                 'taker': this.parseNumber (Precise.stringDiv (taker, '10000')),
                 'percentage': true,
                 'tierBased': true,
-            };
-        }
-        return result;
-    }
-
-    async fetchCurrencies (params = {}) {
-        /**
-         * @method
-         * @name woo#fetchCurrencies
-         * @description fetches all available currencies on an exchange
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} an associative dictionary of currencies
-         */
-        const result = {};
-        const tokenResponse = await (this as any).v1PublicGetToken (params);
-        //
-        // {
-        //     rows: [
-        //         {
-        //             token: "ETH_USDT",
-        //             fullname: "Tether",
-        //             decimals: 6,
-        //             balance_token: "USDT",
-        //             created_time: "0",
-        //             updated_time: "0"
-        //         },
-        //         {
-        //             token: "BSC_USDT",
-        //             fullname: "Tether",
-        //             decimals: 18,
-        //             balance_token: "USDT",
-        //             created_time: "0",
-        //             updated_time: "0"
-        //         },
-        //         {
-        //             token: "ZEC",
-        //             fullname: "ZCash",
-        //             decimals: 8,
-        //             balance_token: "ZEC",
-        //             created_time: "0",
-        //             updated_time: "0"
-        //         },
-        //         ...
-        //     ],
-        //     success: true
-        // }
-        //
-        // only make one request for currrencies...
-        // const tokenNetworkResponse = await this.v1PublicGetTokenNetwork (params);
-        //
-        // {
-        //     rows: [
-        //         {
-        //             protocol: "ERC20",
-        //             token: "USDT",
-        //             name: "Ethereum",
-        //             minimum_withdrawal: 30,
-        //             withdrawal_fee: 25,
-        //             allow_deposit: 1,
-        //             allow_withdraw: 1
-        //         },
-        //         {
-        //             protocol: "TRC20",
-        //             token: "USDT",
-        //             name: "Tron",
-        //             minimum_withdrawal: 30,
-        //             withdrawal_fee: 1,
-        //             allow_deposit: 1,
-        //             allow_withdraw: 1
-        //         },
-        //         ...
-        //     ],
-        //     success: true
-        // }
-        //
-        const tokenRows = this.safeValue (tokenResponse, 'rows', []);
-        const networksByCurrencyId = this.groupBy (tokenRows, 'balance_token');
-        const currencyIds = Object.keys (networksByCurrencyId);
-        for (let i = 0; i < currencyIds.length; i++) {
-            const currencyId = currencyIds[i];
-            const networks = networksByCurrencyId[currencyId];
-            const code = this.safeCurrencyCode (currencyId);
-            let name = undefined;
-            let minPrecision = undefined;
-            const resultingNetworks = {};
-            for (let j = 0; j < networks.length; j++) {
-                const network = networks[j];
-                name = this.safeString (network, 'fullname');
-                const networkId = this.safeString (network, 'token');
-                const splitted = networkId.split ('_');
-                const unifiedNetwork = splitted[0];
-                const precision = this.parsePrecision (this.safeString (network, 'decimals'));
-                if (precision !== undefined) {
-                    minPrecision = (minPrecision === undefined) ? precision : Precise.stringMin (precision, minPrecision);
-                }
-                resultingNetworks[unifiedNetwork] = {
-                    'id': networkId,
-                    'network': unifiedNetwork,
-                    'limits': {
-                        'withdraw': {
-                            'min': undefined,
-                            'max': undefined,
-                        },
-                        'deposit': {
-                            'min': undefined,
-                            'max': undefined,
-                        },
-                    },
-                    'active': undefined,
-                    'deposit': undefined,
-                    'withdraw': undefined,
-                    'fee': undefined,
-                    'precision': this.parseNumber (precision),
-                    'info': network,
-                };
-            }
-            result[code] = {
-                'id': currencyId,
-                'name': name,
-                'code': code,
-                'precision': this.parseNumber (minPrecision),
-                'active': undefined,
-                'fee': undefined,
-                'networks': resultingNetworks,
-                'deposit': undefined,
-                'withdraw': undefined,
-                'limits': {
-                    'deposit': {
-                        'min': undefined,
-                        'max': undefined,
-                    },
-                    'withdraw': {
-                        'min': undefined,
-                        'max': undefined,
-                    },
-                },
-                'info': networks,
             };
         }
         return result;
@@ -2145,66 +2031,44 @@ export default class blofin extends Exchange {
         return this.milliseconds ();
     }
 
-    sign (path, section = 'public', method = 'GET', params = {}, headers: any = undefined, body: any = undefined) {
-        const version = section[0];
-        const access = section[1];
-        const isUdfPath = path === 'tv/history';
-        const pathWithParams = this.implodeParams (path, params);
-        let url = this.implodeHostname (this.urls['api'][access]);
-        if (isUdfPath) {
-            url += '/';
-        } else {
-            url += '/' + version + '/';
-        }
-        params = this.omit (params, this.extractParams (path));
-        params = this.keysort (params);
-        if (access === 'public') {
-            if (isUdfPath) {
-                url += pathWithParams;
-            } else {
-                url += access + '/' + pathWithParams;
+    sign (path, api: any = 'public', method = 'GET', params = {}, headers: any = undefined, body: any = undefined) {
+        const isArray = Array.isArray (params);
+        const request = '/api/' + this.version + '/' + this.implodeParams (path, params);
+        const query = this.omit (params, this.extractParams (path));
+        let url = this.implodeHostname (this.urls['api']['rest']) + request;
+        // const type = this.getPathAuthenticationType (path);
+        if (api === 'public') {
+            if (Object.keys (query).length) {
+                url += '?' + this.urlencode (query);
             }
-            if (Object.keys (params).length) {
-                url += '?' + this.urlencode (params);
-            }
-        } else if (access === 'pub') {
-            url += pathWithParams;
-            if (Object.keys (params).length) {
-                url += '?' + this.urlencode (params);
-            }
-        } else {
+        } else if (api === 'private') {
             this.checkRequiredCredentials ();
-            let auth = '';
-            const ts = this.nonce ().toString ();
-            url += pathWithParams;
+            const timestamp = this.iso8601 (this.milliseconds ());
             headers = {
-                'x-api-key': this.apiKey,
-                'x-api-timestamp': ts,
+                'ACCESS-KEY': this.apiKey,
+                'ACCESS-PASSPHRASE': this.password,
+                'ACCESS-TIMESTAMP': timestamp,
+                'ACCESS-NONCE': this.nonce (),
+                // 'OK-FROM': '',
+                // 'OK-TO': '',
+                // 'OK-LIMIT': '',
             };
-            if (version === 'v3') {
-                auth = ts + method + '/' + version + '/' + pathWithParams;
-                if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
-                    body = this.json (params);
-                    auth += body;
-                } else {
-                    if (Object.keys (params).length) {
-                        const query = this.urlencode (params);
-                        url += '?' + query;
-                        auth += '?' + query;
-                    }
+            let auth = timestamp + method + request;
+            if (method === 'GET') {
+                if (Object.keys (query).length) {
+                    const urlencodedQuery = '?' + this.urlencode (query);
+                    url += urlencodedQuery;
+                    auth += urlencodedQuery;
                 }
-                headers['content-type'] = 'application/json';
             } else {
-                auth = this.urlencode (params);
-                if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
-                    body = auth;
-                } else {
-                    url += '?' + auth;
+                if (isArray || Object.keys (query).length) {
+                    body = this.json (query);
+                    auth += body;
                 }
-                auth += '|' + ts;
-                headers['content-type'] = 'application/x-www-form-urlencoded';
+                headers['Content-Type'] = 'application/json';
             }
-            headers['x-api-signature'] = this.hmac (this.encode (auth), this.encode (this.secret), 'sha256');
+            const signature = this.hmac (this.encode (auth), this.encode (this.secret), 'sha256', 'base64');
+            headers['ACCESS-SIGN'] = signature;
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
@@ -2608,87 +2472,6 @@ export default class blofin extends Exchange {
         }
         // if it was not returned according to above options, then return the first network of currency
         return this.safeValue (networkKeys, 0);
-    }
-
-    async fetchTicker (symbol, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchTicker
-         * @description fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
-         * @param {string} symbol unified symbol of the market to fetch the ticker for
-         * @param {object} params extra parameters specific to the paymium api endpoint
-         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
-         */
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'symbol': market['id'],
-        };
-        const response = await (this as any).v1PublicGetFuturesSymbol (this.extend (request, params));
-        //
-        // {
-        //   "symbol": "BTC-USDT",
-        //   "priceChange": "10.00",
-        //   "priceChangePercent": "10",
-        //   "lastPrice": "5738.23",
-        //   "lastVolume": "31.21",
-        //   "highPrice": "5938.23",
-        //   "lowPrice": "5238.23",
-        //   "volume": "23211231.13",
-        //   "dayVolume": "213124412412.47",
-        //   "openPrice": "5828.32"
-        // }
-        //
-        const ticker = this.safeValue (response, 'info');
-        return this.parseTicker (ticker, market);
-    }
-
-    parseTicker (ticker, market = undefined) {
-        //
-        // {
-        //   "symbol": "PERP_BTC_USDT",
-        //   "index_price": 56727.31344564,
-        //   "mark_price": 56727.31344564,
-        //   "est_funding_rate": 0.12345689,
-        //   "last_funding_rate": 0.12345689,
-        //   "next_funding_time": 1567411795000,
-        //   "open_interest": 0.12345689,
-        //   "24h_open": 0.16112,
-        //   "24h_close": 0.32206,
-        //   "24h_high": 0.33000,
-        //   "24h_low": 0.14251,
-        //   "24h_volume": 89040821.98,
-        //   "24h_amount": 22493062.21
-        // }
-        //
-        const symbol = this.safeSymbol (undefined, market);
-        const timestamp = this.milliseconds ();
-        const baseVolume = this.safeString (ticker, '24h_volume');
-        const openFloat = this.safeFloat (ticker, '24h_open');
-        const currentFloat = this.safeFloat (ticker, 'index_price');
-        const percentage = currentFloat / openFloat * 100;
-        const last = this.safeString (ticker, 'index_price');
-        return this.safeTicker ({
-            'symbol': symbol,
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'high': this.safeString (ticker, '24h_high'),
-            'low': this.safeString (ticker, '24h_low'),
-            'bid': this.safeString (ticker, 'index_price'),
-            'bidVolume': undefined,
-            'ask': this.safeString (ticker, 'index_price'),
-            'askVolume': undefined,
-            'open': this.safeString (ticker, '24h_open'),
-            'close': last,
-            'last': last,
-            'mark': last,
-            'previousClose': undefined,
-            'change': undefined,
-            'percentage': this.numberToString (percentage),
-            'average': undefined,
-            'baseVolume': baseVolume,
-            'info': ticker,
-        }, market);
     }
 
     async fetchAccountConfiguration (symbol, params = {}) {

@@ -78,8 +78,8 @@ class blofin(Exchange):
                 'fetchPositions': True,
                 'fetchPremiumIndexOHLCV': False,
                 'fetchStatus': False,
-                'fetchTicker': False,
-                'fetchTickers': False,
+                'fetchTicker': True,
+                'fetchTickers': True,
                 'fetchTime': False,
                 'fetchTrades': True,
                 'fetchTradingFee': False,
@@ -113,47 +113,19 @@ class blofin(Exchange):
             'urls': {
                 'logo': 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
                 'api': {
-                    'pub': 'https://api-pub.woo.org',
-                    'public': 'https://api.{hostname}',
-                    'private': 'https://api.{hostname}',
+                    'rest': 'https://openapi.blofin.com',
                 },
-                'test': {
-                    'pub': 'https://api-pub.staging.woo.org',
-                    'public': 'https://api.staging.woo.org',
-                    'private': 'https://api.staging.woo.org',
-                },
-                'www': 'https://woo.org/',
+                'www': 'https://blofin.com/',
                 'doc': [
-                    'https://docs.woo.org/',
+                    'https://docs.blofin.com/',
                 ],
-                'fees': [
-                    'https://support.woo.org/hc/en-001/articles/4404611795353--Trading-Fees',
-                ],
-                'referral': 'https://referral.woo.org/BAJS6oNmZb3vi3RGA',
             },
             'api': {
                 'v1': {
-                    'pub': {
-                        'get': {
-                            'hist/kline': 10,
-                            'hist/trades': 1,
-                        },
-                    },
                     'public': {
                         'get': {
-                            'info': 1,
-                            'info/{symbol}': 1,
-                            'system_info': 1,
-                            'kline': 1,
-                            'market_trades': 1,
-                            'token': 1,
-                            'token_network': 1,
-                            'funding_rates': 1,
-                            'funding_rate/{symbol}': 1,
-                            'funding_rate_history': 1,
-                            'futures': 1,
-                            'futures/{symbol}': 1,
-                            'tv/history': 1,
+                            'market/instruments': 1,
+                            'market/tickers': 1,
                         },
                     },
                     'private': {
@@ -192,40 +164,6 @@ class blofin(Exchange):
                             'client/order': 1,
                             'orders': 1,
                             'asset/withdraw': 120,  # implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                        },
-                    },
-                },
-                'v2': {
-                    'private': {
-                        'get': {
-                            'client/holding': 1,
-                        },
-                    },
-                },
-                'v3': {
-                    'private': {
-                        'get': {
-                            'algo/order/{oid}': 1,
-                            'algo/orders': 1,
-                            'balances': 1,
-                            'accountinfo': 60,
-                            'positions': 3.33,
-                            'buypower': 1,
-                        },
-                        'post': {
-                            'algo/order': 5,
-                        },
-                        'put': {
-                            'order/{oid}': 2,
-                            'order/client/{oid}': 2,
-                            'algo/order/{oid}': 2,
-                            'algo/order/client/{oid}': 2,
-                        },
-                        'delete': {
-                            'algo/order/{oid}': 1,
-                            'algo/orders/pending': 1,
-                            'algo/orders/pending/{symbol}': 1,
-                            'orders/pending': 1,
                         },
                     },
                 },
@@ -295,109 +233,183 @@ class blofin(Exchange):
         })
 
     def fetch_markets(self, params={}):
-        """
-        retrieves data on all markets for woo
-        :param dict params: extra parameters specific to the exchange api endpoint
-        :returns [dict]: an array of objects representing market data
-        """
-        response = self.v1PublicGetInfo(params)
-        #
-        # {
-        #     rows: [
-        #         {
-        #             symbol: "SPOT_AAVE_USDT",
-        #             quote_min: 0,
-        #             quote_max: 100000,
-        #             quote_tick: 0.01,
-        #             base_min: 0.01,
-        #             base_max: 7284,
-        #             base_tick: 0.0001,
-        #             min_notional: 10,
-        #             price_range: 0.1,
-        #             created_time: "0",
-        #             updated_time: "1639107647.988",
-        #             is_stable: 0
-        #         },
-        #         ...
-        #     success: True
-        # }
-        #
+        response = self.v1PublicGetMarketInstruments(params)
+        data = self.safe_value(response, 'data', [])
+        return self.parse_markets(data)
+
+    def parse_markets(self, markets):
         result = []
-        data = self.safe_value(response, 'rows', [])
-        for i in range(0, len(data)):
-            market = data[i]
-            marketId = self.safe_string(market, 'symbol')
-            parts = marketId.split('_')
-            marketType = self.safe_string_lower(parts, 0)
-            isSpot = marketType == 'spot'
-            isSwap = marketType == 'perp'
-            baseId = self.safe_string(parts, 1)
-            quoteId = self.safe_string(parts, 2)
-            base = self.safe_currency_code(baseId)
-            quote = self.safe_currency_code(quoteId)
-            settleId = None
-            settle = None
-            symbol = base + '/' + quote
-            contractSize = None
-            linear = None
-            if isSpot:
-                continue
-            if isSwap:
-                settleId = self.safe_string(parts, 2)
-                settle = self.safe_currency_code(settleId)
-                symbol = base + '/' + quote + ':' + settle
-                contractSize = self.parse_number('1')
-                marketType = 'swap'
-                linear = True
-            result.append({
-                'id': marketId,
-                'symbol': symbol,
-                'base': base,
-                'quote': quote,
-                'settle': settle,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'settleId': settleId,
-                'type': marketType,
-                'spot': isSpot,
-                'margin': True,
-                'swap': isSwap,
-                'future': False,
-                'option': False,
-                'active': None,
-                'contract': isSwap,
-                'linear': linear,
-                'inverse': None,
-                'contractSize': contractSize,
-                'expiry': None,
-                'expiryDatetime': None,
-                'strike': None,
-                'optionType': None,
-                'precision': {
-                    'amount': self.safe_number(market, 'base_tick'),
-                    'price': self.safe_number(market, 'quote_tick'),
-                },
-                'limits': {
-                    'leverage': {
-                        'min': None,
-                        'max': None,
-                    },
-                    'amount': {
-                        'min': self.safe_number(market, 'base_min'),
-                        'max': self.safe_number(market, 'base_max'),
-                    },
-                    'price': {
-                        'min': self.safe_number(market, 'quote_min'),
-                        'max': self.safe_number(market, 'quote_max'),
-                    },
-                    'cost': {
-                        'min': self.safe_number(market, 'min_notional'),
-                        'max': None,
-                    },
-                },
-                'info': market,
-            })
+        for i in range(0, len(markets)):
+            result.append(self.parse_market(markets[i]))
         return result
+
+    def parse_market(self, market):
+        id = self.safe_string(market, 'instId')
+        type = 'future'
+        future = (type == 'future')
+        contract = True
+        baseId = self.safe_string(market, 'baseCurrency')
+        quoteId = self.safe_string(market, 'quoteCurrency')
+        contactType = self.safe_string(market, 'contractType')
+        settleId = self.safe_string_2(market, 'settleCcy', 'quoteCurrency')  # safe to assume that on blofin quote == settle for linear markets -- rayana
+        settle = self.safe_currency_code(settleId)
+        base = self.safe_currency_code(baseId)
+        quote = self.safe_currency_code(quoteId)
+        symbol = base + '/' + quote
+        expiry = None
+        if contract:
+            symbol = symbol + ':' + settle
+            expiry = self.safe_integer(market, 'minSize')
+            if future:
+                ymd = self.yymmdd(expiry)
+                symbol = symbol + '-' + ymd
+        tickSize = self.safe_string(market, 'tickSize')
+        minAmountString = self.safe_string(market, 'minSize')
+        minAmount = self.parse_number(minAmountString)
+        fees = self.safe_value_2(self.fees, type, 'trading', {})
+        precisionPrice = self.parse_number(tickSize)
+        maxLeverage = self.safe_string(market, 'maxLeverage', '1')
+        maxLeverage = Precise.string_max(maxLeverage, '1')
+        return self.extend(fees, {
+            'id': id,
+            'symbol': symbol,
+            'base': base,
+            'quote': quote,
+            'settle': settle,
+            'baseId': baseId,
+            'quoteId': quoteId,
+            'settleId': settleId,
+            'type': type,
+            'spot': False,
+            'margin': False,
+            'swap': False,
+            'future': True,
+            'option': False,
+            'active': True,
+            'contract': contract,
+            'linear': contactType == 'linear',
+            'inverse': contactType == 'inverse',
+            'contractSize': self.safe_number(market, 'contractValue') if contract else None,
+            'expiry': expiry,
+            'expiryDatetime': self.iso8601(expiry),
+            'strike': None,
+            'optionType': None,
+            'precision': {
+                'amount': self.safe_number(market, 'lotSize'),
+                'price': precisionPrice,
+            },
+            'limits': {
+                'leverage': {
+                    'min': self.parse_number('1'),
+                    'max': self.parse_number(maxLeverage),
+                },
+                'amount': {
+                    'min': minAmount,
+                    'max': None,
+                },
+                'price': {
+                    'min': precisionPrice,
+                    'max': None,
+                },
+                'cost': {
+                    'min': None,
+                    'max': None,
+                },
+            },
+            'info': market,
+        })
+
+    def parse_ticker(self, ticker, market=None):
+        #
+        #     {
+        #         "instType": "SPOT",
+        #         "instId": "ETH-BTC",
+        #         "last": "0.07319",
+        #         "lastSz": "0.044378",
+        #         "askPx": "0.07322",
+        #         "askSz": "4.2",
+        #         "bidPx": "0.0732",
+        #         "bidSz": "6.050058",
+        #         "open24h": "0.07801",
+        #         "high24h": "0.07975",
+        #         "low24h": "0.06019",
+        #         "volCcy24h": "11788.887619",
+        #         "vol24h": "167493.829229",
+        #         "ts": "1621440583784",
+        #         "sodUtc0": "0.07872",
+        #         "sodUtc8": "0.07345"
+        #     }
+        #
+        timestamp = self.safe_integer(ticker, 'ts')
+        marketId = self.safe_string(ticker, 'instId')
+        market = self.safe_market(marketId, market, '-')
+        symbol = market['symbol']
+        last = self.safe_string(ticker, 'last')
+        open = self.safe_string(ticker, 'open24h')
+        spot = self.safe_value(market, 'spot', False)
+        quoteVolume = self.safe_string(ticker, 'volCcy24h') if spot else None
+        baseVolume = self.safe_string(ticker, 'vol24h')
+        high = self.safe_string(ticker, 'high24h')
+        low = self.safe_string(ticker, 'low24h')
+        return self.safe_ticker({
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'high': high,
+            'low': low,
+            'bid': self.safe_string(ticker, 'bidPx'),
+            'bidVolume': self.safe_string(ticker, 'bidSz'),
+            'ask': self.safe_string(ticker, 'askPx'),
+            'askVolume': self.safe_string(ticker, 'askSz'),
+            'vwap': None,
+            'open': open,
+            'close': last,
+            'last': last,
+            'previousClose': None,
+            'change': None,
+            'percentage': None,
+            'average': None,
+            'baseVolume': baseVolume,
+            'quoteVolume': quoteVolume,
+            'info': ticker,
+        }, market)
+
+    def fetch_ticker(self, symbol, params={}):
+        """
+        fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+        :param str symbol: unified symbol of the market to fetch the ticker for
+        :param dict params: extra parameters specific to the okx api endpoint
+        :returns dict: a `ticker structure <https://docs.ccxt.com/#/?id=ticker-structure>`
+        """
+        self.load_markets()
+        market = self.market(symbol)
+        response = self.v1PublicGetMarketTickers()
+        data = self.safe_value(response, 'data', [])
+        for i in range(0, len(data)):
+            if data[i]['instId'] == market['id']:
+                return self.parse_ticker(data[i], market)
+
+    def fetch_tickers_by_type(self, type, symbols=None, params={}):
+        self.load_markets()
+        response = self.v1PublicGetMarketTickers()
+        tickers = self.safe_value(response, 'data', [])
+        return self.parse_tickers(tickers, symbols)
+
+    def fetch_tickers(self, symbols=None, params={}):
+        """
+        fetches price tickers for multiple markets, statistical calculations with the information calculated over the past 24 hours each market
+        :param [str]|None symbols: unified symbols of the markets to fetch the ticker for, all market tickers are returned if not assigned
+        :param dict params: extra parameters specific to the okx api endpoint
+        :returns dict: a dictionary of `ticker structures <https://docs.ccxt.com/#/?id=ticker-structure>`
+        """
+        self.load_markets()
+        symbols = self.market_symbols(symbols)
+        first = self.safe_string(symbols, 0)
+        market = None
+        if first is not None:
+            market = self.market(first)
+        type, query = self.handle_market_type_and_params('fetchTickers', market, params)
+        return self.fetch_tickers_by_type(type, symbols, query)
 
     def fetch_trades(self, symbol, since=None, limit=None, params={}):
         """
@@ -572,137 +584,6 @@ class blofin(Exchange):
                 'taker': self.parse_number(Precise.string_div(taker, '10000')),
                 'percentage': True,
                 'tierBased': True,
-            }
-        return result
-
-    def fetch_currencies(self, params={}):
-        """
-        fetches all available currencies on an exchange
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns dict: an associative dictionary of currencies
-        """
-        result = {}
-        tokenResponse = self.v1PublicGetToken(params)
-        #
-        # {
-        #     rows: [
-        #         {
-        #             token: "ETH_USDT",
-        #             fullname: "Tether",
-        #             decimals: 6,
-        #             balance_token: "USDT",
-        #             created_time: "0",
-        #             updated_time: "0"
-        #         },
-        #         {
-        #             token: "BSC_USDT",
-        #             fullname: "Tether",
-        #             decimals: 18,
-        #             balance_token: "USDT",
-        #             created_time: "0",
-        #             updated_time: "0"
-        #         },
-        #         {
-        #             token: "ZEC",
-        #             fullname: "ZCash",
-        #             decimals: 8,
-        #             balance_token: "ZEC",
-        #             created_time: "0",
-        #             updated_time: "0"
-        #         },
-        #         ...
-        #     ],
-        #     success: True
-        # }
-        #
-        # only make one request for currrencies...
-        # tokenNetworkResponse = self.v1PublicGetTokenNetwork(params)
-        #
-        # {
-        #     rows: [
-        #         {
-        #             protocol: "ERC20",
-        #             token: "USDT",
-        #             name: "Ethereum",
-        #             minimum_withdrawal: 30,
-        #             withdrawal_fee: 25,
-        #             allow_deposit: 1,
-        #             allow_withdraw: 1
-        #         },
-        #         {
-        #             protocol: "TRC20",
-        #             token: "USDT",
-        #             name: "Tron",
-        #             minimum_withdrawal: 30,
-        #             withdrawal_fee: 1,
-        #             allow_deposit: 1,
-        #             allow_withdraw: 1
-        #         },
-        #         ...
-        #     ],
-        #     success: True
-        # }
-        #
-        tokenRows = self.safe_value(tokenResponse, 'rows', [])
-        networksByCurrencyId = self.group_by(tokenRows, 'balance_token')
-        currencyIds = list(networksByCurrencyId.keys())
-        for i in range(0, len(currencyIds)):
-            currencyId = currencyIds[i]
-            networks = networksByCurrencyId[currencyId]
-            code = self.safe_currency_code(currencyId)
-            name = None
-            minPrecision = None
-            resultingNetworks = {}
-            for j in range(0, len(networks)):
-                network = networks[j]
-                name = self.safe_string(network, 'fullname')
-                networkId = self.safe_string(network, 'token')
-                splitted = networkId.split('_')
-                unifiedNetwork = splitted[0]
-                precision = self.parse_precision(self.safe_string(network, 'decimals'))
-                if precision is not None:
-                    minPrecision = precision if (minPrecision is None) else Precise.string_min(precision, minPrecision)
-                resultingNetworks[unifiedNetwork] = {
-                    'id': networkId,
-                    'network': unifiedNetwork,
-                    'limits': {
-                        'withdraw': {
-                            'min': None,
-                            'max': None,
-                        },
-                        'deposit': {
-                            'min': None,
-                            'max': None,
-                        },
-                    },
-                    'active': None,
-                    'deposit': None,
-                    'withdraw': None,
-                    'fee': None,
-                    'precision': self.parse_number(precision),
-                    'info': network,
-                }
-            result[code] = {
-                'id': currencyId,
-                'name': name,
-                'code': code,
-                'precision': self.parse_number(minPrecision),
-                'active': None,
-                'fee': None,
-                'networks': resultingNetworks,
-                'deposit': None,
-                'withdraw': None,
-                'limits': {
-                    'deposit': {
-                        'min': None,
-                        'max': None,
-                    },
-                    'withdraw': {
-                        'min': None,
-                        'max': None,
-                    },
-                },
-                'info': networks,
             }
         return result
 
@@ -1990,58 +1871,40 @@ class blofin(Exchange):
     def nonce(self):
         return self.milliseconds()
 
-    def sign(self, path, section='public', method='GET', params={}, headers=None, body=None):
-        version = section[0]
-        access = section[1]
-        isUdfPath = path == 'tv/history'
-        pathWithParams = self.implode_params(path, params)
-        url = self.implode_hostname(self.urls['api'][access])
-        if isUdfPath:
-            url += '/'
-        else:
-            url += '/' + version + '/'
-        params = self.omit(params, self.extract_params(path))
-        params = self.keysort(params)
-        if access == 'public':
-            if isUdfPath:
-                url += pathWithParams
-            else:
-                url += access + '/' + pathWithParams
-            if params:
-                url += '?' + self.urlencode(params)
-        elif access == 'pub':
-            url += pathWithParams
-            if params:
-                url += '?' + self.urlencode(params)
-        else:
+    def sign(self, path, api='public', method='GET', params={}, headers=None, body=None):
+        isArray = isinstance(params, list)
+        request = '/api/' + self.version + '/' + self.implode_params(path, params)
+        query = self.omit(params, self.extract_params(path))
+        url = self.implode_hostname(self.urls['api']['rest']) + request
+        # type = self.getPathAuthenticationType(path)
+        if api == 'public':
+            if query:
+                url += '?' + self.urlencode(query)
+        elif api == 'private':
             self.check_required_credentials()
-            auth = ''
-            ts = str(self.nonce())
-            url += pathWithParams
+            timestamp = self.iso8601(self.milliseconds())
             headers = {
-                'x-api-key': self.apiKey,
-                'x-api-timestamp': ts,
+                'ACCESS-KEY': self.apiKey,
+                'ACCESS-PASSPHRASE': self.password,
+                'ACCESS-TIMESTAMP': timestamp,
+                'ACCESS-NONCE': self.nonce(),
+                # 'OK-FROM': '',
+                # 'OK-TO': '',
+                # 'OK-LIMIT': '',
             }
-            if version == 'v3':
-                auth = ts + method + '/' + version + '/' + pathWithParams
-                if method == 'POST' or method == 'PUT' or method == 'DELETE':
-                    body = self.json(params)
-                    auth += body
-                else:
-                    if params:
-                        query = self.urlencode(params)
-                        url += '?' + query
-                        auth += '?' + query
-                headers['content-type'] = 'application/json'
+            auth = timestamp + method + request
+            if method == 'GET':
+                if query:
+                    urlencodedQuery = '?' + self.urlencode(query)
+                    url += urlencodedQuery
+                    auth += urlencodedQuery
             else:
-                auth = self.urlencode(params)
-                if method == 'POST' or method == 'PUT' or method == 'DELETE':
-                    body = auth
-                else:
-                    url += '?' + auth
-                auth += '|' + ts
-                headers['content-type'] = 'application/x-www-form-urlencoded'
-            headers['x-api-signature'] = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256)
+                if isArray or query:
+                    body = self.json(query)
+                    auth += body
+                headers['Content-Type'] = 'application/json'
+            signature = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256, 'base64')
+            headers['ACCESS-SIGN'] = signature
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
@@ -2420,83 +2283,6 @@ class blofin(Exchange):
                 return network
         # if it was not returned according to above options, then return the first network of currency
         return self.safe_value(networkKeys, 0)
-
-    def fetch_ticker(self, symbol, params={}):
-        """
-        fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
-        :param str symbol: unified symbol of the market to fetch the ticker for
-        :param dict params: extra parameters specific to the paymium api endpoint
-        :returns dict: a `ticker structure <https://docs.ccxt.com/#/?id=ticker-structure>`
-        """
-        self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'symbol': market['id'],
-        }
-        response = self.v1PublicGetFuturesSymbol(self.extend(request, params))
-        #
-        # {
-        #   "symbol": "BTC-USDT",
-        #   "priceChange": "10.00",
-        #   "priceChangePercent": "10",
-        #   "lastPrice": "5738.23",
-        #   "lastVolume": "31.21",
-        #   "highPrice": "5938.23",
-        #   "lowPrice": "5238.23",
-        #   "volume": "23211231.13",
-        #   "dayVolume": "213124412412.47",
-        #   "openPrice": "5828.32"
-        # }
-        #
-        ticker = self.safe_value(response, 'info')
-        return self.parse_ticker(ticker, market)
-
-    def parse_ticker(self, ticker, market=None):
-        #
-        # {
-        #   "symbol": "PERP_BTC_USDT",
-        #   "index_price": 56727.31344564,
-        #   "mark_price": 56727.31344564,
-        #   "est_funding_rate": 0.12345689,
-        #   "last_funding_rate": 0.12345689,
-        #   "next_funding_time": 1567411795000,
-        #   "open_interest": 0.12345689,
-        #   "24h_open": 0.16112,
-        #   "24h_close": 0.32206,
-        #   "24h_high": 0.33000,
-        #   "24h_low": 0.14251,
-        #   "24h_volume": 89040821.98,
-        #   "24h_amount": 22493062.21
-        # }
-        #
-        symbol = self.safe_symbol(None, market)
-        timestamp = self.milliseconds()
-        baseVolume = self.safe_string(ticker, '24h_volume')
-        openFloat = self.safe_float(ticker, '24h_open')
-        currentFloat = self.safe_float(ticker, 'index_price')
-        percentage = currentFloat / openFloat * 100
-        last = self.safe_string(ticker, 'index_price')
-        return self.safe_ticker({
-            'symbol': symbol,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'high': self.safe_string(ticker, '24h_high'),
-            'low': self.safe_string(ticker, '24h_low'),
-            'bid': self.safe_string(ticker, 'index_price'),
-            'bidVolume': None,
-            'ask': self.safe_string(ticker, 'index_price'),
-            'askVolume': None,
-            'open': self.safe_string(ticker, '24h_open'),
-            'close': last,
-            'last': last,
-            'mark': last,
-            'previousClose': None,
-            'change': None,
-            'percentage': self.number_to_string(percentage),
-            'average': None,
-            'baseVolume': baseVolume,
-            'info': ticker,
-        }, market)
 
     def fetch_account_configuration(self, symbol, params={}):
         self.load_markets()

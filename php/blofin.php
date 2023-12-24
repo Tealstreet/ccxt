@@ -70,8 +70,8 @@ class blofin extends Exchange {
                 'fetchPositions' => true,
                 'fetchPremiumIndexOHLCV' => false,
                 'fetchStatus' => false,
-                'fetchTicker' => false,
-                'fetchTickers' => false,
+                'fetchTicker' => true,
+                'fetchTickers' => true,
                 'fetchTime' => false,
                 'fetchTrades' => true,
                 'fetchTradingFee' => false,
@@ -105,47 +105,19 @@ class blofin extends Exchange {
             'urls' => array(
                 'logo' => 'https://user-images.githubusercontent.com/1294454/150730761-1a00e5e0-d28c-480f-9e65-089ce3e6ef3b.jpg',
                 'api' => array(
-                    'pub' => 'https://api-pub.woo.org',
-                    'public' => 'https://api.{hostname}',
-                    'private' => 'https://api.{hostname}',
+                    'rest' => 'https://openapi.blofin.com',
                 ),
-                'test' => array(
-                    'pub' => 'https://api-pub.staging.woo.org',
-                    'public' => 'https://api.staging.woo.org',
-                    'private' => 'https://api.staging.woo.org',
-                ),
-                'www' => 'https://woo.org/',
+                'www' => 'https://blofin.com/',
                 'doc' => array(
-                    'https://docs.woo.org/',
+                    'https://docs.blofin.com/',
                 ),
-                'fees' => array(
-                    'https://support.woo.org/hc/en-001/articles/4404611795353--Trading-Fees',
-                ),
-                'referral' => 'https://referral.woo.org/BAJS6oNmZb3vi3RGA',
             ),
             'api' => array(
                 'v1' => array(
-                    'pub' => array(
-                        'get' => array(
-                            'hist/kline' => 10,
-                            'hist/trades' => 1,
-                        ),
-                    ),
                     'public' => array(
                         'get' => array(
-                            'info' => 1,
-                            'info/{symbol}' => 1,
-                            'system_info' => 1,
-                            'kline' => 1,
-                            'market_trades' => 1,
-                            'token' => 1,
-                            'token_network' => 1,
-                            'funding_rates' => 1,
-                            'funding_rate/{symbol}' => 1,
-                            'funding_rate_history' => 1,
-                            'futures' => 1,
-                            'futures/{symbol}' => 1,
-                            'tv/history' => 1,
+                            'market/instruments' => 1,
+                            'market/tickers' => 1,
                         ),
                     ),
                     'private' => array(
@@ -184,40 +156,6 @@ class blofin extends Exchange {
                             'client/order' => 1,
                             'orders' => 1,
                             'asset/withdraw' => 120,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                        ),
-                    ),
-                ),
-                'v2' => array(
-                    'private' => array(
-                        'get' => array(
-                            'client/holding' => 1,
-                        ),
-                    ),
-                ),
-                'v3' => array(
-                    'private' => array(
-                        'get' => array(
-                            'algo/order/{oid}' => 1,
-                            'algo/orders' => 1,
-                            'balances' => 1,
-                            'accountinfo' => 60,
-                            'positions' => 3.33,
-                            'buypower' => 1,
-                        ),
-                        'post' => array(
-                            'algo/order' => 5,
-                        ),
-                        'put' => array(
-                            'order/{oid}' => 2,
-                            'order/client/{oid}' => 2,
-                            'algo/order/{oid}' => 2,
-                            'algo/order/client/{oid}' => 2,
-                        ),
-                        'delete' => array(
-                            'algo/order/{oid}' => 1,
-                            'algo/orders/pending' => 1,
-                            'algo/orders/pending/{symbol}' => 1,
-                            'orders/pending' => 1,
                         ),
                     ),
                 ),
@@ -288,112 +226,195 @@ class blofin extends Exchange {
     }
 
     public function fetch_markets($params = array ()) {
-        /**
-         * retrieves $data on all markets for woo
-         * @param {array} $params extra parameters specific to the exchange api endpoint
-         * @return {[array]} an array of objects representing $market $data
-         */
-        $response = $this->v1PublicGetInfo ($params);
-        //
-        // {
-        //     rows => [
-        //         array(
-        //             $symbol => "SPOT_AAVE_USDT",
-        //             quote_min => 0,
-        //             quote_max => 100000,
-        //             quote_tick => 0.01,
-        //             base_min => 0.01,
-        //             base_max => 7284,
-        //             base_tick => 0.0001,
-        //             min_notional => 10,
-        //             price_range => 0.1,
-        //             created_time => "0",
-        //             updated_time => "1639107647.988",
-        //             is_stable => 0
-        //         ),
-        //         ...
-        //     success => true
-        // }
-        //
+        $response = $this->v1PublicGetMarketInstruments ($params);
+        $data = $this->safe_value($response, 'data', array());
+        return $this->parse_markets($data);
+    }
+
+    public function parse_markets($markets) {
         $result = array();
-        $data = $this->safe_value($response, 'rows', array());
-        for ($i = 0; $i < count($data); $i++) {
-            $market = $data[$i];
-            $marketId = $this->safe_string($market, 'symbol');
-            $parts = explode('_', $marketId);
-            $marketType = $this->safe_string_lower($parts, 0);
-            $isSpot = $marketType === 'spot';
-            $isSwap = $marketType === 'perp';
-            $baseId = $this->safe_string($parts, 1);
-            $quoteId = $this->safe_string($parts, 2);
-            $base = $this->safe_currency_code($baseId);
-            $quote = $this->safe_currency_code($quoteId);
-            $settleId = null;
-            $settle = null;
-            $symbol = $base . '/' . $quote;
-            $contractSize = null;
-            $linear = null;
-            if ($isSpot) {
-                continue;
-            }
-            if ($isSwap) {
-                $settleId = $this->safe_string($parts, 2);
-                $settle = $this->safe_currency_code($settleId);
-                $symbol = $base . '/' . $quote . ':' . $settle;
-                $contractSize = $this->parse_number('1');
-                $marketType = 'swap';
-                $linear = true;
-            }
-            $result[] = array(
-                'id' => $marketId,
-                'symbol' => $symbol,
-                'base' => $base,
-                'quote' => $quote,
-                'settle' => $settle,
-                'baseId' => $baseId,
-                'quoteId' => $quoteId,
-                'settleId' => $settleId,
-                'type' => $marketType,
-                'spot' => $isSpot,
-                'margin' => true,
-                'swap' => $isSwap,
-                'future' => false,
-                'option' => false,
-                'active' => null,
-                'contract' => $isSwap,
-                'linear' => $linear,
-                'inverse' => null,
-                'contractSize' => $contractSize,
-                'expiry' => null,
-                'expiryDatetime' => null,
-                'strike' => null,
-                'optionType' => null,
-                'precision' => array(
-                    'amount' => $this->safe_number($market, 'base_tick'),
-                    'price' => $this->safe_number($market, 'quote_tick'),
-                ),
-                'limits' => array(
-                    'leverage' => array(
-                        'min' => null,
-                        'max' => null,
-                    ),
-                    'amount' => array(
-                        'min' => $this->safe_number($market, 'base_min'),
-                        'max' => $this->safe_number($market, 'base_max'),
-                    ),
-                    'price' => array(
-                        'min' => $this->safe_number($market, 'quote_min'),
-                        'max' => $this->safe_number($market, 'quote_max'),
-                    ),
-                    'cost' => array(
-                        'min' => $this->safe_number($market, 'min_notional'),
-                        'max' => null,
-                    ),
-                ),
-                'info' => $market,
-            );
+        for ($i = 0; $i < count($markets); $i++) {
+            $result[] = $this->parse_market($markets[$i]);
         }
         return $result;
+    }
+
+    public function parse_market($market) {
+        $id = $this->safe_string($market, 'instId');
+        $type = 'future';
+        $future = ($type === 'future');
+        $contract = true;
+        $baseId = $this->safe_string($market, 'baseCurrency');
+        $quoteId = $this->safe_string($market, 'quoteCurrency');
+        $contactType = $this->safe_string($market, 'contractType');
+        $settleId = $this->safe_string_2($market, 'settleCcy', 'quoteCurrency'); // safe to assume that on blofin $quote == $settle for linear markets -- rayana
+        $settle = $this->safe_currency_code($settleId);
+        $base = $this->safe_currency_code($baseId);
+        $quote = $this->safe_currency_code($quoteId);
+        $symbol = $base . '/' . $quote;
+        $expiry = null;
+        if ($contract) {
+            $symbol = $symbol . ':' . $settle;
+            $expiry = $this->safe_integer($market, 'minSize');
+            if ($future) {
+                $ymd = $this->yymmdd($expiry);
+                $symbol = $symbol . '-' . $ymd;
+            }
+        }
+        $tickSize = $this->safe_string($market, 'tickSize');
+        $minAmountString = $this->safe_string($market, 'minSize');
+        $minAmount = $this->parse_number($minAmountString);
+        $fees = $this->safe_value_2($this->fees, $type, 'trading', array());
+        $precisionPrice = $this->parse_number($tickSize);
+        $maxLeverage = $this->safe_string($market, 'maxLeverage', '1');
+        $maxLeverage = Precise::string_max($maxLeverage, '1');
+        return array_merge($fees, array(
+            'id' => $id,
+            'symbol' => $symbol,
+            'base' => $base,
+            'quote' => $quote,
+            'settle' => $settle,
+            'baseId' => $baseId,
+            'quoteId' => $quoteId,
+            'settleId' => $settleId,
+            'type' => $type,
+            'spot' => false,
+            'margin' => false,
+            'swap' => false,
+            'future' => true,
+            'option' => false,
+            'active' => true,
+            'contract' => $contract,
+            'linear' => $contactType === 'linear',
+            'inverse' => $contactType === 'inverse',
+            'contractSize' => $contract ? $this->safe_number($market, 'contractValue') : null,
+            'expiry' => $expiry,
+            'expiryDatetime' => $this->iso8601($expiry),
+            'strike' => null,
+            'optionType' => null,
+            'precision' => array(
+                'amount' => $this->safe_number($market, 'lotSize'),
+                'price' => $precisionPrice,
+            ),
+            'limits' => array(
+                'leverage' => array(
+                    'min' => $this->parse_number('1'),
+                    'max' => $this->parse_number($maxLeverage),
+                ),
+                'amount' => array(
+                    'min' => $minAmount,
+                    'max' => null,
+                ),
+                'price' => array(
+                    'min' => $precisionPrice,
+                    'max' => null,
+                ),
+                'cost' => array(
+                    'min' => null,
+                    'max' => null,
+                ),
+            ),
+            'info' => $market,
+        ));
+    }
+
+    public function parse_ticker($ticker, $market = null) {
+        //
+        //     {
+        //         "instType" => "SPOT",
+        //         "instId" => "ETH-BTC",
+        //         "last" => "0.07319",
+        //         "lastSz" => "0.044378",
+        //         "askPx" => "0.07322",
+        //         "askSz" => "4.2",
+        //         "bidPx" => "0.0732",
+        //         "bidSz" => "6.050058",
+        //         "open24h" => "0.07801",
+        //         "high24h" => "0.07975",
+        //         "low24h" => "0.06019",
+        //         "volCcy24h" => "11788.887619",
+        //         "vol24h" => "167493.829229",
+        //         "ts" => "1621440583784",
+        //         "sodUtc0" => "0.07872",
+        //         "sodUtc8" => "0.07345"
+        //     }
+        //
+        $timestamp = $this->safe_integer($ticker, 'ts');
+        $marketId = $this->safe_string($ticker, 'instId');
+        $market = $this->safe_market($marketId, $market, '-');
+        $symbol = $market['symbol'];
+        $last = $this->safe_string($ticker, 'last');
+        $open = $this->safe_string($ticker, 'open24h');
+        $spot = $this->safe_value($market, 'spot', false);
+        $quoteVolume = $spot ? $this->safe_string($ticker, 'volCcy24h') : null;
+        $baseVolume = $this->safe_string($ticker, 'vol24h');
+        $high = $this->safe_string($ticker, 'high24h');
+        $low = $this->safe_string($ticker, 'low24h');
+        return $this->safe_ticker(array(
+            'symbol' => $symbol,
+            'timestamp' => $timestamp,
+            'datetime' => $this->iso8601($timestamp),
+            'high' => $high,
+            'low' => $low,
+            'bid' => $this->safe_string($ticker, 'bidPx'),
+            'bidVolume' => $this->safe_string($ticker, 'bidSz'),
+            'ask' => $this->safe_string($ticker, 'askPx'),
+            'askVolume' => $this->safe_string($ticker, 'askSz'),
+            'vwap' => null,
+            'open' => $open,
+            'close' => $last,
+            'last' => $last,
+            'previousClose' => null,
+            'change' => null,
+            'percentage' => null,
+            'average' => null,
+            'baseVolume' => $baseVolume,
+            'quoteVolume' => $quoteVolume,
+            'info' => $ticker,
+        ), $market);
+    }
+
+    public function fetch_ticker($symbol, $params = array ()) {
+        /**
+         * fetches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific $market
+         * @param {string} $symbol unified $symbol of the $market to fetch the ticker for
+         * @param {array} $params extra parameters specific to the okx api endpoint
+         * @return {array} a ~@link https://docs.ccxt.com/#/?id=ticker-structure ticker structure~
+         */
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $response = $this->v1PublicGetMarketTickers ();
+        $data = $this->safe_value($response, 'data', array());
+        for ($i = 0; $i < count($data); $i++) {
+            if ($data[$i]['instId'] === $market['id']) {
+                return $this->parse_ticker($data[$i], $market);
+            }
+        }
+    }
+
+    public function fetch_tickers_by_type($type, $symbols = null, $params = array ()) {
+        $this->load_markets();
+        $response = $this->v1PublicGetMarketTickers ();
+        $tickers = $this->safe_value($response, 'data', array());
+        return $this->parse_tickers($tickers, $symbols);
+    }
+
+    public function fetch_tickers($symbols = null, $params = array ()) {
+        /**
+         * fetches price tickers for multiple markets, statistical calculations with the information calculated over the past 24 hours each $market
+         * @param {[string]|null} $symbols unified $symbols of the markets to fetch the ticker for, all $market tickers are returned if not assigned
+         * @param {array} $params extra parameters specific to the okx api endpoint
+         * @return {array} a dictionary of ~@link https://docs.ccxt.com/#/?id=ticker-structure ticker structures~
+         */
+        $this->load_markets();
+        $symbols = $this->market_symbols($symbols);
+        $first = $this->safe_string($symbols, 0);
+        $market = null;
+        if ($first !== null) {
+            $market = $this->market($first);
+        }
+        list($type, $query) = $this->handle_market_type_and_params('fetchTickers', $market, $params);
+        return $this->fetch_tickers_by_type($type, $symbols, $query);
     }
 
     public function fetch_trades($symbol, $since = null, $limit = null, $params = array ()) {
@@ -576,141 +597,6 @@ class blofin extends Exchange {
                 'taker' => $this->parse_number(Precise::string_div($taker, '10000')),
                 'percentage' => true,
                 'tierBased' => true,
-            );
-        }
-        return $result;
-    }
-
-    public function fetch_currencies($params = array ()) {
-        /**
-         * fetches all available currencies on an exchange
-         * @param {array} $params extra parameters specific to the woo api endpoint
-         * @return {array} an associative dictionary of currencies
-         */
-        $result = array();
-        $tokenResponse = $this->v1PublicGetToken ($params);
-        //
-        // {
-        //     rows => array(
-        //         array(
-        //             token => "ETH_USDT",
-        //             fullname => "Tether",
-        //             decimals => 6,
-        //             balance_token => "USDT",
-        //             created_time => "0",
-        //             updated_time => "0"
-        //         ),
-        //         array(
-        //             token => "BSC_USDT",
-        //             fullname => "Tether",
-        //             decimals => 18,
-        //             balance_token => "USDT",
-        //             created_time => "0",
-        //             updated_time => "0"
-        //         ),
-        //         array(
-        //             token => "ZEC",
-        //             fullname => "ZCash",
-        //             decimals => 8,
-        //             balance_token => "ZEC",
-        //             created_time => "0",
-        //             updated_time => "0"
-        //         ),
-        //         ...
-        //     ),
-        //     success => true
-        // }
-        //
-        // only make one request for currrencies...
-        // $tokenNetworkResponse = $this->v1PublicGetTokenNetwork ($params);
-        //
-        // {
-        //     rows => array(
-        //         array(
-        //             protocol => "ERC20",
-        //             token => "USDT",
-        //             $name => "Ethereum",
-        //             minimum_withdrawal => 30,
-        //             withdrawal_fee => 25,
-        //             allow_deposit => 1,
-        //             allow_withdraw => 1
-        //         ),
-        //         array(
-        //             protocol => "TRC20",
-        //             token => "USDT",
-        //             $name => "Tron",
-        //             minimum_withdrawal => 30,
-        //             withdrawal_fee => 1,
-        //             allow_deposit => 1,
-        //             allow_withdraw => 1
-        //         ),
-        //         ...
-        //     ),
-        //     success => true
-        // }
-        //
-        $tokenRows = $this->safe_value($tokenResponse, 'rows', array());
-        $networksByCurrencyId = $this->group_by($tokenRows, 'balance_token');
-        $currencyIds = is_array($networksByCurrencyId) ? array_keys($networksByCurrencyId) : array();
-        for ($i = 0; $i < count($currencyIds); $i++) {
-            $currencyId = $currencyIds[$i];
-            $networks = $networksByCurrencyId[$currencyId];
-            $code = $this->safe_currency_code($currencyId);
-            $name = null;
-            $minPrecision = null;
-            $resultingNetworks = array();
-            for ($j = 0; $j < count($networks); $j++) {
-                $network = $networks[$j];
-                $name = $this->safe_string($network, 'fullname');
-                $networkId = $this->safe_string($network, 'token');
-                $splitted = explode('_', $networkId);
-                $unifiedNetwork = $splitted[0];
-                $precision = $this->parse_precision($this->safe_string($network, 'decimals'));
-                if ($precision !== null) {
-                    $minPrecision = ($minPrecision === null) ? $precision : Precise::string_min($precision, $minPrecision);
-                }
-                $resultingNetworks[$unifiedNetwork] = array(
-                    'id' => $networkId,
-                    'network' => $unifiedNetwork,
-                    'limits' => array(
-                        'withdraw' => array(
-                            'min' => null,
-                            'max' => null,
-                        ),
-                        'deposit' => array(
-                            'min' => null,
-                            'max' => null,
-                        ),
-                    ),
-                    'active' => null,
-                    'deposit' => null,
-                    'withdraw' => null,
-                    'fee' => null,
-                    'precision' => $this->parse_number($precision),
-                    'info' => $network,
-                );
-            }
-            $result[$code] = array(
-                'id' => $currencyId,
-                'name' => $name,
-                'code' => $code,
-                'precision' => $this->parse_number($minPrecision),
-                'active' => null,
-                'fee' => null,
-                'networks' => $resultingNetworks,
-                'deposit' => null,
-                'withdraw' => null,
-                'limits' => array(
-                    'deposit' => array(
-                        'min' => null,
-                        'max' => null,
-                    ),
-                    'withdraw' => array(
-                        'min' => null,
-                        'max' => null,
-                    ),
-                ),
-                'info' => $networks,
             );
         }
         return $result;
@@ -2097,66 +1983,44 @@ class blofin extends Exchange {
         return $this->milliseconds();
     }
 
-    public function sign($path, $section = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
-        $version = $section[0];
-        $access = $section[1];
-        $isUdfPath = $path === 'tv/history';
-        $pathWithParams = $this->implode_params($path, $params);
-        $url = $this->implode_hostname($this->urls['api'][$access]);
-        if ($isUdfPath) {
-            $url .= '/';
-        } else {
-            $url .= '/' . $version . '/';
-        }
-        $params = $this->omit($params, $this->extract_params($path));
-        $params = $this->keysort($params);
-        if ($access === 'public') {
-            if ($isUdfPath) {
-                $url .= $pathWithParams;
-            } else {
-                $url .= $access . '/' . $pathWithParams;
+    public function sign($path, $api = 'public', $method = 'GET', $params = array (), $headers = null, $body = null) {
+        $isArray = gettype($params) === 'array' && array_keys($params) === array_keys(array_keys($params));
+        $request = '/api/' . $this->version . '/' . $this->implode_params($path, $params);
+        $query = $this->omit($params, $this->extract_params($path));
+        $url = $this->implode_hostname($this->urls['api']['rest']) . $request;
+        // $type = $this->getPathAuthenticationType ($path);
+        if ($api === 'public') {
+            if ($query) {
+                $url .= '?' . $this->urlencode($query);
             }
-            if ($params) {
-                $url .= '?' . $this->urlencode($params);
-            }
-        } elseif ($access === 'pub') {
-            $url .= $pathWithParams;
-            if ($params) {
-                $url .= '?' . $this->urlencode($params);
-            }
-        } else {
+        } elseif ($api === 'private') {
             $this->check_required_credentials();
-            $auth = '';
-            $ts = (string) $this->nonce();
-            $url .= $pathWithParams;
+            $timestamp = $this->iso8601($this->milliseconds());
             $headers = array(
-                'x-api-key' => $this->apiKey,
-                'x-api-timestamp' => $ts,
+                'ACCESS-KEY' => $this->apiKey,
+                'ACCESS-PASSPHRASE' => $this->password,
+                'ACCESS-TIMESTAMP' => $timestamp,
+                'ACCESS-NONCE' => $this->nonce(),
+                // 'OK-FROM' => '',
+                // 'OK-TO' => '',
+                // 'OK-LIMIT' => '',
             );
-            if ($version === 'v3') {
-                $auth = $ts . $method . '/' . $version . '/' . $pathWithParams;
-                if ($method === 'POST' || $method === 'PUT' || $method === 'DELETE') {
-                    $body = $this->json($params);
-                    $auth .= $body;
-                } else {
-                    if ($params) {
-                        $query = $this->urlencode($params);
-                        $url .= '?' . $query;
-                        $auth .= '?' . $query;
-                    }
+            $auth = $timestamp . $method . $request;
+            if ($method === 'GET') {
+                if ($query) {
+                    $urlencodedQuery = '?' . $this->urlencode($query);
+                    $url .= $urlencodedQuery;
+                    $auth .= $urlencodedQuery;
                 }
-                $headers['content-type'] = 'application/json';
             } else {
-                $auth = $this->urlencode($params);
-                if ($method === 'POST' || $method === 'PUT' || $method === 'DELETE') {
-                    $body = $auth;
-                } else {
-                    $url .= '?' . $auth;
+                if ($isArray || $query) {
+                    $body = $this->json($query);
+                    $auth .= $body;
                 }
-                $auth .= '|' . $ts;
-                $headers['content-type'] = 'application/x-www-form-urlencoded';
+                $headers['Content-Type'] = 'application/json';
             }
-            $headers['x-api-signature'] = $this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256');
+            $signature = $this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256', 'base64');
+            $headers['ACCESS-SIGN'] = $signature;
         }
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
@@ -2560,85 +2424,6 @@ class blofin extends Exchange {
         }
         // if it was not returned according to above options, then return the first $network of currency
         return $this->safe_value($networkKeys, 0);
-    }
-
-    public function fetch_ticker($symbol, $params = array ()) {
-        /**
-         * fetches a price $ticker, a statistical calculation with the information calculated over the past 24 hours for a specific $market
-         * @param {string} $symbol unified $symbol of the $market to fetch the $ticker for
-         * @param {array} $params extra parameters specific to the paymium api endpoint
-         * @return {array} a ~@link https://docs.ccxt.com/#/?id=$ticker-structure $ticker structure~
-         */
-        $this->load_markets();
-        $market = $this->market($symbol);
-        $request = array(
-            'symbol' => $market['id'],
-        );
-        $response = $this->v1PublicGetFuturesSymbol (array_merge($request, $params));
-        //
-        // {
-        //   "symbol" => "BTC-USDT",
-        //   "priceChange" => "10.00",
-        //   "priceChangePercent" => "10",
-        //   "lastPrice" => "5738.23",
-        //   "lastVolume" => "31.21",
-        //   "highPrice" => "5938.23",
-        //   "lowPrice" => "5238.23",
-        //   "volume" => "23211231.13",
-        //   "dayVolume" => "213124412412.47",
-        //   "openPrice" => "5828.32"
-        // }
-        //
-        $ticker = $this->safe_value($response, 'info');
-        return $this->parse_ticker($ticker, $market);
-    }
-
-    public function parse_ticker($ticker, $market = null) {
-        //
-        // {
-        //   "symbol" => "PERP_BTC_USDT",
-        //   "index_price" => 56727.31344564,
-        //   "mark_price" => 56727.31344564,
-        //   "est_funding_rate" => 0.12345689,
-        //   "last_funding_rate" => 0.12345689,
-        //   "next_funding_time" => 1567411795000,
-        //   "open_interest" => 0.12345689,
-        //   "24h_open" => 0.16112,
-        //   "24h_close" => 0.32206,
-        //   "24h_high" => 0.33000,
-        //   "24h_low" => 0.14251,
-        //   "24h_volume" => 89040821.98,
-        //   "24h_amount" => 22493062.21
-        // }
-        //
-        $symbol = $this->safe_symbol(null, $market);
-        $timestamp = $this->milliseconds();
-        $baseVolume = $this->safe_string($ticker, '24h_volume');
-        $openFloat = $this->safe_float($ticker, '24h_open');
-        $currentFloat = $this->safe_float($ticker, 'index_price');
-        $percentage = $currentFloat / $openFloat * 100;
-        $last = $this->safe_string($ticker, 'index_price');
-        return $this->safe_ticker(array(
-            'symbol' => $symbol,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'high' => $this->safe_string($ticker, '24h_high'),
-            'low' => $this->safe_string($ticker, '24h_low'),
-            'bid' => $this->safe_string($ticker, 'index_price'),
-            'bidVolume' => null,
-            'ask' => $this->safe_string($ticker, 'index_price'),
-            'askVolume' => null,
-            'open' => $this->safe_string($ticker, '24h_open'),
-            'close' => $last,
-            'last' => $last,
-            'mark' => $last,
-            'previousClose' => null,
-            'change' => null,
-            'percentage' => $this->number_to_string($percentage),
-            'average' => null,
-            'baseVolume' => $baseVolume,
-            'info' => $ticker,
-        ), $market);
     }
 
     public function fetch_account_configuration($symbol, $params = array ()) {
