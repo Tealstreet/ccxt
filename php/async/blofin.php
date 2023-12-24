@@ -25,8 +25,8 @@ class blofin extends Exchange {
             'hostname' => 'blofin.com',
             'has' => array(
                 'CORS' => null,
-                'spot' => true,
-                'margin' => true,
+                'spot' => false,
+                'margin' => false,
                 'swap' => true,
                 'future' => false,
                 'option' => false,
@@ -49,11 +49,11 @@ class blofin extends Exchange {
                 'fetchClosedOrders' => false,
                 'fetchCurrencies' => true,
                 'fetchDepositAddress' => false,
-                'fetchDeposits' => true,
-                'fetchFundingHistory' => true,
-                'fetchFundingRate' => true,
-                'fetchFundingRateHistory' => true,
-                'fetchFundingRates' => true,
+                'fetchDeposits' => false,
+                'fetchFundingHistory' => false,
+                'fetchFundingRate' => false,
+                'fetchFundingRateHistory' => false,
+                'fetchFundingRates' => false,
                 'fetchIndexOHLCV' => false,
                 'fetchLedger' => true,
                 'fetchLeverage' => true,
@@ -79,16 +79,16 @@ class blofin extends Exchange {
                 'fetchTime' => false,
                 'fetchTrades' => true,
                 'fetchTradingFee' => false,
-                'fetchTradingFees' => true,
-                'fetchTransactions' => true,
-                'fetchTransfers' => true,
-                'fetchWithdrawals' => true,
+                'fetchTradingFees' => false,
+                'fetchTransactions' => false,
+                'fetchTransfers' => false,
+                'fetchWithdrawals' => false,
                 'reduceMargin' => false,
-                'repayMargin' => true,
+                'repayMargin' => false,
                 'setLeverage' => true,
                 'setMargin' => false,
-                'transfer' => true,
-                'withdraw' => true, // exchange have that endpoint disabled atm, but was once implemented in ccxt per old docs => https://kronosresearch.github.io/wootrade-documents/#token-withdraw
+                'transfer' => false,
+                'withdraw' => false,
             ),
             'timeframes' => array(
                 '1m' => '1',
@@ -126,26 +126,27 @@ class blofin extends Exchange {
                     ),
                     'private' => array(
                         'get' => array(
-                            'client/token' => 1,
-                            'order/{oid}' => 1,
-                            'client/order/{client_order_id}' => 1,
-                            'orders' => 1,
-                            'orderbook/{symbol}' => 1,
-                            'client/trade/{tid}' => 1,
-                            'order/{oid}/trades' => 1,
-                            'client/trades' => 1,
-                            'client/info' => 60,
-                            'asset/deposit' => 10,
-                            'asset/history' => 60,
-                            'sub_account/all' => 60,
-                            'sub_account/assets' => 60,
-                            'token_interest' => 60,
-                            'token_interest/{token}' => 60,
-                            'interest/history' => 60,
-                            'interest/repay' => 60,
-                            'funding_fee/history' => 30,
-                            'positions' => 3.33, // 30 requests per 10 seconds
-                            'position/{symbol}' => 3.33,
+                            'account/leverage-info' => 1,
+                            // 'client/token' => 1,
+                            // 'order/{oid}' => 1,
+                            // 'client/order/{client_order_id}' => 1,
+                            // 'orders' => 1,
+                            // 'orderbook/{symbol}' => 1,
+                            // 'client/trade/{tid}' => 1,
+                            // 'order/{oid}/trades' => 1,
+                            // 'client/trades' => 1,
+                            // 'client/info' => 60,
+                            // 'asset/deposit' => 10,
+                            // 'asset/history' => 60,
+                            // 'sub_account/all' => 60,
+                            // 'sub_account/assets' => 60,
+                            // 'token_interest' => 60,
+                            // 'token_interest/{token}' => 60,
+                            // 'interest/history' => 60,
+                            // 'interest/repay' => 60,
+                            // 'funding_fee/history' => 30,
+                            // 'positions' => 3.33, // 30 requests per 10 seconds
+                            // 'position/{symbol}' => 3.33,
                         ),
                         'post' => array(
                             'order' => 5, // 2 requests per 1 second per symbol
@@ -248,7 +249,6 @@ class blofin extends Exchange {
     public function parse_market($market) {
         $id = $this->safe_string($market, 'instId');
         $type = 'future';
-        $future = ($type === 'future');
         $contract = true;
         $baseId = $this->safe_string($market, 'baseCurrency');
         $quoteId = $this->safe_string($market, 'quoteCurrency');
@@ -261,11 +261,7 @@ class blofin extends Exchange {
         $expiry = null;
         if ($contract) {
             $symbol = $symbol . ':' . $settle;
-            $expiry = $this->safe_integer($market, 'minSize');
-            if ($future) {
-                $ymd = $this->yymmdd($expiry);
-                $symbol = $symbol . '-' . $ymd;
-            }
+            $expiry = $this->safe_integer($market, 'expireTime');
         }
         $tickSize = $this->safe_string($market, 'tickSize');
         $minAmountString = $this->safe_string($market, 'minSize');
@@ -559,63 +555,6 @@ class blofin extends Exchange {
             );
         }
         return $fee;
-    }
-
-    public function fetch_trading_fees($params = array ()) {
-        return Async\async(function () use ($params) {
-            /**
-             * fetch the trading fees for multiple markets
-             * @see https://docs.woo.org/#get-account-information-new
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} a dictionary of ~@link https://docs.ccxt.com/#/?id=fee-structure fee structures~ indexed by market symbols
-             */
-            Async\await($this->load_markets());
-            $response = Async\await($this->v3PrivateGetAccountinfo ($params));
-            //
-            //     {
-            //         "success" => true,
-            //         "data" => array(
-            //             "applicationId" => "dsa",
-            //             "account" => "dsa",
-            //             "alias" => "haha",
-            //             "accountMode" => "MARGIN",
-            //             "leverage" => 1,
-            //             "takerFeeRate" => 1,
-            //             "makerFeeRate" => 1,
-            //             "interestRate" => 1,
-            //             "futuresTakerFeeRate" => 1,
-            //             "futuresMakerFeeRate" => 1,
-            //             "otpauth" => true,
-            //             "marginRatio" => 1,
-            //             "openMarginRatio" => 1,
-            //             "initialMarginRatio" => 1,
-            //             "maintenanceMarginRatio" => 1,
-            //             "totalCollateral" => 1,
-            //             "freeCollateral" => 1,
-            //             "totalAccountValue" => 1,
-            //             "totalVaultValue" => 1,
-            //             "totalStakingValue" => 1
-            //         ),
-            //         "timestamp" => 1673323685109
-            //     }
-            //
-            $data = $this->safe_value($response, 'data', array());
-            $maker = $this->safe_string($data, 'makerFeeRate');
-            $taker = $this->safe_string($data, 'takerFeeRate');
-            $result = array();
-            for ($i = 0; $i < count($this->symbols); $i++) {
-                $symbol = $this->symbols[$i];
-                $result[$symbol] = array(
-                    'info' => $response,
-                    'symbol' => $symbol,
-                    'maker' => $this->parse_number(Precise::string_div($maker, '10000')),
-                    'taker' => $this->parse_number(Precise::string_div($taker, '10000')),
-                    'percentage' => true,
-                    'tierBased' => true,
-                );
-            }
-            return $result;
-        }) ();
     }
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
@@ -1548,153 +1487,6 @@ class blofin extends Exchange {
         return $this->safe_balance($result);
     }
 
-    public function fetch_deposit_address($code, $params = array ()) {
-        return Async\async(function () use ($code, $params) {
-            /**
-             * fetch the deposit $address for a $currency associated with this account
-             * @param {string} $code unified $currency $code
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} an ~@link https://docs.ccxt.com/#/?id=$address-structure $address structure~
-             */
-            // this method is TODO because of networks unification
-            Async\await($this->load_markets());
-            $currency = $this->currency($code);
-            $networkCodeDefault = $this->default_network_code_for_currency($code);
-            $networkCode = $this->safe_string($params, 'network', $networkCodeDefault);
-            $params = $this->omit($params, 'network');
-            $codeForExchange = $networkCode . '_' . $currency['code'];
-            $request = array(
-                'token' => $codeForExchange,
-            );
-            $response = Async\await($this->v1PrivateGetAssetDeposit (array_merge($request, $params)));
-            // {
-            //     success => true,
-            //     $address => '3Jmtjx5544T4smrit9Eroe4PCrRkpDeKjP',
-            //     extra => ''
-            // }
-            $tag = $this->safe_string($response, 'extra');
-            $address = $this->safe_string($response, 'address');
-            $this->check_address($address);
-            return array(
-                'currency' => $code,
-                'address' => $address,
-                'tag' => $tag,
-                'network' => $networkCode,
-                'info' => $response,
-            );
-        }) ();
-    }
-
-    public function get_asset_history_rows($code = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($code, $since, $limit, $params) {
-            Async\await($this->load_markets());
-            $request = array( );
-            $currency = null;
-            if ($code !== null) {
-                $currency = $this->currency($code);
-                $request['balance_token'] = $currency['id'];
-            }
-            if ($since !== null) {
-                $request['start_t'] = $since;
-            }
-            if ($limit !== null) {
-                $request['pageSize'] = $limit;
-            }
-            $transactionType = $this->safe_string($params, 'type');
-            $params = $this->omit($params, 'type');
-            if ($transactionType !== null) {
-                $request['type'] = $transactionType;
-            }
-            $response = Async\await($this->v1PrivateGetAssetHistory (array_merge($request, $params)));
-            // {
-            //     rows => array(
-            //       {
-            //         id => '22010508193900165',
-            //         token => 'TRON_USDT',
-            //         extra => '',
-            //         amount => '13.75848500',
-            //         status => 'COMPLETED',
-            //         account => null,
-            //         description => null,
-            //         user_id => '42222',
-            //         application_id => '6ad2b303-f354-45c0-8105-9f5f19d0e335',
-            //         external_id => '220105081900134',
-            //         target_address => 'TXnyFSnAYad3YCaqtwMw9jvXKkeU39NLnK',
-            //         source_address => 'TYDzsYUEpvnYmQk4zGP9sWWcTEd2MiAtW6',
-            //         type => 'BALANCE',
-            //         token_side => 'DEPOSIT',
-            //         tx_id => '35b0004022f6b3ad07f39a0b7af199f6b258c2c3e2c7cdc93c67efa74fd625ee',
-            //         fee_token => '',
-            //         fee_amount => '0.00000000',
-            //         created_time => '1641370779.442',
-            //         updated_time => '1641370779.465',
-            //         is_new_target_address => null,
-            //         confirmed_number => '29',
-            //         confirming_threshold => '27',
-            //         audit_tag => '1',
-            //         audit_result => '0',
-            //         balance_token => null, // TODO -write to support, that this seems broken. here should be the token id
-            //         network_name => null // TODO -write to support, that this seems broken. here should be the network id
-            //       }
-            //     ),
-            //     meta => array( total => '1', records_per_page => '25', current_page => '1' ),
-            //     success => true
-            // }
-            return array( $currency, $this->safe_value($response, 'rows', array()) );
-        }) ();
-    }
-
-    public function fetch_ledger($code = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($code, $since, $limit, $params) {
-            /**
-             * fetch the history of changes, actions done by the user or operations that altered balance of the user
-             * @param {string|null} $code unified $currency $code, default is null
-             * @param {int|null} $since timestamp in ms of the earliest ledger entry, default is null
-             * @param {int|null} $limit max number of ledger entrys to return, default is null
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} a ~@link https://docs.ccxt.com/#/?id=ledger-structure ledger structure~
-             */
-            list($currency, $rows) = Async\await($this->get_asset_history_rows($code, $since, $limit, $params));
-            return $this->parse_ledger($rows, $currency, $since, $limit, $params);
-        }) ();
-    }
-
-    public function parse_ledger_entry($item, $currency = null) {
-        $networkizedCode = $this->safe_string($item, 'token');
-        $currencyDefined = $this->get_currency_from_chaincode($networkizedCode, $currency);
-        $code = $currencyDefined['code'];
-        $amount = $this->safe_number($item, 'amount');
-        $side = $this->safe_string($item, 'token_side');
-        $direction = ($side === 'DEPOSIT') ? 'in' : 'out';
-        $timestamp = $this->safe_timestamp($item, 'created_time');
-        $fee = $this->parse_token_and_fee_temp($item, 'fee_token', 'fee_amount');
-        return array(
-            'id' => $this->safe_string($item, 'id'),
-            'currency' => $code,
-            'account' => $this->safe_string($item, 'account'),
-            'referenceAccount' => null,
-            'referenceId' => $this->safe_string($item, 'tx_id'),
-            'status' => $this->parse_transaction_status($this->safe_string($item, 'status')),
-            'amount' => $amount,
-            'before' => null,
-            'after' => null,
-            'fee' => $fee,
-            'direction' => $direction,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'type' => $this->parse_ledger_entry_type($this->safe_string($item, 'type')),
-            'info' => $item,
-        );
-    }
-
-    public function parse_ledger_entry_type($type) {
-        $types = array(
-            'BALANCE' => 'transaction', // Funds moved in/out wallet
-            'COLLATERAL' => 'transfer', // Funds moved between portfolios
-        );
-        return $this->safe_string($types, $type, $type);
-    }
-
     public function get_currency_from_chaincode($networkizedCode, $currency) {
         if ($currency !== null) {
             return $currency;
@@ -1709,338 +1501,6 @@ class blofin extends Exchange {
             $currency = $this->safe_currency($currencyId);
         }
         return $currency;
-    }
-
-    public function fetch_deposits($code = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($code, $since, $limit, $params) {
-            /**
-             * fetch all deposits made to an account
-             * @param {string|null} $code unified currency $code
-             * @param {int|null} $since the earliest time in ms to fetch deposits for
-             * @param {int|null} $limit the maximum number of deposits structures to retrieve
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=transaction-structure transaction structures~
-             */
-            $request = array(
-                'token_side' => 'DEPOSIT',
-            );
-            return Async\await($this->fetch_transactions($code, $since, $limit, array_merge($request, $params)));
-        }) ();
-    }
-
-    public function fetch_withdrawals($code = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($code, $since, $limit, $params) {
-            /**
-             * fetch all withdrawals made from an account
-             * @param {string|null} $code unified currency $code
-             * @param {int|null} $since the earliest time in ms to fetch withdrawals for
-             * @param {int|null} $limit the maximum number of withdrawals structures to retrieve
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=transaction-structure transaction structures~
-             */
-            $request = array(
-                'token_side' => 'WITHDRAW',
-            );
-            return Async\await($this->fetch_transactions($code, $since, $limit, array_merge($request, $params)));
-        }) ();
-    }
-
-    public function fetch_transactions($code = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($code, $since, $limit, $params) {
-            /**
-             * fetch history of deposits and withdrawals
-             * @param {string|null} $code unified $currency $code for the $currency of the transactions, default is null
-             * @param {int|null} $since timestamp in ms of the earliest transaction, default is null
-             * @param {int|null} $limit max number of transactions to return, default is null
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} a list of ~@link https://docs.ccxt.com/#/?id=transaction-structure transaction structure~
-             */
-            $request = array(
-                'type' => 'BALANCE',
-            );
-            list($currency, $rows) = Async\await($this->get_asset_history_rows($code, $since, $limit, array_merge($request, $params)));
-            //
-            //     {
-            //         "rows":array(),
-            //         "meta":array(
-            //             "total":0,
-            //             "records_per_page":25,
-            //             "current_page":1
-            //         ),
-            //         "success":true
-            //     }
-            //
-            return $this->parse_transactions($rows, $currency, $since, $limit, $params);
-        }) ();
-    }
-
-    public function parse_transaction($transaction, $currency = null) {
-        // example in fetchLedger
-        $networkizedCode = $this->safe_string($transaction, 'token');
-        $currencyDefined = $this->get_currency_from_chaincode($networkizedCode, $currency);
-        $code = $currencyDefined['code'];
-        $movementDirection = $this->safe_string_lower($transaction, 'token_side');
-        if ($movementDirection === 'withdraw') {
-            $movementDirection = 'withdrawal';
-        }
-        $fee = $this->parse_token_and_fee_temp($transaction, 'fee_token', 'fee_amount');
-        $addressTo = $this->safe_string($transaction, 'target_address');
-        $addressFrom = $this->safe_string($transaction, 'source_address');
-        $timestamp = $this->safe_timestamp($transaction, 'created_time');
-        return array(
-            'id' => $this->safe_string_2($transaction, 'id', 'withdraw_id'),
-            'txid' => $this->safe_string($transaction, 'tx_id'),
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'address' => null,
-            'addressFrom' => $addressFrom,
-            'addressTo' => $addressTo,
-            'tag' => $this->safe_string($transaction, 'extra'),
-            'type' => $movementDirection,
-            'amount' => $this->safe_number($transaction, 'amount'),
-            'currency' => $code,
-            'status' => $this->parse_transaction_status($this->safe_string($transaction, 'status')),
-            'updated' => $this->safe_timestamp($transaction, 'updated_time'),
-            'fee' => $fee,
-            'info' => $transaction,
-        );
-    }
-
-    public function parse_transaction_status($status) {
-        $statuses = array(
-            'NEW' => 'pending',
-            'CONFIRMING' => 'pending',
-            'PROCESSING' => 'pending',
-            'COMPLETED' => 'ok',
-            'CANCELED' => 'canceled',
-        );
-        return $this->safe_string($statuses, $status, $status);
-    }
-
-    public function transfer($code, $amount, $fromAccount, $toAccount, $params = array ()) {
-        return Async\async(function () use ($code, $amount, $fromAccount, $toAccount, $params) {
-            /**
-             * $transfer $currency internally between wallets on the same account
-             * @param {string} $code unified $currency $code
-             * @param {float} $amount amount to $transfer
-             * @param {string} $fromAccount account to $transfer from
-             * @param {string} $toAccount account to $transfer to
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} a ~@link https://docs.ccxt.com/#/?id=$transfer-structure $transfer structure~
-             */
-            Async\await($this->load_markets());
-            $currency = $this->currency($code);
-            $request = array(
-                'token' => $currency['id'],
-                'amount' => $this->parse_number($amount),
-                'from_application_id' => $fromAccount,
-                'to_application_id' => $toAccount,
-            );
-            $response = Async\await($this->v1PrivatePostAssetMainSubTransfer (array_merge($request, $params)));
-            //
-            //     {
-            //         "success" => true,
-            //         "id" => 200
-            //     }
-            //
-            $transfer = $this->parse_transfer($response, $currency);
-            $transferOptions = $this->safe_value($this->options, 'transfer', array());
-            $fillResponseFromRequest = $this->safe_value($transferOptions, 'fillResponseFromRequest', true);
-            if ($fillResponseFromRequest) {
-                $transfer['amount'] = $amount;
-                $transfer['fromAccount'] = $fromAccount;
-                $transfer['toAccount'] = $toAccount;
-            }
-            return $transfer;
-        }) ();
-    }
-
-    public function fetch_transfers($code = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($code, $since, $limit, $params) {
-            /**
-             * fetch a history of internal transfers made on an account
-             * @param {string|null} $code unified $currency $code of the $currency transferred
-             * @param {int|null} $since the earliest time in ms to fetch transfers for
-             * @param {int|null} $limit the maximum number of  transfers structures to retrieve
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=transfer-structure transfer structures~
-             */
-            $request = array(
-                'type' => 'COLLATERAL',
-            );
-            list($currency, $rows) = Async\await($this->get_asset_history_rows($code, $since, $limit, array_merge($request, $params)));
-            return $this->parse_transfers($rows, $currency, $since, $limit, $params);
-        }) ();
-    }
-
-    public function parse_transfer($transfer, $currency = null) {
-        //
-        //    getAssetHistoryRows
-        //        {
-        //            "created_time" => "1579399877.041",  // Unix epoch time in seconds
-        //            "updated_time" => "1579399877.041",  // Unix epoch time in seconds
-        //            "id" => "202029292829292",
-        //            "external_id" => "202029292829292",
-        //            "application_id" => null,
-        //            "token" => "ETH",
-        //            "target_address" => "0x31d64B3230f8baDD91dE1710A65DF536aF8f7cDa",
-        //            "source_address" => "0x70fd25717f769c7f9a46b319f0f9103c0d887af0",
-        //            "extra" => "",
-        //            "type" => "BALANCE",
-        //            "token_side" => "DEPOSIT",
-        //            "amount" => 1000,
-        //            "tx_id" => "0x8a74c517bc104c8ebad0c3c3f64b1f302ed5f8bca598ae4459c63419038106b6",
-        //            "fee_token" => null,
-        //            "fee_amount" => null,
-        //            "status" => "CONFIRMING"
-        //        }
-        //
-        //    v1PrivatePostAssetMainSubTransfer
-        //        {
-        //            "success" => true,
-        //            "id" => 200
-        //        }
-        //
-        $networkizedCode = $this->safe_string($transfer, 'token');
-        $currencyDefined = $this->get_currency_from_chaincode($networkizedCode, $currency);
-        $code = $currencyDefined['code'];
-        $movementDirection = $this->safe_string_lower($transfer, 'token_side');
-        if ($movementDirection === 'withdraw') {
-            $movementDirection = 'withdrawal';
-        }
-        $fromAccount = null;
-        $toAccount = null;
-        if ($movementDirection === 'withdraw') {
-            $fromAccount = null;
-            $toAccount = 'spot';
-        } elseif ($movementDirection === 'deposit') {
-            $fromAccount = 'spot';
-            $toAccount = null;
-        }
-        $timestamp = $this->safe_timestamp($transfer, 'created_time');
-        $success = $this->safe_value($transfer, 'success');
-        $status = null;
-        if ($success !== null) {
-            $status = $success ? 'ok' : 'failed';
-        }
-        return array(
-            'id' => $this->safe_string($transfer, 'id'),
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
-            'currency' => $code,
-            'amount' => $this->safe_number($transfer, 'amount'),
-            'fromAccount' => $fromAccount,
-            'toAccount' => $toAccount,
-            'status' => $this->parse_transfer_status($this->safe_string($transfer, 'status', $status)),
-            'info' => $transfer,
-        );
-    }
-
-    public function parse_transfer_status($status) {
-        $statuses = array(
-            'NEW' => 'pending',
-            'CONFIRMING' => 'pending',
-            'PROCESSING' => 'pending',
-            'COMPLETED' => 'ok',
-            'CANCELED' => 'canceled',
-        );
-        return $this->safe_string($statuses, $status, $status);
-    }
-
-    public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
-        return Async\async(function () use ($code, $amount, $address, $tag, $params) {
-            /**
-             * make a withdrawal
-             * @param {string} $code unified $currency $code
-             * @param {float} $amount the $amount to withdraw
-             * @param {string} $address the $address to withdraw to
-             * @param {string|null} $tag
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} a ~@link https://docs.ccxt.com/#/?id=transaction-structure transaction structure~
-             */
-            list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
-            Async\await($this->load_markets());
-            $this->check_address($address);
-            $currency = $this->currency($code);
-            $request = array(
-                'amount' => $amount,
-                'address' => $address,
-            );
-            if ($tag !== null) {
-                $request['extra'] = $tag;
-            }
-            $networks = $this->safe_value($this->options, 'networks', array());
-            $currencyNetworks = $this->safe_value($currency, 'networks', array());
-            $network = $this->safe_string_upper($params, 'network');
-            $networkId = $this->safe_string($networks, $network, $network);
-            $coinNetwork = $this->safe_value($currencyNetworks, $networkId, array());
-            $coinNetworkId = $this->safe_string($coinNetwork, 'id');
-            if ($coinNetworkId === null) {
-                throw new BadRequest($this->id . ' withdraw() require $network parameter');
-            }
-            $request['token'] = $coinNetworkId;
-            $response = Async\await($this->v1PrivatePostAssetWithdraw (array_merge($request, $params)));
-            //
-            //     {
-            //         "success" => true,
-            //         "withdraw_id" => "20200119145703654"
-            //     }
-            //
-            return $this->parse_transaction($response, $currency);
-        }) ();
-    }
-
-    public function repay_margin($code, $amount, $symbol = null, $params = array ()) {
-        return Async\async(function () use ($code, $amount, $symbol, $params) {
-            /**
-             * repay borrowed margin and interest
-             * @see https://docs.woo.org/#repay-interest
-             * @param {string} $code unified $currency $code of the $currency to repay
-             * @param {float} $amount the $amount to repay
-             * @param {string|null} $symbol not used by woo.repayMargin ()
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} a ~@link https://docs.ccxt.com/#/?id=margin-loan-structure margin loan structure~
-             */
-            Async\await($this->load_markets());
-            $market = null;
-            if ($symbol !== null) {
-                $market = $this->market($symbol);
-                $symbol = $market['symbol'];
-            }
-            $currency = $this->currency($code);
-            $request = array(
-                'token' => $currency['id'], // interest token that you want to repay
-                'amount' => $this->currency_to_precision($code, $amount),
-            );
-            $response = Async\await($this->v1PrivatePostInterestRepay (array_merge($request, $params)));
-            //
-            //     {
-            //         "success" => true,
-            //     }
-            //
-            $transaction = $this->parse_margin_loan($response, $currency);
-            return array_merge($transaction, array(
-                'amount' => $amount,
-                'symbol' => $symbol,
-            ));
-        }) ();
-    }
-
-    public function parse_margin_loan($info, $currency = null) {
-        //
-        //     {
-        //         "success" => true,
-        //     }
-        //
-        return array(
-            'id' => null,
-            'currency' => $this->safe_currency_code(null, $currency),
-            'amount' => null,
-            'symbol' => null,
-            'timestamp' => null,
-            'datetime' => null,
-            'info' => $info,
-        );
     }
 
     public function nonce() {
@@ -2138,224 +1598,17 @@ class blofin extends Exchange {
         );
     }
 
-    public function fetch_funding_history($symbol = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($symbol, $since, $limit, $params) {
-            Async\await($this->load_markets());
-            $request = array();
-            $market = null;
-            if ($symbol !== null) {
-                $market = $this->market($symbol);
-                $request['symbol'] = $market['id'];
-            }
-            if ($since !== null) {
-                $request['start_t'] = $since;
-            }
-            $response = Async\await($this->v1PrivateGetFundingFeeHistory (array_merge($request, $params)));
-            //
-            //     {
-            //         "rows":array(
-            //             {
-            //                 "id":666666,
-            //                 "symbol":"PERP_BTC_USDT",
-            //                 "funding_rate":0.00001198,
-            //                 "mark_price":28941.04000000,
-            //                 "funding_fee":0.00069343,
-            //                 "payment_type":"Pay",
-            //                 "status":"COMPLETED",
-            //                 "created_time":"1653616000.666",
-            //                 "updated_time":"1653616000.605"
-            //             }
-            //         ),
-            //         "meta":array(
-            //             "total":235,
-            //             "records_per_page":25,
-            //             "current_page":1
-            //         ),
-            //         "success":true
-            //     }
-            //
-            $result = $this->safe_value($response, 'rows', array());
-            return $this->parse_incomes($result, $market, $since, $limit);
-        }) ();
-    }
-
-    public function parse_funding_rate($fundingRate, $market = null) {
-        //
-        //         {
-        //             "symbol":"PERP_AAVE_USDT",
-        //             "est_funding_rate":-0.00003447,
-        //             "est_funding_rate_timestamp":1653633959001,
-        //             "last_funding_rate":-0.00002094,
-        //             "last_funding_rate_timestamp":1653631200000,
-        //             "next_funding_time":1653634800000
-        //         }
-        //
-        //
-        $symbol = $this->safe_string($fundingRate, 'symbol');
-        $market = $this->market($symbol);
-        $nextFundingTimestamp = $this->safe_integer($fundingRate, 'next_funding_time');
-        $estFundingRateTimestamp = $this->safe_integer($fundingRate, 'est_funding_rate_timestamp');
-        $lastFundingRateTimestamp = $this->safe_integer($fundingRate, 'last_funding_rate_timestamp');
-        return array(
-            'info' => $fundingRate,
-            'symbol' => $market['symbol'],
-            'markPrice' => null,
-            'indexPrice' => null,
-            'interestRate' => $this->parse_number('0'),
-            'estimatedSettlePrice' => null,
-            'timestamp' => $estFundingRateTimestamp,
-            'datetime' => $this->iso8601($estFundingRateTimestamp),
-            'fundingRate' => $this->safe_number($fundingRate, 'est_funding_rate'),
-            'fundingTimestamp' => $nextFundingTimestamp,
-            'fundingDatetime' => $this->iso8601($nextFundingTimestamp),
-            'nextFundingRate' => null,
-            'nextFundingTimestamp' => null,
-            'nextFundingDatetime' => null,
-            'previousFundingRate' => $this->safe_number($fundingRate, 'last_funding_rate'),
-            'previousFundingTimestamp' => $lastFundingRateTimestamp,
-            'previousFundingDatetime' => $this->iso8601($lastFundingRateTimestamp),
-        );
-    }
-
-    public function fetch_funding_rate($symbol, $params = array ()) {
-        return Async\async(function () use ($symbol, $params) {
-            Async\await($this->load_markets());
-            $market = $this->market($symbol);
-            $request = array(
-                'symbol' => $market['id'],
-            );
-            $response = Async\await($this->v1PublicGetFundingRateSymbol (array_merge($request, $params)));
-            //
-            //     {
-            //         "success":true,
-            //         "timestamp":1653640572711,
-            //         "symbol":"PERP_BTC_USDT",
-            //         "est_funding_rate":0.00000738,
-            //         "est_funding_rate_timestamp":1653640559003,
-            //         "last_funding_rate":0.00000629,
-            //         "last_funding_rate_timestamp":1653638400000,
-            //         "next_funding_time":1653642000000
-            //     }
-            //
-            return $this->parse_funding_rate($response, $market);
-        }) ();
-    }
-
-    public function fetch_funding_rates($symbols = null, $params = array ()) {
-        return Async\async(function () use ($symbols, $params) {
-            Async\await($this->load_markets());
-            $symbols = $this->market_symbols($symbols);
-            $response = Async\await($this->v1PublicGetFundingRates ($params));
-            //
-            //     {
-            //         "success":true,
-            //         "rows":array(
-            //             {
-            //                 "symbol":"PERP_AAVE_USDT",
-            //                 "est_funding_rate":-0.00003447,
-            //                 "est_funding_rate_timestamp":1653633959001,
-            //                 "last_funding_rate":-0.00002094,
-            //                 "last_funding_rate_timestamp":1653631200000,
-            //                 "next_funding_time":1653634800000
-            //             }
-            //         ),
-            //         "timestamp":1653633985646
-            //     }
-            //
-            $rows = $this->safe_value($response, 'rows', array());
-            $result = $this->parse_funding_rates($rows);
-            return $this->filter_by_array($result, 'symbol', $symbols);
-        }) ();
-    }
-
-    public function fetch_funding_rate_history($symbol = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($symbol, $since, $limit, $params) {
-            Async\await($this->load_markets());
-            $request = array();
-            if ($symbol !== null) {
-                $market = $this->market($symbol);
-                $symbol = $market['symbol'];
-                $request['symbol'] = $market['id'];
-            }
-            if ($since !== null) {
-                $request['start_t'] = $this->parse_to_int($since / 1000);
-            }
-            $response = Async\await($this->v1PublicGetFundingRateHistory (array_merge($request, $params)));
-            //
-            //     {
-            //         "success":true,
-            //         "meta":array(
-            //             "total":2464,
-            //             "records_per_page":25,
-            //             "current_page":1
-            //         ),
-            //         "rows":array(
-            //             {
-            //                 "symbol":"PERP_BTC_USDT",
-            //                 "funding_rate":0.00000629,
-            //                 "funding_rate_timestamp":1653638400000,
-            //                 "next_funding_time":1653642000000
-            //             }
-            //         ),
-            //         "timestamp":1653640814885
-            //     }
-            //
-            $result = $this->safe_value($response, 'rows');
-            $rates = array();
-            for ($i = 0; $i < count($result); $i++) {
-                $entry = $result[$i];
-                $marketId = $this->safe_string($entry, 'symbol');
-                $timestamp = $this->safe_integer($entry, 'funding_rate_timestamp');
-                $rates[] = array(
-                    'info' => $entry,
-                    'symbol' => $this->safe_symbol($marketId),
-                    'fundingRate' => $this->safe_number($entry, 'funding_rate'),
-                    'timestamp' => $timestamp,
-                    'datetime' => $this->iso8601($timestamp),
-                );
-            }
-            $sorted = $this->sort_by($rates, 'timestamp');
-            return $this->filter_by_symbol_since_limit($sorted, $symbol, $since, $limit);
-        }) ();
-    }
-
     public function fetch_leverage($symbol, $params = array ()) {
         return Async\async(function () use ($symbol, $params) {
             Async\await($this->load_markets());
-            $response = Async\await($this->v3PrivateGetAccountinfo ($params));
-            //
-            //     {
-            //         "success" => true,
-            //         "data" => array(
-            //             "applicationId" => "dsa",
-            //             "account" => "dsa",
-            //             "alias" => "haha",
-            //             "accountMode" => "MARGIN",
-            //             "leverage" => 1,
-            //             "takerFeeRate" => 1,
-            //             "makerFeeRate" => 1,
-            //             "interestRate" => 1,
-            //             "futuresTakerFeeRate" => 1,
-            //             "futuresMakerFeeRate" => 1,
-            //             "otpauth" => true,
-            //             "marginRatio" => 1,
-            //             "openMarginRatio" => 1,
-            //             "initialMarginRatio" => 1,
-            //             "maintenanceMarginRatio" => 1,
-            //             "totalCollateral" => 1,
-            //             "freeCollateral" => 1,
-            //             "totalAccountValue" => 1,
-            //             "totalVaultValue" => 1,
-            //             "totalStakingValue" => 1
-            //         ),
-            //         "timestamp" => 1673323685109
-            //     }
-            //
+            $response = Async\await($this->v1PrivateGetAccountLeverageInfo ($params));
             $result = $this->safe_value($response, 'data');
             $leverage = $this->safe_number($result, 'leverage');
+            $marginMode = $this->safe_string($result, 'marginMode');
             return array(
                 'info' => $response,
                 'leverage' => $leverage,
+                'marginMode' => $marginMode,
             );
         }) ();
     }

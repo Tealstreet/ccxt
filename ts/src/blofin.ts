@@ -21,8 +21,8 @@ export default class blofin extends Exchange {
             'hostname': 'blofin.com',
             'has': {
                 'CORS': undefined,
-                'spot': true,
-                'margin': true,
+                'spot': false,
+                'margin': false,
                 'swap': true,
                 'future': false,
                 'option': false,
@@ -45,11 +45,11 @@ export default class blofin extends Exchange {
                 'fetchClosedOrders': false,
                 'fetchCurrencies': true,
                 'fetchDepositAddress': false,
-                'fetchDeposits': true,
-                'fetchFundingHistory': true,
-                'fetchFundingRate': true,
-                'fetchFundingRateHistory': true,
-                'fetchFundingRates': true,
+                'fetchDeposits': false,
+                'fetchFundingHistory': false,
+                'fetchFundingRate': false,
+                'fetchFundingRateHistory': false,
+                'fetchFundingRates': false,
                 'fetchIndexOHLCV': false,
                 'fetchLedger': true,
                 'fetchLeverage': true,
@@ -75,16 +75,16 @@ export default class blofin extends Exchange {
                 'fetchTime': false,
                 'fetchTrades': true,
                 'fetchTradingFee': false,
-                'fetchTradingFees': true,
-                'fetchTransactions': true,
-                'fetchTransfers': true,
-                'fetchWithdrawals': true,
+                'fetchTradingFees': false,
+                'fetchTransactions': false,
+                'fetchTransfers': false,
+                'fetchWithdrawals': false,
                 'reduceMargin': false,
-                'repayMargin': true,
+                'repayMargin': false,
                 'setLeverage': true,
                 'setMargin': false,
-                'transfer': true,
-                'withdraw': true, // exchange have that endpoint disabled atm, but was once implemented in ccxt per old docs: https://kronosresearch.github.io/wootrade-documents/#token-withdraw
+                'transfer': false,
+                'withdraw': false,
             },
             'timeframes': {
                 '1m': '1',
@@ -122,26 +122,27 @@ export default class blofin extends Exchange {
                     },
                     'private': {
                         'get': {
-                            'client/token': 1,
-                            'order/{oid}': 1,
-                            'client/order/{client_order_id}': 1,
-                            'orders': 1,
-                            'orderbook/{symbol}': 1,
-                            'client/trade/{tid}': 1,
-                            'order/{oid}/trades': 1,
-                            'client/trades': 1,
-                            'client/info': 60,
-                            'asset/deposit': 10,
-                            'asset/history': 60,
-                            'sub_account/all': 60,
-                            'sub_account/assets': 60,
-                            'token_interest': 60,
-                            'token_interest/{token}': 60,
-                            'interest/history': 60,
-                            'interest/repay': 60,
-                            'funding_fee/history': 30,
-                            'positions': 3.33, // 30 requests per 10 seconds
-                            'position/{symbol}': 3.33,
+                            'account/leverage-info': 1,
+                            // 'client/token': 1,
+                            // 'order/{oid}': 1,
+                            // 'client/order/{client_order_id}': 1,
+                            // 'orders': 1,
+                            // 'orderbook/{symbol}': 1,
+                            // 'client/trade/{tid}': 1,
+                            // 'order/{oid}/trades': 1,
+                            // 'client/trades': 1,
+                            // 'client/info': 60,
+                            // 'asset/deposit': 10,
+                            // 'asset/history': 60,
+                            // 'sub_account/all': 60,
+                            // 'sub_account/assets': 60,
+                            // 'token_interest': 60,
+                            // 'token_interest/{token}': 60,
+                            // 'interest/history': 60,
+                            // 'interest/repay': 60,
+                            // 'funding_fee/history': 30,
+                            // 'positions': 3.33, // 30 requests per 10 seconds
+                            // 'position/{symbol}': 3.33,
                         },
                         'post': {
                             'order': 5, // 2 requests per 1 second per symbol
@@ -242,7 +243,6 @@ export default class blofin extends Exchange {
     parseMarket (market) {
         const id = this.safeString (market, 'instId');
         const type = 'future';
-        const future = (type === 'future');
         const contract = true;
         const baseId = this.safeString (market, 'baseCurrency');
         const quoteId = this.safeString (market, 'quoteCurrency');
@@ -255,11 +255,7 @@ export default class blofin extends Exchange {
         let expiry = undefined;
         if (contract) {
             symbol = symbol + ':' + settle;
-            expiry = this.safeInteger (market, 'minSize');
-            if (future) {
-                const ymd = this.yymmdd (expiry);
-                symbol = symbol + '-' + ymd;
-            }
+            expiry = this.safeInteger (market, 'expireTime');
         }
         const tickSize = this.safeString (market, 'tickSize');
         const minAmountString = this.safeString (market, 'minSize');
@@ -551,63 +547,6 @@ export default class blofin extends Exchange {
             };
         }
         return fee;
-    }
-
-    async fetchTradingFees (params = {}) {
-        /**
-         * @method
-         * @name woo#fetchTradingFees
-         * @description fetch the trading fees for multiple markets
-         * @see https://docs.woo.org/#get-account-information-new
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a dictionary of [fee structures]{@link https://docs.ccxt.com/#/?id=fee-structure} indexed by market symbols
-         */
-        await this.loadMarkets ();
-        const response = await (this as any).v3PrivateGetAccountinfo (params);
-        //
-        //     {
-        //         "success": true,
-        //         "data": {
-        //             "applicationId": "dsa",
-        //             "account": "dsa",
-        //             "alias": "haha",
-        //             "accountMode": "MARGIN",
-        //             "leverage": 1,
-        //             "takerFeeRate": 1,
-        //             "makerFeeRate": 1,
-        //             "interestRate": 1,
-        //             "futuresTakerFeeRate": 1,
-        //             "futuresMakerFeeRate": 1,
-        //             "otpauth": true,
-        //             "marginRatio": 1,
-        //             "openMarginRatio": 1,
-        //             "initialMarginRatio": 1,
-        //             "maintenanceMarginRatio": 1,
-        //             "totalCollateral": 1,
-        //             "freeCollateral": 1,
-        //             "totalAccountValue": 1,
-        //             "totalVaultValue": 1,
-        //             "totalStakingValue": 1
-        //         },
-        //         "timestamp": 1673323685109
-        //     }
-        //
-        const data = this.safeValue (response, 'data', {});
-        const maker = this.safeString (data, 'makerFeeRate');
-        const taker = this.safeString (data, 'takerFeeRate');
-        const result = {};
-        for (let i = 0; i < this.symbols.length; i++) {
-            const symbol = this.symbols[i];
-            result[symbol] = {
-                'info': response,
-                'symbol': symbol,
-                'maker': this.parseNumber (Precise.stringDiv (maker, '10000')),
-                'taker': this.parseNumber (Precise.stringDiv (taker, '10000')),
-                'percentage': true,
-                'tierBased': true,
-            };
-        }
-        return result;
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -1534,151 +1473,6 @@ export default class blofin extends Exchange {
         return this.safeBalance (result);
     }
 
-    async fetchDepositAddress (code, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchDepositAddress
-         * @description fetch the deposit address for a currency associated with this account
-         * @param {string} code unified currency code
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} an [address structure]{@link https://docs.ccxt.com/#/?id=address-structure}
-         */
-        // this method is TODO because of networks unification
-        await this.loadMarkets ();
-        const currency = this.currency (code);
-        const networkCodeDefault = this.defaultNetworkCodeForCurrency (code);
-        const networkCode = this.safeString (params, 'network', networkCodeDefault);
-        params = this.omit (params, 'network');
-        const codeForExchange = networkCode + '_' + currency['code'];
-        const request = {
-            'token': codeForExchange,
-        };
-        const response = await (this as any).v1PrivateGetAssetDeposit (this.extend (request, params));
-        // {
-        //     success: true,
-        //     address: '3Jmtjx5544T4smrit9Eroe4PCrRkpDeKjP',
-        //     extra: ''
-        // }
-        const tag = this.safeString (response, 'extra');
-        const address = this.safeString (response, 'address');
-        this.checkAddress (address);
-        return {
-            'currency': code,
-            'address': address,
-            'tag': tag,
-            'network': networkCode,
-            'info': response,
-        };
-    }
-
-    async getAssetHistoryRows (code: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        await this.loadMarkets ();
-        const request = { };
-        let currency = undefined;
-        if (code !== undefined) {
-            currency = this.currency (code);
-            request['balance_token'] = currency['id'];
-        }
-        if (since !== undefined) {
-            request['start_t'] = since;
-        }
-        if (limit !== undefined) {
-            request['pageSize'] = limit;
-        }
-        const transactionType = this.safeString (params, 'type');
-        params = this.omit (params, 'type');
-        if (transactionType !== undefined) {
-            request['type'] = transactionType;
-        }
-        const response = await (this as any).v1PrivateGetAssetHistory (this.extend (request, params));
-        // {
-        //     rows: [
-        //       {
-        //         id: '22010508193900165',
-        //         token: 'TRON_USDT',
-        //         extra: '',
-        //         amount: '13.75848500',
-        //         status: 'COMPLETED',
-        //         account: null,
-        //         description: null,
-        //         user_id: '42222',
-        //         application_id: '6ad2b303-f354-45c0-8105-9f5f19d0e335',
-        //         external_id: '220105081900134',
-        //         target_address: 'TXnyFSnAYad3YCaqtwMw9jvXKkeU39NLnK',
-        //         source_address: 'TYDzsYUEpvnYmQk4zGP9sWWcTEd2MiAtW6',
-        //         type: 'BALANCE',
-        //         token_side: 'DEPOSIT',
-        //         tx_id: '35b0004022f6b3ad07f39a0b7af199f6b258c2c3e2c7cdc93c67efa74fd625ee',
-        //         fee_token: '',
-        //         fee_amount: '0.00000000',
-        //         created_time: '1641370779.442',
-        //         updated_time: '1641370779.465',
-        //         is_new_target_address: null,
-        //         confirmed_number: '29',
-        //         confirming_threshold: '27',
-        //         audit_tag: '1',
-        //         audit_result: '0',
-        //         balance_token: null, // TODO -write to support, that this seems broken. here should be the token id
-        //         network_name: null // TODO -write to support, that this seems broken. here should be the network id
-        //       }
-        //     ],
-        //     meta: { total: '1', records_per_page: '25', current_page: '1' },
-        //     success: true
-        // }
-        return [ currency, this.safeValue (response, 'rows', {}) ];
-    }
-
-    async fetchLedger (code: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchLedger
-         * @description fetch the history of changes, actions done by the user or operations that altered balance of the user
-         * @param {string|undefined} code unified currency code, default is undefined
-         * @param {int|undefined} since timestamp in ms of the earliest ledger entry, default is undefined
-         * @param {int|undefined} limit max number of ledger entrys to return, default is undefined
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a [ledger structure]{@link https://docs.ccxt.com/#/?id=ledger-structure}
-         */
-        const [ currency, rows ] = await this.getAssetHistoryRows (code, since, limit, params);
-        return this.parseLedger (rows, currency, since, limit, params);
-    }
-
-    parseLedgerEntry (item, currency = undefined) {
-        const networkizedCode = this.safeString (item, 'token');
-        const currencyDefined = this.getCurrencyFromChaincode (networkizedCode, currency);
-        const code = currencyDefined['code'];
-        const amount = this.safeNumber (item, 'amount');
-        const side = this.safeString (item, 'token_side');
-        const direction = (side === 'DEPOSIT') ? 'in' : 'out';
-        const timestamp = this.safeTimestamp (item, 'created_time');
-        const fee = this.parseTokenAndFeeTemp (item, 'fee_token', 'fee_amount');
-        return {
-            'id': this.safeString (item, 'id'),
-            'currency': code,
-            'account': this.safeString (item, 'account'),
-            'referenceAccount': undefined,
-            'referenceId': this.safeString (item, 'tx_id'),
-            'status': this.parseTransactionStatus (this.safeString (item, 'status')),
-            'amount': amount,
-            'before': undefined,
-            'after': undefined,
-            'fee': fee,
-            'direction': direction,
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'type': this.parseLedgerEntryType (this.safeString (item, 'type')),
-            'info': item,
-        };
-    }
-
-    parseLedgerEntryType (type) {
-        const types = {
-            'BALANCE': 'transaction', // Funds moved in/out wallet
-            'COLLATERAL': 'transfer', // Funds moved between portfolios
-        };
-        return this.safeString (types, type, type);
-    }
-
     getCurrencyFromChaincode (networkizedCode, currency) {
         if (currency !== undefined) {
             return currency;
@@ -1693,338 +1487,6 @@ export default class blofin extends Exchange {
             currency = this.safeCurrency (currencyId);
         }
         return currency;
-    }
-
-    async fetchDeposits (code: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchDeposits
-         * @description fetch all deposits made to an account
-         * @param {string|undefined} code unified currency code
-         * @param {int|undefined} since the earliest time in ms to fetch deposits for
-         * @param {int|undefined} limit the maximum number of deposits structures to retrieve
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {[object]} a list of [transaction structures]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        const request = {
-            'token_side': 'DEPOSIT',
-        };
-        return await this.fetchTransactions (code, since, limit, this.extend (request, params));
-    }
-
-    async fetchWithdrawals (code: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchWithdrawals
-         * @description fetch all withdrawals made from an account
-         * @param {string|undefined} code unified currency code
-         * @param {int|undefined} since the earliest time in ms to fetch withdrawals for
-         * @param {int|undefined} limit the maximum number of withdrawals structures to retrieve
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {[object]} a list of [transaction structures]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        const request = {
-            'token_side': 'WITHDRAW',
-        };
-        return await this.fetchTransactions (code, since, limit, this.extend (request, params));
-    }
-
-    async fetchTransactions (code: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchTransactions
-         * @description fetch history of deposits and withdrawals
-         * @param {string|undefined} code unified currency code for the currency of the transactions, default is undefined
-         * @param {int|undefined} since timestamp in ms of the earliest transaction, default is undefined
-         * @param {int|undefined} limit max number of transactions to return, default is undefined
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a list of [transaction structure]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        const request = {
-            'type': 'BALANCE',
-        };
-        const [ currency, rows ] = await this.getAssetHistoryRows (code, since, limit, this.extend (request, params));
-        //
-        //     {
-        //         "rows":[],
-        //         "meta":{
-        //             "total":0,
-        //             "records_per_page":25,
-        //             "current_page":1
-        //         },
-        //         "success":true
-        //     }
-        //
-        return this.parseTransactions (rows, currency, since, limit, params);
-    }
-
-    parseTransaction (transaction, currency = undefined) {
-        // example in fetchLedger
-        const networkizedCode = this.safeString (transaction, 'token');
-        const currencyDefined = this.getCurrencyFromChaincode (networkizedCode, currency);
-        const code = currencyDefined['code'];
-        let movementDirection = this.safeStringLower (transaction, 'token_side');
-        if (movementDirection === 'withdraw') {
-            movementDirection = 'withdrawal';
-        }
-        const fee = this.parseTokenAndFeeTemp (transaction, 'fee_token', 'fee_amount');
-        const addressTo = this.safeString (transaction, 'target_address');
-        const addressFrom = this.safeString (transaction, 'source_address');
-        const timestamp = this.safeTimestamp (transaction, 'created_time');
-        return {
-            'id': this.safeString2 (transaction, 'id', 'withdraw_id'),
-            'txid': this.safeString (transaction, 'tx_id'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'address': undefined,
-            'addressFrom': addressFrom,
-            'addressTo': addressTo,
-            'tag': this.safeString (transaction, 'extra'),
-            'type': movementDirection,
-            'amount': this.safeNumber (transaction, 'amount'),
-            'currency': code,
-            'status': this.parseTransactionStatus (this.safeString (transaction, 'status')),
-            'updated': this.safeTimestamp (transaction, 'updated_time'),
-            'fee': fee,
-            'info': transaction,
-        };
-    }
-
-    parseTransactionStatus (status) {
-        const statuses = {
-            'NEW': 'pending',
-            'CONFIRMING': 'pending',
-            'PROCESSING': 'pending',
-            'COMPLETED': 'ok',
-            'CANCELED': 'canceled',
-        };
-        return this.safeString (statuses, status, status);
-    }
-
-    async transfer (code, amount, fromAccount, toAccount, params = {}) {
-        /**
-         * @method
-         * @name woo#transfer
-         * @description transfer currency internally between wallets on the same account
-         * @param {string} code unified currency code
-         * @param {float} amount amount to transfer
-         * @param {string} fromAccount account to transfer from
-         * @param {string} toAccount account to transfer to
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a [transfer structure]{@link https://docs.ccxt.com/#/?id=transfer-structure}
-         */
-        await this.loadMarkets ();
-        const currency = this.currency (code);
-        const request = {
-            'token': currency['id'],
-            'amount': this.parseNumber (amount),
-            'from_application_id': fromAccount,
-            'to_application_id': toAccount,
-        };
-        const response = await (this as any).v1PrivatePostAssetMainSubTransfer (this.extend (request, params));
-        //
-        //     {
-        //         "success": true,
-        //         "id": 200
-        //     }
-        //
-        const transfer = this.parseTransfer (response, currency);
-        const transferOptions = this.safeValue (this.options, 'transfer', {});
-        const fillResponseFromRequest = this.safeValue (transferOptions, 'fillResponseFromRequest', true);
-        if (fillResponseFromRequest) {
-            transfer['amount'] = amount;
-            transfer['fromAccount'] = fromAccount;
-            transfer['toAccount'] = toAccount;
-        }
-        return transfer;
-    }
-
-    async fetchTransfers (code: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchTransfers
-         * @description fetch a history of internal transfers made on an account
-         * @param {string|undefined} code unified currency code of the currency transferred
-         * @param {int|undefined} since the earliest time in ms to fetch transfers for
-         * @param {int|undefined} limit the maximum number of  transfers structures to retrieve
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {[object]} a list of [transfer structures]{@link https://docs.ccxt.com/#/?id=transfer-structure}
-         */
-        const request = {
-            'type': 'COLLATERAL',
-        };
-        const [ currency, rows ] = await this.getAssetHistoryRows (code, since, limit, this.extend (request, params));
-        return this.parseTransfers (rows, currency, since, limit, params);
-    }
-
-    parseTransfer (transfer, currency = undefined) {
-        //
-        //    getAssetHistoryRows
-        //        {
-        //            "created_time": "1579399877.041",  // Unix epoch time in seconds
-        //            "updated_time": "1579399877.041",  // Unix epoch time in seconds
-        //            "id": "202029292829292",
-        //            "external_id": "202029292829292",
-        //            "application_id": null,
-        //            "token": "ETH",
-        //            "target_address": "0x31d64B3230f8baDD91dE1710A65DF536aF8f7cDa",
-        //            "source_address": "0x70fd25717f769c7f9a46b319f0f9103c0d887af0",
-        //            "extra": "",
-        //            "type": "BALANCE",
-        //            "token_side": "DEPOSIT",
-        //            "amount": 1000,
-        //            "tx_id": "0x8a74c517bc104c8ebad0c3c3f64b1f302ed5f8bca598ae4459c63419038106b6",
-        //            "fee_token": null,
-        //            "fee_amount": null,
-        //            "status": "CONFIRMING"
-        //        }
-        //
-        //    v1PrivatePostAssetMainSubTransfer
-        //        {
-        //            "success": true,
-        //            "id": 200
-        //        }
-        //
-        const networkizedCode = this.safeString (transfer, 'token');
-        const currencyDefined = this.getCurrencyFromChaincode (networkizedCode, currency);
-        const code = currencyDefined['code'];
-        let movementDirection = this.safeStringLower (transfer, 'token_side');
-        if (movementDirection === 'withdraw') {
-            movementDirection = 'withdrawal';
-        }
-        let fromAccount = undefined;
-        let toAccount = undefined;
-        if (movementDirection === 'withdraw') {
-            fromAccount = undefined;
-            toAccount = 'spot';
-        } else if (movementDirection === 'deposit') {
-            fromAccount = 'spot';
-            toAccount = undefined;
-        }
-        const timestamp = this.safeTimestamp (transfer, 'created_time');
-        const success = this.safeValue (transfer, 'success');
-        let status = undefined;
-        if (success !== undefined) {
-            status = success ? 'ok' : 'failed';
-        }
-        return {
-            'id': this.safeString (transfer, 'id'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'currency': code,
-            'amount': this.safeNumber (transfer, 'amount'),
-            'fromAccount': fromAccount,
-            'toAccount': toAccount,
-            'status': this.parseTransferStatus (this.safeString (transfer, 'status', status)),
-            'info': transfer,
-        };
-    }
-
-    parseTransferStatus (status) {
-        const statuses = {
-            'NEW': 'pending',
-            'CONFIRMING': 'pending',
-            'PROCESSING': 'pending',
-            'COMPLETED': 'ok',
-            'CANCELED': 'canceled',
-        };
-        return this.safeString (statuses, status, status);
-    }
-
-    async withdraw (code, amount, address, tag = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#withdraw
-         * @description make a withdrawal
-         * @param {string} code unified currency code
-         * @param {float} amount the amount to withdraw
-         * @param {string} address the address to withdraw to
-         * @param {string|undefined} tag
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a [transaction structure]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
-        await this.loadMarkets ();
-        this.checkAddress (address);
-        const currency = this.currency (code);
-        const request = {
-            'amount': amount,
-            'address': address,
-        };
-        if (tag !== undefined) {
-            request['extra'] = tag;
-        }
-        const networks = this.safeValue (this.options, 'networks', {});
-        const currencyNetworks = this.safeValue (currency, 'networks', {});
-        const network = this.safeStringUpper (params, 'network');
-        const networkId = this.safeString (networks, network, network);
-        const coinNetwork = this.safeValue (currencyNetworks, networkId, {});
-        const coinNetworkId = this.safeString (coinNetwork, 'id');
-        if (coinNetworkId === undefined) {
-            throw new BadRequest (this.id + ' withdraw() require network parameter');
-        }
-        request['token'] = coinNetworkId;
-        const response = await (this as any).v1PrivatePostAssetWithdraw (this.extend (request, params));
-        //
-        //     {
-        //         "success": true,
-        //         "withdraw_id": "20200119145703654"
-        //     }
-        //
-        return this.parseTransaction (response, currency);
-    }
-
-    async repayMargin (code, amount, symbol: string = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#repayMargin
-         * @description repay borrowed margin and interest
-         * @see https://docs.woo.org/#repay-interest
-         * @param {string} code unified currency code of the currency to repay
-         * @param {float} amount the amount to repay
-         * @param {string|undefined} symbol not used by woo.repayMargin ()
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a [margin loan structure]{@link https://docs.ccxt.com/#/?id=margin-loan-structure}
-         */
-        await this.loadMarkets ();
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market (symbol);
-            symbol = market['symbol'];
-        }
-        const currency = this.currency (code);
-        const request = {
-            'token': currency['id'], // interest token that you want to repay
-            'amount': this.currencyToPrecision (code, amount),
-        };
-        const response = await (this as any).v1PrivatePostInterestRepay (this.extend (request, params));
-        //
-        //     {
-        //         "success": true,
-        //     }
-        //
-        const transaction = this.parseMarginLoan (response, currency);
-        return this.extend (transaction, {
-            'amount': amount,
-            'symbol': symbol,
-        });
-    }
-
-    parseMarginLoan (info, currency = undefined) {
-        //
-        //     {
-        //         "success": true,
-        //     }
-        //
-        return {
-            'id': undefined,
-            'currency': this.safeCurrencyCode (undefined, currency),
-            'amount': undefined,
-            'symbol': undefined,
-            'timestamp': undefined,
-            'datetime': undefined,
-            'info': info,
-        };
     }
 
     nonce () {
@@ -2122,215 +1584,16 @@ export default class blofin extends Exchange {
         };
     }
 
-    async fetchFundingHistory (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        await this.loadMarkets ();
-        const request = {};
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market (symbol);
-            request['symbol'] = market['id'];
-        }
-        if (since !== undefined) {
-            request['start_t'] = since;
-        }
-        const response = await (this as any).v1PrivateGetFundingFeeHistory (this.extend (request, params));
-        //
-        //     {
-        //         "rows":[
-        //             {
-        //                 "id":666666,
-        //                 "symbol":"PERP_BTC_USDT",
-        //                 "funding_rate":0.00001198,
-        //                 "mark_price":28941.04000000,
-        //                 "funding_fee":0.00069343,
-        //                 "payment_type":"Pay",
-        //                 "status":"COMPLETED",
-        //                 "created_time":"1653616000.666",
-        //                 "updated_time":"1653616000.605"
-        //             }
-        //         ],
-        //         "meta":{
-        //             "total":235,
-        //             "records_per_page":25,
-        //             "current_page":1
-        //         },
-        //         "success":true
-        //     }
-        //
-        const result = this.safeValue (response, 'rows', []);
-        return this.parseIncomes (result, market, since, limit);
-    }
-
-    parseFundingRate (fundingRate, market = undefined) {
-        //
-        //         {
-        //             "symbol":"PERP_AAVE_USDT",
-        //             "est_funding_rate":-0.00003447,
-        //             "est_funding_rate_timestamp":1653633959001,
-        //             "last_funding_rate":-0.00002094,
-        //             "last_funding_rate_timestamp":1653631200000,
-        //             "next_funding_time":1653634800000
-        //         }
-        //
-        //
-        const symbol = this.safeString (fundingRate, 'symbol');
-        market = this.market (symbol);
-        const nextFundingTimestamp = this.safeInteger (fundingRate, 'next_funding_time');
-        const estFundingRateTimestamp = this.safeInteger (fundingRate, 'est_funding_rate_timestamp');
-        const lastFundingRateTimestamp = this.safeInteger (fundingRate, 'last_funding_rate_timestamp');
-        return {
-            'info': fundingRate,
-            'symbol': market['symbol'],
-            'markPrice': undefined,
-            'indexPrice': undefined,
-            'interestRate': this.parseNumber ('0'),
-            'estimatedSettlePrice': undefined,
-            'timestamp': estFundingRateTimestamp,
-            'datetime': this.iso8601 (estFundingRateTimestamp),
-            'fundingRate': this.safeNumber (fundingRate, 'est_funding_rate'),
-            'fundingTimestamp': nextFundingTimestamp,
-            'fundingDatetime': this.iso8601 (nextFundingTimestamp),
-            'nextFundingRate': undefined,
-            'nextFundingTimestamp': undefined,
-            'nextFundingDatetime': undefined,
-            'previousFundingRate': this.safeNumber (fundingRate, 'last_funding_rate'),
-            'previousFundingTimestamp': lastFundingRateTimestamp,
-            'previousFundingDatetime': this.iso8601 (lastFundingRateTimestamp),
-        };
-    }
-
-    async fetchFundingRate (symbol, params = {}) {
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'symbol': market['id'],
-        };
-        const response = await (this as any).v1PublicGetFundingRateSymbol (this.extend (request, params));
-        //
-        //     {
-        //         "success":true,
-        //         "timestamp":1653640572711,
-        //         "symbol":"PERP_BTC_USDT",
-        //         "est_funding_rate":0.00000738,
-        //         "est_funding_rate_timestamp":1653640559003,
-        //         "last_funding_rate":0.00000629,
-        //         "last_funding_rate_timestamp":1653638400000,
-        //         "next_funding_time":1653642000000
-        //     }
-        //
-        return this.parseFundingRate (response, market);
-    }
-
-    async fetchFundingRates (symbols: string[] = undefined, params = {}) {
-        await this.loadMarkets ();
-        symbols = this.marketSymbols (symbols);
-        const response = await (this as any).v1PublicGetFundingRates (params);
-        //
-        //     {
-        //         "success":true,
-        //         "rows":[
-        //             {
-        //                 "symbol":"PERP_AAVE_USDT",
-        //                 "est_funding_rate":-0.00003447,
-        //                 "est_funding_rate_timestamp":1653633959001,
-        //                 "last_funding_rate":-0.00002094,
-        //                 "last_funding_rate_timestamp":1653631200000,
-        //                 "next_funding_time":1653634800000
-        //             }
-        //         ],
-        //         "timestamp":1653633985646
-        //     }
-        //
-        const rows = this.safeValue (response, 'rows', {});
-        const result = this.parseFundingRates (rows);
-        return this.filterByArray (result, 'symbol', symbols);
-    }
-
-    async fetchFundingRateHistory (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        await this.loadMarkets ();
-        const request = {};
-        if (symbol !== undefined) {
-            const market = this.market (symbol);
-            symbol = market['symbol'];
-            request['symbol'] = market['id'];
-        }
-        if (since !== undefined) {
-            request['start_t'] = this.parseToInt (since / 1000);
-        }
-        const response = await (this as any).v1PublicGetFundingRateHistory (this.extend (request, params));
-        //
-        //     {
-        //         "success":true,
-        //         "meta":{
-        //             "total":2464,
-        //             "records_per_page":25,
-        //             "current_page":1
-        //         },
-        //         "rows":[
-        //             {
-        //                 "symbol":"PERP_BTC_USDT",
-        //                 "funding_rate":0.00000629,
-        //                 "funding_rate_timestamp":1653638400000,
-        //                 "next_funding_time":1653642000000
-        //             }
-        //         ],
-        //         "timestamp":1653640814885
-        //     }
-        //
-        const result = this.safeValue (response, 'rows');
-        const rates = [];
-        for (let i = 0; i < result.length; i++) {
-            const entry = result[i];
-            const marketId = this.safeString (entry, 'symbol');
-            const timestamp = this.safeInteger (entry, 'funding_rate_timestamp');
-            rates.push ({
-                'info': entry,
-                'symbol': this.safeSymbol (marketId),
-                'fundingRate': this.safeNumber (entry, 'funding_rate'),
-                'timestamp': timestamp,
-                'datetime': this.iso8601 (timestamp),
-            });
-        }
-        const sorted = this.sortBy (rates, 'timestamp');
-        return this.filterBySymbolSinceLimit (sorted, symbol, since, limit);
-    }
-
     async fetchLeverage (symbol, params = {}) {
         await this.loadMarkets ();
-        const response = await (this as any).v3PrivateGetAccountinfo (params);
-        //
-        //     {
-        //         "success": true,
-        //         "data": {
-        //             "applicationId": "dsa",
-        //             "account": "dsa",
-        //             "alias": "haha",
-        //             "accountMode": "MARGIN",
-        //             "leverage": 1,
-        //             "takerFeeRate": 1,
-        //             "makerFeeRate": 1,
-        //             "interestRate": 1,
-        //             "futuresTakerFeeRate": 1,
-        //             "futuresMakerFeeRate": 1,
-        //             "otpauth": true,
-        //             "marginRatio": 1,
-        //             "openMarginRatio": 1,
-        //             "initialMarginRatio": 1,
-        //             "maintenanceMarginRatio": 1,
-        //             "totalCollateral": 1,
-        //             "freeCollateral": 1,
-        //             "totalAccountValue": 1,
-        //             "totalVaultValue": 1,
-        //             "totalStakingValue": 1
-        //         },
-        //         "timestamp": 1673323685109
-        //     }
-        //
+        const response = await (this as any).v1PrivateGetAccountLeverageInfo (params);
         const result = this.safeValue (response, 'data');
         const leverage = this.safeNumber (result, 'leverage');
+        const marginMode = this.safeString (result, 'marginMode');
         return {
             'info': response,
             'leverage': leverage,
+            'marginMode': marginMode,
         };
     }
 
