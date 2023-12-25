@@ -20,7 +20,7 @@ class blofin extends \ccxt\async\blofin {
                 'watchMyTrades' => false,
                 'watchOHLCV' => true,
                 'watchOrderBook' => true,
-                'watchOrders' => true,
+                'watchOrders' => false,
                 'watchTicker' => true,
                 'watchTickers' => true,
                 'watchTrades' => true,
@@ -45,6 +45,9 @@ class blofin extends \ccxt\async\blofin {
                 'uid' => true,
             ),
             'options' => array(
+                'watchOrderBook' => array(
+                    'depth' => 'books',
+                ),
                 'tradesLimit' => 1000,
                 'ordersLimit' => 1000,
                 'requestId' => array(),
@@ -64,8 +67,8 @@ class blofin extends \ccxt\async\blofin {
         return $newValue;
     }
 
-    public function subscribe($access, $channel, $symbol, $params = array ()) {
-        return Async\async(function () use ($access, $channel, $symbol, $params) {
+    public function subscribe($access, $channel, $symbol, $params = array (), $shouldThrottle = true) {
+        return Async\async(function () use ($access, $channel, $symbol, $params, $shouldThrottle) {
             Async\await($this->load_markets());
             $url = $this->urls['api']['ws'][$access];
             $messageHash = $channel;
@@ -79,11 +82,9 @@ class blofin extends \ccxt\async\blofin {
             }
             $request = array(
                 'op' => 'subscribe',
-                'args' => array(
-                    $this->deep_extend($firstArgument, $params),
-                ),
+                'args' => array( $firstArgument ),
             );
-            return Async\await($this->watch($url, $messageHash, $request, $messageHash));
+            return Async\await($this->watch($url, $messageHash, $this->deep_extend($request, $params), $messageHash, $shouldThrottle));
         }) ();
     }
 
@@ -188,43 +189,14 @@ class blofin extends \ccxt\async\blofin {
 
     public function watch_order_book($symbol, $limit = null, $params = array ()) {
         return Async\async(function () use ($symbol, $limit, $params) {
-            /**
-             * watches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
-             * @param {string} $symbol unified $symbol of the market to fetch the order book for
-             * @param {int|null} $limit the maximum amount of order book entries to return
-             * @param {array} $params extra parameters specific to the okx api endpoint
-             * @return {array} A dictionary of ~@link https://docs.ccxt.com/#/?id=order-book-structure order book structures~ indexed by market symbols
-             */
             $options = $this->safe_value($this->options, 'watchOrderBook', array());
-            //
-            // bbo-tbt
-            // 1. Newly added channel that sends tick-by-tick Level 1 data
-            // 2. All API users can subscribe
-            // 3. Public $depth channel, verification not required
-            //
-            // books-l2-tbt
-            // 1. Only users who're VIP5 and above can subscribe
-            // 2. Identity verification required before subscription
-            //
-            // books50-l2-tbt
-            // 1. Only users who're VIP4 and above can subscribe
-            // 2. Identity verification required before subscription
-            //
-            // books
-            // 1. All API users can subscribe
-            // 2. Public $depth channel, verification not required
-            //
-            // books5
-            // 1. All API users can subscribe
-            // 2. Public $depth channel, verification not required
-            // 3. Data feeds will be delivered every 100ms (vs. every 200ms now)
-            //
-            $depth = $this->safe_string($options, 'depth', 'books');
-            if (($depth === 'books-l2-tbt') || ($depth === 'books50-l2-tbt')) {
-                Async\await($this->authenticate(array( 'access' => 'public' )));
-            }
-            $orderbook = Async\await($this->subscribe('public', $depth, $symbol, $params));
-            return $orderbook->limit ();
+            // books, 400 $depth levels will be pushed in the initial full snapshot. Incremental data will be pushed every 100 ms when there is change in order book.
+            // books5, 5 $depth levels will be pushed every time. Data will be pushed every 100 ms when there is change in order book.
+            // books50-l2-tbt, 50 $depth levels will be pushed in the initial full snapshot. Incremental data will be pushed tick by tick, i.e. whenever there is change in order book.
+            // books-l2-tbt, 400 $depth levels will be pushed in the initial full snapshot. Incremental data will be pushed tick by tick, i.e. whenever there is change in order book.
+            $depth = $this->safe_string($options, 'depth', 'books-l2-tbt');
+            $orderbook = Async\await($this->subscribe('public', $depth, $symbol, $params, false));
+            return $orderbook->limit ($limit);
         }) ();
     }
 
@@ -262,13 +234,13 @@ class blofin extends \ccxt\async\blofin {
                     $payloadArray[] = $this->number_to_string($storedAsks[$i][1]);
                 }
             }
-            $payload = implode(':', $payloadArray);
-            $responseChecksum = $this->safe_integer($message, 'checksum');
-            $localChecksum = $this->crc32($payload, true);
-            if ($responseChecksum !== $localChecksum) {
-                $error = new InvalidNonce ($this->id . ' invalid checksum');
-                $client->reject ($error, $messageHash);
-            }
+            // $payload = implode(':', $payloadArray);
+            // $responseChecksum = $this->safe_integer($message, 'checksum');
+            // $localChecksum = $this->crc32($payload, true);
+            // if ($responseChecksum !== $localChecksum) {
+            //     $error = new InvalidNonce ($this->id . ' invalid checksum');
+            //     $client->reject ($error, $messageHash);
+            // }
         }
         $timestamp = $this->safe_integer($message, 'ts');
         $orderbook['timestamp'] = $timestamp;
@@ -294,37 +266,34 @@ class blofin extends \ccxt\async\blofin {
         $limit = $this->safe_integer($depths, $channel);
         $messageHash = $channel . ':' . $marketId;
         if ($action === 'snapshot') {
-            for ($i = 0; $i < count($data); $i++) {
-                $update = $data[$i];
-                $orderbook = $this->order_book(array(), $limit);
-                $this->orderbooks[$symbol] = $orderbook;
-                $orderbook['symbol'] = $symbol;
-                $this->handle_order_book_message($client, $update, $orderbook, $messageHash);
-                $client->resolve ($orderbook, $messageHash);
-            }
+            $update = $data;
+            $orderbook = $this->order_book(array(), $limit);
+            $this->orderbooks[$symbol] = $orderbook;
+            $orderbook['symbol'] = $symbol;
+            $this->handle_order_book_message($client, $update, $orderbook, $messageHash);
+            $client->resolve ($orderbook, $messageHash);
         } elseif ($action === 'update') {
             if (is_array($this->orderbooks) && array_key_exists($symbol, $this->orderbooks)) {
                 $orderbook = $this->orderbooks[$symbol];
-                for ($i = 0; $i < count($data); $i++) {
-                    $update = $data[$i];
-                    $this->handle_order_book_message($client, $update, $orderbook, $messageHash);
-                    $client->resolve ($orderbook, $messageHash);
-                }
-            }
-        } elseif (($channel === 'books5') || ($channel === 'bbo-tbt')) {
-            $orderbook = $this->safe_value($this->orderbooks, $symbol);
-            if ($orderbook === null) {
-                $orderbook = $this->order_book(array(), $limit);
-            }
-            $this->orderbooks[$symbol] = $orderbook;
-            for ($i = 0; $i < count($data); $i++) {
-                $update = $data[$i];
-                $timestamp = $this->safe_integer($update, 'ts');
-                $snapshot = $this->parse_order_book($update, $symbol, $timestamp, 'bids', 'asks', 0, 1);
-                $orderbook->reset ($snapshot);
+                $update = $data;
+                $this->handle_order_book_message($client, $update, $orderbook, $messageHash);
                 $client->resolve ($orderbook, $messageHash);
             }
         }
+        //  else if (($channel === 'books5') || ($channel === 'bbo-tbt')) {
+        //     $orderbook = $this->safe_value($this->orderbooks, $symbol);
+        //     if ($orderbook === null) {
+        //         $orderbook = $this->order_book(array(), $limit);
+        //     }
+        //     $this->orderbooks[$symbol] = $orderbook;
+        //     for ($i = 0; $i < count($data); $i++) {
+        //         $update = $data[$i];
+        //         $timestamp = $this->safe_integer($update, 'ts');
+        //         $snapshot = $this->parse_order_book($update, $symbol, $timestamp, 'bids', 'asks', 0, 1);
+        //         $orderbook->reset ($snapshot);
+        //         $client->resolve ($orderbook, $messageHash);
+        //     }
+        // }
         return $message;
     }
 
@@ -523,7 +492,6 @@ class blofin extends \ccxt\async\blofin {
         // $table = $this->safe_string($message, 'table');
         // if ($table === null) {
         $arg = $this->safe_value($message, 'arg', array());
-        var_dump($message);
         $channel = $this->safe_string($arg, 'channel');
         $methods = array(
             'bbo-tbt' => array($this, 'handle_order_book'), // newly added $channel that sends tick-by-tick Level 1 data, all API users can subscribe, public depth $channel, verification not required
@@ -536,7 +504,7 @@ class blofin extends \ccxt\async\blofin {
         );
         $method = $this->safe_value($methods, $channel);
         if ($method === null) {
-            if (mb_strpos($channel, 'candle') === 0) {
+            if (mb_strpos($channel?, 'candle') === 0) {
                 $this->handle_ohlcv($client, $message);
             } else {
                 return $message;

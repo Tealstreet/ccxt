@@ -348,7 +348,7 @@ export default class blofin extends Exchange {
         const last = this.safeString (ticker, 'last');
         const open = this.safeString (ticker, 'open24h');
         const spot = this.safeValue (market, 'spot', false);
-        const quoteVolume = spot ? this.safeString (ticker, 'volCcy24h') : undefined;
+        const quoteVolume = spot ? this.safeString (ticker, 'volCurrency24h') : undefined;
         const baseVolume = this.safeString (ticker, 'vol24h');
         const high = this.safeString (ticker, 'high24h');
         const low = this.safeString (ticker, 'low24h');
@@ -358,10 +358,10 @@ export default class blofin extends Exchange {
             'datetime': this.iso8601 (timestamp),
             'high': high,
             'low': low,
-            'bid': this.safeString (ticker, 'bidPx'),
-            'bidVolume': this.safeString (ticker, 'bidSz'),
-            'ask': this.safeString (ticker, 'askPx'),
-            'askVolume': this.safeString (ticker, 'askSz'),
+            'bid': this.safeString (ticker, 'bidPrice'),
+            'bidVolume': this.safeString (ticker, 'bidSize'),
+            'ask': this.safeString (ticker, 'askPrice'),
+            'askVolume': this.safeString (ticker, 'askSize'),
             'vwap': undefined,
             'open': open,
             'close': last,
@@ -481,63 +481,80 @@ export default class blofin extends Exchange {
 
     parseTrade (trade, market = undefined) {
         //
-        // public/market_trades
+        // public fetchTrades
         //
         //     {
-        //         symbol: "SPOT_BTC_USDT",
-        //         side: "SELL",
-        //         executed_price: 46222.35,
-        //         executed_quantity: 0.0012,
-        //         executed_timestamp: "1641241162.329"
+        //         "instId": "ETH-BTC",
+        //         "side": "sell",
+        //         "sz": "0.119501",
+        //         "px": "0.07065",
+        //         "tradeId": "15826757",
+        //         "ts": "1621446178316"
         //     }
         //
-        // fetchOrderTrades, fetchOrder
+        // private fetchMyTrades
         //
         //     {
-        //         id: '99119876',
-        //         symbol: 'SPOT_WOO_USDT',
-        //         fee: '0.0024',
-        //         side: 'BUY',
-        //         executed_timestamp: '1641481113.084',
-        //         order_id: '87001234',
-        //         order_tag: 'default', <-- this param only in "fetchOrderTrades"
-        //         executed_price: '1',
-        //         executed_quantity: '12',
-        //         fee_asset: 'WOO',
-        //         is_maker: '1'
+        //         "side": "buy",
+        //         "fillSz": "0.007533",
+        //         "fillPx": "2654.98",
+        //         "fee": "-0.000007533",
+        //         "ordId": "317321390244397056",
+        //         "instType": "SPOT",
+        //         "instId": "ETH-USDT",
+        //         "clOrdId": "",
+        //         "posSide": "net",
+        //         "billId": "317321390265368576",
+        //         "tag": "0",
+        //         "execType": "T",
+        //         "tradeId": "107601752",
+        //         "feeCcy": "ETH",
+        //         "ts": "1621927314985"
         //     }
         //
-        const isFromFetchOrder = ('id' in trade);
-        const timestamp = this.safeTimestamp (trade, 'executed_timestamp');
-        const marketId = this.safeString (trade, 'symbol');
-        market = this.safeMarket (marketId, market);
+        const id = this.safeString (trade, 'tradeId');
+        const marketId = this.safeString (trade, 'instId');
+        market = this.safeMarket (marketId, market, '-');
         const symbol = market['symbol'];
-        const price = this.safeString (trade, 'executed_price');
-        const amount = this.safeString (trade, 'executed_quantity');
-        const order_id = this.safeString (trade, 'order_id');
-        const fee = this.parseTokenAndFeeTemp (trade, 'fee_asset', 'fee');
-        const cost = Precise.stringMul (price, amount);
-        const side = this.safeStringLower (trade, 'side');
-        const id = this.safeString (trade, 'id');
-        let takerOrMaker = undefined;
-        if (isFromFetchOrder) {
-            const isMaker = this.safeString (trade, 'is_maker') === '1';
-            takerOrMaker = isMaker ? 'maker' : 'taker';
+        const timestamp = this.safeInteger (trade, 'ts');
+        const price = this.safeString2 (trade, 'fillPx', 'price');
+        const amount = this.safeString2 (trade, 'fillSz', 'size');
+        const side = this.safeString (trade, 'side');
+        const orderId = this.safeString (trade, 'ordId');
+        const feeCostString = this.safeString (trade, 'fee');
+        let fee = undefined;
+        if (feeCostString !== undefined) {
+            const feeCostSigned = Precise.stringNeg (feeCostString);
+            const feeCurrencyId = this.safeString (trade, 'feeCurrency');
+            let feeCurrencyCode = this.safeCurrencyCode (feeCurrencyId);
+            if (feeCurrencyCode === undefined) {
+                feeCurrencyCode = 'USDT';
+            }
+            fee = {
+                'cost': feeCostSigned,
+                'currency': feeCurrencyCode,
+            };
+        }
+        let takerOrMaker = this.safeString (trade, 'execType');
+        if (takerOrMaker === 'T') {
+            takerOrMaker = 'taker';
+        } else if (takerOrMaker === 'M') {
+            takerOrMaker = 'maker';
         }
         return this.safeTrade ({
-            'id': id,
+            'info': trade,
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'symbol': symbol,
+            'id': id,
+            'order': orderId,
+            'type': undefined,
+            'takerOrMaker': takerOrMaker,
             'side': side,
             'price': price,
             'amount': amount,
-            'cost': cost,
-            'order': order_id,
-            'takerOrMaker': takerOrMaker,
-            'type': undefined,
+            'cost': undefined,
             'fee': fee,
-            'info': trade,
         }, market);
     }
 

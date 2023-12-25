@@ -350,7 +350,7 @@ class blofin(Exchange):
         last = self.safe_string(ticker, 'last')
         open = self.safe_string(ticker, 'open24h')
         spot = self.safe_value(market, 'spot', False)
-        quoteVolume = self.safe_string(ticker, 'volCcy24h') if spot else None
+        quoteVolume = self.safe_string(ticker, 'volCurrency24h') if spot else None
         baseVolume = self.safe_string(ticker, 'vol24h')
         high = self.safe_string(ticker, 'high24h')
         low = self.safe_string(ticker, 'low24h')
@@ -360,10 +360,10 @@ class blofin(Exchange):
             'datetime': self.iso8601(timestamp),
             'high': high,
             'low': low,
-            'bid': self.safe_string(ticker, 'bidPx'),
-            'bidVolume': self.safe_string(ticker, 'bidSz'),
-            'ask': self.safe_string(ticker, 'askPx'),
-            'askVolume': self.safe_string(ticker, 'askSz'),
+            'bid': self.safe_string(ticker, 'bidPrice'),
+            'bidVolume': self.safe_string(ticker, 'bidSize'),
+            'ask': self.safe_string(ticker, 'askPrice'),
+            'askVolume': self.safe_string(ticker, 'askSize'),
             'vwap': None,
             'open': open,
             'close': last,
@@ -467,62 +467,77 @@ class blofin(Exchange):
 
     def parse_trade(self, trade, market=None):
         #
-        # public/market_trades
+        # public fetchTrades
         #
         #     {
-        #         symbol: "SPOT_BTC_USDT",
-        #         side: "SELL",
-        #         executed_price: 46222.35,
-        #         executed_quantity: 0.0012,
-        #         executed_timestamp: "1641241162.329"
+        #         "instId": "ETH-BTC",
+        #         "side": "sell",
+        #         "sz": "0.119501",
+        #         "px": "0.07065",
+        #         "tradeId": "15826757",
+        #         "ts": "1621446178316"
         #     }
         #
-        # fetchOrderTrades, fetchOrder
+        # private fetchMyTrades
         #
         #     {
-        #         id: '99119876',
-        #         symbol: 'SPOT_WOO_USDT',
-        #         fee: '0.0024',
-        #         side: 'BUY',
-        #         executed_timestamp: '1641481113.084',
-        #         order_id: '87001234',
-        #         order_tag: 'default', <-- self param only in "fetchOrderTrades"
-        #         executed_price: '1',
-        #         executed_quantity: '12',
-        #         fee_asset: 'WOO',
-        #         is_maker: '1'
+        #         "side": "buy",
+        #         "fillSz": "0.007533",
+        #         "fillPx": "2654.98",
+        #         "fee": "-0.000007533",
+        #         "ordId": "317321390244397056",
+        #         "instType": "SPOT",
+        #         "instId": "ETH-USDT",
+        #         "clOrdId": "",
+        #         "posSide": "net",
+        #         "billId": "317321390265368576",
+        #         "tag": "0",
+        #         "execType": "T",
+        #         "tradeId": "107601752",
+        #         "feeCcy": "ETH",
+        #         "ts": "1621927314985"
         #     }
         #
-        isFromFetchOrder = ('id' in trade)
-        timestamp = self.safe_timestamp(trade, 'executed_timestamp')
-        marketId = self.safe_string(trade, 'symbol')
-        market = self.safe_market(marketId, market)
+        id = self.safe_string(trade, 'tradeId')
+        marketId = self.safe_string(trade, 'instId')
+        market = self.safe_market(marketId, market, '-')
         symbol = market['symbol']
-        price = self.safe_string(trade, 'executed_price')
-        amount = self.safe_string(trade, 'executed_quantity')
-        order_id = self.safe_string(trade, 'order_id')
-        fee = self.parse_token_and_fee_temp(trade, 'fee_asset', 'fee')
-        cost = Precise.string_mul(price, amount)
-        side = self.safe_string_lower(trade, 'side')
-        id = self.safe_string(trade, 'id')
-        takerOrMaker = None
-        if isFromFetchOrder:
-            isMaker = self.safe_string(trade, 'is_maker') == '1'
-            takerOrMaker = 'maker' if isMaker else 'taker'
+        timestamp = self.safe_integer(trade, 'ts')
+        price = self.safe_string_2(trade, 'fillPx', 'price')
+        amount = self.safe_string_2(trade, 'fillSz', 'size')
+        side = self.safe_string(trade, 'side')
+        orderId = self.safe_string(trade, 'ordId')
+        feeCostString = self.safe_string(trade, 'fee')
+        fee = None
+        if feeCostString is not None:
+            feeCostSigned = Precise.string_neg(feeCostString)
+            feeCurrencyId = self.safe_string(trade, 'feeCurrency')
+            feeCurrencyCode = self.safe_currency_code(feeCurrencyId)
+            if feeCurrencyCode is None:
+                feeCurrencyCode = 'USDT'
+            fee = {
+                'cost': feeCostSigned,
+                'currency': feeCurrencyCode,
+            }
+        takerOrMaker = self.safe_string(trade, 'execType')
+        if takerOrMaker == 'T':
+            takerOrMaker = 'taker'
+        elif takerOrMaker == 'M':
+            takerOrMaker = 'maker'
         return self.safe_trade({
-            'id': id,
+            'info': trade,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'symbol': symbol,
+            'id': id,
+            'order': orderId,
+            'type': None,
+            'takerOrMaker': takerOrMaker,
             'side': side,
             'price': price,
             'amount': amount,
-            'cost': cost,
-            'order': order_id,
-            'takerOrMaker': takerOrMaker,
-            'type': None,
+            'cost': None,
             'fee': fee,
-            'info': trade,
         }, market)
 
     def parse_token_and_fee_temp(self, item, feeTokenKey, feeAmountKey):

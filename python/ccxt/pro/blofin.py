@@ -20,7 +20,7 @@ class blofin(ccxt.async_support.blofin):
                 'watchMyTrades': False,
                 'watchOHLCV': True,
                 'watchOrderBook': True,
-                'watchOrders': True,
+                'watchOrders': False,
                 'watchTicker': True,
                 'watchTickers': True,
                 'watchTrades': True,
@@ -45,6 +45,9 @@ class blofin(ccxt.async_support.blofin):
                 'uid': True,
             },
             'options': {
+                'watchOrderBook': {
+                    'depth': 'books',
+                },
                 'tradesLimit': 1000,
                 'ordersLimit': 1000,
                 'requestId': {},
@@ -62,7 +65,7 @@ class blofin(ccxt.async_support.blofin):
         self.options['requestId'][url] = newValue
         return newValue
 
-    async def subscribe(self, access, channel, symbol, params={}):
+    async def subscribe(self, access, channel, symbol, params={}, shouldThrottle=True):
         await self.load_markets()
         url = self.urls['api']['ws'][access]
         messageHash = channel
@@ -75,11 +78,9 @@ class blofin(ccxt.async_support.blofin):
             firstArgument['instId'] = market['id']
         request = {
             'op': 'subscribe',
-            'args': [
-                self.deep_extend(firstArgument, params),
-            ],
+            'args': [firstArgument],
         }
-        return await self.watch(url, messageHash, request, messageHash)
+        return await self.watch(url, messageHash, self.deep_extend(request, params), messageHash, shouldThrottle)
 
     async def watch_trades(self, symbol, since=None, limit=None, params={}):
         await self.load_markets()
@@ -162,42 +163,14 @@ class blofin(ccxt.async_support.blofin):
             client.resolve(stored, messageHash)
 
     async def watch_order_book(self, symbol, limit=None, params={}):
-        """
-        watches information on open orders with bid(buy) and ask(sell) prices, volumes and other data
-        :param str symbol: unified symbol of the market to fetch the order book for
-        :param int|None limit: the maximum amount of order book entries to return
-        :param dict params: extra parameters specific to the okx api endpoint
-        :returns dict: A dictionary of `order book structures <https://docs.ccxt.com/#/?id=order-book-structure>` indexed by market symbols
-        """
         options = self.safe_value(self.options, 'watchOrderBook', {})
-        #
-        # bbo-tbt
-        # 1. Newly added channel that sends tick-by-tick Level 1 data
-        # 2. All API users can subscribe
-        # 3. Public depth channel, verification not required
-        #
-        # books-l2-tbt
-        # 1. Only users who're VIP5 and above can subscribe
-        # 2. Identity verification required before subscription
-        #
-        # books50-l2-tbt
-        # 1. Only users who're VIP4 and above can subscribe
-        # 2. Identity verification required before subscription
-        #
-        # books
-        # 1. All API users can subscribe
-        # 2. Public depth channel, verification not required
-        #
-        # books5
-        # 1. All API users can subscribe
-        # 2. Public depth channel, verification not required
-        # 3. Data feeds will be delivered every 100ms(vs. every 200ms now)
-        #
-        depth = self.safe_string(options, 'depth', 'books')
-        if (depth == 'books-l2-tbt') or (depth == 'books50-l2-tbt'):
-            await self.authenticate({'access': 'public'})
-        orderbook = await self.subscribe('public', depth, symbol, params)
-        return orderbook.limit()
+        # books, 400 depth levels will be pushed in the initial full snapshot. Incremental data will be pushed every 100 ms when there is change in order book.
+        # books5, 5 depth levels will be pushed every time. Data will be pushed every 100 ms when there is change in order book.
+        # books50-l2-tbt, 50 depth levels will be pushed in the initial full snapshot. Incremental data will be pushed tick by tick, i.e. whenever there is change in order book.
+        # books-l2-tbt, 400 depth levels will be pushed in the initial full snapshot. Incremental data will be pushed tick by tick, i.e. whenever there is change in order book.
+        depth = self.safe_string(options, 'depth', 'books-l2-tbt')
+        orderbook = await self.subscribe('public', depth, symbol, params, False)
+        return orderbook.limit(limit)
 
     def handle_delta(self, bookside, delta):
         price = self.safe_float(delta, 0)
@@ -227,12 +200,13 @@ class blofin(ccxt.async_support.blofin):
                 if i < asksLength:
                     payloadArray.append(self.number_to_string(storedAsks[i][0]))
                     payloadArray.append(self.number_to_string(storedAsks[i][1]))
-            payload = ':'.join(payloadArray)
-            responseChecksum = self.safe_integer(message, 'checksum')
-            localChecksum = self.crc32(payload, True)
-            if responseChecksum != localChecksum:
-                error = InvalidNonce(self.id + ' invalid checksum')
-                client.reject(error, messageHash)
+            # payload = ':'.join(payloadArray)
+            # responseChecksum = self.safe_integer(message, 'checksum')
+            # localChecksum = self.crc32(payload, True)
+            # if responseChecksum != localChecksum:
+            #     error = InvalidNonce(self.id + ' invalid checksum')
+            #     client.reject(error, messageHash)
+            # }
         timestamp = self.safe_integer(message, 'ts')
         orderbook['timestamp'] = timestamp
         orderbook['datetime'] = self.iso8601(timestamp)
@@ -242,7 +216,7 @@ class blofin(ccxt.async_support.blofin):
         arg = self.safe_value(message, 'arg', {})
         channel = self.safe_string(arg, 'channel')
         action = self.safe_string(message, 'action')
-        data = self.safe_value(message, 'data', [])
+        data = self.safe_value(message, 'data', {})
         marketId = self.safe_string(arg, 'instId')
         market = self.safe_market(marketId)
         symbol = market['symbol']
@@ -256,31 +230,32 @@ class blofin(ccxt.async_support.blofin):
         limit = self.safe_integer(depths, channel)
         messageHash = channel + ':' + marketId
         if action == 'snapshot':
-            for i in range(0, len(data)):
-                update = data[i]
-                orderbook = self.order_book({}, limit)
-                self.orderbooks[symbol] = orderbook
-                orderbook['symbol'] = symbol
-                self.handle_order_book_message(client, update, orderbook, messageHash)
-                client.resolve(orderbook, messageHash)
+            update = data
+            orderbook = self.order_book({}, limit)
+            self.orderbooks[symbol] = orderbook
+            orderbook['symbol'] = symbol
+            self.handle_order_book_message(client, update, orderbook, messageHash)
+            client.resolve(orderbook, messageHash)
         elif action == 'update':
             if symbol in self.orderbooks:
                 orderbook = self.orderbooks[symbol]
-                for i in range(0, len(data)):
-                    update = data[i]
-                    self.handle_order_book_message(client, update, orderbook, messageHash)
-                    client.resolve(orderbook, messageHash)
-        elif (channel == 'books5') or (channel == 'bbo-tbt'):
-            orderbook = self.safe_value(self.orderbooks, symbol)
-            if orderbook is None:
-                orderbook = self.order_book({}, limit)
-            self.orderbooks[symbol] = orderbook
-            for i in range(0, len(data)):
-                update = data[i]
-                timestamp = self.safe_integer(update, 'ts')
-                snapshot = self.parse_order_book(update, symbol, timestamp, 'bids', 'asks', 0, 1)
-                orderbook.reset(snapshot)
+                update = data
+                self.handle_order_book_message(client, update, orderbook, messageHash)
                 client.resolve(orderbook, messageHash)
+        #  elif (channel == 'books5') or (channel == 'bbo-tbt'):
+        #     orderbook = self.safe_value(self.orderbooks, symbol)
+        #     if orderbook is None:
+        #         orderbook = self.order_book({}, limit)
+        #     }
+        #     self.orderbooks[symbol] = orderbook
+        #     for i in range(0, len(data)):
+        #         update = data[i]
+        #         timestamp = self.safe_integer(update, 'ts')
+        #         snapshot = self.parse_order_book(update, symbol, timestamp, 'bids', 'asks', 0, 1)
+        #         orderbook.reset(snapshot)
+        #         client.resolve(orderbook, messageHash)
+        #     }
+        # }
         return message
 
     def check_required_uid(self):
@@ -457,7 +432,6 @@ class blofin(ccxt.async_support.blofin):
         # table = self.safe_string(message, 'table')
         # if table is None:
         arg = self.safe_value(message, 'arg', {})
-        console.log(message)
         channel = self.safe_string(arg, 'channel')
         methods = {
             'bbo-tbt': self.handle_order_book,  # newly added channel that sends tick-by-tick Level 1 data, all API users can subscribe, public depth channel, verification not required
@@ -470,7 +444,7 @@ class blofin(ccxt.async_support.blofin):
         }
         method = self.safe_value(methods, channel)
         if method is None:
-            if channel.find('candle') == 0:
+            if channel?.find('candle') == 0:
                 self.handle_ohlcv(client, message)
             else:
                 return message

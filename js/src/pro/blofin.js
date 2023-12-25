@@ -6,7 +6,7 @@
 
 // ----------------------------------------------------------------------------
 import blofinRest from '../blofin.js';
-import { AuthenticationError, InvalidNonce } from '../base/errors.js';
+import { AuthenticationError } from '../base/errors.js';
 import { ArrayCacheByTimestamp, ArrayCacheBySymbolById, ArrayCache } from '../base/ws/Cache.js';
 // ----------------------------------------------------------------------------
 export default class blofin extends blofinRest {
@@ -18,7 +18,7 @@ export default class blofin extends blofinRest {
                 'watchMyTrades': false,
                 'watchOHLCV': true,
                 'watchOrderBook': true,
-                'watchOrders': true,
+                'watchOrders': false,
                 'watchTicker': true,
                 'watchTickers': true,
                 'watchTrades': true,
@@ -43,6 +43,9 @@ export default class blofin extends blofinRest {
                 'uid': true,
             },
             'options': {
+                'watchOrderBook': {
+                    'depth': 'books',
+                },
                 'tradesLimit': 1000,
                 'ordersLimit': 1000,
                 'requestId': {},
@@ -60,7 +63,7 @@ export default class blofin extends blofinRest {
         this.options['requestId'][url] = newValue;
         return newValue;
     }
-    async subscribe(access, channel, symbol, params = {}) {
+    async subscribe(access, channel, symbol, params = {}, shouldThrottle = true) {
         await this.loadMarkets();
         const url = this.urls['api']['ws'][access];
         let messageHash = channel;
@@ -74,11 +77,9 @@ export default class blofin extends blofinRest {
         }
         const request = {
             'op': 'subscribe',
-            'args': [
-                this.deepExtend(firstArgument, params),
-            ],
+            'args': [firstArgument],
         };
-        return await this.watch(url, messageHash, request, messageHash);
+        return await this.watch(url, messageHash, this.deepExtend(request, params), messageHash, shouldThrottle);
     }
     async watchTrades(symbol, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
@@ -170,45 +171,14 @@ export default class blofin extends blofinRest {
         }
     }
     async watchOrderBook(symbol, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name okx#watchOrderBook
-         * @description watches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
-         * @param {string} symbol unified symbol of the market to fetch the order book for
-         * @param {int|undefined} limit the maximum amount of order book entries to return
-         * @param {object} params extra parameters specific to the okx api endpoint
-         * @returns {object} A dictionary of [order book structures]{@link https://docs.ccxt.com/#/?id=order-book-structure} indexed by market symbols
-         */
         const options = this.safeValue(this.options, 'watchOrderBook', {});
-        //
-        // bbo-tbt
-        // 1. Newly added channel that sends tick-by-tick Level 1 data
-        // 2. All API users can subscribe
-        // 3. Public depth channel, verification not required
-        //
-        // books-l2-tbt
-        // 1. Only users who're VIP5 and above can subscribe
-        // 2. Identity verification required before subscription
-        //
-        // books50-l2-tbt
-        // 1. Only users who're VIP4 and above can subscribe
-        // 2. Identity verification required before subscription
-        //
-        // books
-        // 1. All API users can subscribe
-        // 2. Public depth channel, verification not required
-        //
-        // books5
-        // 1. All API users can subscribe
-        // 2. Public depth channel, verification not required
-        // 3. Data feeds will be delivered every 100ms (vs. every 200ms now)
-        //
-        const depth = this.safeString(options, 'depth', 'books');
-        if ((depth === 'books-l2-tbt') || (depth === 'books50-l2-tbt')) {
-            await this.authenticate({ 'access': 'public' });
-        }
-        const orderbook = await this.subscribe('public', depth, symbol, params);
-        return orderbook.limit();
+        // books, 400 depth levels will be pushed in the initial full snapshot. Incremental data will be pushed every 100 ms when there is change in order book.
+        // books5, 5 depth levels will be pushed every time. Data will be pushed every 100 ms when there is change in order book.
+        // books50-l2-tbt, 50 depth levels will be pushed in the initial full snapshot. Incremental data will be pushed tick by tick, i.e. whenever there is change in order book.
+        // books-l2-tbt, 400 depth levels will be pushed in the initial full snapshot. Incremental data will be pushed tick by tick, i.e. whenever there is change in order book.
+        const depth = this.safeString(options, 'depth', 'books-l2-tbt');
+        const orderbook = await this.subscribe('public', depth, symbol, params, false);
+        return orderbook.limit(limit);
     }
     handleDelta(bookside, delta) {
         const price = this.safeFloat(delta, 0);
@@ -242,13 +212,13 @@ export default class blofin extends blofinRest {
                     payloadArray.push(this.numberToString(storedAsks[i][1]));
                 }
             }
-            const payload = payloadArray.join(':');
-            const responseChecksum = this.safeInteger(message, 'checksum');
-            const localChecksum = this.crc32(payload, true);
-            if (responseChecksum !== localChecksum) {
-                const error = new InvalidNonce(this.id + ' invalid checksum');
-                client.reject(error, messageHash);
-            }
+            // const payload = payloadArray.join (':');
+            // const responseChecksum = this.safeInteger (message, 'checksum');
+            // const localChecksum = this.crc32 (payload, true);
+            // if (responseChecksum !== localChecksum) {
+            //     const error = new InvalidNonce (this.id + ' invalid checksum');
+            //     client.reject (error, messageHash);
+            // }
         }
         const timestamp = this.safeInteger(message, 'ts');
         orderbook['timestamp'] = timestamp;
@@ -259,7 +229,7 @@ export default class blofin extends blofinRest {
         const arg = this.safeValue(message, 'arg', {});
         const channel = this.safeString(arg, 'channel');
         const action = this.safeString(message, 'action');
-        const data = this.safeValue(message, 'data', []);
+        const data = this.safeValue(message, 'data', {});
         const marketId = this.safeString(arg, 'instId');
         const market = this.safeMarket(marketId);
         const symbol = market['symbol'];
@@ -273,39 +243,35 @@ export default class blofin extends blofinRest {
         const limit = this.safeInteger(depths, channel);
         const messageHash = channel + ':' + marketId;
         if (action === 'snapshot') {
-            for (let i = 0; i < data.length; i++) {
-                const update = data[i];
-                const orderbook = this.orderBook({}, limit);
-                this.orderbooks[symbol] = orderbook;
-                orderbook['symbol'] = symbol;
-                this.handleOrderBookMessage(client, update, orderbook, messageHash);
-                client.resolve(orderbook, messageHash);
-            }
+            const update = data;
+            const orderbook = this.orderBook({}, limit);
+            this.orderbooks[symbol] = orderbook;
+            orderbook['symbol'] = symbol;
+            this.handleOrderBookMessage(client, update, orderbook, messageHash);
+            client.resolve(orderbook, messageHash);
         }
         else if (action === 'update') {
             if (symbol in this.orderbooks) {
                 const orderbook = this.orderbooks[symbol];
-                for (let i = 0; i < data.length; i++) {
-                    const update = data[i];
-                    this.handleOrderBookMessage(client, update, orderbook, messageHash);
-                    client.resolve(orderbook, messageHash);
-                }
-            }
-        }
-        else if ((channel === 'books5') || (channel === 'bbo-tbt')) {
-            let orderbook = this.safeValue(this.orderbooks, symbol);
-            if (orderbook === undefined) {
-                orderbook = this.orderBook({}, limit);
-            }
-            this.orderbooks[symbol] = orderbook;
-            for (let i = 0; i < data.length; i++) {
-                const update = data[i];
-                const timestamp = this.safeInteger(update, 'ts');
-                const snapshot = this.parseOrderBook(update, symbol, timestamp, 'bids', 'asks', 0, 1);
-                orderbook.reset(snapshot);
+                const update = data;
+                this.handleOrderBookMessage(client, update, orderbook, messageHash);
                 client.resolve(orderbook, messageHash);
             }
         }
+        //  else if ((channel === 'books5') || (channel === 'bbo-tbt')) {
+        //     let orderbook = this.safeValue (this.orderbooks, symbol);
+        //     if (orderbook === undefined) {
+        //         orderbook = this.orderBook ({}, limit);
+        //     }
+        //     this.orderbooks[symbol] = orderbook;
+        //     for (let i = 0; i < data.length; i++) {
+        //         const update = data[i];
+        //         const timestamp = this.safeInteger (update, 'ts');
+        //         const snapshot = this.parseOrderBook (update, symbol, timestamp, 'bids', 'asks', 0, 1);
+        //         orderbook.reset (snapshot);
+        //         client.resolve (orderbook, messageHash);
+        //     }
+        // }
         return message;
     }
     checkRequiredUid() {
@@ -492,7 +458,6 @@ export default class blofin extends blofinRest {
         // const table = this.safeString (message, 'table');
         // if (table === undefined) {
         const arg = this.safeValue(message, 'arg', {});
-        console.log(message);
         const channel = this.safeString(arg, 'channel');
         const methods = {
             'bbo-tbt': this.handleOrderBook,
@@ -505,7 +470,7 @@ export default class blofin extends blofinRest {
         };
         const method = this.safeValue(methods, channel);
         if (method === undefined) {
-            if (channel.indexOf('candle') === 0) {
+            if ((channel === null || channel === void 0 ? void 0 : channel.indexOf('candle')) === 0) {
                 this.handleOHLCV(client, message);
             }
             else {
