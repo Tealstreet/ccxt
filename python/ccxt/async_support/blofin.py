@@ -1627,83 +1627,111 @@ class blofin(Exchange):
         return self.filter_by_array(result, 'symbol', symbols, False)
 
     def parse_position(self, position, market=None):
+        #
+        #     {
+        #       "adl": "3",
+        #       "availPos": "1",
+        #       "avgPx": "34131.1",
+        #       "cTime": "1627227626502",
+        #       "ccy": "USDT",
+        #       "deltaBS": "",
+        #       "deltaPA": "",
+        #       "gammaBS": "",
+        #       "gammaPA": "",
+        #       "imr": "170.66093041794787",
+        #       "instId": "BTC-USDT-SWAP",
+        #       "instType": "SWAP",
+        #       "interest": "0",
+        #       "last": "34134.4",
+        #       "lever": "2",
+        #       "liab": "",
+        #       "liabCcy": "",
+        #       "liqPx": "12608.959083877446",
+        #       "margin": "",
+        #       "mgnMode": "cross",
+        #       "mgnRatio": "140.49930117599155",
+        #       "mmr": "1.3652874433435829",
+        #       "notionalUsd": "341.5130010779638",
+        #       "optVal": "",
+        #       "pos": "1",
+        #       "posCcy": "",
+        #       "posId": "339552508062380036",
+        #       "posSide": "long",
+        #       "thetaBS": "",
+        #       "thetaPA": "",
+        #       "tradeId": "98617799",
+        #       "uTime": "1627227626502",
+        #       "upl": "0.0108608358957281",
+        #       "uplRatio": "0.0000636418743944",
+        #       "vegaBS": "",
+        #       "vegaPA": ""
+        #     }
+        #
         marketId = self.safe_string(position, 'instId')
         market = self.safe_market(marketId, market)
         symbol = market['symbol']
-        pos = self.safe_string(position, 'positions')  # 'pos' field: One way mode: 0 if position is not open, 1 if open | Two way(hedge) mode: -1 if short, 1 if long, 0 if position is not open
-        contractsAbs = Precise.string_abs(pos)
-        side = self.safe_string(position, 'positionSide')
-        hedged = side != 'net'
-        contracts = self.parse_number(contractsAbs)
-        if market['margin']:
-            # margin position
-            if side == 'net':
-                # posCcy = self.safe_string(position, 'posCcy')
-                posCcy = 'USDT'
-                parsedCurrency = self.safe_currency_code(posCcy)
-                if parsedCurrency is not None:
-                    side = 'long' if (market['base'] == parsedCurrency) else 'short'
-            if side is None:
-                side = self.safe_string(position, 'direction')
-        else:
-            if pos is not None:
-                if side == 'net':
-                    if Precise.string_gt(pos, '0'):
-                        side = 'long'
-                    elif Precise.string_lt(pos, '0'):
-                        side = 'short'
-                    else:
-                        side = None
-        contractSize = self.safe_number(market, 'contractSize')
-        contractSizeString = self.number_to_string(contractSize)
-        markPriceString = self.safe_string(position, 'markPrice')
+        contractsString = self.safe_string(position, 'positions')
+        contracts = None
+        if contractsString is not None:
+            contracts = int(contractsString)
         notionalString = self.safe_string(position, 'notionalUsd')
-        if market['inverse']:
-            notionalString = Precise.string_div(Precise.string_mul(contractsAbs, contractSizeString), markPriceString)
         notional = self.parse_number(notionalString)
-        marginMode = self.safe_string(position, 'mgnMode')
+        marginType = self.safe_string(position, 'marginMode')
         initialMarginString = None
-        entryPriceString = self.safe_string(position, 'avgPx')
+        entryPriceString = self.safe_string(position, 'averagePrice')
         unrealizedPnlString = self.safe_string(position, 'unrealizedPnl')
-        leverageString = self.safe_string(position, 'leverage')
-        initialMarginPercentage = None
-        collateralString = None
-        if marginMode == 'cross':
+        if marginType == 'cross':
             initialMarginString = self.safe_string(position, 'initialMargin')
-            collateralString = Precise.string_add(initialMarginString, unrealizedPnlString)
-        elif marginMode == 'isolated':
-            initialMarginPercentage = Precise.string_div('1', leverageString)
-            collateralString = self.safe_string(position, 'margin')
+        #  else {
+        #     # initialMarginString = self.safe_string(position, 'margin')
+        # }
         maintenanceMarginString = self.safe_string(position, 'maintenanceMargin')
         maintenanceMargin = self.parse_number(maintenanceMarginString)
-        maintenanceMarginPercentageString = Precise.string_div(maintenanceMarginString, notionalString)
-        if initialMarginPercentage is None:
-            initialMarginPercentage = self.parse_number(Precise.string_div(initialMarginString, notionalString, 4))
-        elif initialMarginString is None:
-            initialMarginString = Precise.string_mul(initialMarginPercentage, notionalString)
+        initialMarginPercentage = None
+        maintenanceMarginPercentage = None
+        if market['inverse']:
+            notionalValue = Precise.string_div(
+                Precise.string_mul(contractsString, market['contractSize']),
+                entryPriceString
+            )
+            maintenanceMarginPercentage = Precise.string_div(maintenanceMarginString, notionalValue)
+            initialMarginPercentage = self.parse_number(
+                Precise.string_div(initialMarginString, notionalValue, 4)
+            )
+        else:
+            maintenanceMarginPercentage = Precise.string_div(maintenanceMarginString, notionalString)
+            initialMarginPercentage = self.parse_number(
+                Precise.string_div(initialMarginString, notionalString, 4)
+            )
         rounder = '0.00005'  # round to closest 0.01%
-        maintenanceMarginPercentage = self.parse_number(Precise.string_div(Precise.string_add(maintenanceMarginPercentageString, rounder), '1', 4))
-        liquidationPrice = self.safe_number(position, 'liqidationPrice')
-        percentageString = self.safe_string(position, 'uplRatio')
+        maintenanceMarginPercentage = self.parse_number(
+            Precise.string_div(Precise.string_add(maintenanceMarginPercentage, rounder), '1', 4)
+        )
+        collateralString = Precise.string_add(initialMarginString, unrealizedPnlString)
+        liquidationPrice = self.safe_number(position, 'liquidationPrice')
+        percentageString = self.safe_string(position, 'unrealizedPnlRatio')
         percentage = self.parse_number(Precise.string_mul(percentageString, '100'))
+        side = self.safe_string(position, 'positionSide')
         timestamp = self.safe_integer(position, 'updateTime')
-        marginRatio = self.parse_number(Precise.string_div(maintenanceMarginString, collateralString, 4))
-        id = symbol + ':' + side
+        leverage = self.safe_integer(position, 'leverage')
+        marginRatio = self.parse_number(
+            Precise.string_div(maintenanceMarginString, collateralString, 4)
+        )
+        id = symbol + ':' + side + ':' + marginType
+        status = contracts != 'open' if 0 else 'closed'
         return {
-            'info': position,
             'id': id,
+            'info': self.deep_extend(position, {'symbol': symbol}),
             'symbol': symbol,
             'notional': notional,
-            'marginMode': marginMode,
+            'marginType': marginType,
             'liquidationPrice': liquidationPrice,
             'entryPrice': self.parse_number(entryPriceString),
             'unrealizedPnl': self.parse_number(unrealizedPnlString),
             'percentage': percentage,
             'contracts': contracts,
-            'contractSize': contractSize,
-            'markPrice': self.parse_number(markPriceString),
+            'contractSize': self.parse_number(market['contractSize']),
             'side': side,
-            'hedged': hedged,
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'maintenanceMargin': maintenanceMargin,
@@ -1711,8 +1739,39 @@ class blofin(Exchange):
             'collateral': self.parse_number(collateralString),
             'initialMargin': self.parse_number(initialMarginString),
             'initialMarginPercentage': self.parse_number(initialMarginPercentage),
-            'leverage': self.parse_number(leverageString),
+            'leverage': leverage,
             'marginRatio': marginRatio,
+            'isolated': marginType != 'cross',
+            'status': status,
+            'tradeMode': 'oneway',
+            # 'info': info,
+            # 'id': id,
+            # 'symbol': symbol,
+            # 'timestamp': timestamp,
+            # 'datetime': datetime,
+            # 'isolated': isolated,
+            # 'hedged': hedged,
+            # 'side': side,
+            # 'contracts': contracts,
+            # 'price': price,
+            # 'markPrice': markPrice,
+            # 'notional': notional,
+            # 'leverage': leverage,
+            # 'initialMargin': initialMargin,
+            # 'maintenanceMargin': maintenanceMargin,
+            # 'initialMarginPercentage': initialMarginPercentage,
+            # 'maintenanceMarginPercentage': maintenanceMarginPercentage,
+            # 'unrealizedPnl': unrealizedPnl,
+            # 'pnl': pnl,
+            # 'liquidationPrice': liquidationPrice,
+            # 'status': status,
+            # 'entryPrice': entryPrice,
+            # 'marginRatio': marginRatio,
+            # 'collateral': collateral,
+            # 'marginType': marginType,
+            # 'percentage': percentage,
+            # 'maxLeverage': maxLeverage,
+            # 'tradeMode': tradeMode,
         }
 
     async def fetch_account_configuration(self, symbol, params={}):

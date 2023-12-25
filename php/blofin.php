@@ -1730,93 +1730,114 @@ class blofin extends Exchange {
     }
 
     public function parse_position($position, $market = null) {
+        //
+        //     {
+        //       "adl" => "3",
+        //       "availPos" => "1",
+        //       "avgPx" => "34131.1",
+        //       "cTime" => "1627227626502",
+        //       "ccy" => "USDT",
+        //       "deltaBS" => "",
+        //       "deltaPA" => "",
+        //       "gammaBS" => "",
+        //       "gammaPA" => "",
+        //       "imr" => "170.66093041794787",
+        //       "instId" => "BTC-USDT-SWAP",
+        //       "instType" => "SWAP",
+        //       "interest" => "0",
+        //       "last" => "34134.4",
+        //       "lever" => "2",
+        //       "liab" => "",
+        //       "liabCcy" => "",
+        //       "liqPx" => "12608.959083877446",
+        //       "margin" => "",
+        //       "mgnMode" => "cross",
+        //       "mgnRatio" => "140.49930117599155",
+        //       "mmr" => "1.3652874433435829",
+        //       "notionalUsd" => "341.5130010779638",
+        //       "optVal" => "",
+        //       "pos" => "1",
+        //       "posCcy" => "",
+        //       "posId" => "339552508062380036",
+        //       "posSide" => "long",
+        //       "thetaBS" => "",
+        //       "thetaPA" => "",
+        //       "tradeId" => "98617799",
+        //       "uTime" => "1627227626502",
+        //       "upl" => "0.0108608358957281",
+        //       "uplRatio" => "0.0000636418743944",
+        //       "vegaBS" => "",
+        //       "vegaPA" => ""
+        //     }
+        //
         $marketId = $this->safe_string($position, 'instId');
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
-        $pos = $this->safe_string($position, 'positions'); // 'pos' field => One way mode => 0 if $position is not open, 1 if open | Two way (hedge) mode => -1 if short, 1 if long, 0 if $position is not open
-        $contractsAbs = Precise::string_abs($pos);
-        $side = $this->safe_string($position, 'positionSide');
-        $hedged = $side !== 'net';
-        $contracts = $this->parse_number($contractsAbs);
-        if ($market['margin']) {
-            // margin $position
-            if ($side === 'net') {
-                // $posCcy = $this->safe_string($position, 'posCcy');
-                $posCcy = 'USDT';
-                $parsedCurrency = $this->safe_currency_code($posCcy);
-                if ($parsedCurrency !== null) {
-                    $side = ($market['base'] === $parsedCurrency) ? 'long' : 'short';
-                }
-            }
-            if ($side === null) {
-                $side = $this->safe_string($position, 'direction');
-            }
-        } else {
-            if ($pos !== null) {
-                if ($side === 'net') {
-                    if (Precise::string_gt($pos, '0')) {
-                        $side = 'long';
-                    } elseif (Precise::string_lt($pos, '0')) {
-                        $side = 'short';
-                    } else {
-                        $side = null;
-                    }
-                }
-            }
+        $contractsString = $this->safe_string($position, 'positions');
+        $contracts = null;
+        if ($contractsString !== null) {
+            $contracts = intval($contractsString);
         }
-        $contractSize = $this->safe_number($market, 'contractSize');
-        $contractSizeString = $this->number_to_string($contractSize);
-        $markPriceString = $this->safe_string($position, 'markPrice');
         $notionalString = $this->safe_string($position, 'notionalUsd');
-        if ($market['inverse']) {
-            $notionalString = Precise::string_div(Precise::string_mul($contractsAbs, $contractSizeString), $markPriceString);
-        }
         $notional = $this->parse_number($notionalString);
-        $marginMode = $this->safe_string($position, 'mgnMode');
+        $marginType = $this->safe_string($position, 'marginMode');
         $initialMarginString = null;
-        $entryPriceString = $this->safe_string($position, 'avgPx');
+        $entryPriceString = $this->safe_string($position, 'averagePrice');
         $unrealizedPnlString = $this->safe_string($position, 'unrealizedPnl');
-        $leverageString = $this->safe_string($position, 'leverage');
-        $initialMarginPercentage = null;
-        $collateralString = null;
-        if ($marginMode === 'cross') {
+        if ($marginType === 'cross') {
             $initialMarginString = $this->safe_string($position, 'initialMargin');
-            $collateralString = Precise::string_add($initialMarginString, $unrealizedPnlString);
-        } elseif ($marginMode === 'isolated') {
-            $initialMarginPercentage = Precise::string_div('1', $leverageString);
-            $collateralString = $this->safe_string($position, 'margin');
         }
+        //  else {
+        //     // $initialMarginString = $this->safe_string($position, 'margin');
+        // }
         $maintenanceMarginString = $this->safe_string($position, 'maintenanceMargin');
         $maintenanceMargin = $this->parse_number($maintenanceMarginString);
-        $maintenanceMarginPercentageString = Precise::string_div($maintenanceMarginString, $notionalString);
-        if ($initialMarginPercentage === null) {
-            $initialMarginPercentage = $this->parse_number(Precise::string_div($initialMarginString, $notionalString, 4));
-        } elseif ($initialMarginString === null) {
-            $initialMarginString = Precise::string_mul($initialMarginPercentage, $notionalString);
+        $initialMarginPercentage = null;
+        $maintenanceMarginPercentage = null;
+        if ($market['inverse']) {
+            $notionalValue = Precise::string_div(
+                Precise::string_mul($contractsString, $market['contractSize']),
+                $entryPriceString
+            );
+            $maintenanceMarginPercentage = Precise::string_div($maintenanceMarginString, $notionalValue);
+            $initialMarginPercentage = $this->parse_number(
+                Precise::string_div($initialMarginString, $notionalValue, 4)
+            );
+        } else {
+            $maintenanceMarginPercentage = Precise::string_div($maintenanceMarginString, $notionalString);
+            $initialMarginPercentage = $this->parse_number(
+                Precise::string_div($initialMarginString, $notionalString, 4)
+            );
         }
         $rounder = '0.00005'; // round to closest 0.01%
-        $maintenanceMarginPercentage = $this->parse_number(Precise::string_div(Precise::string_add($maintenanceMarginPercentageString, $rounder), '1', 4));
-        $liquidationPrice = $this->safe_number($position, 'liqidationPrice');
-        $percentageString = $this->safe_string($position, 'uplRatio');
+        $maintenanceMarginPercentage = $this->parse_number(
+            Precise::string_div(Precise::string_add($maintenanceMarginPercentage, $rounder), '1', 4)
+        );
+        $collateralString = Precise::string_add($initialMarginString, $unrealizedPnlString);
+        $liquidationPrice = $this->safe_number($position, 'liquidationPrice');
+        $percentageString = $this->safe_string($position, 'unrealizedPnlRatio');
         $percentage = $this->parse_number(Precise::string_mul($percentageString, '100'));
+        $side = $this->safe_string($position, 'positionSide');
         $timestamp = $this->safe_integer($position, 'updateTime');
-        $marginRatio = $this->parse_number(Precise::string_div($maintenanceMarginString, $collateralString, 4));
-        $id = $symbol . ':' . $side;
+        $leverage = $this->safe_integer($position, 'leverage');
+        $marginRatio = $this->parse_number(
+            Precise::string_div($maintenanceMarginString, $collateralString, 4)
+        );
+        $id = $symbol . ':' . $side . ':' . $marginType;
+        $status = $contracts !== 0 ? 'open' : 'closed';
         return array(
-            'info' => $position,
             'id' => $id,
+            'info' => $this->deep_extend($position, array( 'symbol' => $symbol )),
             'symbol' => $symbol,
             'notional' => $notional,
-            'marginMode' => $marginMode,
+            'marginType' => $marginType,
             'liquidationPrice' => $liquidationPrice,
             'entryPrice' => $this->parse_number($entryPriceString),
             'unrealizedPnl' => $this->parse_number($unrealizedPnlString),
             'percentage' => $percentage,
             'contracts' => $contracts,
-            'contractSize' => $contractSize,
-            'markPrice' => $this->parse_number($markPriceString),
+            'contractSize' => $this->parse_number($market['contractSize']),
             'side' => $side,
-            'hedged' => $hedged,
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
             'maintenanceMargin' => $maintenanceMargin,
@@ -1824,8 +1845,39 @@ class blofin extends Exchange {
             'collateral' => $this->parse_number($collateralString),
             'initialMargin' => $this->parse_number($initialMarginString),
             'initialMarginPercentage' => $this->parse_number($initialMarginPercentage),
-            'leverage' => $this->parse_number($leverageString),
+            'leverage' => $leverage,
             'marginRatio' => $marginRatio,
+            'isolated' => $marginType !== 'cross',
+            'status' => $status,
+            'tradeMode' => 'oneway',
+            // 'info' => info,
+            // 'id' => $id,
+            // 'symbol' => $symbol,
+            // 'timestamp' => $timestamp,
+            // 'datetime' => datetime,
+            // 'isolated' => isolated,
+            // 'hedged' => hedged,
+            // 'side' => $side,
+            // 'contracts' => $contracts,
+            // 'price' => price,
+            // 'markPrice' => markPrice,
+            // 'notional' => $notional,
+            // 'leverage' => $leverage,
+            // 'initialMargin' => initialMargin,
+            // 'maintenanceMargin' => $maintenanceMargin,
+            // 'initialMarginPercentage' => $initialMarginPercentage,
+            // 'maintenanceMarginPercentage' => $maintenanceMarginPercentage,
+            // 'unrealizedPnl' => unrealizedPnl,
+            // 'pnl' => pnl,
+            // 'liquidationPrice' => $liquidationPrice,
+            // 'status' => $status,
+            // 'entryPrice' => entryPrice,
+            // 'marginRatio' => $marginRatio,
+            // 'collateral' => collateral,
+            // 'marginType' => $marginType,
+            // 'percentage' => $percentage,
+            // 'maxLeverage' => maxLeverage,
+            // 'tradeMode' => tradeMode,
         );
     }
 
