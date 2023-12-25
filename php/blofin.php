@@ -120,6 +120,7 @@ class blofin extends Exchange {
                         'get' => array(
                             'market/instruments' => 1,
                             'market/tickers' => 1,
+                            'market/candles' => 1,
                         ),
                     ),
                     'private' => array(
@@ -1287,48 +1288,78 @@ class blofin extends Exchange {
         return $this->parse_order_book($response, $symbol, $timestamp, 'bids', 'asks', 'price', 'quantity');
     }
 
+    public function parse_ohlcv($ohlcv, $market = null) {
+        //
+        //     array(
+        //         "1678928760000", // timestamp
+        //         "24341.4", // open
+        //         "24344", // high
+        //         "24313.2", // low
+        //         "24323", // close
+        //         "628", // contract volume
+        //         "2.5819", // base volume
+        //         "62800", // quote volume
+        //         "0" // candlestick state
+        //     )
+        //
+        $res = $this->handle_market_type_and_params('fetchOHLCV', $market, null);
+        $type = $res[0];
+        $volumeIndex = ($type === 'spot') ? 5 : 6;
+        return array(
+            $this->safe_integer($ohlcv, 0),
+            $this->safe_number($ohlcv, 1),
+            $this->safe_number($ohlcv, 2),
+            $this->safe_number($ohlcv, 3),
+            $this->safe_number($ohlcv, 4),
+            $this->safe_number($ohlcv, $volumeIndex),
+        );
+    }
+
     public function fetch_ohlcv($symbol, $timeframe = '1m', $since = null, $limit = null, $params = array ()) {
         $this->load_markets();
         $market = $this->market($symbol);
-        $request = array(
-            'symbol' => $market['id'],
-            'resolution' => $this->timeframes[$timeframe],
-            'from' => $since / 1000,
-        );
-        $parsedTimeFrame = $this->parse_timeframe($timeframe);
-        $duration = $parsedTimeFrame * 1000 * $limit;
-        $to = $this->sum($since, $duration);
-        $request['to'] = $to / 1000;
-        $response = $this->v1PublicGetTvHistory (array_merge($request, $params));
-        $res = array();
-        if ($response->s === 'ok') {
-            $length = count($response->t);
-            for ($i = 0; $i < $length; $i++) {
-                $res[] = [
-                    $response->t[$i] * 1000,
-                    $response->o[$i],
-                    $response->h[$i],
-                    $response->l[$i],
-                    $response->c[$i],
-                    $response->v[$i],
-                ];
-            }
-        } else {
-            throw $($response->s);
+        $params = $this->omit($params, 'price');
+        $options = $this->safe_value($this->options, 'fetchOHLCV', array());
+        $timezone = $this->safe_string($options, 'timezone', 'UTC');
+        if ($limit === null) {
+            $limit = 300; // default 100, max 100
         }
-        return $res;
-    }
-
-    public function parse_ohlcv($ohlcv, $market = null) {
-        // example response in fetchOHLCV
-        return array(
-            $this->safe_integer($ohlcv, 'start_timestamp'),
-            $this->safe_number($ohlcv, 'open'),
-            $this->safe_number($ohlcv, 'high'),
-            $this->safe_number($ohlcv, 'low'),
-            $this->safe_number($ohlcv, 'close'),
-            $this->safe_number($ohlcv, 'volume'),
+        $duration = $this->parse_timeframe($timeframe);
+        $bar = $this->safe_string($this->timeframes, $timeframe, $timeframe);
+        if (($timezone === 'UTC') && ($duration >= 21600)) { // if utc and $timeframe >= 6h
+            $bar .= strtolower($timezone);
+        }
+        $request = array(
+            'instId' => $market['id'],
+            'bar' => $bar,
+            'limit' => $limit,
         );
+        if ($since !== null) {
+            $durationInMilliseconds = $duration * 1000;
+            $startTime = max ($since - 1, 0);
+            $request['before'] = $startTime;
+            $request['after'] = $this->sum($startTime, $durationInMilliseconds * $limit);
+        }
+        $until = $this->safe_integer($params, 'until');
+        if ($until !== null) {
+            $request['after'] = $until;
+            $params = $this->omit($params, 'until');
+        }
+        $params = $this->omit($params, 'type');
+        $response = $this->v1PublicGetMarketCandles (array_merge($request, $params));
+        //
+        //     {
+        //         "code" => "0",
+        //         "msg" => "",
+        //         "data" => [
+        //             ["1678928760000","24341.4","24344","24313.2","24323","628","2.5819","62800","0"],
+        //             ["1678928700000","24324.1","24347.6","24321.7","24341.4","2565","10.5401","256500","1"],
+        //             ["1678928640000","24300.2","24324.1","24288","24324.1","3304","13.5937","330400","1"],
+        //         ]
+        //     }
+        //
+        $data = $this->safe_value($response, 'data', array());
+        return $this->parse_ohlcvs($data, $market, $timeframe, $since, $limit);
     }
 
     public function fetch_order_trades($id, $symbol = null, $since = null, $limit = null, $params = array ()) {

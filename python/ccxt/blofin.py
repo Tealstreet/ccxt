@@ -128,6 +128,7 @@ class blofin(Exchange):
                         'get': {
                             'market/instruments': 1,
                             'market/tickers': 1,
+                            'market/candles': 1,
                         },
                     },
                     'private': {
@@ -1224,45 +1225,73 @@ class blofin(Exchange):
         timestamp = self.safe_integer(response, 'timestamp')
         return self.parse_order_book(response, symbol, timestamp, 'bids', 'asks', 'price', 'quantity')
 
+    def parse_ohlcv(self, ohlcv, market=None):
+        #
+        #     [
+        #         "1678928760000",  # timestamp
+        #         "24341.4",  # open
+        #         "24344",  # high
+        #         "24313.2",  # low
+        #         "24323",  # close
+        #         "628",  # contract volume
+        #         "2.5819",  # base volume
+        #         "62800",  # quote volume
+        #         "0"  # candlestick state
+        #     ]
+        #
+        res = self.handle_market_type_and_params('fetchOHLCV', market, None)
+        type = res[0]
+        volumeIndex = 5 if (type == 'spot') else 6
+        return [
+            self.safe_integer(ohlcv, 0),
+            self.safe_number(ohlcv, 1),
+            self.safe_number(ohlcv, 2),
+            self.safe_number(ohlcv, 3),
+            self.safe_number(ohlcv, 4),
+            self.safe_number(ohlcv, volumeIndex),
+        ]
+
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
         self.load_markets()
         market = self.market(symbol)
+        params = self.omit(params, 'price')
+        options = self.safe_value(self.options, 'fetchOHLCV', {})
+        timezone = self.safe_string(options, 'timezone', 'UTC')
+        if limit is None:
+            limit = 300  # default 100, max 100
+        duration = self.parse_timeframe(timeframe)
+        bar = self.safe_string(self.timeframes, timeframe, timeframe)
+        if (timezone == 'UTC') and (duration >= 21600):  # if utc and timeframe >= 6h
+            bar += timezone.lower()
         request = {
-            'symbol': market['id'],
-            'resolution': self.timeframes[timeframe],
-            'from': since / 1000,
+            'instId': market['id'],
+            'bar': bar,
+            'limit': limit,
         }
-        parsedTimeFrame = self.parse_timeframe(timeframe)
-        duration = parsedTimeFrame * 1000 * limit
-        to = self.sum(since, duration)
-        request['to'] = to / 1000
-        response = self.v1PublicGetTvHistory(self.extend(request, params))
-        res = []
-        if response.s == 'ok':
-            length = len(response.t)
-            for i in range(0, length):
-                res.append([
-                    response.t[i] * 1000,
-                    response.o[i],
-                    response.h[i],
-                    response.l[i],
-                    response.c[i],
-                    response.v[i],
-                ])
-        else:
-            raise(response.s)
-        return res
-
-    def parse_ohlcv(self, ohlcv, market=None):
-        # example response in fetchOHLCV
-        return [
-            self.safe_integer(ohlcv, 'start_timestamp'),
-            self.safe_number(ohlcv, 'open'),
-            self.safe_number(ohlcv, 'high'),
-            self.safe_number(ohlcv, 'low'),
-            self.safe_number(ohlcv, 'close'),
-            self.safe_number(ohlcv, 'volume'),
-        ]
+        if since is not None:
+            durationInMilliseconds = duration * 1000
+            startTime = max(since - 1, 0)
+            request['before'] = startTime
+            request['after'] = self.sum(startTime, durationInMilliseconds * limit)
+        until = self.safe_integer(params, 'until')
+        if until is not None:
+            request['after'] = until
+            params = self.omit(params, 'until')
+        params = self.omit(params, 'type')
+        response = self.v1PublicGetMarketCandles(self.extend(request, params))
+        #
+        #     {
+        #         "code": "0",
+        #         "msg": "",
+        #         "data": [
+        #             ["1678928760000","24341.4","24344","24313.2","24323","628","2.5819","62800","0"],
+        #             ["1678928700000","24324.1","24347.6","24321.7","24341.4","2565","10.5401","256500","1"],
+        #             ["1678928640000","24300.2","24324.1","24288","24324.1","3304","13.5937","330400","1"],
+        #         ]
+        #     }
+        #
+        data = self.safe_value(response, 'data', [])
+        return self.parse_ohlcvs(data, market, timeframe, since, limit)
 
     def fetch_order_trades(self, id, symbol=None, since=None, limit=None, params={}):
         """

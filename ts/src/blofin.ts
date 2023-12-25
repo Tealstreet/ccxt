@@ -120,6 +120,7 @@ export default class blofin extends Exchange {
                         'get': {
                             'market/instruments': 1,
                             'market/tickers': 1,
+                            'market/candles': 1,
                         },
                     },
                     'private': {
@@ -1307,48 +1308,78 @@ export default class blofin extends Exchange {
         return this.parseOrderBook (response, symbol, timestamp, 'bids', 'asks', 'price', 'quantity');
     }
 
-    async fetchOHLCV (symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'symbol': market['id'],
-            'resolution': this.timeframes[timeframe],
-            'from': since / 1000,
-        };
-        const parsedTimeFrame = this.parseTimeframe (timeframe);
-        const duration = parsedTimeFrame * 1000 * limit;
-        const to = this.sum (since, duration);
-        request['to'] = to / 1000;
-        const response = await (this as any).v1PublicGetTvHistory (this.extend (request, params));
-        const res = [];
-        if (response.s === 'ok') {
-            const length = response.t.length;
-            for (let i = 0; i < length; i++) {
-                res.push ([
-                    response.t[i] * 1000,
-                    response.o[i],
-                    response.h[i],
-                    response.l[i],
-                    response.c[i],
-                    response.v[i],
-                ]);
-            }
-        } else {
-            throw (response.s);
-        }
-        return res;
+    parseOHLCV (ohlcv, market = undefined) {
+        //
+        //     [
+        //         "1678928760000", // timestamp
+        //         "24341.4", // open
+        //         "24344", // high
+        //         "24313.2", // low
+        //         "24323", // close
+        //         "628", // contract volume
+        //         "2.5819", // base volume
+        //         "62800", // quote volume
+        //         "0" // candlestick state
+        //     ]
+        //
+        const res = this.handleMarketTypeAndParams ('fetchOHLCV', market, undefined);
+        const type = res[0];
+        const volumeIndex = (type === 'spot') ? 5 : 6;
+        return [
+            this.safeInteger (ohlcv, 0),
+            this.safeNumber (ohlcv, 1),
+            this.safeNumber (ohlcv, 2),
+            this.safeNumber (ohlcv, 3),
+            this.safeNumber (ohlcv, 4),
+            this.safeNumber (ohlcv, volumeIndex),
+        ];
     }
 
-    parseOHLCV (ohlcv, market = undefined) {
-        // example response in fetchOHLCV
-        return [
-            this.safeInteger (ohlcv, 'start_timestamp'),
-            this.safeNumber (ohlcv, 'open'),
-            this.safeNumber (ohlcv, 'high'),
-            this.safeNumber (ohlcv, 'low'),
-            this.safeNumber (ohlcv, 'close'),
-            this.safeNumber (ohlcv, 'volume'),
-        ];
+    async fetchOHLCV (symbol, timeframe = '1m', since: any = undefined, limit: any = undefined, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        params = this.omit (params, 'price');
+        const options = this.safeValue (this.options, 'fetchOHLCV', {});
+        const timezone = this.safeString (options, 'timezone', 'UTC');
+        if (limit === undefined) {
+            limit = 300; // default 100, max 100
+        }
+        const duration = this.parseTimeframe (timeframe);
+        let bar = this.safeString (this.timeframes, timeframe, timeframe);
+        if ((timezone === 'UTC') && (duration >= 21600)) { // if utc and timeframe >= 6h
+            bar += timezone.toLowerCase ();
+        }
+        const request = {
+            'instId': market['id'],
+            'bar': bar,
+            'limit': limit,
+        };
+        if (since !== undefined) {
+            const durationInMilliseconds = duration * 1000;
+            const startTime = Math.max (since - 1, 0);
+            request['before'] = startTime;
+            request['after'] = this.sum (startTime, durationInMilliseconds * limit);
+        }
+        const until = this.safeInteger (params, 'until');
+        if (until !== undefined) {
+            request['after'] = until;
+            params = this.omit (params, 'until');
+        }
+        params = this.omit (params, 'type');
+        const response = await (this as any).v1PublicGetMarketCandles (this.extend (request, params));
+        //
+        //     {
+        //         "code": "0",
+        //         "msg": "",
+        //         "data": [
+        //             ["1678928760000","24341.4","24344","24313.2","24323","628","2.5819","62800","0"],
+        //             ["1678928700000","24324.1","24347.6","24321.7","24341.4","2565","10.5401","256500","1"],
+        //             ["1678928640000","24300.2","24324.1","24288","24324.1","3304","13.5937","330400","1"],
+        //         ]
+        //     }
+        //
+        const data = this.safeValue (response, 'data', []);
+        return this.parseOHLCVs (data, market, timeframe, since, limit);
     }
 
     async fetchOrderTrades (id, symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {

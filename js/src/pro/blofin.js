@@ -6,9 +6,8 @@
 
 // ----------------------------------------------------------------------------
 import blofinRest from '../blofin.js';
-import { ExchangeError, AuthenticationError } from '../base/errors.js';
+import { AuthenticationError, InvalidNonce } from '../base/errors.js';
 import { ArrayCacheByTimestamp, ArrayCacheBySymbolById, ArrayCache } from '../base/ws/Cache.js';
-import { Precise } from '../base/Precise.js';
 // ----------------------------------------------------------------------------
 export default class blofin extends blofinRest {
     describe() {
@@ -27,14 +26,14 @@ export default class blofin extends blofinRest {
             'urls': {
                 'api': {
                     'ws': {
-                        'public': 'wss://wss.woo.org/ws/stream',
-                        'private': 'wss://wss.woo.network/v2/ws/private/stream',
+                        'public': 'wss://openapi.blofin.com/ws/public',
+                        'private': 'wss://openapi.blofin.com/ws/private',
                     },
                 },
                 'test': {
                     'ws': {
-                        'public': 'wss://wss.staging.woo.org/ws/stream',
-                        'private': 'wss://wss.staging.woo.org/v2/ws/private/stream',
+                        'public': 'wss://openapi.blofin.com/ws/public',
+                        'private': 'wss://openapi.blofin.com/ws/private',
                     },
                 },
             },
@@ -61,343 +60,253 @@ export default class blofin extends blofinRest {
         this.options['requestId'][url] = newValue;
         return newValue;
     }
-    async watchPublic(messageHash, message, shouldThrottle = true) {
-        this.checkRequiredUid();
-        // const url = this.urls['api']['ws']['public'] + '/' + this.uid;
-        const url = this.urls['api']['ws']['public'] + '/' + 'OqdphuyCtYWxwzhxyLLjOWNdFP7sQt8RPWzmb5xY';
-        const requestId = this.requestId(url);
-        const subscribe = {
-            'id': requestId,
-        };
-        const request = this.extend(subscribe, message);
-        return await this.watch(url, messageHash, request, messageHash, subscribe, shouldThrottle);
-    }
-    async watchOrderBook(symbol, limit = undefined, params = {}) {
+    async subscribe(access, channel, symbol, params = {}) {
         await this.loadMarkets();
-        const name = 'orderbook';
-        const market = this.market(symbol);
-        const topic = market['id'] + '@' + name;
-        const request = {
-            'event': 'subscribe',
-            'topic': topic,
+        const url = this.urls['api']['ws'][access];
+        let messageHash = channel;
+        const firstArgument = {
+            'channel': channel,
         };
-        const message = this.extend(request, params);
-        const orderbook = await this.watchPublic(topic, message, false);
-        return orderbook.limit();
-    }
-    handleOrderBook(client, message) {
-        //
-        //     {
-        //         topic: 'PERP_BTC_USDT@orderbook',
-        //         ts: 1650121915308,
-        //         data: {
-        //             symbol: 'PERP_BTC_USDT',
-        //             bids: [
-        //                 [
-        //                     0.30891,
-        //                     2469.98
-        //                 ]
-        //             ],
-        //             asks: [
-        //                 [
-        //                     0.31075,
-        //                     2379.63
-        //                 ]
-        //             ]
-        //         }
-        //     }
-        //
-        const data = this.safeValue(message, 'data');
-        const marketId = this.safeString(data, 'symbol');
-        const market = this.safeMarket(marketId);
-        const symbol = market['symbol'];
-        const topic = this.safeString(message, 'topic');
-        let orderbook = this.safeValue(this.orderbooks, symbol);
-        if (orderbook === undefined) {
-            orderbook = this.orderBook({});
+        if (symbol !== undefined) {
+            const market = this.market(symbol);
+            messageHash += ':' + market['id'];
+            firstArgument['instId'] = market['id'];
         }
-        const timestamp = this.safeInteger(message, 'ts');
-        const snapshot = this.parseOrderBook(data, symbol, timestamp, 'bids', 'asks');
-        orderbook.reset(snapshot);
-        client.resolve(orderbook, topic);
-    }
-    async watchTicker(symbol, params = {}) {
-        await this.loadMarkets();
-        const name = 'ticker';
-        const market = this.market(symbol);
-        const topic = market['id'] + '@' + name;
         const request = {
-            'event': 'subscribe',
-            'topic': topic,
+            'op': 'subscribe',
+            'args': [
+                this.deepExtend(firstArgument, params),
+            ],
         };
-        const message = this.extend(request, params);
-        return await this.watchPublic(topic, message);
+        return await this.watch(url, messageHash, request, messageHash);
     }
-    parseWsTicker(ticker, market = undefined) {
-        //
-        //     {
-        //         symbol: 'PERP_BTC_USDT',
-        //         open: 19441.5,
-        //         close: 20147.07,
-        //         high: 20761.87,
-        //         low: 19320.54,
-        //         volume: 2481.103,
-        //         amount: 50037935.0286,
-        //         count: 3689
-        //     }
-        //
-        const timestamp = this.safeInteger(ticker, 'date', this.milliseconds());
-        return this.safeTicker({
-            'symbol': this.safeSymbol(undefined, market),
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'high': this.safeString(ticker, 'high'),
-            'low': this.safeString(ticker, 'low'),
-            'bid': undefined,
-            'bidVolume': undefined,
-            'ask': undefined,
-            'askVolume': undefined,
-            'vwap': undefined,
-            'open': this.safeString(ticker, 'open'),
-            'close': this.safeString(ticker, 'close'),
-            'last': this.safeString(ticker, 'close'),
-            'mark': this.safeString(ticker, 'close'),
-            'previousClose': undefined,
-            'change': undefined,
-            'percentage': undefined,
-            'average': undefined,
-            'baseVolume': this.safeString(ticker, 'volume'),
-            'quoteVolume': this.safeString(ticker, 'amount'),
-            'info': ticker,
-        }, market);
+    async watchTrades(symbol, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets();
+        symbol = this.symbol(symbol);
+        const trades = await this.subscribe('public', 'trades', symbol, params);
+        if (this.newUpdates) {
+            limit = trades.getLimit(symbol, limit);
+        }
+        return this.filterBySinceLimit(trades, since, limit, 'timestamp', true);
     }
-    handleTicker(client, message) {
-        //
-        //     {
-        //         topic: 'PERP_BTC_USDT@ticker',
-        //         ts: 1657120017000,
-        //         data: {
-        //             symbol: 'PERP_BTC_USDT',
-        //             open: 19441.5,
-        //             close: 20147.07,
-        //             high: 20761.87,
-        //             low: 19320.54,
-        //             volume: 2481.103,
-        //             amount: 50037935.0286,
-        //             count: 3689
-        //         }
-        //     }
-        //
-        const data = this.safeValue(message, 'data');
-        const topic = this.safeValue(message, 'topic');
-        const marketId = this.safeString(data, 'symbol');
-        const market = this.safeMarket(marketId);
-        const timestamp = this.safeInteger(message, 'ts');
-        data['date'] = timestamp;
-        const ticker = this.parseWsTicker(data, market);
-        ticker['symbol'] = market['symbol'];
-        this.tickers[market['symbol']] = ticker;
-        client.resolve(ticker, topic);
+    handleTrades(client, message) {
+        const arg = this.safeValue(message, 'arg', {});
+        const channel = this.safeString(arg, 'channel');
+        const data = this.safeValue(message, 'data', []);
+        const tradesLimit = this.safeInteger(this.options, 'tradesLimit', 1000);
+        for (let i = 0; i < data.length; i++) {
+            const trade = this.parseTrade(data[i]);
+            const symbol = trade['symbol'];
+            const marketId = this.safeString(trade['info'], 'instId');
+            const messageHash = channel + ':' + marketId;
+            let stored = this.safeValue(this.trades, symbol);
+            if (stored === undefined) {
+                stored = new ArrayCache(tradesLimit);
+                this.trades[symbol] = stored;
+            }
+            stored.append(trade);
+            client.resolve(stored, messageHash);
+        }
         return message;
     }
-    async watchTickers(symbols = undefined, params = {}) {
-        await this.loadMarkets();
-        const name = 'tickers';
-        const topic = name;
-        const request = {
-            'event': 'subscribe',
-            'topic': topic,
-        };
-        const message = this.extend(request, params);
-        const tickers = await this.watchPublic(topic, message);
-        return this.filterByArray(tickers, 'symbol', symbols);
+    async watchTicker(symbol, params = {}) {
+        /**
+         * @method
+         * @name okx#watchTicker
+         * @description watches a price ticker, a statistical calculation with the information calculated over the past 24 hours for a specific market
+         * @param {string} symbol unified symbol of the market to fetch the ticker for
+         * @param {object} params extra parameters specific to the okx api endpoint
+         * @returns {object} a [ticker structure]{@link https://docs.ccxt.com/#/?id=ticker-structure}
+         */
+        return await this.subscribe('public', 'tickers', symbol, params);
     }
-    handleTickers(client, message) {
-        //
-        //     {
-        //         "topic":"tickers",
-        //         "ts":1618820615000,
-        //         "data":[
-        //             {
-        //                 "symbol":"SPOT_OKB_USDT",
-        //                 "open":16.297,
-        //                 "close":17.183,
-        //                 "high":24.707,
-        //                 "low":11.997,
-        //                 "volume":0,
-        //                 "amount":0,
-        //                 "count":0
-        //             },
-        //             {
-        //                 "symbol":"SPOT_XRP_USDT",
-        //                 "open":1.3515,
-        //                 "close":1.43794,
-        //                 "high":1.96674,
-        //                 "low":0.39264,
-        //                 "volume":750127.1,
-        //                 "amount":985440.5122,
-        //                 "count":396
-        //             },
-        //         ...
-        //         ]
-        //     }
-        //
-        const topic = this.safeValue(message, 'topic');
-        const data = this.safeValue(message, 'data');
-        const timestamp = this.safeInteger(message, 'ts');
-        const result = [];
+    handleTicker(client, message) {
+        const arg = this.safeValue(message, 'arg', {});
+        const channel = this.safeString(arg, 'channel');
+        const data = this.safeValue(message, 'data', []);
         for (let i = 0; i < data.length; i++) {
-            const marketId = this.safeString(data[i], 'symbol');
-            const market = this.safeMarket(marketId);
-            const ticker = this.parseWsTicker(this.extend(data[i], { 'date': timestamp }), market);
-            this.tickers[market['symbol']] = ticker;
-            result.push(ticker);
+            const ticker = this.parseTicker(data[i]);
+            const symbol = ticker['symbol'];
+            const marketId = this.safeString(ticker['info'], 'instId');
+            const messageHash = channel + ':' + marketId;
+            this.tickers[symbol] = ticker;
+            client.resolve(ticker, messageHash);
         }
-        client.resolve(result, topic);
+        return message;
     }
     async watchOHLCV(symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
-        if ((timeframe !== '1m') && (timeframe !== '5m') && (timeframe !== '15m') && (timeframe !== '30m') && (timeframe !== '1h') && (timeframe !== '1d') && (timeframe !== '1w') && (timeframe !== '1M')) {
-            throw new ExchangeError(this.id + ' watchOHLCV timeframe argument must be 1m, 5m, 15m, 30m, 1h, 1d, 1w, 1M');
-        }
-        const market = this.market(symbol);
+        symbol = this.symbol(symbol);
         const interval = this.safeString(this.timeframes, timeframe, timeframe);
-        const name = 'kline';
-        const topic = market['id'] + '@' + name + '_' + interval;
-        const request = {
-            'event': 'subscribe',
-            'topic': topic,
-        };
-        const message = this.extend(request, params);
-        const ohlcv = await this.watchPublic(topic, message);
+        const name = 'candle' + interval;
+        const ohlcv = await this.subscribe('public', name, symbol, params);
         if (this.newUpdates) {
-            limit = ohlcv.getLimit(market['symbol'], limit);
+            limit = ohlcv.getLimit(symbol, limit);
         }
         return this.filterBySinceLimit(ohlcv, since, limit, 0, true);
     }
     handleOHLCV(client, message) {
-        //
-        //     {
-        //         "topic":"SPOT_BTC_USDT@kline_1m",
-        //         "ts":1618822432146,
-        //         "data":{
-        //             "symbol":"SPOT_BTC_USDT",
-        //             "type":"1m",
-        //             "open":56948.97,
-        //             "close":56891.76,
-        //             "high":56948.97,
-        //             "low":56889.06,
-        //             "volume":44.00947568,
-        //             "amount":2504584.9,
-        //             "startTime":1618822380000,
-        //             "endTime":1618822440000
-        //         }
-        //     }
-        //
-        const data = this.safeValue(message, 'data');
-        const topic = this.safeValue(message, 'topic');
-        const marketId = this.safeString(data, 'symbol');
+        const arg = this.safeValue(message, 'arg', {});
+        const channel = this.safeString(arg, 'channel');
+        const data = this.safeValue(message, 'data', []);
+        const marketId = this.safeString(arg, 'instId');
         const market = this.safeMarket(marketId);
-        const symbol = market['symbol'];
-        const interval = this.safeString(data, 'type');
+        const symbol = market['id'];
+        const interval = channel.replace('candle', '');
+        // use a reverse lookup in a static map instead
         const timeframe = this.findTimeframe(interval);
-        const parsed = [
-            this.safeInteger(data, 'startTime'),
-            this.safeFloat(data, 'open'),
-            this.safeFloat(data, 'high'),
-            this.safeFloat(data, 'low'),
-            this.safeFloat(data, 'close'),
-            this.safeFloat(data, 'volume'),
-        ];
-        this.ohlcvs[symbol] = this.safeValue(this.ohlcvs, symbol, {});
-        let stored = this.safeValue(this.ohlcvs[symbol], timeframe);
-        if (stored === undefined) {
-            const limit = this.safeInteger(this.options, 'OHLCVLimit', 1000);
-            stored = new ArrayCacheByTimestamp(limit);
-            this.ohlcvs[symbol][timeframe] = stored;
+        for (let i = 0; i < data.length; i++) {
+            const parsed = this.parseOHLCV(data[i], market);
+            this.ohlcvs[symbol] = this.safeValue(this.ohlcvs, symbol, {});
+            let stored = this.safeValue(this.ohlcvs[symbol], timeframe);
+            if (stored === undefined) {
+                const limit = this.safeInteger(this.options, 'OHLCVLimit', 1000);
+                stored = new ArrayCacheByTimestamp(limit);
+                this.ohlcvs[symbol][timeframe] = stored;
+            }
+            stored.append(parsed);
+            const messageHash = channel + ':' + marketId;
+            client.resolve(stored, messageHash);
         }
-        stored.append(parsed);
-        client.resolve(stored, topic);
     }
-    async watchTrades(symbol, since = undefined, limit = undefined, params = {}) {
-        await this.loadMarkets();
-        const market = this.market(symbol);
-        const topic = market['id'] + '@trade';
-        const request = {
-            'event': 'subscribe',
-            'topic': topic,
-        };
-        const message = this.extend(request, params);
-        const trades = await this.watchPublic(topic, message, false);
-        if (this.newUpdates) {
-            limit = trades.getLimit(market['symbol'], limit);
+    async watchOrderBook(symbol, limit = undefined, params = {}) {
+        /**
+         * @method
+         * @name okx#watchOrderBook
+         * @description watches information on open orders with bid (buy) and ask (sell) prices, volumes and other data
+         * @param {string} symbol unified symbol of the market to fetch the order book for
+         * @param {int|undefined} limit the maximum amount of order book entries to return
+         * @param {object} params extra parameters specific to the okx api endpoint
+         * @returns {object} A dictionary of [order book structures]{@link https://docs.ccxt.com/#/?id=order-book-structure} indexed by market symbols
+         */
+        const options = this.safeValue(this.options, 'watchOrderBook', {});
+        //
+        // bbo-tbt
+        // 1. Newly added channel that sends tick-by-tick Level 1 data
+        // 2. All API users can subscribe
+        // 3. Public depth channel, verification not required
+        //
+        // books-l2-tbt
+        // 1. Only users who're VIP5 and above can subscribe
+        // 2. Identity verification required before subscription
+        //
+        // books50-l2-tbt
+        // 1. Only users who're VIP4 and above can subscribe
+        // 2. Identity verification required before subscription
+        //
+        // books
+        // 1. All API users can subscribe
+        // 2. Public depth channel, verification not required
+        //
+        // books5
+        // 1. All API users can subscribe
+        // 2. Public depth channel, verification not required
+        // 3. Data feeds will be delivered every 100ms (vs. every 200ms now)
+        //
+        const depth = this.safeString(options, 'depth', 'books');
+        if ((depth === 'books-l2-tbt') || (depth === 'books50-l2-tbt')) {
+            await this.authenticate({ 'access': 'public' });
         }
-        return this.filterBySymbolSinceLimit(trades, symbol, since, limit, true);
+        const orderbook = await this.subscribe('public', depth, symbol, params);
+        return orderbook.limit();
     }
-    handleTrade(client, message) {
-        //
-        // {
-        //     "topic":"SPOT_ADA_USDT@trade",
-        //     "ts":1618820361552,
-        //     "data":{
-        //         "symbol":"SPOT_ADA_USDT",
-        //         "price":1.27988,
-        //         "size":300,
-        //         "side":"BUY",
-        //         "source":0
-        //     }
-        // }
-        //
-        const topic = this.safeString(message, 'topic');
+    handleDelta(bookside, delta) {
+        const price = this.safeFloat(delta, 0);
+        const amount = this.safeFloat(delta, 1);
+        bookside.store(price, amount);
+    }
+    handleDeltas(bookside, deltas) {
+        for (let i = 0; i < deltas.length; i++) {
+            this.handleDelta(bookside, deltas[i]);
+        }
+    }
+    handleOrderBookMessage(client, message, orderbook, messageHash) {
+        const asks = this.safeValue(message, 'asks', []);
+        const bids = this.safeValue(message, 'bids', []);
+        const storedAsks = orderbook['asks'];
+        const storedBids = orderbook['bids'];
+        this.handleDeltas(storedAsks, asks);
+        this.handleDeltas(storedBids, bids);
+        const checksum = this.safeValue(this.options, 'checksum', true);
+        if (checksum) {
+            const asksLength = storedAsks.length;
+            const bidsLength = storedBids.length;
+            const payloadArray = [];
+            for (let i = 0; i < 25; i++) {
+                if (i < bidsLength) {
+                    payloadArray.push(this.numberToString(storedBids[i][0]));
+                    payloadArray.push(this.numberToString(storedBids[i][1]));
+                }
+                if (i < asksLength) {
+                    payloadArray.push(this.numberToString(storedAsks[i][0]));
+                    payloadArray.push(this.numberToString(storedAsks[i][1]));
+                }
+            }
+            const payload = payloadArray.join(':');
+            const responseChecksum = this.safeInteger(message, 'checksum');
+            const localChecksum = this.crc32(payload, true);
+            if (responseChecksum !== localChecksum) {
+                const error = new InvalidNonce(this.id + ' invalid checksum');
+                client.reject(error, messageHash);
+            }
+        }
         const timestamp = this.safeInteger(message, 'ts');
-        const data = this.safeValue(message, 'data');
-        const marketId = this.safeString(data, 'symbol');
+        orderbook['timestamp'] = timestamp;
+        orderbook['datetime'] = this.iso8601(timestamp);
+        return orderbook;
+    }
+    handleOrderBook(client, message) {
+        const arg = this.safeValue(message, 'arg', {});
+        const channel = this.safeString(arg, 'channel');
+        const action = this.safeString(message, 'action');
+        const data = this.safeValue(message, 'data', []);
+        const marketId = this.safeString(arg, 'instId');
         const market = this.safeMarket(marketId);
         const symbol = market['symbol'];
-        const trade = this.parseWsTrade(this.extend(data, { 'timestamp': timestamp }), market);
-        let tradesArray = this.safeValue(this.trades, symbol);
-        if (tradesArray === undefined) {
-            const limit = this.safeInteger(this.options, 'tradesLimit', 1000);
-            tradesArray = new ArrayCache(limit);
+        const depths = {
+            'bbo-tbt': 1,
+            'books': 400,
+            'books5': 5,
+            'books-l2-tbt': 400,
+            'books50-l2-tbt': 50,
+        };
+        const limit = this.safeInteger(depths, channel);
+        const messageHash = channel + ':' + marketId;
+        if (action === 'snapshot') {
+            for (let i = 0; i < data.length; i++) {
+                const update = data[i];
+                const orderbook = this.orderBook({}, limit);
+                this.orderbooks[symbol] = orderbook;
+                orderbook['symbol'] = symbol;
+                this.handleOrderBookMessage(client, update, orderbook, messageHash);
+                client.resolve(orderbook, messageHash);
+            }
         }
-        tradesArray.append(trade);
-        this.trades[symbol] = tradesArray;
-        client.resolve(tradesArray, topic);
-    }
-    parseWsTrade(trade, market = undefined) {
-        //
-        //     {
-        //         "symbol":"SPOT_ADA_USDT",
-        //         "timestamp":1618820361552,
-        //         "price":1.27988,
-        //         "size":300,
-        //         "side":"BUY",
-        //         "source":0
-        //     }
-        //
-        const marketId = this.safeString(trade, 'symbol');
-        market = this.safeMarket(marketId, market);
-        const symbol = market['symbol'];
-        const price = this.safeString(trade, 'price');
-        const amount = this.safeString(trade, 'size');
-        const cost = Precise.stringMul(price, amount);
-        const side = this.safeStringLower(trade, 'side');
-        const timestamp = this.safeInteger(trade, 'timestamp');
-        return this.safeTrade({
-            'id': timestamp,
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'symbol': symbol,
-            'side': side,
-            'price': price,
-            'amount': amount,
-            'cost': cost,
-            'order': undefined,
-            'takerOrMaker': undefined,
-            'type': undefined,
-            'fee': undefined,
-            'info': trade,
-        }, market);
+        else if (action === 'update') {
+            if (symbol in this.orderbooks) {
+                const orderbook = this.orderbooks[symbol];
+                for (let i = 0; i < data.length; i++) {
+                    const update = data[i];
+                    this.handleOrderBookMessage(client, update, orderbook, messageHash);
+                    client.resolve(orderbook, messageHash);
+                }
+            }
+        }
+        else if ((channel === 'books5') || (channel === 'bbo-tbt')) {
+            let orderbook = this.safeValue(this.orderbooks, symbol);
+            if (orderbook === undefined) {
+                orderbook = this.orderBook({}, limit);
+            }
+            this.orderbooks[symbol] = orderbook;
+            for (let i = 0; i < data.length; i++) {
+                const update = data[i];
+                const timestamp = this.safeInteger(update, 'ts');
+                const snapshot = this.parseOrderBook(update, symbol, timestamp, 'bids', 'asks', 0, 1);
+                orderbook.reset(snapshot);
+                client.resolve(orderbook, messageHash);
+            }
+        }
+        return message;
     }
     checkRequiredUid() {
         // checkRequiredUid (error = true) {
@@ -535,60 +444,113 @@ export default class blofin extends blofinRest {
         }
     }
     handleMessage(client, message) {
+        if (!this.handleErrorMessage(client, message)) {
+            return;
+        }
+        //
+        //     { event: 'subscribe', arg: { channel: 'tickers', instId: 'BTC-USDT' } }
+        //     { event: 'login', msg: '', code: '0' }
+        //
+        //     {
+        //         arg: { channel: 'tickers', instId: 'BTC-USDT' },
+        //         data: [
+        //             {
+        //                 instType: 'SPOT',
+        //                 instId: 'BTC-USDT',
+        //                 last: '31500.1',
+        //                 lastSz: '0.00001754',
+        //                 askPx: '31500.1',
+        //                 askSz: '0.00998144',
+        //                 bidPx: '31500',
+        //                 bidSz: '3.05652439',
+        //                 open24h: '31697',
+        //                 high24h: '32248',
+        //                 low24h: '31165.6',
+        //                 sodUtc0: '31385.5',
+        //                 sodUtc8: '32134.9',
+        //                 volCcy24h: '503403597.38138519',
+        //                 vol24h: '15937.10781721',
+        //                 ts: '1626526618762'
+        //             }
+        //         ]
+        //     }
+        //
+        //     { event: 'error', msg: 'Illegal request: {"op":"subscribe","args":["spot/ticker:BTC-USDT"]}', code: '60012' }
+        //     { event: 'error', msg: "channel:ticker,instId:BTC-USDT doesn't exist", code: '60018' }
+        //     { event: 'error', msg: 'Invalid OK_ACCESS_KEY', code: '60005' }
+        //     {
+        //         event: 'error',
+        //         msg: 'Illegal request: {"op":"login","args":["de89b035-b233-44b2-9a13-0ccdd00bda0e","7KUcc8YzQhnxBE3K","1626691289","H57N99mBt5NvW8U19FITrPdOxycAERFMaapQWRqLaSE="]}',
+        //         code: '60012'
+        //     }
+        //
+        //
+        //
+        if (message === 'pong') {
+            return this.handlePong(client, message);
+        }
+        // const table = this.safeString (message, 'table');
+        // if (table === undefined) {
+        const arg = this.safeValue(message, 'arg', {});
+        console.log(message);
+        const channel = this.safeString(arg, 'channel');
         const methods = {
-            'ping': this.handlePing,
-            'pong': this.handlePong,
-            'subscribe': this.handleSubscribe,
-            'orderbook': this.handleOrderBook,
-            'ticker': this.handleTicker,
-            'tickers': this.handleTickers,
-            'kline': this.handleOHLCV,
-            'auth': this.handleAuth,
-            'executionreport': this.handleOrderUpdate,
-            'trade': this.handleTrade,
+            'bbo-tbt': this.handleOrderBook,
+            'books': this.handleOrderBook,
+            'books5': this.handleOrderBook,
+            'books50-l2-tbt': this.handleOrderBook,
+            'books-l2-tbt': this.handleOrderBook,
+            'tickers': this.handleTicker,
+            'trades': this.handleTrades,
         };
-        const event = this.safeString(message, 'event');
-        let method = this.safeValue(methods, event);
-        if (method !== undefined) {
+        const method = this.safeValue(methods, channel);
+        if (method === undefined) {
+            if (channel.indexOf('candle') === 0) {
+                this.handleOHLCV(client, message);
+            }
+            else {
+                return message;
+            }
+        }
+        else {
             return method.call(this, client, message);
         }
-        const topic = this.safeString(message, 'topic');
-        if (topic !== undefined) {
-            method = this.safeValue(methods, topic);
-            if (method !== undefined) {
-                return method.call(this, client, message);
-            }
-            const splitTopic = topic.split('@');
-            const splitLength = splitTopic.length;
-            if (splitLength === 2) {
-                const name = this.safeString(splitTopic, 1);
-                method = this.safeValue(methods, name);
-                if (method !== undefined) {
-                    return method.call(this, client, message);
-                }
-                const splitName = name.split('_');
-                const splitNameLength = splitTopic.length;
-                if (splitNameLength === 2) {
-                    method = this.safeValue(methods, this.safeString(splitName, 0));
-                    if (method !== undefined) {
-                        return method.call(this, client, message);
-                    }
+    }
+    ping(client) {
+        // okex does not support built-in ws protocol-level ping-pong
+        // instead it requires custom text-based ping-pong
+        return 'ping';
+    }
+    handlePong(client, message) {
+        client.lastPong = this.milliseconds();
+        return message;
+    }
+    handleErrorMessage(client, message) {
+        //
+        //     { event: 'error', msg: 'Illegal request: {"op":"subscribe","args":["spot/ticker:BTC-USDT"]}', code: '60012' }
+        //     { event: 'error', msg: "channel:ticker,instId:BTC-USDT doesn't exist", code: '60018' }
+        //
+        const errorCode = this.safeInteger(message, 'code');
+        try {
+            if (errorCode) {
+                const feedback = this.id + ' ' + this.json(message);
+                this.throwExactlyMatchedException(this.exceptions['exact'], errorCode, feedback);
+                const messageString = this.safeValue2(message, 'message', 'msg');
+                if (messageString !== undefined) {
+                    this.throwBroadlyMatchedException(this.exceptions['broad'], messageString, feedback);
                 }
             }
         }
-        return message;
-    }
-    ping(client) {
-        return { 'event': 'ping' };
-    }
-    handlePing(client, message) {
-        return { 'event': 'pong' };
-    }
-    handlePong(client, message) {
-        //
-        // { event: 'pong', ts: 1657117026090 }
-        //
-        client.lastPong = this.milliseconds();
+        catch (e) {
+            if (e instanceof AuthenticationError) {
+                const messageHash = 'authenticated';
+                client.reject(e, messageHash);
+                if (messageHash in client.subscriptions) {
+                    delete client.subscriptions[messageHash];
+                }
+                return false;
+            }
+        }
         return message;
     }
     handleSubscribe(client, message) {
