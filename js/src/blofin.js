@@ -246,31 +246,26 @@ export default class blofin extends Exchange {
         return result;
     }
     parseMarket(market) {
-        const id = this.safeString(market, 'instId');
-        const type = 'future';
-        const contract = true;
-        const baseId = this.safeString(market, 'baseCurrency');
-        const quoteId = this.safeString(market, 'quoteCurrency');
-        const contactType = this.safeString(market, 'contractType');
-        const settleId = this.safeString2(market, 'settleCcy', 'quoteCurrency'); // safe to assume that on blofin quote == settle for linear markets -- rayana
-        const settle = this.safeCurrencyCode(settleId);
+        const marketId = this.safeString(market, 'instId');
+        const parts = marketId.split('-');
+        const baseId = this.safeString(parts, 0);
+        const quoteId = this.safeString(parts, 1);
+        const settleId = 'USDT';
         const base = this.safeCurrencyCode(baseId);
         const quote = this.safeCurrencyCode(quoteId);
-        let symbol = base + '/' + quote;
-        let expiry = undefined;
-        if (contract) {
-            symbol = symbol + ':' + settle;
-            expiry = this.safeInteger(market, 'expireTime');
-        }
+        const settle = this.safeCurrencyCode(settleId);
+        const symbol = base + '/' + quote + ':' + settle;
+        // const status = this.safeNumber (market, 'status');
+        // const contractSize = this.safeNumber (market, 'size', 1);
+        // const contractSize = 1;
         const tickSize = this.safeString(market, 'tickSize');
         const minAmountString = this.safeString(market, 'minSize');
         const minAmount = this.parseNumber(minAmountString);
-        const fees = this.safeValue2(this.fees, type, 'trading', {});
         const precisionPrice = this.parseNumber(tickSize);
         let maxLeverage = this.safeString(market, 'maxLeverage', '1');
         maxLeverage = Precise.stringMax(maxLeverage, '1');
-        return this.extend(fees, {
-            'id': id,
+        return {
+            'id': marketId,
             'symbol': symbol,
             'base': base,
             'quote': quote,
@@ -278,28 +273,28 @@ export default class blofin extends Exchange {
             'baseId': baseId,
             'quoteId': quoteId,
             'settleId': settleId,
-            'type': type,
+            'type': 'swap',
             'spot': false,
-            'margin': false,
-            'swap': false,
-            'future': true,
+            'margin': true,
+            'swap': true,
+            'future': false,
             'option': false,
             'active': true,
-            'contract': contract,
-            'linear': contactType === 'linear',
-            'inverse': contactType === 'inverse',
-            'contractSize': contract ? this.safeNumber(market, 'contractValue') : undefined,
-            'expiry': expiry,
-            'expiryDatetime': this.iso8601(expiry),
+            'contract': true,
+            'linear': true,
+            'inverse': undefined,
+            'contractSize': this.safeNumber(market, 'contractValue'),
+            'expiry': undefined,
+            'expiryDatetime': undefined,
             'strike': undefined,
             'optionType': undefined,
             'precision': {
                 'amount': this.safeNumber(market, 'lotSize'),
-                'price': precisionPrice,
+                'price': this.parseNumber(this.safeString(market, 'tickSize')),
             },
             'limits': {
                 'leverage': {
-                    'min': this.parseNumber('1'),
+                    'min': undefined,
                     'max': this.parseNumber(maxLeverage),
                 },
                 'amount': {
@@ -316,7 +311,78 @@ export default class blofin extends Exchange {
                 },
             },
             'info': market,
-        });
+        };
+        // const id = this.safeString (market, 'instId');
+        // const type = 'future';
+        // const contract = true;
+        // const baseId = this.safeString (market, 'baseCurrency');
+        // const quoteId = this.safeString (market, 'quoteCurrency');
+        // const contactType = this.safeString (market, 'contractType');
+        // const settleId = this.safeString2 (market, 'settleCcy', 'quoteCurrency'); // safe to assume that on blofin quote == settle for linear markets -- rayana
+        // const settle = this.safeCurrencyCode (settleId);
+        // const base = this.safeCurrencyCode (baseId);
+        // const quote = this.safeCurrencyCode (quoteId);
+        // let symbol = base + '/' + quote;
+        // let expiry = undefined;
+        // if (contract) {
+        //     symbol = symbol + ':' + settle;
+        //     expiry = this.safeInteger (market, 'expireTime');
+        // }
+        // const tickSize = this.safeString (market, 'tickSize');
+        // const minAmountString = this.safeString (market, 'minSize');
+        // const minAmount = this.parseNumber (minAmountString);
+        // const fees = this.safeValue2 (this.fees, type, 'trading', {});
+        // const precisionPrice = this.parseNumber (tickSize);
+        // let maxLeverage = this.safeString (market, 'maxLeverage', '1');
+        // maxLeverage = Precise.stringMax (maxLeverage, '1');
+        // return this.extend (fees, {
+        //     'id': id,
+        //     'symbol': symbol,
+        //     'base': base,
+        //     'quote': quote,
+        //     'settle': settle,
+        //     'baseId': baseId,
+        //     'quoteId': quoteId,
+        //     'settleId': settleId,
+        //     'type': type,
+        //     'spot': false,
+        //     'margin': false,
+        //     'swap': false,
+        //     'future': true,
+        //     'option': false,
+        //     'active': true,
+        //     'contract': contract,
+        //     'linear': contactType === 'linear',
+        //     'inverse': contactType === 'inverse',
+        //     'contractSize': contract ? this.safeNumber (market, 'contractValue') : undefined,
+        //     'expiry': expiry,
+        //     'expiryDatetime': this.iso8601 (expiry),
+        //     'strike': undefined,
+        //     'optionType': undefined,
+        //     'precision': {
+        //         'amount': this.safeNumber (market, 'lotSize'),
+        //         'price': precisionPrice,
+        //     },
+        //     'limits': {
+        //         'leverage': {
+        //             'min': this.parseNumber ('1'),
+        //             'max': this.parseNumber (maxLeverage),
+        //         },
+        //         'amount': {
+        //             'min': minAmount,
+        //             'max': undefined,
+        //         },
+        //         'price': {
+        //             'min': precisionPrice,
+        //             'max': undefined,
+        //         },
+        //         'cost': {
+        //             'min': undefined,
+        //             'max': undefined,
+        //         },
+        //     },
+        //     'info': market,
+        // });
     }
     parseTicker(ticker, market = undefined) {
         //
@@ -1165,7 +1231,8 @@ export default class blofin extends Exchange {
         // }
         type = 'limit';
         const marketId = this.safeString(order, 'instId');
-        const symbol = this.safeSymbol(marketId, market, '-');
+        market = this.safeMarket(marketId, market);
+        const symbol = market['symbol'];
         const filled = this.safeString(order, 'filledSize');
         const price = this.safeString2(order, 'px', 'price');
         const average = this.safeString(order, 'averagePrice');

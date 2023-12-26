@@ -251,30 +251,26 @@ class blofin(Exchange):
         return result
 
     def parse_market(self, market):
-        id = self.safe_string(market, 'instId')
-        type = 'future'
-        contract = True
-        baseId = self.safe_string(market, 'baseCurrency')
-        quoteId = self.safe_string(market, 'quoteCurrency')
-        contactType = self.safe_string(market, 'contractType')
-        settleId = self.safe_string_2(market, 'settleCcy', 'quoteCurrency')  # safe to assume that on blofin quote == settle for linear markets -- rayana
-        settle = self.safe_currency_code(settleId)
+        marketId = self.safe_string(market, 'instId')
+        parts = marketId.split('-')
+        baseId = self.safe_string(parts, 0)
+        quoteId = self.safe_string(parts, 1)
+        settleId = 'USDT'
         base = self.safe_currency_code(baseId)
         quote = self.safe_currency_code(quoteId)
-        symbol = base + '/' + quote
-        expiry = None
-        if contract:
-            symbol = symbol + ':' + settle
-            expiry = self.safe_integer(market, 'expireTime')
+        settle = self.safe_currency_code(settleId)
+        symbol = base + '/' + quote + ':' + settle
+        # status = self.safe_number(market, 'status')
+        # contractSize = self.safe_number(market, 'size', 1)
+        # contractSize = 1
         tickSize = self.safe_string(market, 'tickSize')
         minAmountString = self.safe_string(market, 'minSize')
         minAmount = self.parse_number(minAmountString)
-        fees = self.safe_value_2(self.fees, type, 'trading', {})
         precisionPrice = self.parse_number(tickSize)
         maxLeverage = self.safe_string(market, 'maxLeverage', '1')
         maxLeverage = Precise.string_max(maxLeverage, '1')
-        return self.extend(fees, {
-            'id': id,
+        return {
+            'id': marketId,
             'symbol': symbol,
             'base': base,
             'quote': quote,
@@ -282,28 +278,28 @@ class blofin(Exchange):
             'baseId': baseId,
             'quoteId': quoteId,
             'settleId': settleId,
-            'type': type,
+            'type': 'swap',
             'spot': False,
-            'margin': False,
-            'swap': False,
-            'future': True,
+            'margin': True,
+            'swap': True,
+            'future': False,
             'option': False,
             'active': True,
-            'contract': contract,
-            'linear': contactType == 'linear',
-            'inverse': contactType == 'inverse',
-            'contractSize': self.safe_number(market, 'contractValue') if contract else None,
-            'expiry': expiry,
-            'expiryDatetime': self.iso8601(expiry),
+            'contract': True,
+            'linear': True,
+            'inverse': None,
+            'contractSize': self.safe_number(market, 'contractValue'),
+            'expiry': None,
+            'expiryDatetime': None,
             'strike': None,
             'optionType': None,
             'precision': {
                 'amount': self.safe_number(market, 'lotSize'),
-                'price': precisionPrice,
+                'price': self.parse_number(self.safe_string(market, 'tickSize')),
             },
             'limits': {
                 'leverage': {
-                    'min': self.parse_number('1'),
+                    'min': None,
                     'max': self.parse_number(maxLeverage),
                 },
                 'amount': {
@@ -320,7 +316,78 @@ class blofin(Exchange):
                 },
             },
             'info': market,
-        })
+        }
+        # id = self.safe_string(market, 'instId')
+        # type = 'future'
+        # contract = True
+        # baseId = self.safe_string(market, 'baseCurrency')
+        # quoteId = self.safe_string(market, 'quoteCurrency')
+        # contactType = self.safe_string(market, 'contractType')
+        # settleId = self.safe_string_2(market, 'settleCcy', 'quoteCurrency')  # safe to assume that on blofin quote == settle for linear markets -- rayana
+        # settle = self.safe_currency_code(settleId)
+        # base = self.safe_currency_code(baseId)
+        # quote = self.safe_currency_code(quoteId)
+        # symbol = base + '/' + quote
+        # expiry = None
+        # if contract:
+        #     symbol = symbol + ':' + settle
+        #     expiry = self.safe_integer(market, 'expireTime')
+        # }
+        # tickSize = self.safe_string(market, 'tickSize')
+        # minAmountString = self.safe_string(market, 'minSize')
+        # minAmount = self.parse_number(minAmountString)
+        # fees = self.safe_value_2(self.fees, type, 'trading', {})
+        # precisionPrice = self.parse_number(tickSize)
+        # maxLeverage = self.safe_string(market, 'maxLeverage', '1')
+        # maxLeverage = Precise.string_max(maxLeverage, '1')
+        # return self.extend(fees, {
+        #     'id': id,
+        #     'symbol': symbol,
+        #     'base': base,
+        #     'quote': quote,
+        #     'settle': settle,
+        #     'baseId': baseId,
+        #     'quoteId': quoteId,
+        #     'settleId': settleId,
+        #     'type': type,
+        #     'spot': False,
+        #     'margin': False,
+        #     'swap': False,
+        #     'future': True,
+        #     'option': False,
+        #     'active': True,
+        #     'contract': contract,
+        #     'linear': contactType == 'linear',
+        #     'inverse': contactType == 'inverse',
+        #     'contractSize': self.safe_number(market, 'contractValue') if contract else None,
+        #     'expiry': expiry,
+        #     'expiryDatetime': self.iso8601(expiry),
+        #     'strike': None,
+        #     'optionType': None,
+        #     'precision': {
+        #         'amount': self.safe_number(market, 'lotSize'),
+        #         'price': precisionPrice,
+        #     },
+        #     'limits': {
+        #         'leverage': {
+        #             'min': self.parse_number('1'),
+        #             'max': self.parse_number(maxLeverage),
+        #         },
+        #         'amount': {
+        #             'min': minAmount,
+        #             'max': None,
+        #         },
+        #         'price': {
+        #             'min': precisionPrice,
+        #             'max': None,
+        #         },
+        #         'cost': {
+        #             'min': None,
+        #             'max': None,
+        #         },
+        #     },
+        #     'info': market,
+        # })
 
     def parse_ticker(self, ticker, market=None):
         #
@@ -1108,7 +1175,8 @@ class blofin(Exchange):
         # }
         type = 'limit'
         marketId = self.safe_string(order, 'instId')
-        symbol = self.safe_symbol(marketId, market, '-')
+        market = self.safe_market(marketId, market)
+        symbol = market['symbol']
         filled = self.safe_string(order, 'filledSize')
         price = self.safe_string_2(order, 'px', 'price')
         average = self.safe_string(order, 'averagePrice')

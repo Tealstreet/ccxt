@@ -253,31 +253,26 @@ class blofin extends Exchange {
     }
 
     public function parse_market($market) {
-        $id = $this->safe_string($market, 'instId');
-        $type = 'future';
-        $contract = true;
-        $baseId = $this->safe_string($market, 'baseCurrency');
-        $quoteId = $this->safe_string($market, 'quoteCurrency');
-        $contactType = $this->safe_string($market, 'contractType');
-        $settleId = $this->safe_string_2($market, 'settleCcy', 'quoteCurrency'); // safe to assume that on blofin $quote == $settle for linear markets -- rayana
-        $settle = $this->safe_currency_code($settleId);
+        $marketId = $this->safe_string($market, 'instId');
+        $parts = explode('-', $marketId);
+        $baseId = $this->safe_string($parts, 0);
+        $quoteId = $this->safe_string($parts, 1);
+        $settleId = 'USDT';
         $base = $this->safe_currency_code($baseId);
         $quote = $this->safe_currency_code($quoteId);
-        $symbol = $base . '/' . $quote;
-        $expiry = null;
-        if ($contract) {
-            $symbol = $symbol . ':' . $settle;
-            $expiry = $this->safe_integer($market, 'expireTime');
-        }
+        $settle = $this->safe_currency_code($settleId);
+        $symbol = $base . '/' . $quote . ':' . $settle;
+        // $status = $this->safe_number($market, 'status');
+        // $contractSize = $this->safe_number($market, 'size', 1);
+        // $contractSize = 1;
         $tickSize = $this->safe_string($market, 'tickSize');
         $minAmountString = $this->safe_string($market, 'minSize');
         $minAmount = $this->parse_number($minAmountString);
-        $fees = $this->safe_value_2($this->fees, $type, 'trading', array());
         $precisionPrice = $this->parse_number($tickSize);
         $maxLeverage = $this->safe_string($market, 'maxLeverage', '1');
         $maxLeverage = Precise::string_max($maxLeverage, '1');
-        return array_merge($fees, array(
-            'id' => $id,
+        return array(
+            'id' => $marketId,
             'symbol' => $symbol,
             'base' => $base,
             'quote' => $quote,
@@ -285,28 +280,28 @@ class blofin extends Exchange {
             'baseId' => $baseId,
             'quoteId' => $quoteId,
             'settleId' => $settleId,
-            'type' => $type,
+            'type' => 'swap',
             'spot' => false,
-            'margin' => false,
-            'swap' => false,
-            'future' => true,
+            'margin' => true,
+            'swap' => true,
+            'future' => false,
             'option' => false,
             'active' => true,
-            'contract' => $contract,
-            'linear' => $contactType === 'linear',
-            'inverse' => $contactType === 'inverse',
-            'contractSize' => $contract ? $this->safe_number($market, 'contractValue') : null,
-            'expiry' => $expiry,
-            'expiryDatetime' => $this->iso8601($expiry),
+            'contract' => true,
+            'linear' => true,
+            'inverse' => null,
+            'contractSize' => $this->safe_number($market, 'contractValue'),
+            'expiry' => null,
+            'expiryDatetime' => null,
             'strike' => null,
             'optionType' => null,
             'precision' => array(
                 'amount' => $this->safe_number($market, 'lotSize'),
-                'price' => $precisionPrice,
+                'price' => $this->parse_number($this->safe_string($market, 'tickSize')),
             ),
             'limits' => array(
                 'leverage' => array(
-                    'min' => $this->parse_number('1'),
+                    'min' => null,
                     'max' => $this->parse_number($maxLeverage),
                 ),
                 'amount' => array(
@@ -323,7 +318,78 @@ class blofin extends Exchange {
                 ),
             ),
             'info' => $market,
-        ));
+        );
+        // $id = $this->safe_string($market, 'instId');
+        // $type = 'future';
+        // $contract = true;
+        // $baseId = $this->safe_string($market, 'baseCurrency');
+        // $quoteId = $this->safe_string($market, 'quoteCurrency');
+        // $contactType = $this->safe_string($market, 'contractType');
+        // $settleId = $this->safe_string_2($market, 'settleCcy', 'quoteCurrency'); // safe to assume that on blofin $quote == $settle for linear markets -- rayana
+        // $settle = $this->safe_currency_code($settleId);
+        // $base = $this->safe_currency_code($baseId);
+        // $quote = $this->safe_currency_code($quoteId);
+        // $symbol = $base . '/' . $quote;
+        // $expiry = null;
+        // if ($contract) {
+        //     $symbol = $symbol . ':' . $settle;
+        //     $expiry = $this->safe_integer($market, 'expireTime');
+        // }
+        // $tickSize = $this->safe_string($market, 'tickSize');
+        // $minAmountString = $this->safe_string($market, 'minSize');
+        // $minAmount = $this->parse_number($minAmountString);
+        // $fees = $this->safe_value_2($this->fees, $type, 'trading', array());
+        // $precisionPrice = $this->parse_number($tickSize);
+        // $maxLeverage = $this->safe_string($market, 'maxLeverage', '1');
+        // $maxLeverage = Precise::string_max($maxLeverage, '1');
+        // return array_merge($fees, array(
+        //     'id' => $id,
+        //     'symbol' => $symbol,
+        //     'base' => $base,
+        //     'quote' => $quote,
+        //     'settle' => $settle,
+        //     'baseId' => $baseId,
+        //     'quoteId' => $quoteId,
+        //     'settleId' => $settleId,
+        //     'type' => $type,
+        //     'spot' => false,
+        //     'margin' => false,
+        //     'swap' => false,
+        //     'future' => true,
+        //     'option' => false,
+        //     'active' => true,
+        //     'contract' => $contract,
+        //     'linear' => $contactType === 'linear',
+        //     'inverse' => $contactType === 'inverse',
+        //     'contractSize' => $contract ? $this->safe_number($market, 'contractValue') : null,
+        //     'expiry' => $expiry,
+        //     'expiryDatetime' => $this->iso8601($expiry),
+        //     'strike' => null,
+        //     'optionType' => null,
+        //     'precision' => array(
+        //         'amount' => $this->safe_number($market, 'lotSize'),
+        //         'price' => $precisionPrice,
+        //     ),
+        //     'limits' => array(
+        //         'leverage' => array(
+        //             'min' => $this->parse_number('1'),
+        //             'max' => $this->parse_number($maxLeverage),
+        //         ),
+        //         'amount' => array(
+        //             'min' => $minAmount,
+        //             'max' => null,
+        //         ),
+        //         'price' => array(
+        //             'min' => $precisionPrice,
+        //             'max' => null,
+        //         ),
+        //         'cost' => array(
+        //             'min' => null,
+        //             'max' => null,
+        //         ),
+        //     ),
+        //     'info' => $market,
+        // ));
     }
 
     public function parse_ticker($ticker, $market = null) {
@@ -1193,7 +1259,8 @@ class blofin extends Exchange {
         // }
         $type = 'limit';
         $marketId = $this->safe_string($order, 'instId');
-        $symbol = $this->safe_symbol($marketId, $market, '-');
+        $market = $this->safe_market($marketId, $market);
+        $symbol = $market['symbol'];
         $filled = $this->safe_string($order, 'filledSize');
         $price = $this->safe_string_2($order, 'px', 'price');
         $average = $this->safe_string($order, 'averagePrice');
