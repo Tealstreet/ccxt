@@ -602,7 +602,7 @@ export default class blofin extends Exchange {
             takerOrMaker = 'maker';
         }
         return this.safeTrade({
-            'info': trade,
+            'info': this.deepExtend(trade, { 'symbol': marketId }),
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
             'symbol': symbol,
@@ -1386,16 +1386,13 @@ export default class blofin extends Exchange {
         //         "0" // candlestick state
         //     ]
         //
-        const res = this.handleMarketTypeAndParams('fetchOHLCV', market, undefined);
-        const type = res[0];
-        const volumeIndex = (type === 'spot') ? 5 : 6;
         return [
             this.safeInteger(ohlcv, 0),
             this.safeNumber(ohlcv, 1),
             this.safeNumber(ohlcv, 2),
             this.safeNumber(ohlcv, 3),
             this.safeNumber(ohlcv, 4),
-            this.safeNumber(ohlcv, volumeIndex),
+            this.safeNumber(ohlcv, 7),
         ];
     }
     async fetchOHLCV(symbol, timeframe = '1m', since = undefined, limit = undefined, params = {}) {
@@ -1405,7 +1402,7 @@ export default class blofin extends Exchange {
         const options = this.safeValue(this.options, 'fetchOHLCV', {});
         const timezone = this.safeString(options, 'timezone', 'UTC');
         if (limit === undefined) {
-            limit = 300; // default 100, max 100
+            limit = 100;
         }
         const duration = this.parseTimeframe(timeframe);
         let bar = this.safeString(this.timeframes, timeframe, timeframe);

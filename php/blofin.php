@@ -602,7 +602,7 @@ class blofin extends Exchange {
             $takerOrMaker = 'maker';
         }
         return $this->safe_trade(array(
-            'info' => $trade,
+            'info' => $this->deep_extend($trade, array( 'symbol' => $marketId )),
             'timestamp' => $timestamp,
             'datetime' => $this->iso8601($timestamp),
             'symbol' => $symbol,
@@ -1386,16 +1386,13 @@ class blofin extends Exchange {
         //         "0" // candlestick state
         //     )
         //
-        $res = $this->handle_market_type_and_params('fetchOHLCV', $market, null);
-        $type = $res[0];
-        $volumeIndex = ($type === 'spot') ? 5 : 6;
         return array(
             $this->safe_integer($ohlcv, 0),
             $this->safe_number($ohlcv, 1),
             $this->safe_number($ohlcv, 2),
             $this->safe_number($ohlcv, 3),
             $this->safe_number($ohlcv, 4),
-            $this->safe_number($ohlcv, $volumeIndex),
+            $this->safe_number($ohlcv, 7),
         );
     }
 
@@ -1406,7 +1403,7 @@ class blofin extends Exchange {
         $options = $this->safe_value($this->options, 'fetchOHLCV', array());
         $timezone = $this->safe_string($options, 'timezone', 'UTC');
         if ($limit === null) {
-            $limit = 300; // default 100, max 100
+            $limit = 100;
         }
         $duration = $this->parse_timeframe($timeframe);
         $bar = $this->safe_string($this->timeframes, $timeframe, $timeframe);

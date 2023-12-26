@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 
 import blofinRest from '../blofin.js';
-import { AuthenticationError, InvalidNonce } from '../base/errors.js';
+import { AuthenticationError } from '../base/errors.js';
 import { ArrayCacheByTimestamp, ArrayCacheBySymbolById, ArrayCache } from '../base/ws/Cache.js';
 
 // ----------------------------------------------------------------------------

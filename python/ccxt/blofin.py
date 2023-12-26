@@ -592,7 +592,7 @@ class blofin(Exchange):
         elif takerOrMaker == 'M':
             takerOrMaker = 'maker'
         return self.safe_trade({
-            'info': trade,
+            'info': self.deep_extend(trade, {'symbol': marketId}),
             'timestamp': timestamp,
             'datetime': self.iso8601(timestamp),
             'symbol': symbol,
@@ -1322,16 +1322,13 @@ class blofin(Exchange):
         #         "0"  # candlestick state
         #     ]
         #
-        res = self.handle_market_type_and_params('fetchOHLCV', market, None)
-        type = res[0]
-        volumeIndex = 5 if (type == 'spot') else 6
         return [
             self.safe_integer(ohlcv, 0),
             self.safe_number(ohlcv, 1),
             self.safe_number(ohlcv, 2),
             self.safe_number(ohlcv, 3),
             self.safe_number(ohlcv, 4),
-            self.safe_number(ohlcv, volumeIndex),
+            self.safe_number(ohlcv, 7),
         ]
 
     def fetch_ohlcv(self, symbol, timeframe='1m', since=None, limit=None, params={}):
@@ -1341,7 +1338,7 @@ class blofin(Exchange):
         options = self.safe_value(self.options, 'fetchOHLCV', {})
         timezone = self.safe_string(options, 'timezone', 'UTC')
         if limit is None:
-            limit = 300  # default 100, max 100
+            limit = 100
         duration = self.parse_timeframe(timeframe)
         bar = self.safe_string(self.timeframes, timeframe, timeframe)
         if (timezone == 'UTC') and (duration >= 21600):  # if utc and timeframe >= 6h
