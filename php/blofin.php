@@ -255,7 +255,8 @@ class blofin extends Exchange {
         $base = $this->safe_currency_code($baseId);
         $quote = $this->safe_currency_code($quoteId);
         $settle = $this->safe_currency_code($settleId);
-        $symbol = $base . '/' . $quote . ':' . $settle;
+        // $symbol = $base . '/' . $quote . ':' . $settle;
+        $symbol = $marketId;
         // $status = $this->safe_number($market, 'status');
         // $contractSize = $this->safe_number($market, 'size', 1);
         // $contractSize = 1;
@@ -311,7 +312,7 @@ class blofin extends Exchange {
                     'max' => null,
                 ),
             ),
-            'info' => $market,
+            'info' => $this->deep_extend($market, array( 'symbol' => $symbol )),
         );
         // $id = $this->safe_string($market, 'instId');
         // $type = 'future';
@@ -1230,7 +1231,7 @@ class blofin extends Exchange {
         $type = 'limit';
         $marketId = $this->safe_string($order, 'instId');
         $market = $this->safe_market($marketId, $market);
-        $symbol = $market['symbol'];
+        $symbol = $marketId;
         $filled = $this->safe_string($order, 'filledSize');
         $price = $this->safe_string_2($order, 'px', 'price');
         $average = $this->safe_string($order, 'averagePrice');
@@ -1836,7 +1837,8 @@ class blofin extends Exchange {
         //
         $marketId = $this->safe_string($position, 'instId');
         $market = $this->safe_market($marketId, $market);
-        $symbol = $market['symbol'];
+        // $symbol = $market['symbol'];
+        $symbol = $marketId;
         $contractsString = $this->safe_string($position, 'positions');
         $contracts = null;
         if ($contractsString !== null) {
@@ -1888,7 +1890,10 @@ class blofin extends Exchange {
             Precise::string_div($maintenanceMarginString, $collateralString, 4)
         );
         $id = $symbol . ':' . $side . ':' . $marginType;
-        $status = $contracts !== 0 ? 'open' : 'closed';
+        $status = 'closed';
+        if ($contractsString !== '0') {
+            $status = 'open';
+        }
         return array(
             'id' => $id,
             'info' => $this->deep_extend($position, array( 'symbol' => $symbol )),

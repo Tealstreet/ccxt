@@ -259,7 +259,8 @@ class blofin(Exchange):
         base = self.safe_currency_code(baseId)
         quote = self.safe_currency_code(quoteId)
         settle = self.safe_currency_code(settleId)
-        symbol = base + '/' + quote + ':' + settle
+        # symbol = base + '/' + quote + ':' + settle
+        symbol = marketId
         # status = self.safe_number(market, 'status')
         # contractSize = self.safe_number(market, 'size', 1)
         # contractSize = 1
@@ -315,7 +316,7 @@ class blofin(Exchange):
                     'max': None,
                 },
             },
-            'info': market,
+            'info': self.deep_extend(market, {'symbol': symbol}),
         }
         # id = self.safe_string(market, 'instId')
         # type = 'future'
@@ -1176,7 +1177,7 @@ class blofin(Exchange):
         type = 'limit'
         marketId = self.safe_string(order, 'instId')
         market = self.safe_market(marketId, market)
-        symbol = market['symbol']
+        symbol = marketId
         filled = self.safe_string(order, 'filledSize')
         price = self.safe_string_2(order, 'px', 'price')
         average = self.safe_string(order, 'averagePrice')
@@ -1734,7 +1735,8 @@ class blofin(Exchange):
         #
         marketId = self.safe_string(position, 'instId')
         market = self.safe_market(marketId, market)
-        symbol = market['symbol']
+        # symbol = market['symbol']
+        symbol = marketId
         contractsString = self.safe_string(position, 'positions')
         contracts = None
         if contractsString is not None:
@@ -1783,7 +1785,9 @@ class blofin(Exchange):
             Precise.string_div(maintenanceMarginString, collateralString, 4)
         )
         id = symbol + ':' + side + ':' + marginType
-        status = contracts != 'open' if 0 else 'closed'
+        status = 'closed'
+        if contractsString != '0':
+            status = 'open'
         return {
             'id': id,
             'info': self.deep_extend(position, {'symbol': symbol}),

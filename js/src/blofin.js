@@ -254,7 +254,8 @@ export default class blofin extends Exchange {
         const base = this.safeCurrencyCode(baseId);
         const quote = this.safeCurrencyCode(quoteId);
         const settle = this.safeCurrencyCode(settleId);
-        const symbol = base + '/' + quote + ':' + settle;
+        // const symbol = base + '/' + quote + ':' + settle;
+        const symbol = marketId;
         // const status = this.safeNumber (market, 'status');
         // const contractSize = this.safeNumber (market, 'size', 1);
         // const contractSize = 1;
@@ -310,7 +311,7 @@ export default class blofin extends Exchange {
                     'max': undefined,
                 },
             },
-            'info': market,
+            'info': this.deepExtend(market, { 'symbol': symbol }),
         };
         // const id = this.safeString (market, 'instId');
         // const type = 'future';
@@ -1232,7 +1233,7 @@ export default class blofin extends Exchange {
         type = 'limit';
         const marketId = this.safeString(order, 'instId');
         market = this.safeMarket(marketId, market);
-        const symbol = market['symbol'];
+        const symbol = marketId;
         const filled = this.safeString(order, 'filledSize');
         const price = this.safeString2(order, 'px', 'price');
         const average = this.safeString(order, 'averagePrice');
@@ -1831,7 +1832,8 @@ export default class blofin extends Exchange {
         //
         const marketId = this.safeString(position, 'instId');
         market = this.safeMarket(marketId, market);
-        const symbol = market['symbol'];
+        // const symbol = market['symbol'];
+        const symbol = marketId;
         const contractsString = this.safeString(position, 'positions');
         let contracts = undefined;
         if (contractsString !== undefined) {
@@ -1873,7 +1875,10 @@ export default class blofin extends Exchange {
         const leverage = this.safeInteger(position, 'leverage');
         const marginRatio = this.parseNumber(Precise.stringDiv(maintenanceMarginString, collateralString, 4));
         const id = symbol + ':' + side + ':' + marginType;
-        const status = contracts !== 0 ? 'open' : 'closed';
+        let status = 'closed';
+        if (contractsString !== '0') {
+            status = 'open';
+        }
         return {
             'id': id,
             'info': this.deepExtend(position, { 'symbol': symbol }),
