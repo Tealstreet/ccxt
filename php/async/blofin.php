@@ -1892,7 +1892,7 @@ class blofin extends Exchange {
         $contractsString = $this->safe_string($position, 'positions');
         $contracts = null;
         if ($contractsString !== null) {
-            $contracts = intval($contractsString);
+            $contracts = $this->parse_number($contractsString);
         }
         $notionalString = $this->safe_string($position, 'notionalUsd');
         $notional = $this->parse_number($notionalString);
@@ -1934,6 +1934,12 @@ class blofin extends Exchange {
         $percentageString = $this->safe_string($position, 'unrealizedPnlRatio');
         $percentage = $this->parse_number(Precise::string_mul($percentageString, '100'));
         $side = $this->safe_string($position, 'positionSide');
+        if ($side === 'net') {
+            $side = Precise::string_gt($contractsString, '0') ? 'long' : 'short';
+        }
+        if ($side === 'short' && Precise::string_gt($contractsString, '0')) {
+            $contracts = $contracts * -1;
+        }
         $timestamp = $this->safe_integer($position, 'updateTime');
         $leverage = $this->safe_integer($position, 'leverage');
         $marginRatio = $this->parse_number(

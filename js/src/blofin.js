@@ -1837,7 +1837,7 @@ export default class blofin extends Exchange {
         const contractsString = this.safeString(position, 'positions');
         let contracts = undefined;
         if (contractsString !== undefined) {
-            contracts = parseInt(contractsString);
+            contracts = this.parseNumber(contractsString);
         }
         const notionalString = this.safeString(position, 'notionalUsd');
         const notional = this.parseNumber(notionalString);
@@ -1870,7 +1870,13 @@ export default class blofin extends Exchange {
         const liquidationPrice = this.safeNumber(position, 'liquidationPrice');
         const percentageString = this.safeString(position, 'unrealizedPnlRatio');
         const percentage = this.parseNumber(Precise.stringMul(percentageString, '100'));
-        const side = this.safeString(position, 'positionSide');
+        let side = this.safeString(position, 'positionSide');
+        if (side === 'net') {
+            side = Precise.stringGt(contractsString, '0') ? 'long' : 'short';
+        }
+        if (side === 'short' && Precise.stringGt(contractsString, '0')) {
+            contracts = contracts * -1;
+        }
         const timestamp = this.safeInteger(position, 'updateTime');
         const leverage = this.safeInteger(position, 'leverage');
         const marginRatio = this.parseNumber(Precise.stringDiv(maintenanceMarginString, collateralString, 4));

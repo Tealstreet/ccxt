@@ -1740,7 +1740,7 @@ class blofin(Exchange):
         contractsString = self.safe_string(position, 'positions')
         contracts = None
         if contractsString is not None:
-            contracts = int(contractsString)
+            contracts = self.parse_number(contractsString)
         notionalString = self.safe_string(position, 'notionalUsd')
         notional = self.parse_number(notionalString)
         marginType = self.safe_string(position, 'marginMode')
@@ -1779,6 +1779,10 @@ class blofin(Exchange):
         percentageString = self.safe_string(position, 'unrealizedPnlRatio')
         percentage = self.parse_number(Precise.string_mul(percentageString, '100'))
         side = self.safe_string(position, 'positionSide')
+        if side == 'net':
+            side = 'long' if Precise.string_gt(contractsString, '0') else 'short'
+        if side == 'short' and Precise.string_gt(contractsString, '0'):
+            contracts = contracts * -1
         timestamp = self.safe_integer(position, 'updateTime')
         leverage = self.safe_integer(position, 'leverage')
         marginRatio = self.parse_number(
