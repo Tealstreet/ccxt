@@ -130,26 +130,6 @@ class blofin extends Exchange {
                             'account/positions' => 1,
                             'trade/orders-pending' => 1,
                             'trade/orders-tpsl-pending' => 1,
-                            // 'client/token' => 1,
-                            // 'order/{oid}' => 1,
-                            // 'client/order/{client_order_id}' => 1,
-                            // 'orders' => 1,
-                            // 'orderbook/{symbol}' => 1,
-                            // 'client/trade/{tid}' => 1,
-                            // 'order/{oid}/trades' => 1,
-                            // 'client/trades' => 1,
-                            // 'client/info' => 60,
-                            // 'asset/deposit' => 10,
-                            // 'asset/history' => 60,
-                            // 'sub_account/all' => 60,
-                            // 'sub_account/assets' => 60,
-                            // 'token_interest' => 60,
-                            // 'token_interest/{token}' => 60,
-                            // 'interest/history' => 60,
-                            // 'interest/repay' => 60,
-                            // 'funding_fee/history' => 30,
-                            // 'positions' => 3.33, // 30 requests per 10 seconds
-                            // 'position/{symbol}' => 3.33,
                         ),
                         'post' => array(
                             'trade/cancel-order' => 5, // 2 requests per 1 second per symbol
@@ -159,17 +139,8 @@ class blofin extends Exchange {
                             'trade/order' => 5, // 2 requests per 1 second per symbol
                             'trade/order-tpsl' => 5, // 2 requests per 1 second per symbol
                             'trade/batch-orders' => 5, // 2 requests per 1 second per symbol
-                            'asset/main_sub_transfer' => 30, // 20 requests per 60 seconds
-                            'asset/withdraw' => 30,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#token-withdraw
-                            'interest/repay' => 60,
                             'client/account_mode' => 120,
                             'client/leverage' => 120,
-                        ),
-                        'delete' => array(
-                            'order' => 1,
-                            'client/order' => 1,
-                            'orders' => 1,
-                            'asset/withdraw' => 120,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
                         ),
                     ),
                 ),
