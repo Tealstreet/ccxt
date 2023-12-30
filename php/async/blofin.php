@@ -8,6 +8,7 @@ namespace ccxt\async;
 use Exception; // a common import
 use ccxt\ArgumentsRequired;
 use ccxt\BadRequest;
+use ccxt\NotSupported;
 use ccxt\Precise;
 use React\Async;
 
@@ -133,6 +134,7 @@ class blofin extends Exchange {
                             'asset/balances' => 1,
                             'account/positions' => 1,
                             'trade/orders-pending' => 1,
+                            'trade/orders-tpsl-pending' => 1,
                             // 'client/token' => 1,
                             // 'order/{oid}' => 1,
                             // 'client/order/{client_order_id}' => 1,
@@ -1034,115 +1036,7 @@ class blofin extends Exchange {
     }
 
     public function fetch_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
-        return Async\async(function () use ($symbol, $since, $limit, $params) {
-            /**
-             * fetches information on multiple orders made by the user
-             * @param {string|null} $symbol unified $market $symbol of the $market orders were made in
-             * @param {int|null} $since the earliest time in ms to fetch orders for
-             * @param {int|null} $limit the maximum number of  orde structures to retrieve
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {[array]} a list of ~@link https://docs.ccxt.com/#/?id=order-structure order structures~
-             */
-            Async\await($this->load_markets());
-            $request = array();
-            $market = null;
-            if ($symbol !== null) {
-                $market = $this->market($symbol);
-                $request['symbol'] = $market['id'];
-            }
-            if ($since !== null) {
-                $request['start_t'] = $since;
-            }
-            $request['size'] = 500;
-            $request['status'] = 'INCOMPLETE';
-            $ordersResponse = Async\await($this->v1PrivateGetOrders (array_merge($request, $params)));
-            //
-            //     {
-            //         "success":true,
-            //         "meta":array(
-            //             "total":1,
-            //             "records_per_page":100,
-            //             "current_page":1
-            //         ),
-            //         "rows":array(
-            //             {
-            //                 "symbol":"PERP_BTC_USDT",
-            //                 "status":"FILLED",
-            //                 "side":"SELL",
-            //                 "created_time":"1611617776.000",
-            //                 "updated_time":"1611617776.000",
-            //                 "order_id":52121167,
-            //                 "order_tag":"default",
-            //                 "price":null,
-            //                 "type":"MARKET",
-            //                 "quantity":0.002,
-            //                 "amount":null,
-            //                 "visible":0,
-            //                 "executed":0.002,
-            //                 "total_fee":0.01732885,
-            //                 "fee_asset":"USDT",
-            //                 "client_order_id":null,
-            //                 "average_executed_price":28881.41
-            //             }
-            //         )
-            //     }
-            //
-            $ordersData = $this->safe_value($ordersResponse, 'rows');
-            $total = 0;
-            $algoOrdersRows = array();
-            for ($i = 0; $i < 50; $i++) {
-                $request['size'] = 50;
-                $request['page'] = $i + 1;
-                $algoOrdersResponse = Async\await($this->v3PrivateGetAlgoOrders (array_merge($request, $params)));
-                $algoOrdersData = $this->safe_value($algoOrdersResponse, 'data');
-                $algoOrdersMeta = $this->safe_value($algoOrdersData, 'meta');
-                $newRows = $this->safe_value($algoOrdersData, 'rows');
-                $total = $total . count($newRows);
-                $algoOrdersRows = $this->array_concat($algoOrdersRows, $newRows);
-                $knownTotal = $this->safe_integer($algoOrdersMeta, 'total');
-                if ($total >= $knownTotal) {
-                    break;
-                }
-            }
-            $allOrdersData = $this->array_concat($ordersData, $algoOrdersRows);
-            return $this->parse_orders($allOrdersData, $market, $since, $limit, $params);
-        }) ();
-    }
-
-    public function parse_time_in_force($timeInForce) {
-        $timeInForces = array(
-            'ioc' => 'IOC',
-            'fok' => 'FOK',
-            'post_only' => 'PO',
-        );
-        return $this->safe_string($timeInForces, $timeInForce, null);
-    }
-
-    public function parse_order_type($type, $algoType = null) {
-        if ($algoType !== null) {
-            if ($algoType === 'take_profit') {
-                if ($type === 'market') {
-                    return 'stop';
-                } else {
-                    return 'stopLimit';
-                }
-            }
-        }
-        // LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
-        $types = array(
-            'limit' => 'limit',
-            'market' => 'market',
-            'post_only' => 'limit',
-            'ioc' => 'limit',
-            'fok' => 'limit',
-            'liquidate' => 'limit',
-            // 'stop_market' => 'stop',
-            // 'take_profit_market' => 'stop',
-            // 'take_profit_limit' => 'stopLimit',
-            // 'trigger_limit' => 'stopLimit',
-            // 'trigger_market' => 'stop',
-        );
-        return $this->safe_string_lower($types, $type, $type);
+        throw new NotSupported($this->id . ' fetchOrders() is not supported yet');
     }
 
     public function parse_order($order, $market = null) {
@@ -1241,24 +1135,23 @@ class blofin extends Exchange {
         //         "uly" => "BTC-USDT"
         //     }
         //
-        $id = $this->safe_string_2($order, 'algoId', 'orderId');
+        $id = $this->safe_string_2($order, 'tpslId', 'orderId');
         $timestamp = $this->safe_integer($order, 'createTime');
         $lastTradeTimestamp = $this->safe_integer($order, 'updateTime');
         $side = $this->safe_string($order, 'side');
         $type = $this->safe_string($order, 'orderType');
         $postOnly = null;
         $timeInForce = null;
-        // if ($type === 'post_only') {
-        //     $postOnly = true;
-        //     $type = 'limit';
-        // } elseif ($type === 'fok') {
-        //     $timeInForce = 'FOK';
-        //     $type = 'limit';
-        // } elseif ($type === 'ioc') {
-        //     $timeInForce = 'IOC';
-        //     $type = 'limit';
-        // }
-        $type = 'limit';
+        if ($type === 'post_only') {
+            $postOnly = true;
+            $type = 'limit';
+        } elseif ($type === 'fok') {
+            $timeInForce = 'FOK';
+            $type = 'limit';
+        } elseif ($type === 'ioc') {
+            $timeInForce = 'IOC';
+            $type = 'limit';
+        }
         $marketId = $this->safe_string($order, 'instId');
         $market = $this->safe_market($marketId, $market);
         $symbol = $marketId;
@@ -1330,6 +1223,7 @@ class blofin extends Exchange {
     public function parse_order_status($status) {
         $statuses = array(
             'canceled' => 'canceled',
+            'order_failed' => 'canceled',
             'live' => 'open',
             'partially_filled' => 'open',
             'filled' => 'closed',
@@ -1362,6 +1256,35 @@ class blofin extends Exchange {
             }
             $query = $this->omit($params, array( 'method', 'stop' ));
             $response = Async\await($this->v1PrivateGetTradeOrdersPending (array_merge($request, $query)));
+            $data = $this->safe_value($response, 'data', array());
+            return $this->parse_orders($data, $market, $since, $limit);
+        }) ();
+    }
+
+    public function fetch_open_stop_orders($symbol = null, $since = null, $limit = null, $params = array ()) {
+        return Async\async(function () use ($symbol, $since, $limit, $params) {
+            Async\await($this->load_markets());
+            $request = array(
+                // 'instType' => 'SPOT', // SPOT, MARGIN, SWAP, FUTURES, OPTION
+                // 'uly' => currency['id'],
+                // 'instId' => $market['id'],
+                // 'ordType' => 'limit', // $market, $limit, post_only, fok, ioc, comma-separated, stop orders => conditional, oco, trigger, move_order_stop, iceberg, or twap
+                // 'state' => 'live', // live, partially_filled
+                // 'after' => orderId,
+                // 'before' => orderId,
+                // 'limit' => $limit, // default 100, max 100
+                'limit' => 100,
+            );
+            $market = null;
+            if ($symbol !== null) {
+                $market = $this->market($symbol);
+                $request['instId'] = $market['id'];
+            }
+            if ($limit !== null) {
+                $request['limit'] = $limit; // default 100, max 100
+            }
+            $query = $this->omit($params, array( 'method', 'stop' ));
+            $response = Async\await($this->v1PrivateGetTradeOrdersTpslPending (array_merge($request, $query)));
             $data = $this->safe_value($response, 'data', array());
             return $this->parse_orders($data, $market, $since, $limit);
         }) ();

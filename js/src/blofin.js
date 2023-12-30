@@ -6,7 +6,7 @@
 
 // ---------------------------------------------------------------------------
 import { Exchange } from './base/Exchange.js';
-import { ArgumentsRequired, AuthenticationError, RateLimitExceeded, BadRequest, ExchangeError, InvalidOrder } from './base/errors.js';
+import { ArgumentsRequired, AuthenticationError, RateLimitExceeded, BadRequest, ExchangeError, InvalidOrder, NotSupported } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { TICK_SIZE } from './base/functions/number.js';
 // ---------------------------------------------------------------------------
@@ -131,6 +131,7 @@ export default class blofin extends Exchange {
                             'asset/balances': 1,
                             'account/positions': 1,
                             'trade/orders-pending': 1,
+                            'trade/orders-tpsl-pending': 1,
                             // 'client/token': 1,
                             // 'order/{oid}': 1,
                             // 'client/order/{client_order_id}': 1,
@@ -1008,114 +1009,7 @@ export default class blofin extends Exchange {
         return this.parseOrder(response, market);
     }
     async fetchOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchOrders
-         * @description fetches information on multiple orders made by the user
-         * @param {string|undefined} symbol unified market symbol of the market orders were made in
-         * @param {int|undefined} since the earliest time in ms to fetch orders for
-         * @param {int|undefined} limit the maximum number of  orde structures to retrieve
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {[object]} a list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
-         */
-        await this.loadMarkets();
-        const request = {};
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market(symbol);
-            request['symbol'] = market['id'];
-        }
-        if (since !== undefined) {
-            request['start_t'] = since;
-        }
-        request['size'] = 500;
-        request['status'] = 'INCOMPLETE';
-        const ordersResponse = await this.v1PrivateGetOrders(this.extend(request, params));
-        //
-        //     {
-        //         "success":true,
-        //         "meta":{
-        //             "total":1,
-        //             "records_per_page":100,
-        //             "current_page":1
-        //         },
-        //         "rows":[
-        //             {
-        //                 "symbol":"PERP_BTC_USDT",
-        //                 "status":"FILLED",
-        //                 "side":"SELL",
-        //                 "created_time":"1611617776.000",
-        //                 "updated_time":"1611617776.000",
-        //                 "order_id":52121167,
-        //                 "order_tag":"default",
-        //                 "price":null,
-        //                 "type":"MARKET",
-        //                 "quantity":0.002,
-        //                 "amount":null,
-        //                 "visible":0,
-        //                 "executed":0.002,
-        //                 "total_fee":0.01732885,
-        //                 "fee_asset":"USDT",
-        //                 "client_order_id":null,
-        //                 "average_executed_price":28881.41
-        //             }
-        //         ]
-        //     }
-        //
-        const ordersData = this.safeValue(ordersResponse, 'rows');
-        let total = 0;
-        let algoOrdersRows = [];
-        for (let i = 0; i < 50; i++) {
-            request['size'] = 50;
-            request['page'] = i + 1;
-            const algoOrdersResponse = await this.v3PrivateGetAlgoOrders(this.extend(request, params));
-            const algoOrdersData = this.safeValue(algoOrdersResponse, 'data');
-            const algoOrdersMeta = this.safeValue(algoOrdersData, 'meta');
-            const newRows = this.safeValue(algoOrdersData, 'rows');
-            total = total + newRows.length;
-            algoOrdersRows = this.arrayConcat(algoOrdersRows, newRows);
-            const knownTotal = this.safeInteger(algoOrdersMeta, 'total');
-            if (total >= knownTotal) {
-                break;
-            }
-        }
-        const allOrdersData = this.arrayConcat(ordersData, algoOrdersRows);
-        return this.parseOrders(allOrdersData, market, since, limit, params);
-    }
-    parseTimeInForce(timeInForce) {
-        const timeInForces = {
-            'ioc': 'IOC',
-            'fok': 'FOK',
-            'post_only': 'PO',
-        };
-        return this.safeString(timeInForces, timeInForce, undefined);
-    }
-    parseOrderType(type, algoType = undefined) {
-        if (algoType !== undefined) {
-            if (algoType === 'take_profit') {
-                if (type === 'market') {
-                    return 'stop';
-                }
-                else {
-                    return 'stopLimit';
-                }
-            }
-        }
-        // LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
-        const types = {
-            'limit': 'limit',
-            'market': 'market',
-            'post_only': 'limit',
-            'ioc': 'limit',
-            'fok': 'limit',
-            'liquidate': 'limit',
-            // 'stop_market': 'stop',
-            // 'take_profit_market': 'stop',
-            // 'take_profit_limit': 'stopLimit',
-            // 'trigger_limit': 'stopLimit',
-            // 'trigger_market': 'stop',
-        };
-        return this.safeStringLower(types, type, type);
+        throw new NotSupported(this.id + ' fetchOrders() is not supported yet');
     }
     parseOrder(order, market = undefined) {
         //
@@ -1213,24 +1107,25 @@ export default class blofin extends Exchange {
         //         "uly": "BTC-USDT"
         //     }
         //
-        const id = this.safeString2(order, 'algoId', 'orderId');
+        const id = this.safeString2(order, 'tpslId', 'orderId');
         const timestamp = this.safeInteger(order, 'createTime');
         const lastTradeTimestamp = this.safeInteger(order, 'updateTime');
         const side = this.safeString(order, 'side');
         let type = this.safeString(order, 'orderType');
-        const postOnly = undefined;
-        const timeInForce = undefined;
-        // if (type === 'post_only') {
-        //     postOnly = true;
-        //     type = 'limit';
-        // } else if (type === 'fok') {
-        //     timeInForce = 'FOK';
-        //     type = 'limit';
-        // } else if (type === 'ioc') {
-        //     timeInForce = 'IOC';
-        //     type = 'limit';
-        // }
-        type = 'limit';
+        let postOnly = undefined;
+        let timeInForce = undefined;
+        if (type === 'post_only') {
+            postOnly = true;
+            type = 'limit';
+        }
+        else if (type === 'fok') {
+            timeInForce = 'FOK';
+            type = 'limit';
+        }
+        else if (type === 'ioc') {
+            timeInForce = 'IOC';
+            type = 'limit';
+        }
         const marketId = this.safeString(order, 'instId');
         market = this.safeMarket(marketId, market);
         const symbol = marketId;
@@ -1301,6 +1196,7 @@ export default class blofin extends Exchange {
     parseOrderStatus(status) {
         const statuses = {
             'canceled': 'canceled',
+            'order_failed': 'canceled',
             'live': 'open',
             'partially_filled': 'open',
             'filled': 'closed',
@@ -1331,6 +1227,32 @@ export default class blofin extends Exchange {
         }
         const query = this.omit(params, ['method', 'stop']);
         const response = await this.v1PrivateGetTradeOrdersPending(this.extend(request, query));
+        const data = this.safeValue(response, 'data', []);
+        return this.parseOrders(data, market, since, limit);
+    }
+    async fetchOpenStopOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
+        await this.loadMarkets();
+        const request = {
+            // 'instType': 'SPOT', // SPOT, MARGIN, SWAP, FUTURES, OPTION
+            // 'uly': currency['id'],
+            // 'instId': market['id'],
+            // 'ordType': 'limit', // market, limit, post_only, fok, ioc, comma-separated, stop orders: conditional, oco, trigger, move_order_stop, iceberg, or twap
+            // 'state': 'live', // live, partially_filled
+            // 'after': orderId,
+            // 'before': orderId,
+            // 'limit': limit, // default 100, max 100
+            'limit': 100,
+        };
+        let market = undefined;
+        if (symbol !== undefined) {
+            market = this.market(symbol);
+            request['instId'] = market['id'];
+        }
+        if (limit !== undefined) {
+            request['limit'] = limit; // default 100, max 100
+        }
+        const query = this.omit(params, ['method', 'stop']);
+        const response = await this.v1PrivateGetTradeOrdersTpslPending(this.extend(request, query));
         const data = this.safeValue(response, 'data', []);
         return this.parseOrders(data, market, since, limit);
     }

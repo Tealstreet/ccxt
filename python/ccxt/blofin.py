@@ -9,6 +9,7 @@ from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
 from ccxt.base.errors import InvalidOrder
+from ccxt.base.errors import NotSupported
 from ccxt.base.errors import RateLimitExceeded
 from ccxt.base.errors import AuthenticationError
 from ccxt.base.decimal_to_precision import TICK_SIZE
@@ -137,6 +138,7 @@ class blofin(Exchange):
                             'asset/balances': 1,
                             'account/positions': 1,
                             'trade/orders-pending': 1,
+                            'trade/orders-tpsl-pending': 1,
                             # 'client/token': 1,
                             # 'order/{oid}': 1,
                             # 'client/order/{client_order_id}': 1,
@@ -962,104 +964,7 @@ class blofin(Exchange):
         return self.parse_order(response, market)
 
     def fetch_orders(self, symbol=None, since=None, limit=None, params={}):
-        """
-        fetches information on multiple orders made by the user
-        :param str|None symbol: unified market symbol of the market orders were made in
-        :param int|None since: the earliest time in ms to fetch orders for
-        :param int|None limit: the maximum number of  orde structures to retrieve
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns [dict]: a list of `order structures <https://docs.ccxt.com/#/?id=order-structure>`
-        """
-        self.load_markets()
-        request = {}
-        market = None
-        if symbol is not None:
-            market = self.market(symbol)
-            request['symbol'] = market['id']
-        if since is not None:
-            request['start_t'] = since
-        request['size'] = 500
-        request['status'] = 'INCOMPLETE'
-        ordersResponse = self.v1PrivateGetOrders(self.extend(request, params))
-        #
-        #     {
-        #         "success":true,
-        #         "meta":{
-        #             "total":1,
-        #             "records_per_page":100,
-        #             "current_page":1
-        #         },
-        #         "rows":[
-        #             {
-        #                 "symbol":"PERP_BTC_USDT",
-        #                 "status":"FILLED",
-        #                 "side":"SELL",
-        #                 "created_time":"1611617776.000",
-        #                 "updated_time":"1611617776.000",
-        #                 "order_id":52121167,
-        #                 "order_tag":"default",
-        #                 "price":null,
-        #                 "type":"MARKET",
-        #                 "quantity":0.002,
-        #                 "amount":null,
-        #                 "visible":0,
-        #                 "executed":0.002,
-        #                 "total_fee":0.01732885,
-        #                 "fee_asset":"USDT",
-        #                 "client_order_id":null,
-        #                 "average_executed_price":28881.41
-        #             }
-        #         ]
-        #     }
-        #
-        ordersData = self.safe_value(ordersResponse, 'rows')
-        total = 0
-        algoOrdersRows = []
-        for i in range(0, 50):
-            request['size'] = 50
-            request['page'] = i + 1
-            algoOrdersResponse = self.v3PrivateGetAlgoOrders(self.extend(request, params))
-            algoOrdersData = self.safe_value(algoOrdersResponse, 'data')
-            algoOrdersMeta = self.safe_value(algoOrdersData, 'meta')
-            newRows = self.safe_value(algoOrdersData, 'rows')
-            total = total + len(newRows)
-            algoOrdersRows = self.array_concat(algoOrdersRows, newRows)
-            knownTotal = self.safe_integer(algoOrdersMeta, 'total')
-            if total >= knownTotal:
-                break
-        allOrdersData = self.array_concat(ordersData, algoOrdersRows)
-        return self.parse_orders(allOrdersData, market, since, limit, params)
-
-    def parse_time_in_force(self, timeInForce):
-        timeInForces = {
-            'ioc': 'IOC',
-            'fok': 'FOK',
-            'post_only': 'PO',
-        }
-        return self.safe_string(timeInForces, timeInForce, None)
-
-    def parse_order_type(self, type, algoType=None):
-        if algoType is not None:
-            if algoType == 'take_profit':
-                if type == 'market':
-                    return 'stop'
-                else:
-                    return 'stopLimit'
-        # LIMIT/MARKET/IOC/FOK/POST_ONLY/LIQUIDATE
-        types = {
-            'limit': 'limit',
-            'market': 'market',
-            'post_only': 'limit',
-            'ioc': 'limit',
-            'fok': 'limit',
-            'liquidate': 'limit',
-            # 'stop_market': 'stop',
-            # 'take_profit_market': 'stop',
-            # 'take_profit_limit': 'stopLimit',
-            # 'trigger_limit': 'stopLimit',
-            # 'trigger_market': 'stop',
-        }
-        return self.safe_string_lower(types, type, type)
+        raise NotSupported(self.id + ' fetchOrders() is not supported yet')
 
     def parse_order(self, order, market=None):
         #
@@ -1157,24 +1062,22 @@ class blofin(Exchange):
         #         "uly": "BTC-USDT"
         #     }
         #
-        id = self.safe_string_2(order, 'algoId', 'orderId')
+        id = self.safe_string_2(order, 'tpslId', 'orderId')
         timestamp = self.safe_integer(order, 'createTime')
         lastTradeTimestamp = self.safe_integer(order, 'updateTime')
         side = self.safe_string(order, 'side')
         type = self.safe_string(order, 'orderType')
         postOnly = None
         timeInForce = None
-        # if type == 'post_only':
-        #     postOnly = True
-        #     type = 'limit'
-        # elif type == 'fok':
-        #     timeInForce = 'FOK'
-        #     type = 'limit'
-        # elif type == 'ioc':
-        #     timeInForce = 'IOC'
-        #     type = 'limit'
-        # }
-        type = 'limit'
+        if type == 'post_only':
+            postOnly = True
+            type = 'limit'
+        elif type == 'fok':
+            timeInForce = 'FOK'
+            type = 'limit'
+        elif type == 'ioc':
+            timeInForce = 'IOC'
+            type = 'limit'
         marketId = self.safe_string(order, 'instId')
         market = self.safe_market(marketId, market)
         symbol = marketId
@@ -1242,6 +1145,7 @@ class blofin(Exchange):
     def parse_order_status(self, status):
         statuses = {
             'canceled': 'canceled',
+            'order_failed': 'canceled',
             'live': 'open',
             'partially_filled': 'open',
             'filled': 'closed',
@@ -1270,6 +1174,30 @@ class blofin(Exchange):
             request['limit'] = limit  # default 100, max 100
         query = self.omit(params, ['method', 'stop'])
         response = self.v1PrivateGetTradeOrdersPending(self.extend(request, query))
+        data = self.safe_value(response, 'data', [])
+        return self.parse_orders(data, market, since, limit)
+
+    def fetch_open_stop_orders(self, symbol=None, since=None, limit=None, params={}):
+        self.load_markets()
+        request = {
+            # 'instType': 'SPOT',  # SPOT, MARGIN, SWAP, FUTURES, OPTION
+            # 'uly': currency['id'],
+            # 'instId': market['id'],
+            # 'ordType': 'limit',  # market, limit, post_only, fok, ioc, comma-separated, stop orders: conditional, oco, trigger, move_order_stop, iceberg, or twap
+            # 'state': 'live',  # live, partially_filled
+            # 'after': orderId,
+            # 'before': orderId,
+            # 'limit': limit,  # default 100, max 100
+            'limit': 100,
+        }
+        market = None
+        if symbol is not None:
+            market = self.market(symbol)
+            request['instId'] = market['id']
+        if limit is not None:
+            request['limit'] = limit  # default 100, max 100
+        query = self.omit(params, ['method', 'stop'])
+        response = self.v1PrivateGetTradeOrdersTpslPending(self.extend(request, query))
         data = self.safe_value(response, 'data', [])
         return self.parse_orders(data, market, since, limit)
 
