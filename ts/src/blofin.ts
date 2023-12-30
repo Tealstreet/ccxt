@@ -1907,6 +1907,9 @@ export default class blofin extends Exchange {
 
     async fetchAccountConfiguration (symbol, params = {}) {
         await this.loadMarkets ();
+        if (symbol === 'BTC/USDT:USDT') {
+            symbol = 'BTC-USDT';
+        }
         const market = this.market (symbol);
         const leverageInfo = await this.fetchLeverage (market['id']);
         const leverage = this.safeInteger (leverageInfo, 'leverage');

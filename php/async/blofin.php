@@ -1932,6 +1932,9 @@ class blofin extends Exchange {
     public function fetch_account_configuration($symbol, $params = array ()) {
         return Async\async(function () use ($symbol, $params) {
             Async\await($this->load_markets());
+            if ($symbol === 'BTC/USDT:USDT') {
+                $symbol = 'BTC-USDT';
+            }
             $market = $this->market($symbol);
             $leverageInfo = Async\await($this->fetch_leverage($market['id']));
             $leverage = $this->safe_integer($leverageInfo, 'leverage');

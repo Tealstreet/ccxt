@@ -1777,6 +1777,8 @@ class blofin(Exchange):
 
     async def fetch_account_configuration(self, symbol, params={}):
         await self.load_markets()
+        if symbol == 'BTC/USDT:USDT':
+            symbol = 'BTC-USDT'
         market = self.market(symbol)
         leverageInfo = await self.fetch_leverage(market['id'])
         leverage = self.safe_integer(leverageInfo, 'leverage')
