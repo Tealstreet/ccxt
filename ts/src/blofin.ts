@@ -153,7 +153,13 @@ export default class blofin extends Exchange {
                             // 'position/{symbol}': 3.33,
                         },
                         'post': {
-                            'order': 5, // 2 requests per 1 second per symbol
+                            'trade/cancel-order': 5, // 2 requests per 1 second per symbol
+                            'trade/cancel-tpsl': 5, // 2 requests per 1 second per symbol
+                            'trade/cancel-batch-orders': 5, // 2 requests per 1 second per symbol
+                            'trade/close-positions': 5, // 2 requests per 1 second per symbol
+                            'trade/order': 5, // 2 requests per 1 second per symbol
+                            'trade/order-tpsl': 5, // 2 requests per 1 second per symbol
+                            'trade/batch-orders': 5, // 2 requests per 1 second per symbol
                             'asset/main_sub_transfer': 30, // 20 requests per 60 seconds
                             'asset/withdraw': 30,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#token-withdraw
                             'interest/repay': 60,
