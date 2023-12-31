@@ -761,12 +761,14 @@ class blofin(Exchange):
         if symbol is not None:
             market = self.market(symbol)
         request['instId'] = market['id']
-        response = await self.v1PrivatePostTradeCancelTpsl(self.extend(request, params))
+        params = self.omit(params, ['type'])
+        request['clientOrderId'] = ''
+        response = await self.v1PrivatePostTradeCancelTpsl([self.extend(request, params)])
         #
         # {success: True, status: 'CANCEL_SENT'}
         #
-        extendParams = {'instId': symbol}
-        extendParams['tpslId'] = id
+        extendParams = {'symbol': symbol}
+        extendParams['id'] = id
         return self.extend(self.parse_order(response), extendParams)
 
     async def cancel_regular_order(self, id, symbol=None, params={}):

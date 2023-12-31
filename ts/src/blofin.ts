@@ -812,12 +812,14 @@ export default class blofin extends Exchange {
             market = this.market (symbol);
         }
         request['instId'] = market['id'];
-        const response = await (this as any).v1PrivatePostTradeCancelTpsl (this.extend (request, params));
+        params = this.omit (params, [ 'type' ]);
+        request['clientOrderId'] = '';
+        const response = await (this as any).v1PrivatePostTradeCancelTpsl ([ this.extend (request, params) ]);
         //
         // { success: true, status: 'CANCEL_SENT' }
         //
-        const extendParams = { 'instId': symbol };
-        extendParams['tpslId'] = id;
+        const extendParams = { 'symbol': symbol };
+        extendParams['id'] = id;
         return this.extend (this.parseOrder (response), extendParams);
     }
 

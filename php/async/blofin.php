@@ -823,12 +823,14 @@ class blofin extends Exchange {
                 $market = $this->market($symbol);
             }
             $request['instId'] = $market['id'];
-            $response = Async\await($this->v1PrivatePostTradeCancelTpsl (array_merge($request, $params)));
+            $params = $this->omit($params, array( 'type' ));
+            $request['clientOrderId'] = '';
+            $response = Async\await($this->v1PrivatePostTradeCancelTpsl (array( array_merge($request, $params) )));
             //
             // array( success => true, status => 'CANCEL_SENT' )
             //
-            $extendParams = array( 'instId' => $symbol );
-            $extendParams['tpslId'] = $id;
+            $extendParams = array( 'symbol' => $symbol );
+            $extendParams['id'] = $id;
             return array_merge($this->parse_order($response), $extendParams);
         }) ();
     }
