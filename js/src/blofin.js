@@ -1051,6 +1051,12 @@ export default class blofin extends Exchange {
             timeInForce = 'IOC';
             type = 'limit';
         }
+        else if (type === 'conditional') {
+            type = 'stop';
+        }
+        else if (type === 'trigger') {
+            type = 'stoplimit';
+        }
         const marketId = this.safeString(order, 'instId');
         market = this.safeMarket(marketId, market);
         const symbol = marketId;
@@ -1084,10 +1090,29 @@ export default class blofin extends Exchange {
         }
         const stopLossPrice = this.safeNumber2(order, 'slTriggerPrice', 'slOrderPrice');
         const takeProfitPrice = this.safeNumber2(order, 'tpTriggerPrice', 'tpOrderPrice');
-        const stopPrice = this.safeNumberN(order, ['price']);
+        const stopLossOrderPrice = this.safeNumber(order, 'slOrderPrice');
+        const takeProfitOrderPrice = this.safeNumber(order, 'tpOrderPrice');
+        if (stopLossPrice) {
+            if (stopLossOrderPrice === -1) {
+                type = 'stop';
+            }
+            else {
+                type = 'stoplimit';
+            }
+        }
+        else if (takeProfitPrice) {
+            if (takeProfitOrderPrice === -1) {
+                type = 'stop';
+            }
+            else {
+                type = 'stoplimit';
+            }
+        }
+        // const stopPrice = this.safeNumberN (order, [ 'price', 'stopPrice', 'slTriggerPrice, tpTriggerPrice' ]);
+        const stopPrice = this.safeNumber2(order, 'tpTriggerPrice', 'slTriggerPrice');
         const reduceOnlyRaw = this.safeString(order, 'reduceOnly');
         let reduceOnly = false;
-        if (reduceOnly !== undefined) {
+        if (reduceOnly) {
             reduceOnly = (reduceOnlyRaw === 'true');
         }
         return this.safeOrder({

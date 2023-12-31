@@ -989,6 +989,10 @@ class blofin(Exchange):
         elif type == 'ioc':
             timeInForce = 'IOC'
             type = 'limit'
+        elif type == 'conditional':
+            type = 'stop'
+        elif type == 'trigger':
+            type = 'stoplimit'
         marketId = self.safe_string(order, 'instId')
         market = self.safe_market(marketId, market)
         symbol = marketId
@@ -1020,10 +1024,23 @@ class blofin(Exchange):
             clientOrderId = None  # fix empty clientOrderId string
         stopLossPrice = self.safe_number_2(order, 'slTriggerPrice', 'slOrderPrice')
         takeProfitPrice = self.safe_number_2(order, 'tpTriggerPrice', 'tpOrderPrice')
-        stopPrice = self.safe_number_n(order, ['price'])
+        stopLossOrderPrice = self.safe_number(order, 'slOrderPrice')
+        takeProfitOrderPrice = self.safe_number(order, 'tpOrderPrice')
+        if stopLossPrice:
+            if stopLossOrderPrice == -1:
+                type = 'stop'
+            else:
+                type = 'stoplimit'
+        elif takeProfitPrice:
+            if takeProfitOrderPrice == -1:
+                type = 'stop'
+            else:
+                type = 'stoplimit'
+        # stopPrice = self.safe_number_n(order, ['price', 'stopPrice', 'slTriggerPrice, tpTriggerPrice'])
+        stopPrice = self.safe_number_2(order, 'tpTriggerPrice', 'slTriggerPrice')
         reduceOnlyRaw = self.safe_string(order, 'reduceOnly')
         reduceOnly = False
-        if reduceOnly is not None:
+        if reduceOnly:
             reduceOnly = (reduceOnlyRaw == 'true')
         return self.safe_order({
             'info': order,

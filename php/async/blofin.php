@@ -1068,6 +1068,10 @@ class blofin extends Exchange {
         } elseif ($type === 'ioc') {
             $timeInForce = 'IOC';
             $type = 'limit';
+        } elseif ($type === 'conditional') {
+            $type = 'stop';
+        } elseif ($type === 'trigger') {
+            $type = 'stoplimit';
         }
         $marketId = $this->safe_string($order, 'instId');
         $market = $this->safe_market($marketId, $market);
@@ -1102,10 +1106,26 @@ class blofin extends Exchange {
         }
         $stopLossPrice = $this->safe_number_2($order, 'slTriggerPrice', 'slOrderPrice');
         $takeProfitPrice = $this->safe_number_2($order, 'tpTriggerPrice', 'tpOrderPrice');
-        $stopPrice = $this->safe_number_n($order, array( 'price' ));
+        $stopLossOrderPrice = $this->safe_number($order, 'slOrderPrice');
+        $takeProfitOrderPrice = $this->safe_number($order, 'tpOrderPrice');
+        if ($stopLossPrice) {
+            if ($stopLossOrderPrice === -1) {
+                $type = 'stop';
+            } else {
+                $type = 'stoplimit';
+            }
+        } elseif ($takeProfitPrice) {
+            if ($takeProfitOrderPrice === -1) {
+                $type = 'stop';
+            } else {
+                $type = 'stoplimit';
+            }
+        }
+        // $stopPrice = $this->safe_number_n($order, array( 'price', 'stopPrice', 'slTriggerPrice, tpTriggerPrice' ));
+        $stopPrice = $this->safe_number_2($order, 'tpTriggerPrice', 'slTriggerPrice');
         $reduceOnlyRaw = $this->safe_string($order, 'reduceOnly');
         $reduceOnly = false;
-        if ($reduceOnly !== null) {
+        if ($reduceOnly) {
             $reduceOnly = ($reduceOnlyRaw === 'true');
         }
         return $this->safe_order(array(
