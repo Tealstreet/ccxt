@@ -795,7 +795,9 @@ export default class blofin extends Exchange {
             throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets ();
-        if (this.maybeAlgoOrderId (id)) {
+        const type = this.safeString (params, 'type');
+        const isStop = type === 'stop' || type === 'stoplimit';
+        if (isStop) {
             return this.cancelAlgoOrder (id, symbol, params);
         } else {
             return this.cancelRegularOrder (id, symbol, params);
@@ -804,46 +806,46 @@ export default class blofin extends Exchange {
 
     async cancelAlgoOrder (id, symbol: string = undefined, params = {}) {
         const request = {};
-        request['oid'] = id;
+        request['tpslId'] = id;
         let market = undefined;
         if (symbol !== undefined) {
             market = this.market (symbol);
         }
-        request['symbol'] = market['id'];
-        const response = await (this as any).v3PrivateDeleteAlgoOrderOid (this.extend (request, params));
+        request['instId'] = market['id'];
+        const response = await (this as any).v1PrivatePostTradeCancelTpsl (this.extend (request, params));
         //
         // { success: true, status: 'CANCEL_SENT' }
         //
-        const extendParams = { 'symbol': symbol };
-        extendParams['id'] = id;
+        const extendParams = { 'instId': symbol };
+        extendParams['tpslId'] = id;
         return this.extend (this.parseOrder (response), extendParams);
     }
 
     async cancelRegularOrder (id, symbol: string = undefined, params = {}) {
         const request = {};
         const clientOrderIdUnified = this.safeString2 (params, 'clOrdID', 'clientOrderId');
-        const clientOrderIdExchangeSpecific = this.safeString2 (params, 'client_order_id', clientOrderIdUnified);
+        const clientOrderIdExchangeSpecific = this.safeString2 (params, 'clientOrderId', clientOrderIdUnified);
         const isByClientOrder = clientOrderIdExchangeSpecific !== undefined;
         if (isByClientOrder) {
-            request['client_order_id'] = clientOrderIdExchangeSpecific;
+            request['clientOrderId'] = clientOrderIdExchangeSpecific;
             params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'client_order_id' ]);
         } else {
-            request['order_id'] = id;
+            request['orderId'] = id;
         }
         let market = undefined;
         if (symbol !== undefined) {
             market = this.market (symbol);
         }
-        request['symbol'] = market['id'];
-        const response = await (this as any).v1PrivateDeleteOrder (this.extend (request, params));
+        request['instId'] = market['id'];
+        const response = await (this as any).v1PrivatePostTradeCancelOrder (this.extend (request, params));
         //
         // { success: true, status: 'CANCEL_SENT' }
         //
         const extendParams = { 'symbol': symbol };
         if (isByClientOrder) {
-            extendParams['client_order_id'] = clientOrderIdExchangeSpecific;
+            extendParams['clientOrderId'] = clientOrderIdExchangeSpecific;
         } else {
-            extendParams['id'] = id;
+            extendParams['instId'] = id;
         }
         return this.extend (this.parseOrder (response), extendParams);
     }
@@ -890,7 +892,9 @@ export default class blofin extends Exchange {
         const request = {};
         const clientOrderId = this.safeString2 (params, 'clOrdID', 'clientOrderId');
         let chosenSpotMethod = undefined;
-        if (this.maybeAlgoOrderId (id)) {
+        const type = this.safeString (params, 'type');
+        const isStop = type === 'stop' || type === 'stoplimit';
+        if (isStop) {
             chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid';
         } else if (clientOrderId) {
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';

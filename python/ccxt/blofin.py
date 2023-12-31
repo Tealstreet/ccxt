@@ -747,49 +747,51 @@ class blofin(Exchange):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         self.load_markets()
-        if self.maybe_algo_order_id(id):
+        type = self.safe_string(params, 'type')
+        isStop = type == 'stop' or type == 'stoplimit'
+        if isStop:
             return self.cancel_algo_order(id, symbol, params)
         else:
             return self.cancel_regular_order(id, symbol, params)
 
     def cancel_algo_order(self, id, symbol=None, params={}):
         request = {}
-        request['oid'] = id
+        request['tpslId'] = id
         market = None
         if symbol is not None:
             market = self.market(symbol)
-        request['symbol'] = market['id']
-        response = self.v3PrivateDeleteAlgoOrderOid(self.extend(request, params))
+        request['instId'] = market['id']
+        response = self.v1PrivatePostTradeCancelTpsl(self.extend(request, params))
         #
         # {success: True, status: 'CANCEL_SENT'}
         #
-        extendParams = {'symbol': symbol}
-        extendParams['id'] = id
+        extendParams = {'instId': symbol}
+        extendParams['tpslId'] = id
         return self.extend(self.parse_order(response), extendParams)
 
     def cancel_regular_order(self, id, symbol=None, params={}):
         request = {}
         clientOrderIdUnified = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
-        clientOrderIdExchangeSpecific = self.safe_string_2(params, 'client_order_id', clientOrderIdUnified)
+        clientOrderIdExchangeSpecific = self.safe_string_2(params, 'clientOrderId', clientOrderIdUnified)
         isByClientOrder = clientOrderIdExchangeSpecific is not None
         if isByClientOrder:
-            request['client_order_id'] = clientOrderIdExchangeSpecific
+            request['clientOrderId'] = clientOrderIdExchangeSpecific
             params = self.omit(params, ['clOrdID', 'clientOrderId', 'client_order_id'])
         else:
-            request['order_id'] = id
+            request['orderId'] = id
         market = None
         if symbol is not None:
             market = self.market(symbol)
-        request['symbol'] = market['id']
-        response = self.v1PrivateDeleteOrder(self.extend(request, params))
+        request['instId'] = market['id']
+        response = self.v1PrivatePostTradeCancelOrder(self.extend(request, params))
         #
         # {success: True, status: 'CANCEL_SENT'}
         #
         extendParams = {'symbol': symbol}
         if isByClientOrder:
-            extendParams['client_order_id'] = clientOrderIdExchangeSpecific
+            extendParams['clientOrderId'] = clientOrderIdExchangeSpecific
         else:
-            extendParams['id'] = id
+            extendParams['instId'] = id
         return self.extend(self.parse_order(response), extendParams)
 
     def cancel_all_orders(self, symbol=None, params={}):
@@ -828,7 +830,9 @@ class blofin(Exchange):
         request = {}
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         chosenSpotMethod = None
-        if self.maybe_algo_order_id(id):
+        type = self.safe_string(params, 'type')
+        isStop = type == 'stop' or type == 'stoplimit'
+        if isStop:
             chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid'
         elif clientOrderId:
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId'

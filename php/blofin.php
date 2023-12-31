@@ -786,7 +786,9 @@ class blofin extends Exchange {
             throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
         }
         $this->load_markets();
-        if ($this->maybe_algo_order_id($id)) {
+        $type = $this->safe_string($params, 'type');
+        $isStop = $type === 'stop' || $type === 'stoplimit';
+        if ($isStop) {
             return $this->cancel_algo_order($id, $symbol, $params);
         } else {
             return $this->cancel_regular_order($id, $symbol, $params);
@@ -795,46 +797,46 @@ class blofin extends Exchange {
 
     public function cancel_algo_order($id, $symbol = null, $params = array ()) {
         $request = array();
-        $request['oid'] = $id;
+        $request['tpslId'] = $id;
         $market = null;
         if ($symbol !== null) {
             $market = $this->market($symbol);
         }
-        $request['symbol'] = $market['id'];
-        $response = $this->v3PrivateDeleteAlgoOrderOid (array_merge($request, $params));
+        $request['instId'] = $market['id'];
+        $response = $this->v1PrivatePostTradeCancelTpsl (array_merge($request, $params));
         //
         // array( success => true, status => 'CANCEL_SENT' )
         //
-        $extendParams = array( 'symbol' => $symbol );
-        $extendParams['id'] = $id;
+        $extendParams = array( 'instId' => $symbol );
+        $extendParams['tpslId'] = $id;
         return array_merge($this->parse_order($response), $extendParams);
     }
 
     public function cancel_regular_order($id, $symbol = null, $params = array ()) {
         $request = array();
         $clientOrderIdUnified = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
-        $clientOrderIdExchangeSpecific = $this->safe_string_2($params, 'client_order_id', $clientOrderIdUnified);
+        $clientOrderIdExchangeSpecific = $this->safe_string_2($params, 'clientOrderId', $clientOrderIdUnified);
         $isByClientOrder = $clientOrderIdExchangeSpecific !== null;
         if ($isByClientOrder) {
-            $request['client_order_id'] = $clientOrderIdExchangeSpecific;
+            $request['clientOrderId'] = $clientOrderIdExchangeSpecific;
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'client_order_id' ));
         } else {
-            $request['order_id'] = $id;
+            $request['orderId'] = $id;
         }
         $market = null;
         if ($symbol !== null) {
             $market = $this->market($symbol);
         }
-        $request['symbol'] = $market['id'];
-        $response = $this->v1PrivateDeleteOrder (array_merge($request, $params));
+        $request['instId'] = $market['id'];
+        $response = $this->v1PrivatePostTradeCancelOrder (array_merge($request, $params));
         //
         // array( success => true, status => 'CANCEL_SENT' )
         //
         $extendParams = array( 'symbol' => $symbol );
         if ($isByClientOrder) {
-            $extendParams['client_order_id'] = $clientOrderIdExchangeSpecific;
+            $extendParams['clientOrderId'] = $clientOrderIdExchangeSpecific;
         } else {
-            $extendParams['id'] = $id;
+            $extendParams['instId'] = $id;
         }
         return array_merge($this->parse_order($response), $extendParams);
     }
@@ -877,7 +879,9 @@ class blofin extends Exchange {
         $request = array();
         $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
         $chosenSpotMethod = null;
-        if ($this->maybe_algo_order_id($id)) {
+        $type = $this->safe_string($params, 'type');
+        $isStop = $type === 'stop' || $type === 'stoplimit';
+        if ($isStop) {
             $chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid';
         } elseif ($clientOrderId) {
             $chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
@@ -897,7 +901,7 @@ class blofin extends Exchange {
         //     order_id => '87541111',
         //     order_tag => 'default',
         //     price => '1',
-        //     type => 'LIMIT',
+        //     $type => 'LIMIT',
         //     quantity => '12',
         //     amount => null,
         //     visible => '12',
