@@ -628,218 +628,151 @@ class blofin extends Exchange {
 
     public function create_order($symbol, $type, $side, $amount, $price = null, $params = array ()) {
         return Async\async(function () use ($symbol, $type, $side, $amount, $price, $params) {
-            /**
-             * create a trade order
-             * @param {string} $symbol unified $symbol of the $market to create an order in
-             * @param {string} $type 'market' or 'limit'
-             * @param {string} $side 'buy' or 'sell'
-             * @param {float} $amount how much of currency you want to trade in units of base currency
-             * @param {float|null} $price the $price at which the order is to be fullfilled, in units of the quote currency, ignored in $market orders
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} an ~@link https://docs.ccxt.com/#/?id=order-structure order structure~
-             */
-            // quick order:
-            //
-            // BTC/USDT:USDT
-            // limit
-            // buy
-            // 4.0
-            // 29116.0
-            // array('positionMode' => 'unknown', 'timeInForce' => 'PO', 'reduceOnly' => False)
-            //
-            // limit order:
-            //
-            // BTC/USDT:USDT
-            // limit
-            // buy
-            // 4.0
-            // 28520.0
-            // array('positionMode' => 'unknown', 'timeInForce' => 'PO', 'reduceOnly' => False)
-            //
-            // no post = 'timeInForce' => 'GTC',
-            //
-            // SL
-            //
-            // BTC/USDT:USDT
-            // stop
-            // sell
-            // 20.0
-            // None
-            // array('positionMode' => 'unknown', 'stopPrice' => 27663.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
-            //
-            // TP
-            //
-            // BTC/USDT:USDT
-            // stop
-            // sell
-            // 20.0
-            // None
-            // array('positionMode' => 'unknown', 'stopPrice' => 30150.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
-            //
-            // LIMIT TP
-            //
-            // BTC/USDT:USDT
-            // stopLimit
-            // sell
-            // 4.0
-            // 33000.0
-            // array('positionMode' => 'unknown', 'stopPrice' => 32000.0, 'timeInForce' => 'GTC', 'trigger' => 'Last', 'close' => True, 'basePrice' => 29024.0)
-            $reduceOnly = $this->safe_value_2($params, 'reduceOnly', 'close');
-            $orderType = strtoupper($type);
-            if ($orderType === 'STOP' || $orderType === 'STOPLIMIT') {
-                Async\await($this->load_markets());
-                $market = $this->market($symbol);
-                $orderSide = strtoupper($side);
-                $algoOrderType = 'MARKET';
-                if ($orderType !== 'STOP') {
-                    $algoOrderType = 'LIMIT';
-                }
-                $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-                $request = array(
-                    'symbol' => $market['id'],
-                    'algoType' => 'STOP',
-                    'type' => $algoOrderType,
-                    'side' => $orderSide,
-                );
-                if ($reduceOnly) {
-                    $request['reduceOnly'] = $reduceOnly;
-                }
-                if ($price !== null) {
-                    $request['price'] = $this->price_to_precision($symbol, $price);
-                }
-                $request['triggerPrice'] = $triggerPrice;
-                $request['quantity'] = $this->amount_to_precision($symbol, $amount);
-                $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
-                // $response = Async\await($this->v3PrivatePostAlgoOrder (array_merge($request, $params)));
-                $brokerId = $this->safe_string($this->options, 'brokerId');
-                if ($brokerId !== null) {
-                    $request['brokerId'] = $brokerId;
-                }
-                $response = Async\await($this->v3PrivatePostAlgoOrder ($request));
-                // {
-                //     success => true,
-                //     timestamp => '1641383206.489',
-                //     order_id => '86980774',
-                //     order_type => 'LIMIT',
-                //     order_price => '1', // null for 'MARKET' order
-                //     order_quantity => '12', // null for 'MARKET' order
-                //     order_amount => null, // NOT-null for 'MARKET' order
-                //     client_order_id => '0'
-                // }
-                // $response -> $data -> $rows -> [0]
-                $data = $this->safe_value($response, 'data');
-                $rows = $this->safe_value($data, 'rows', array());
-                // return array_merge(
-                //     $this->parse_order($rows[0], $market),
-                //     array( 'type' => $type )
-                // );
-                return array_merge(
-                    $this->parse_order($rows[0], $market),
-                    array( 'status' => 'open' )
-                );
-            } else {
-                Async\await($this->load_markets());
-                $market = $this->market($symbol);
-                $orderSide = strtoupper($side);
-                $request = array(
-                    'symbol' => $market['id'],
-                    'order_type' => $orderType, // LIMIT/MARKET/IOC/FOK/POST_ONLY/ASK/BID
-                    'side' => $orderSide,
-                );
-                $isMarket = $orderType === 'MARKET';
-                $timeInForce = $this->safe_string_lower($params, 'timeInForce');
-                $postOnly = $this->is_post_only($isMarket, null, $params);
-                if ($postOnly) {
-                    $request['order_type'] = 'POST_ONLY';
-                } elseif ($timeInForce === 'fok') {
-                    $request['order_type'] = 'FOK';
-                } elseif ($timeInForce === 'ioc') {
-                    $request['order_type'] = 'IOC';
-                }
-                if ($reduceOnly) {
-                    $request['reduce_only'] = $reduceOnly;
-                }
-                if ($price !== null) {
-                    $request['order_price'] = $this->price_to_precision($symbol, $price);
-                }
-                $request['order_quantity'] = $this->amount_to_precision($symbol, $amount);
-                $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
-                if ($clientOrderId !== null) {
-                    $request['client_order_id'] = $clientOrderId;
-                }
-                $brokerId = $this->safe_string($this->options, 'brokerId');
-                if ($brokerId !== null) {
-                    $request['broker_id'] = $brokerId;
-                }
-                $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
-                $response = Async\await($this->v1PrivatePostOrder (array_merge($request, $params)));
-                // {
-                //     success => true,
-                //     timestamp => '1641383206.489',
-                //     order_id => '86980774',
-                //     order_type => 'LIMIT',
-                //     order_price => '1', // null for 'MARKET' order
-                //     order_quantity => '12', // null for 'MARKET' order
-                //     order_amount => null, // NOT-null for 'MARKET' order
-                //     client_order_id => '0'
-                // }
-                return array_merge(
-                    $this->parse_order($response, $market),
-                    array( 'type' => $type, 'status' => 'open' )
-                );
-            }
-        }) ();
-    }
-
-    public function edit_order($id, $symbol, $type, $side, $amount, $price = null, $params = array ()) {
-        return Async\async(function () use ($id, $symbol, $type, $side, $amount, $price, $params) {
-            /**
-             * edit a trade order
-             * @param {string} $id order $id
-             * @param {string} $symbol unified $symbol of the $market to create an order in
-             * @param {string} $type 'market' or 'limit'
-             * @param {string} $side 'buy' or 'sell'
-             * @param {float} $amount how much of currency you want to trade in units of base currency
-             * @param {float|null} $price the $price at which the order is to be fullfilled, in units of the quote currency, ignored in $market orders
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} an ~@link https://docs.ccxt.com/#/?$id=order-structure order structure~
-             */
             Async\await($this->load_markets());
             $market = $this->market($symbol);
-            $request = array(
-                'oid' => $id,
-                // 'quantity' => $this->amount_to_precision($symbol, $amount),
-                // 'price' => $this->price_to_precision($symbol, $price),
+            // TEALSTREET
+            $reduceOnly = $this->safe_value_2($params, 'reduceOnly', 'close');
+            $timeInForces = array(
+                'PO' => 'post_only',
+                'IOC' => 'ioc',
+                'FOK' => 'fok',
             );
-            if ($price !== null && $type !== 'stop') {
+            $orderTypes = array(
+                'market' => 'Market',
+                'limit' => 'Limit',
+                'stop' => 'Stop',
+                'stoplimit' => 'StopLimit',
+                'marketiftouched' => 'MarketIfTouched',
+                'limitiftouched' => 'LimitIfTouched',
+                'trailingstop' => 'trailingStop',
+            );
+            $timeInForce = $this->safe_string($timeInForces, $params['timeInForce'], $this->capitalize($params['timeInForce']));
+            $orderType = $this->safe_string($orderTypes, $type, $this->capitalize($type));
+            if ($timeInForce && $orderType !== 'conditional' && $orderType !== 'trigger') {
+                if ($timeInForce === 'post_only' || $timeInForce === 'fok' || $timeInForce === 'ioc') {
+                    $orderType = $timeInForce;
+                }
+            }
+            $closeOnTrigger = $this->safe_value($params, 'closeOnTrigger', false);
+            $stopPrice = null;
+            if ($orderType === 'conditional' || $orderType === 'trigger') {
+                $stopPrice = $this->safe_number($params, 'stopPrice');
+                if ($closeOnTrigger) {
+                    $reduceOnly = true;
+                }
+                $params = $this->omit($params, array( 'reduceOnly' ));
+            }
+            $side = strtolower($side);
+            $posSide = null;
+            if (($side === 'buy' && $reduceOnly) || ($side === 'sell' && !$reduceOnly)) {
+                $posSide = 'short';
+            } else {
+                $posSide = 'long';
+            }
+            $marginType = $this->safe_string($params, 'marginType', 'cross');
+            $method = 'v1PrivatePostTradeOrder';
+            if ($type === 'stop' || $type === 'stoplimit') {
+                $method = 'v1PrivatePostTradeOrderTpsl';
+            }
+            $request = array(
+                'instId' => $market['id'],
+                'marginMode' => $marginType,
+                'side' => $side,
+                // $posSide is not used by blofin
+                'orderType' => $orderType,
+                'reduceOnly' => $reduceOnly,
+            );
+            $params = $this->omit($params, array( 'clientOrderId' ));
+            if ($price !== null) {
                 $request['price'] = $this->price_to_precision($symbol, $price);
             }
-            $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-            if ($triggerPrice !== null) {
-                $request['triggerPrice'] = $triggerPrice;
+            $request['size'] = $this->amount_to_precision($symbol, $amount);
+            if ($orderType === 'conditional' || $orderType === 'trigger') {
+                // unused by blofin right now
+                // $triggerType = $this->safe_string_lower($params, 'trigger', 'mark');
+                $params = $this->omit($params, array( 'trigger' ));
+                if ($price !== null) {
+                    $price = -1;
+                } else {
+                    $orderType = 'conditional';
+                    $request['orderType'] = $orderType;
+                }
+                $basePrice = $this->safe_value($params, 'basePrice');
+                if (!$basePrice) {
+                    $ticker = $this->fetch_ticker($symbol);
+                    $basePrice = $ticker['last'];
+                }
+                $tpPrice = $this->safe_number($params, 'tpPrice');
+                if ($tpPrice) {
+                    $request['orderType'] = 'oco';
+                    $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $tpPrice);
+                    $request['tpOrderPrice'] = $this->price_to_precision($symbol, -1);
+                    $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
+                    $request['slOrderPrice'] = $this->price_to_precision($symbol, -1);
+                } else {
+                    // this is from our okx $code, but I think second case should be swapped
+                    if ($side === 'sell') {
+                        if ($stopPrice > $basePrice) {
+                            $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
+                            $request['tpOrderPrice'] = $this->price_to_precision($symbol, $price);
+                        } else {
+                            $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
+                            $request['slOrderPrice'] = $this->price_to_precision($symbol, $price);
+                        }
+                    } else {
+                        if ($stopPrice < $basePrice) {
+                            $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
+                            $request['tpOrderPrice'] = $this->price_to_precision($symbol, $price);
+                        } else {
+                            $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
+                            $request['slOrderPrice'] = $this->price_to_precision($symbol, $price);
+                        }
+                    }
+                    // unsupported?
+                    // $request['triggerPrice'];
+                    $request['price'] = $this->price_to_precision($symbol, $price);
+                }
             }
-            if ($amount !== null) {
-                $request['quantity'] = $this->amount_to_precision($symbol, $amount);
+            $tradeMode = $this->safe_string($params, 'tradeMode', 'hedged');
+            $params = array();
+            if ($tradeMode) {
+                $params = $this->omit($params, array( 'tradeMode' ));
+                if ($tradeMode === 'oneway') {
+                    $request = $this->omit($request, array( 'positionSide' ));
+                }
+                // not implement for blofin yet
+                // if ($tradeMode === 'oneway') {
+                //     $request['positionSide'] = 'oneway';
+                // } else {
+                // $request = $this->omit($request, ['positionSide'])
+                // }
             }
-            $method = 'v3PrivatePutOrderOid';
-            if ($this->maybe_algo_order_id($id)) {
-                $method = 'v3PrivatePutAlgoOrderOid';
+            if ($marginType) {
+                $params = $this->omit($params, array( 'marginType' ));
+                $request['marginMode'] = $marginType;
             }
+            if (!$reduceOnly) {
+                $request = $this->omit($request, array( 'reduceOnly' ));
+            }
+            $cloid_suffix = 'r0';
+            if ($reduceOnly) {
+                $cloid_suffix = 'r1';
+            }
+            $request['clientOrderId'] = 'tealstreet' . $this->uuid16() . $cloid_suffix;
             $response = Async\await($this->$method (array_merge($request, $params)));
-            //
-            //     {
-            //         "code" => 0,
-            //         "data" => array(
-            //             "status" => "string",
-            //             "success" => true
-            //         ),
-            //         "message" => "string",
-            //         "success" => true,
-            //         "timestamp" => 0
-            //     }
-            //
             $data = $this->safe_value($response, 'data', array());
-            return $this->parse_order($data, $market);
+            $first = $this->safe_value($data, 0);
+            $order = $this->parse_order($first, $market);
+            if (!$order['status']) {
+                $code = $this->safe_string($first, 'code');
+                if ($code === '0') {
+                    $order['status'] = 'open';
+                }
+            }
+            return array_merge(array_merge($request, $params), array_merge($order, array(
+                'type' => $type,
+                'side' => $side,
+            )));
         }) ();
     }
 

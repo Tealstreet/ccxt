@@ -600,201 +600,130 @@ class blofin(Exchange):
         return fee
 
     def create_order(self, symbol, type, side, amount, price=None, params={}):
-        """
-        create a trade order
-        :param str symbol: unified symbol of the market to create an order in
-        :param str type: 'market' or 'limit'
-        :param str side: 'buy' or 'sell'
-        :param float amount: how much of currency you want to trade in units of base currency
-        :param float|None price: the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns dict: an `order structure <https://docs.ccxt.com/#/?id=order-structure>`
-        """
-        # quick order:
-        #
-        # BTC/USDT:USDT
-        # limit
-        # buy
-        # 4.0
-        # 29116.0
-        # {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
-        #
-        # limit order:
-        #
-        # BTC/USDT:USDT
-        # limit
-        # buy
-        # 4.0
-        # 28520.0
-        # {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
-        #
-        # no post = 'timeInForce': 'GTC',
-        #
-        # SL
-        #
-        # BTC/USDT:USDT
-        # stop
-        # sell
-        # 20.0
-        # None
-        # {'positionMode': 'unknown', 'stopPrice': 27663.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        #
-        # TP
-        #
-        # BTC/USDT:USDT
-        # stop
-        # sell
-        # 20.0
-        # None
-        # {'positionMode': 'unknown', 'stopPrice': 30150.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        #
-        # LIMIT TP
-        #
-        # BTC/USDT:USDT
-        # stopLimit
-        # sell
-        # 4.0
-        # 33000.0
-        # {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        reduceOnly = self.safe_value_2(params, 'reduceOnly', 'close')
-        orderType = type.upper()
-        if orderType == 'STOP' or orderType == 'STOPLIMIT':
-            self.load_markets()
-            market = self.market(symbol)
-            orderSide = side.upper()
-            algoOrderType = 'MARKET'
-            if orderType != 'STOP':
-                algoOrderType = 'LIMIT'
-            triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-            request = {
-                'symbol': market['id'],
-                'algoType': 'STOP',
-                'type': algoOrderType,
-                'side': orderSide,
-            }
-            if reduceOnly:
-                request['reduceOnly'] = reduceOnly
-            if price is not None:
-                request['price'] = self.price_to_precision(symbol, price)
-            request['triggerPrice'] = triggerPrice
-            request['quantity'] = self.amount_to_precision(symbol, amount)
-            params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
-            # response = self.v3PrivatePostAlgoOrder(self.extend(request, params))
-            brokerId = self.safe_string(self.options, 'brokerId')
-            if brokerId is not None:
-                request['brokerId'] = brokerId
-            response = self.v3PrivatePostAlgoOrder(request)
-            # {
-            #     success: True,
-            #     timestamp: '1641383206.489',
-            #     order_id: '86980774',
-            #     order_type: 'LIMIT',
-            #     order_price: '1',  # null for 'MARKET' order
-            #     order_quantity: '12',  # null for 'MARKET' order
-            #     order_amount: null,  # NOT-null for 'MARKET' order
-            #     client_order_id: '0'
-            # }
-            # response -> data -> rows -> [0]
-            data = self.safe_value(response, 'data')
-            rows = self.safe_value(data, 'rows', [])
-            # return self.extend(
-            #     self.parse_order(rows[0], market),
-            #     {'type': type}
-            # )
-            return self.extend(
-                self.parse_order(rows[0], market),
-                {'status': 'open'}
-            )
-        else:
-            self.load_markets()
-            market = self.market(symbol)
-            orderSide = side.upper()
-            request = {
-                'symbol': market['id'],
-                'order_type': orderType,  # LIMIT/MARKET/IOC/FOK/POST_ONLY/ASK/BID
-                'side': orderSide,
-            }
-            isMarket = orderType == 'MARKET'
-            timeInForce = self.safe_string_lower(params, 'timeInForce')
-            postOnly = self.is_post_only(isMarket, None, params)
-            if postOnly:
-                request['order_type'] = 'POST_ONLY'
-            elif timeInForce == 'fok':
-                request['order_type'] = 'FOK'
-            elif timeInForce == 'ioc':
-                request['order_type'] = 'IOC'
-            if reduceOnly:
-                request['reduce_only'] = reduceOnly
-            if price is not None:
-                request['order_price'] = self.price_to_precision(symbol, price)
-            request['order_quantity'] = self.amount_to_precision(symbol, amount)
-            clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
-            if clientOrderId is not None:
-                request['client_order_id'] = clientOrderId
-            brokerId = self.safe_string(self.options, 'brokerId')
-            if brokerId is not None:
-                request['broker_id'] = brokerId
-            params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
-            response = self.v1PrivatePostOrder(self.extend(request, params))
-            # {
-            #     success: True,
-            #     timestamp: '1641383206.489',
-            #     order_id: '86980774',
-            #     order_type: 'LIMIT',
-            #     order_price: '1',  # null for 'MARKET' order
-            #     order_quantity: '12',  # null for 'MARKET' order
-            #     order_amount: null,  # NOT-null for 'MARKET' order
-            #     client_order_id: '0'
-            # }
-            return self.extend(
-                self.parse_order(response, market),
-                {'type': type, 'status': 'open'}
-            )
-
-    def edit_order(self, id, symbol, type, side, amount, price=None, params={}):
-        """
-        edit a trade order
-        :param str id: order id
-        :param str symbol: unified symbol of the market to create an order in
-        :param str type: 'market' or 'limit'
-        :param str side: 'buy' or 'sell'
-        :param float amount: how much of currency you want to trade in units of base currency
-        :param float|None price: the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns dict: an `order structure <https://docs.ccxt.com/#/?id=order-structure>`
-        """
         self.load_markets()
         market = self.market(symbol)
-        request = {
-            'oid': id,
-            # 'quantity': self.amount_to_precision(symbol, amount),
-            # 'price': self.price_to_precision(symbol, price),
+        # TEALSTREET
+        reduceOnly = self.safe_value_2(params, 'reduceOnly', 'close')
+        timeInForces = {
+            'PO': 'post_only',
+            'IOC': 'ioc',
+            'FOK': 'fok',
         }
-        if price is not None and type != 'stop':
+        orderTypes = {
+            'market': 'Market',
+            'limit': 'Limit',
+            'stop': 'Stop',
+            'stoplimit': 'StopLimit',
+            'marketiftouched': 'MarketIfTouched',
+            'limitiftouched': 'LimitIfTouched',
+            'trailingstop': 'trailingStop',
+        }
+        timeInForce = self.safe_string(timeInForces, params['timeInForce'], self.capitalize(params['timeInForce']))
+        orderType = self.safe_string(orderTypes, type, self.capitalize(type))
+        if timeInForce and orderType != 'conditional' and orderType != 'trigger':
+            if timeInForce == 'post_only' or timeInForce == 'fok' or timeInForce == 'ioc':
+                orderType = timeInForce
+        closeOnTrigger = self.safe_value(params, 'closeOnTrigger', False)
+        stopPrice = None
+        if orderType == 'conditional' or orderType == 'trigger':
+            stopPrice = self.safe_number(params, 'stopPrice')
+            if closeOnTrigger:
+                reduceOnly = True
+            params = self.omit(params, ['reduceOnly'])
+        side = side.lower()
+        posSide = None
+        if (side == 'buy' and reduceOnly) or (side == 'sell' and not reduceOnly):
+            posSide = 'short'
+        else:
+            posSide = 'long'
+        marginType = self.safe_string(params, 'marginType', 'cross')
+        method = 'v1PrivatePostTradeOrder'
+        if type == 'stop' or type == 'stoplimit':
+            method = 'v1PrivatePostTradeOrderTpsl'
+        request = {
+            'instId': market['id'],
+            'marginMode': marginType,
+            'side': side,
+            # posSide is not used by blofin
+            'orderType': orderType,
+            'reduceOnly': reduceOnly,
+        }
+        params = self.omit(params, ['clientOrderId'])
+        if price is not None:
             request['price'] = self.price_to_precision(symbol, price)
-        triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        if triggerPrice is not None:
-            request['triggerPrice'] = triggerPrice
-        if amount is not None:
-            request['quantity'] = self.amount_to_precision(symbol, amount)
-        method = 'v3PrivatePutOrderOid'
-        if self.maybe_algo_order_id(id):
-            method = 'v3PrivatePutAlgoOrderOid'
+        request['size'] = self.amount_to_precision(symbol, amount)
+        if orderType == 'conditional' or orderType == 'trigger':
+            # unused by blofin right now
+            # triggerType = self.safe_string_lower(params, 'trigger', 'mark')
+            params = self.omit(params, ['trigger'])
+            if price is not None:
+                price = -1
+            else:
+                orderType = 'conditional'
+                request['orderType'] = orderType
+            basePrice = self.safe_value(params, 'basePrice')
+            if not basePrice:
+                ticker = self.fetch_ticker(symbol)
+                basePrice = ticker['last']
+            tpPrice = self.safe_number(params, 'tpPrice')
+            if tpPrice:
+                request['orderType'] = 'oco'
+                request['tpTriggerPrice'] = self.price_to_precision(symbol, tpPrice)
+                request['tpOrderPrice'] = self.price_to_precision(symbol, -1)
+                request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
+                request['slOrderPrice'] = self.price_to_precision(symbol, -1)
+            else:
+                # self is from our okx code, but I think second case should be swapped
+                if side == 'sell':
+                    if stopPrice > basePrice:
+                        request['tpTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
+                        request['tpOrderPrice'] = self.price_to_precision(symbol, price)
+                    else:
+                        request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
+                        request['slOrderPrice'] = self.price_to_precision(symbol, price)
+                else:
+                    if stopPrice < basePrice:
+                        request['tpTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
+                        request['tpOrderPrice'] = self.price_to_precision(symbol, price)
+                    else:
+                        request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
+                        request['slOrderPrice'] = self.price_to_precision(symbol, price)
+                # unsupported?
+                # request['triggerPrice']
+                request['price'] = self.price_to_precision(symbol, price)
+        tradeMode = self.safe_string(params, 'tradeMode', 'hedged')
+        params = []
+        if tradeMode:
+            params = self.omit(params, ['tradeMode'])
+            if tradeMode == 'oneway':
+                request = self.omit(request, ['positionSide'])
+            # not implement for blofin yet
+            # if tradeMode == 'oneway':
+            #     request['positionSide'] = 'oneway'
+            # else:
+            # request = self.omit(request, ['positionSide'])
+            # }
+        if marginType:
+            params = self.omit(params, ['marginType'])
+            request['marginMode'] = marginType
+        if not reduceOnly:
+            request = self.omit(request, ['reduceOnly'])
+        cloid_suffix = 'r0'
+        if reduceOnly:
+            cloid_suffix = 'r1'
+        request['clientOrderId'] = 'tealstreet' + self.uuid16() + cloid_suffix
         response = getattr(self, method)(self.extend(request, params))
-        #
-        #     {
-        #         "code": 0,
-        #         "data": {
-        #             "status": "string",
-        #             "success": True
-        #         },
-        #         "message": "string",
-        #         "success": True,
-        #         "timestamp": 0
-        #     }
-        #
-        data = self.safe_value(response, 'data', {})
-        return self.parse_order(data, market)
+        data = self.safe_value(response, 'data', [])
+        first = self.safe_value(data, 0)
+        order = self.parse_order(first, market)
+        if not order['status']:
+            code = self.safe_string(first, 'code')
+            if code == '0':
+                order['status'] = 'open'
+        return self.extend(self.extend(request, params), self.extend(order, {
+            'type': type,
+            'side': side,
+        }))
 
     def maybe_algo_order_id(self, id):
         stringId = self.number_to_string(id)

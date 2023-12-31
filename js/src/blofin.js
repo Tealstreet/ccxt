@@ -610,216 +610,157 @@ export default class blofin extends Exchange {
         return fee;
     }
     async createOrder(symbol, type, side, amount, price = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#createOrder
-         * @description create a trade order
-         * @param {string} symbol unified symbol of the market to create an order in
-         * @param {string} type 'market' or 'limit'
-         * @param {string} side 'buy' or 'sell'
-         * @param {float} amount how much of currency you want to trade in units of base currency
-         * @param {float|undefined} price the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
-         */
-        // quick order:
-        //
-        // BTC/USDT:USDT
-        // limit
-        // buy
-        // 4.0
-        // 29116.0
-        // {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
-        //
-        // limit order:
-        //
-        // BTC/USDT:USDT
-        // limit
-        // buy
-        // 4.0
-        // 28520.0
-        // {'positionMode': 'unknown', 'timeInForce': 'PO', 'reduceOnly': False}
-        //
-        // no post = 'timeInForce': 'GTC',
-        //
-        // SL
-        //
-        // BTC/USDT:USDT
-        // stop
-        // sell
-        // 20.0
-        // None
-        // {'positionMode': 'unknown', 'stopPrice': 27663.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        //
-        // TP
-        //
-        // BTC/USDT:USDT
-        // stop
-        // sell
-        // 20.0
-        // None
-        // {'positionMode': 'unknown', 'stopPrice': 30150.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        //
-        // LIMIT TP
-        //
-        // BTC/USDT:USDT
-        // stopLimit
-        // sell
-        // 4.0
-        // 33000.0
-        // {'positionMode': 'unknown', 'stopPrice': 32000.0, 'timeInForce': 'GTC', 'trigger': 'Last', 'close': True, 'basePrice': 29024.0}
-        const reduceOnly = this.safeValue2(params, 'reduceOnly', 'close');
-        const orderType = type.toUpperCase();
-        if (orderType === 'STOP' || orderType === 'STOPLIMIT') {
-            await this.loadMarkets();
-            const market = this.market(symbol);
-            const orderSide = side.toUpperCase();
-            let algoOrderType = 'MARKET';
-            if (orderType !== 'STOP') {
-                algoOrderType = 'LIMIT';
-            }
-            const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-            const request = {
-                'symbol': market['id'],
-                'algoType': 'STOP',
-                'type': algoOrderType,
-                'side': orderSide,
-            };
-            if (reduceOnly) {
-                request['reduceOnly'] = reduceOnly;
-            }
-            if (price !== undefined) {
-                request['price'] = this.priceToPrecision(symbol, price);
-            }
-            request['triggerPrice'] = triggerPrice;
-            request['quantity'] = this.amountToPrecision(symbol, amount);
-            params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
-            // const response = await (this as any).v3PrivatePostAlgoOrder (this.extend (request, params));
-            const brokerId = this.safeString(this.options, 'brokerId');
-            if (brokerId !== undefined) {
-                request['brokerId'] = brokerId;
-            }
-            const response = await this.v3PrivatePostAlgoOrder(request);
-            // {
-            //     success: true,
-            //     timestamp: '1641383206.489',
-            //     order_id: '86980774',
-            //     order_type: 'LIMIT',
-            //     order_price: '1', // null for 'MARKET' order
-            //     order_quantity: '12', // null for 'MARKET' order
-            //     order_amount: null, // NOT-null for 'MARKET' order
-            //     client_order_id: '0'
-            // }
-            // response -> data -> rows -> [0]
-            const data = this.safeValue(response, 'data');
-            const rows = this.safeValue(data, 'rows', []);
-            // return this.extend (
-            //     this.parseOrder (rows[0], market),
-            //     { 'type': type }
-            // );
-            return this.extend(this.parseOrder(rows[0], market), { 'status': 'open' });
-        }
-        else {
-            await this.loadMarkets();
-            const market = this.market(symbol);
-            const orderSide = side.toUpperCase();
-            const request = {
-                'symbol': market['id'],
-                'order_type': orderType,
-                'side': orderSide,
-            };
-            const isMarket = orderType === 'MARKET';
-            const timeInForce = this.safeStringLower(params, 'timeInForce');
-            const postOnly = this.isPostOnly(isMarket, undefined, params);
-            if (postOnly) {
-                request['order_type'] = 'POST_ONLY';
-            }
-            else if (timeInForce === 'fok') {
-                request['order_type'] = 'FOK';
-            }
-            else if (timeInForce === 'ioc') {
-                request['order_type'] = 'IOC';
-            }
-            if (reduceOnly) {
-                request['reduce_only'] = reduceOnly;
-            }
-            if (price !== undefined) {
-                request['order_price'] = this.priceToPrecision(symbol, price);
-            }
-            request['order_quantity'] = this.amountToPrecision(symbol, amount);
-            const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
-            if (clientOrderId !== undefined) {
-                request['client_order_id'] = clientOrderId;
-            }
-            const brokerId = this.safeString(this.options, 'brokerId');
-            if (brokerId !== undefined) {
-                request['broker_id'] = brokerId;
-            }
-            params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
-            const response = await this.v1PrivatePostOrder(this.extend(request, params));
-            // {
-            //     success: true,
-            //     timestamp: '1641383206.489',
-            //     order_id: '86980774',
-            //     order_type: 'LIMIT',
-            //     order_price: '1', // null for 'MARKET' order
-            //     order_quantity: '12', // null for 'MARKET' order
-            //     order_amount: null, // NOT-null for 'MARKET' order
-            //     client_order_id: '0'
-            // }
-            return this.extend(this.parseOrder(response, market), { 'type': type, 'status': 'open' });
-        }
-    }
-    async editOrder(id, symbol, type, side, amount, price = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#editOrder
-         * @description edit a trade order
-         * @param {string} id order id
-         * @param {string} symbol unified symbol of the market to create an order in
-         * @param {string} type 'market' or 'limit'
-         * @param {string} side 'buy' or 'sell'
-         * @param {float} amount how much of currency you want to trade in units of base currency
-         * @param {float|undefined} price the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
-         */
         await this.loadMarkets();
         const market = this.market(symbol);
-        const request = {
-            'oid': id,
-            // 'quantity': this.amountToPrecision (symbol, amount),
-            // 'price': this.priceToPrecision (symbol, price),
+        // TEALSTREET
+        let reduceOnly = this.safeValue2(params, 'reduceOnly', 'close');
+        const timeInForces = {
+            'PO': 'post_only',
+            'IOC': 'ioc',
+            'FOK': 'fok',
         };
-        if (price !== undefined && type !== 'stop') {
+        const orderTypes = {
+            'market': 'Market',
+            'limit': 'Limit',
+            'stop': 'Stop',
+            'stoplimit': 'StopLimit',
+            'marketiftouched': 'MarketIfTouched',
+            'limitiftouched': 'LimitIfTouched',
+            'trailingstop': 'trailingStop',
+        };
+        const timeInForce = this.safeString(timeInForces, params['timeInForce'], this.capitalize(params['timeInForce']));
+        let orderType = this.safeString(orderTypes, type, this.capitalize(type));
+        if (timeInForce && orderType !== 'conditional' && orderType !== 'trigger') {
+            if (timeInForce === 'post_only' || timeInForce === 'fok' || timeInForce === 'ioc') {
+                orderType = timeInForce;
+            }
+        }
+        const closeOnTrigger = this.safeValue(params, 'closeOnTrigger', false);
+        let stopPrice = undefined;
+        if (orderType === 'conditional' || orderType === 'trigger') {
+            stopPrice = this.safeNumber(params, 'stopPrice');
+            if (closeOnTrigger) {
+                reduceOnly = true;
+            }
+            params = this.omit(params, ['reduceOnly']);
+        }
+        side = side.toLowerCase();
+        let posSide = undefined;
+        if ((side === 'buy' && reduceOnly) || (side === 'sell' && !reduceOnly)) {
+            posSide = 'short';
+        }
+        else {
+            posSide = 'long';
+        }
+        const marginType = this.safeString(params, 'marginType', 'cross');
+        let method = 'v1PrivatePostTradeOrder';
+        if (type === 'stop' || type === 'stoplimit') {
+            method = 'v1PrivatePostTradeOrderTpsl';
+        }
+        let request = {
+            'instId': market['id'],
+            'marginMode': marginType,
+            'side': side,
+            // posSide is not used by blofin
+            'orderType': orderType,
+            'reduceOnly': reduceOnly,
+        };
+        params = this.omit(params, ['clientOrderId']);
+        if (price !== undefined) {
             request['price'] = this.priceToPrecision(symbol, price);
         }
-        const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-        if (triggerPrice !== undefined) {
-            request['triggerPrice'] = triggerPrice;
+        request['size'] = this.amountToPrecision(symbol, amount);
+        if (orderType === 'conditional' || orderType === 'trigger') {
+            // unused by blofin right now
+            // const triggerType = this.safeStringLower (params, 'trigger', 'mark');
+            params = this.omit(params, ['trigger']);
+            if (price !== undefined) {
+                price = -1;
+            }
+            else {
+                orderType = 'conditional';
+                request['orderType'] = orderType;
+            }
+            let basePrice = this.safeValue(params, 'basePrice');
+            if (!basePrice) {
+                const ticker = this.fetchTicker(symbol);
+                basePrice = ticker['last'];
+            }
+            const tpPrice = this.safeNumber(params, 'tpPrice');
+            if (tpPrice) {
+                request['orderType'] = 'oco';
+                request['tpTriggerPrice'] = this.priceToPrecision(symbol, tpPrice);
+                request['tpOrderPrice'] = this.priceToPrecision(symbol, -1);
+                request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
+                request['slOrderPrice'] = this.priceToPrecision(symbol, -1);
+            }
+            else {
+                // this is from our okx code, but I think second case should be swapped
+                if (side === 'sell') {
+                    if (stopPrice > basePrice) {
+                        request['tpTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
+                        request['tpOrderPrice'] = this.priceToPrecision(symbol, price);
+                    }
+                    else {
+                        request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
+                        request['slOrderPrice'] = this.priceToPrecision(symbol, price);
+                    }
+                }
+                else {
+                    if (stopPrice < basePrice) {
+                        request['tpTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
+                        request['tpOrderPrice'] = this.priceToPrecision(symbol, price);
+                    }
+                    else {
+                        request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
+                        request['slOrderPrice'] = this.priceToPrecision(symbol, price);
+                    }
+                }
+                // unsupported?
+                // request['triggerPrice'];
+                request['price'] = this.priceToPrecision(symbol, price);
+            }
         }
-        if (amount !== undefined) {
-            request['quantity'] = this.amountToPrecision(symbol, amount);
+        const tradeMode = this.safeString(params, 'tradeMode', 'hedged');
+        params = [];
+        if (tradeMode) {
+            params = this.omit(params, ['tradeMode']);
+            if (tradeMode === 'oneway') {
+                request = this.omit(request, ['positionSide']);
+            }
+            // not implement for blofin yet
+            // if (tradeMode === 'oneway') {
+            //     request['positionSide'] = 'oneway';
+            // } else {
+            // request = this.omit (request, ['positionSide'])
+            // }
         }
-        let method = 'v3PrivatePutOrderOid';
-        if (this.maybeAlgoOrderId(id)) {
-            method = 'v3PrivatePutAlgoOrderOid';
+        if (marginType) {
+            params = this.omit(params, ['marginType']);
+            request['marginMode'] = marginType;
         }
+        if (!reduceOnly) {
+            request = this.omit(request, ['reduceOnly']);
+        }
+        let cloid_suffix = 'r0';
+        if (reduceOnly) {
+            cloid_suffix = 'r1';
+        }
+        request['clientOrderId'] = 'tealstreet' + this.uuid16() + cloid_suffix;
         const response = await this[method](this.extend(request, params));
-        //
-        //     {
-        //         "code": 0,
-        //         "data": {
-        //             "status": "string",
-        //             "success": true
-        //         },
-        //         "message": "string",
-        //         "success": true,
-        //         "timestamp": 0
-        //     }
-        //
-        const data = this.safeValue(response, 'data', {});
-        return this.parseOrder(data, market);
+        const data = this.safeValue(response, 'data', []);
+        const first = this.safeValue(data, 0);
+        const order = this.parseOrder(first, market);
+        if (!order['status']) {
+            const code = this.safeString(first, 'code');
+            if (code === '0') {
+                order['status'] = 'open';
+            }
+        }
+        return this.extend(this.extend(request, params), this.extend(order, {
+            'type': type,
+            'side': side,
+        }));
     }
     maybeAlgoOrderId(id) {
         const stringId = this.numberToString(id);
