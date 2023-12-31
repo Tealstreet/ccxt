@@ -605,18 +605,20 @@ class blofin(Exchange):
         # TEALSTREET
         reduceOnly = self.safe_value_2(params, 'reduceOnly', 'close')
         timeInForces = {
-            'PO': 'post_only',
+            'GTC': 'GTC',
+            'PO': 'post_only',  # good till crossing
             'IOC': 'ioc',
             'FOK': 'fok',
         }
         orderTypes = {
-            'market': 'Market',
-            'limit': 'Limit',
-            'stop': 'Stop',
-            'stoplimit': 'StopLimit',
-            'marketiftouched': 'MarketIfTouched',
-            'limitiftouched': 'LimitIfTouched',
-            'trailingstop': 'trailingStop',
+            'market': 'market',
+            'limit': 'limit',
+            'stop': 'conditional',
+            'stoplimit': 'trigger',
+            'PO': 'post_only',
+            'FOK': 'fok',
+            'IOC': 'ioc',
+            'optimal_limit_ioc': 'optimal_limit_ioc',
         }
         timeInForce = self.safe_string(timeInForces, params['timeInForce'], self.capitalize(params['timeInForce']))
         orderType = self.safe_string(orderTypes, type, self.capitalize(type))
@@ -666,12 +668,14 @@ class blofin(Exchange):
                 ticker = self.fetch_ticker(symbol)
                 basePrice = ticker['last']
             tpPrice = self.safe_number(params, 'tpPrice')
-            if tpPrice:
+            if tpPrice or stopPrice:
                 request['orderType'] = 'oco'
-                request['tpTriggerPrice'] = self.price_to_precision(symbol, tpPrice)
-                request['tpOrderPrice'] = self.price_to_precision(symbol, -1)
-                request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
-                request['slOrderPrice'] = self.price_to_precision(symbol, -1)
+                if tpPrice:
+                    request['tpTriggerPrice'] = self.price_to_precision(symbol, tpPrice)
+                    request['tpOrderPrice'] = self.price_to_precision(symbol, -1)
+                if stopPrice:
+                    request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
+                    request['slOrderPrice'] = self.price_to_precision(symbol, -1)
             else:
                 # self is from our okx code, but I think second case should be swapped
                 if side == 'sell':
@@ -691,6 +695,7 @@ class blofin(Exchange):
                 # unsupported?
                 # request['triggerPrice']
                 request['price'] = self.price_to_precision(symbol, price)
+            request['positionSide'] = posSide
         tradeMode = self.safe_string(params, 'tradeMode', 'hedged')
         params = []
         if tradeMode:

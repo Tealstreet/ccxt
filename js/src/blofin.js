@@ -615,18 +615,20 @@ export default class blofin extends Exchange {
         // TEALSTREET
         let reduceOnly = this.safeValue2(params, 'reduceOnly', 'close');
         const timeInForces = {
+            'GTC': 'GTC',
             'PO': 'post_only',
             'IOC': 'ioc',
             'FOK': 'fok',
         };
         const orderTypes = {
-            'market': 'Market',
-            'limit': 'Limit',
-            'stop': 'Stop',
-            'stoplimit': 'StopLimit',
-            'marketiftouched': 'MarketIfTouched',
-            'limitiftouched': 'LimitIfTouched',
-            'trailingstop': 'trailingStop',
+            'market': 'market',
+            'limit': 'limit',
+            'stop': 'conditional',
+            'stoplimit': 'trigger',
+            'PO': 'post_only',
+            'FOK': 'fok',
+            'IOC': 'ioc',
+            'optimal_limit_ioc': 'optimal_limit_ioc',
         };
         const timeInForce = this.safeString(timeInForces, params['timeInForce'], this.capitalize(params['timeInForce']));
         let orderType = this.safeString(orderTypes, type, this.capitalize(type));
@@ -687,12 +689,16 @@ export default class blofin extends Exchange {
                 basePrice = ticker['last'];
             }
             const tpPrice = this.safeNumber(params, 'tpPrice');
-            if (tpPrice) {
+            if (tpPrice || stopPrice) {
                 request['orderType'] = 'oco';
-                request['tpTriggerPrice'] = this.priceToPrecision(symbol, tpPrice);
-                request['tpOrderPrice'] = this.priceToPrecision(symbol, -1);
-                request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
-                request['slOrderPrice'] = this.priceToPrecision(symbol, -1);
+                if (tpPrice) {
+                    request['tpTriggerPrice'] = this.priceToPrecision(symbol, tpPrice);
+                    request['tpOrderPrice'] = this.priceToPrecision(symbol, -1);
+                }
+                if (stopPrice) {
+                    request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
+                    request['slOrderPrice'] = this.priceToPrecision(symbol, -1);
+                }
             }
             else {
                 // this is from our okx code, but I think second case should be swapped
@@ -720,6 +726,7 @@ export default class blofin extends Exchange {
                 // request['triggerPrice'];
                 request['price'] = this.priceToPrecision(symbol, price);
             }
+            request['positionSide'] = posSide;
         }
         const tradeMode = this.safeString(params, 'tradeMode', 'hedged');
         params = [];

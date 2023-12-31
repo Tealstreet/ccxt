@@ -633,18 +633,20 @@ class blofin extends Exchange {
             // TEALSTREET
             $reduceOnly = $this->safe_value_2($params, 'reduceOnly', 'close');
             $timeInForces = array(
-                'PO' => 'post_only',
+                'GTC' => 'GTC',
+                'PO' => 'post_only',  // good till crossing
                 'IOC' => 'ioc',
                 'FOK' => 'fok',
             );
             $orderTypes = array(
-                'market' => 'Market',
-                'limit' => 'Limit',
-                'stop' => 'Stop',
-                'stoplimit' => 'StopLimit',
-                'marketiftouched' => 'MarketIfTouched',
-                'limitiftouched' => 'LimitIfTouched',
-                'trailingstop' => 'trailingStop',
+                'market' => 'market',
+                'limit' => 'limit',
+                'stop' => 'conditional',
+                'stoplimit' => 'trigger',
+                'PO' => 'post_only',
+                'FOK' => 'fok',
+                'IOC' => 'ioc',
+                'optimal_limit_ioc' => 'optimal_limit_ioc',
             );
             $timeInForce = $this->safe_string($timeInForces, $params['timeInForce'], $this->capitalize($params['timeInForce']));
             $orderType = $this->safe_string($orderTypes, $type, $this->capitalize($type));
@@ -703,12 +705,16 @@ class blofin extends Exchange {
                     $basePrice = $ticker['last'];
                 }
                 $tpPrice = $this->safe_number($params, 'tpPrice');
-                if ($tpPrice) {
+                if ($tpPrice || $stopPrice) {
                     $request['orderType'] = 'oco';
-                    $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $tpPrice);
-                    $request['tpOrderPrice'] = $this->price_to_precision($symbol, -1);
-                    $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
-                    $request['slOrderPrice'] = $this->price_to_precision($symbol, -1);
+                    if ($tpPrice) {
+                        $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $tpPrice);
+                        $request['tpOrderPrice'] = $this->price_to_precision($symbol, -1);
+                    }
+                    if ($stopPrice) {
+                        $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
+                        $request['slOrderPrice'] = $this->price_to_precision($symbol, -1);
+                    }
                 } else {
                     // this is from our okx $code, but I think second case should be swapped
                     if ($side === 'sell') {
@@ -732,6 +738,7 @@ class blofin extends Exchange {
                     // $request['triggerPrice'];
                     $request['price'] = $this->price_to_precision($symbol, $price);
                 }
+                $request['positionSide'] = $posSide;
             }
             $tradeMode = $this->safe_string($params, 'tradeMode', 'hedged');
             $params = array();
