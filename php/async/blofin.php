@@ -690,6 +690,9 @@ class blofin extends Exchange {
                 $request['price'] = $this->price_to_precision($symbol, $price);
             }
             $request['size'] = $this->amount_to_precision($symbol, $amount);
+            if (!$reduceOnly) {
+                $request = $this->omit($request, array( 'reduceOnly' ));
+            }
             if ($orderType === 'conditional' || $orderType === 'trigger') {
                 // unused by blofin right now
                 // $triggerType = $this->safe_string_lower($params, 'trigger', 'mark');
@@ -705,17 +708,21 @@ class blofin extends Exchange {
                     $ticker = $this->fetch_ticker($symbol);
                     $basePrice = $ticker['last'];
                 }
-                $tpPrice = $this->safe_number($params, 'tpPrice');
+                // $tpPrice = $this->safe_number($params, 'tpPrice');
+                $tpPrice = null;
+                if ($stopPrice > $basePrice) {
+                    $tpPrice = $stopPrice;
+                }
                 if ($tpPrice || $stopPrice) {
                     $request['orderType'] = 'oco';
                     if ($tpPrice) {
                         $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $tpPrice);
                         $request['tpOrderPrice'] = $this->price_to_precision($symbol, -1);
-                    }
-                    if ($stopPrice) {
+                    } elseif ($stopPrice) {
                         $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
                         $request['slOrderPrice'] = $this->price_to_precision($symbol, -1);
                     }
+                    $request['reduceOnly'] = 'true';
                 } else {
                     // this is from our okx $code, but I think second case should be swapped
                     if ($side === 'sell') {
@@ -738,6 +745,7 @@ class blofin extends Exchange {
                     // unsupported?
                     // $request['triggerPrice'];
                     $request['price'] = $this->price_to_precision($symbol, $price);
+                    $request['reduceOnly'] = 'true';
                 }
                 $request['positionSide'] = $posSide;
             }
@@ -758,9 +766,6 @@ class blofin extends Exchange {
             if ($marginType) {
                 $params = $this->omit($params, array( 'marginType' ));
                 $request['marginMode'] = $marginType;
-            }
-            if (!$reduceOnly) {
-                $request = $this->omit($request, array( 'reduceOnly' ));
             }
             $cloid_suffix = 'r0';
             if ($reduceOnly) {
@@ -1132,7 +1137,7 @@ class blofin extends Exchange {
         $stopPrice = $this->safe_number_2($order, 'tpTriggerPrice', 'slTriggerPrice');
         $reduceOnlyRaw = $this->safe_string($order, 'reduceOnly');
         $reduceOnly = false;
-        if ($reduceOnly) {
+        if ($reduceOnlyRaw) {
             $reduceOnly = ($reduceOnlyRaw === 'true');
         }
         return $this->safe_order(array(
@@ -1161,6 +1166,9 @@ class blofin extends Exchange {
             'fee' => $fee,
             'trades' => null,
             'reduceOnly' => $reduceOnly,
+            'close' => $reduceOnly,
+            'reduce' => $reduceOnly,
+            'trigger' => 'last',
         ), $market);
     }
 

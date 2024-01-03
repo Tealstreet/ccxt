@@ -680,6 +680,9 @@ export default class blofin extends Exchange {
             request['price'] = this.priceToPrecision (symbol, price);
         }
         request['size'] = this.amountToPrecision (symbol, amount);
+        if (!reduceOnly) {
+            request = this.omit (request, [ 'reduceOnly' ]);
+        }
         if (orderType === 'conditional' || orderType === 'trigger') {
             // unused by blofin right now
             // const triggerType = this.safeStringLower (params, 'trigger', 'mark');
@@ -695,17 +698,21 @@ export default class blofin extends Exchange {
                 const ticker = this.fetchTicker (symbol);
                 basePrice = ticker['last'];
             }
-            const tpPrice = this.safeNumber (params, 'tpPrice');
+            // const tpPrice = this.safeNumber (params, 'tpPrice');
+            let tpPrice = undefined;
+            if (stopPrice > basePrice) {
+                tpPrice = stopPrice;
+            }
             if (tpPrice || stopPrice) {
                 request['orderType'] = 'oco';
                 if (tpPrice) {
                     request['tpTriggerPrice'] = this.priceToPrecision (symbol, tpPrice);
                     request['tpOrderPrice'] = this.priceToPrecision (symbol, -1);
-                }
-                if (stopPrice) {
+                } else if (stopPrice) {
                     request['slTriggerPrice'] = this.priceToPrecision (symbol, stopPrice);
                     request['slOrderPrice'] = this.priceToPrecision (symbol, -1);
                 }
+                request['reduceOnly'] = 'true';
             } else {
                 // this is from our okx code, but I think second case should be swapped
                 if (side === 'sell') {
@@ -728,6 +735,7 @@ export default class blofin extends Exchange {
                 // unsupported?
                 // request['triggerPrice'];
                 request['price'] = this.priceToPrecision (symbol, price);
+                request['reduceOnly'] = 'true';
             }
             request['positionSide'] = posSide;
         }
@@ -748,9 +756,6 @@ export default class blofin extends Exchange {
         if (marginType) {
             params = this.omit (params, [ 'marginType' ]);
             request['marginMode'] = marginType;
-        }
-        if (!reduceOnly) {
-            request = this.omit (request, [ 'reduceOnly' ]);
         }
         let cloid_suffix = 'r0';
         if (reduceOnly) {
@@ -1117,7 +1122,7 @@ export default class blofin extends Exchange {
         const stopPrice = this.safeNumber2 (order, 'tpTriggerPrice', 'slTriggerPrice');
         const reduceOnlyRaw = this.safeString (order, 'reduceOnly');
         let reduceOnly = false;
-        if (reduceOnly) {
+        if (reduceOnlyRaw) {
             reduceOnly = (reduceOnlyRaw === 'true');
         }
         return this.safeOrder ({
@@ -1146,6 +1151,9 @@ export default class blofin extends Exchange {
             'fee': fee,
             'trades': undefined,
             'reduceOnly': reduceOnly,
+            'close': reduceOnly,
+            'reduce': reduceOnly,
+            'trigger': 'last',
         }, market);
     }
 

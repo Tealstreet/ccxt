@@ -654,6 +654,8 @@ class blofin(Exchange):
         if price is not None:
             request['price'] = self.price_to_precision(symbol, price)
         request['size'] = self.amount_to_precision(symbol, amount)
+        if not reduceOnly:
+            request = self.omit(request, ['reduceOnly'])
         if orderType == 'conditional' or orderType == 'trigger':
             # unused by blofin right now
             # triggerType = self.safe_string_lower(params, 'trigger', 'mark')
@@ -667,15 +669,19 @@ class blofin(Exchange):
             if not basePrice:
                 ticker = self.fetch_ticker(symbol)
                 basePrice = ticker['last']
-            tpPrice = self.safe_number(params, 'tpPrice')
+            # tpPrice = self.safe_number(params, 'tpPrice')
+            tpPrice = None
+            if stopPrice > basePrice:
+                tpPrice = stopPrice
             if tpPrice or stopPrice:
                 request['orderType'] = 'oco'
                 if tpPrice:
                     request['tpTriggerPrice'] = self.price_to_precision(symbol, tpPrice)
                     request['tpOrderPrice'] = self.price_to_precision(symbol, -1)
-                if stopPrice:
+                elif stopPrice:
                     request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
                     request['slOrderPrice'] = self.price_to_precision(symbol, -1)
+                request['reduceOnly'] = 'true'
             else:
                 # self is from our okx code, but I think second case should be swapped
                 if side == 'sell':
@@ -695,6 +701,7 @@ class blofin(Exchange):
                 # unsupported?
                 # request['triggerPrice']
                 request['price'] = self.price_to_precision(symbol, price)
+                request['reduceOnly'] = 'true'
             request['positionSide'] = posSide
         tradeMode = self.safe_string(params, 'tradeMode', 'hedged')
         params = []
@@ -711,8 +718,6 @@ class blofin(Exchange):
         if marginType:
             params = self.omit(params, ['marginType'])
             request['marginMode'] = marginType
-        if not reduceOnly:
-            request = self.omit(request, ['reduceOnly'])
         cloid_suffix = 'r0'
         if reduceOnly:
             cloid_suffix = 'r1'
@@ -1046,7 +1051,7 @@ class blofin(Exchange):
         stopPrice = self.safe_number_2(order, 'tpTriggerPrice', 'slTriggerPrice')
         reduceOnlyRaw = self.safe_string(order, 'reduceOnly')
         reduceOnly = False
-        if reduceOnly:
+        if reduceOnlyRaw:
             reduceOnly = (reduceOnlyRaw == 'true')
         return self.safe_order({
             'info': order,
@@ -1074,6 +1079,9 @@ class blofin(Exchange):
             'fee': fee,
             'trades': None,
             'reduceOnly': reduceOnly,
+            'close': reduceOnly,
+            'reduce': reduceOnly,
+            'trigger': 'last',
         }, market)
 
     def parse_order_status(self, status):
