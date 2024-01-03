@@ -6,6 +6,7 @@ namespace ccxt\async;
 // https://github.com/ccxt/ccxt/blob/master/CONTRIBUTING.md#how-to-contribute-code
 
 use Exception; // a common import
+use ccxt\ExchangeError;
 use ccxt\ArgumentsRequired;
 use ccxt\BadRequest;
 use ccxt\NotSupported;
@@ -1603,22 +1604,6 @@ class blofin extends Exchange {
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
 
-    public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
-        if (!$response) {
-            return; // fallback to default error handler
-        }
-        //
-        //     400 Bad Request array("success":false,"code":-1012,"message":"Amount is required for buy market orders when margin disabled.")
-        //
-        $success = $this->safe_value($response, 'success');
-        $errorCode = $this->safe_string($response, 'code');
-        if (!$success) {
-            $feedback = $this->id . ' ' . $this->json($response);
-            $this->throw_broadly_matched_exception($this->exceptions['broad'], $body, $feedback);
-            $this->throw_exactly_matched_exception($this->exceptions['exact'], $errorCode, $feedback);
-        }
-    }
-
     public function parse_income($income, $market = null) {
         //
         //     {
@@ -1654,16 +1639,44 @@ class blofin extends Exchange {
 
     public function fetch_leverage($symbol, $params = array ()) {
         return Async\async(function () use ($symbol, $params) {
+            /**
+             * fetch the set leverage for a $market
+             * @see https://www.okx.com/docs-v5/en/#rest-api-account-get-leverage
+             * @param {string} $symbol unified $market $symbol
+             * @param {array} $params extra parameters specific to the okx api endpoint
+             * @param {string} $params->marginMode 'cross' or 'isolated'
+             * @return {array} a ~@link https://docs.ccxt.com/#/?id=leverage-structure leverage structure~
+             */
             Async\await($this->load_markets());
-            $response = Async\await($this->v1PrivateGetAccountLeverageInfo ($params));
-            $result = $this->safe_value($response, 'data');
-            $leverage = $this->safe_number($result, 'leverage');
-            $marginMode = $this->safe_string($result, 'marginMode');
-            return array(
-                'info' => $response,
-                'leverage' => $leverage,
+            $marginMode = null;
+            list($marginMode, $params) = $this->handle_margin_mode_and_params('fetchLeverage', $params);
+            if ($marginMode === null) {
+                $marginMode = $this->safe_string($params, 'marginMode', 'cross'); // cross $marginMode
+            }
+            if (($marginMode !== 'cross') && ($marginMode !== 'isolated')) {
+                throw new BadRequest($this->id . ' fetchLeverage() requires a $marginMode parameter that must be either cross or isolated');
+            }
+            $market = $this->market($symbol);
+            $request = array(
+                'instId' => $market['id'],
                 'marginMode' => $marginMode,
             );
+            $response = Async\await($this->v1PrivateGetAccountLeverageInfo (array_merge($request, $params)));
+            //
+            //     {
+            //        "code" => "0",
+            //        "data" => array(
+            //            {
+            //                "instId" => "BTC-USDT-SWAP",
+            //                "lever" => "5.00000000",
+            //                "mgnMode" => "isolated",
+            //                "posSide" => "net"
+            //            }
+            //        ),
+            //        "msg" => ""
+            //     }
+            //
+            return $response;
         }) ();
     }
 
@@ -1895,5 +1908,45 @@ class blofin extends Exchange {
             );
             return $accountConfig;
         }) ();
+    }
+
+    public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {
+        if (!$response) {
+            return; // fallback to default $error handler
+        }
+        //
+        //    {
+        //        "code" => "1",
+        //        "data" => array(
+        //            array(
+        //                "clOrdId" => "",
+        //                "ordId" => "",
+        //                "sCode" => "51119",
+        //                "sMsg" => "Order placement failed due to insufficient balance. ",
+        //                "tag" => ""
+        //            }
+        //        ),
+        //        "msg" => ""
+        //    ),
+        //    {
+        //        "code" => "58001",
+        //        "data" => array(),
+        //        "msg" => "Incorrect trade password"
+        //    }
+        //
+        $code = $this->safe_string($response, 'code');
+        if ($code !== '0') {
+            $feedback = $this->id . ' ' . $body;
+            $data = $this->safe_value($response, 'data', array());
+            for ($i = 0; $i < count($data); $i++) {
+                $error = $data[$i];
+                $errorCode = $this->safe_string($error, 'sCode');
+                $message = $this->safe_string($error, 'sMsg');
+                $this->throw_exactly_matched_exception($this->exceptions['exact'], $errorCode, $feedback);
+                $this->throw_broadly_matched_exception($this->exceptions['broad'], $message, $feedback);
+            }
+            $this->throw_exactly_matched_exception($this->exceptions['exact'], $code, $feedback);
+            throw new ExchangeError($feedback); // unknown $message
+        }
     }
 }

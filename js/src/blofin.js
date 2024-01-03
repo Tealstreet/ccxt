@@ -1571,21 +1571,6 @@ export default class blofin extends Exchange {
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }
-    handleErrors(httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
-        if (!response) {
-            return; // fallback to default error handler
-        }
-        //
-        //     400 Bad Request {"success":false,"code":-1012,"message":"Amount is required for buy market orders when margin disabled."}
-        //
-        const success = this.safeValue(response, 'success');
-        const errorCode = this.safeString(response, 'code');
-        if (!success) {
-            const feedback = this.id + ' ' + this.json(response);
-            this.throwBroadlyMatchedException(this.exceptions['broad'], body, feedback);
-            this.throwExactlyMatchedException(this.exceptions['exact'], errorCode, feedback);
-        }
-    }
     parseIncome(income, market = undefined) {
         //
         //     {
@@ -1619,16 +1604,46 @@ export default class blofin extends Exchange {
         };
     }
     async fetchLeverage(symbol, params = {}) {
+        /**
+         * @method
+         * @name okx#fetchLeverage
+         * @description fetch the set leverage for a market
+         * @see https://www.okx.com/docs-v5/en/#rest-api-account-get-leverage
+         * @param {string} symbol unified market symbol
+         * @param {object} params extra parameters specific to the okx api endpoint
+         * @param {string} params.marginMode 'cross' or 'isolated'
+         * @returns {object} a [leverage structure]{@link https://docs.ccxt.com/#/?id=leverage-structure}
+         */
         await this.loadMarkets();
-        const response = await this.v1PrivateGetAccountLeverageInfo(params);
-        const result = this.safeValue(response, 'data');
-        const leverage = this.safeNumber(result, 'leverage');
-        const marginMode = this.safeString(result, 'marginMode');
-        return {
-            'info': response,
-            'leverage': leverage,
+        let marginMode = undefined;
+        [marginMode, params] = this.handleMarginModeAndParams('fetchLeverage', params);
+        if (marginMode === undefined) {
+            marginMode = this.safeString(params, 'marginMode', 'cross'); // cross as default marginMode
+        }
+        if ((marginMode !== 'cross') && (marginMode !== 'isolated')) {
+            throw new BadRequest(this.id + ' fetchLeverage() requires a marginMode parameter that must be either cross or isolated');
+        }
+        const market = this.market(symbol);
+        const request = {
+            'instId': market['id'],
             'marginMode': marginMode,
         };
+        const response = await this.v1PrivateGetAccountLeverageInfo(this.extend(request, params));
+        //
+        //     {
+        //        "code": "0",
+        //        "data": [
+        //            {
+        //                "instId": "BTC-USDT-SWAP",
+        //                "lever": "5.00000000",
+        //                "mgnMode": "isolated",
+        //                "posSide": "net"
+        //            }
+        //        ],
+        //        "msg": ""
+        //     }
+        //
+        return response;
     }
     async setLeverage(leverage, symbol = undefined, params = {}) {
         await this.loadMarkets();
@@ -1839,5 +1854,44 @@ export default class blofin extends Exchange {
             'sellLeverage': leverage,
         };
         return accountConfig;
+    }
+    handleErrors(httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
+        if (!response) {
+            return; // fallback to default error handler
+        }
+        //
+        //    {
+        //        "code": "1",
+        //        "data": [
+        //            {
+        //                "clOrdId": "",
+        //                "ordId": "",
+        //                "sCode": "51119",
+        //                "sMsg": "Order placement failed due to insufficient balance. ",
+        //                "tag": ""
+        //            }
+        //        ],
+        //        "msg": ""
+        //    },
+        //    {
+        //        "code": "58001",
+        //        "data": [],
+        //        "msg": "Incorrect trade password"
+        //    }
+        //
+        const code = this.safeString(response, 'code');
+        if (code !== '0') {
+            const feedback = this.id + ' ' + body;
+            const data = this.safeValue(response, 'data', []);
+            for (let i = 0; i < data.length; i++) {
+                const error = data[i];
+                const errorCode = this.safeString(error, 'sCode');
+                const message = this.safeString(error, 'sMsg');
+                this.throwExactlyMatchedException(this.exceptions['exact'], errorCode, feedback);
+                this.throwBroadlyMatchedException(this.exceptions['broad'], message, feedback);
+            }
+            this.throwExactlyMatchedException(this.exceptions['exact'], code, feedback);
+            throw new ExchangeError(feedback); // unknown message
+        }
     }
 }

@@ -1465,19 +1465,6 @@ class blofin(Exchange):
             headers['ACCESS-SIGN'] = signature
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
-    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
-        if not response:
-            return  # fallback to default error handler
-        #
-        #     400 Bad Request {"success":false,"code":-1012,"message":"Amount is required for buy market orders when margin disabled."}
-        #
-        success = self.safe_value(response, 'success')
-        errorCode = self.safe_string(response, 'code')
-        if not success:
-            feedback = self.id + ' ' + self.json(response)
-            self.throw_broadly_matched_exception(self.exceptions['broad'], body, feedback)
-            self.throw_exactly_matched_exception(self.exceptions['exact'], errorCode, feedback)
-
     def parse_income(self, income, market=None):
         #
         #     {
@@ -1511,16 +1498,42 @@ class blofin(Exchange):
         }
 
     async def fetch_leverage(self, symbol, params={}):
+        """
+        fetch the set leverage for a market
+        see https://www.okx.com/docs-v5/en/#rest-api-account-get-leverage
+        :param str symbol: unified market symbol
+        :param dict params: extra parameters specific to the okx api endpoint
+        :param str params['marginMode']: 'cross' or 'isolated'
+        :returns dict: a `leverage structure <https://docs.ccxt.com/#/?id=leverage-structure>`
+        """
         await self.load_markets()
-        response = await self.v1PrivateGetAccountLeverageInfo(params)
-        result = self.safe_value(response, 'data')
-        leverage = self.safe_number(result, 'leverage')
-        marginMode = self.safe_string(result, 'marginMode')
-        return {
-            'info': response,
-            'leverage': leverage,
+        marginMode = None
+        marginMode, params = self.handle_margin_mode_and_params('fetchLeverage', params)
+        if marginMode is None:
+            marginMode = self.safe_string(params, 'marginMode', 'cross')  # cross marginMode
+        if (marginMode != 'cross') and (marginMode != 'isolated'):
+            raise BadRequest(self.id + ' fetchLeverage() requires a marginMode parameter that must be either cross or isolated')
+        market = self.market(symbol)
+        request = {
+            'instId': market['id'],
             'marginMode': marginMode,
         }
+        response = await self.v1PrivateGetAccountLeverageInfo(self.extend(request, params))
+        #
+        #     {
+        #        "code": "0",
+        #        "data": [
+        #            {
+        #                "instId": "BTC-USDT-SWAP",
+        #                "lever": "5.00000000",
+        #                "mgnMode": "isolated",
+        #                "posSide": "net"
+        #            }
+        #        ],
+        #        "msg": ""
+        #     }
+        #
+        return response
 
     async def set_leverage(self, leverage, symbol=None, params={}):
         await self.load_markets()
@@ -1729,3 +1742,39 @@ class blofin(Exchange):
             'sellLeverage': leverage,
         }
         return accountConfig
+
+    def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
+        if not response:
+            return  # fallback to default error handler
+        #
+        #    {
+        #        "code": "1",
+        #        "data": [
+        #            {
+        #                "clOrdId": "",
+        #                "ordId": "",
+        #                "sCode": "51119",
+        #                "sMsg": "Order placement failed due to insufficient balance. ",
+        #                "tag": ""
+        #            }
+        #        ],
+        #        "msg": ""
+        #    },
+        #    {
+        #        "code": "58001",
+        #        "data": [],
+        #        "msg": "Incorrect trade password"
+        #    }
+        #
+        code = self.safe_string(response, 'code')
+        if code != '0':
+            feedback = self.id + ' ' + body
+            data = self.safe_value(response, 'data', [])
+            for i in range(0, len(data)):
+                error = data[i]
+                errorCode = self.safe_string(error, 'sCode')
+                message = self.safe_string(error, 'sMsg')
+                self.throw_exactly_matched_exception(self.exceptions['exact'], errorCode, feedback)
+                self.throw_broadly_matched_exception(self.exceptions['broad'], message, feedback)
+            self.throw_exactly_matched_exception(self.exceptions['exact'], code, feedback)
+            raise ExchangeError(feedback)  # unknown message
