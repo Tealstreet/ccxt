@@ -1513,6 +1513,32 @@ export default class blofin extends Exchange {
     }
 
     parseBalance (response) {
+        // {
+        //     "arg":{
+        //        "channel":"account"
+        //     },
+        //     "data":{
+        //        "ts":"1704393619013",
+        //        "totalEquity":"256.178577844908301002183444330",
+        //        "isolatedEquity":"0.000000",
+        //        "details":[
+        //           {
+        //              "currency":"USDT",
+        //              "equity":"255.921376861162832355666",
+        //              "available":"201.107018742055904790666",
+        //              "balance":"198.028033493752832355",
+        //              "ts":"1704393619013",
+        //              "isolatedEquity":"0",
+        //              "equityUsd":"256.178577844908301002183444330",
+        //              "availableEquity":"201.107018742055904790666",
+        //              "frozen":"0.26160000000000003",
+        //              "orderFrozen":"0.26160000000000003",
+        //              "unrealizedPnl":"57.893343367410000000666",
+        //              "isolatedUnrealizedPnl":"0"
+        //           }
+        //        ]
+        //     }
+        //  }
         const result = {
             'info': response,
         };
