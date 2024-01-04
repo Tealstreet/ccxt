@@ -141,7 +141,7 @@ export default class blofin extends Exchange {
                             'trade/order-tpsl': 5, // 2 requests per 1 second per symbol
                             'trade/batch-orders': 5, // 2 requests per 1 second per symbol
                             'client/account_mode': 120,
-                            'client/leverage': 120,
+                            'account/set-leverage': 120,
                         },
                     },
                 },
@@ -1669,13 +1669,15 @@ export default class blofin extends Exchange {
 
     async setLeverage (leverage, symbol: string = undefined, params = {}) {
         await this.loadMarkets ();
-        if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
-            throw new BadRequest (this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
-        }
+        // if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
+        //     throw new BadRequest (this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
+        // }
         const request = {
+            'instId': symbol,
             'leverage': leverage,
+            'marginMode': params['marginMode'],
         };
-        return await (this as any).v1PrivatePostClientLeverage (this.extend (request, params));
+        return await (this as any).v1PrivatePostAccountSetLeverage (this.extend (request, params));
     }
 
     async fetchPositions (symbols: string[] = undefined, params = {}) {

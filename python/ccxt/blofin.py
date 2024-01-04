@@ -150,7 +150,7 @@ class blofin(Exchange):
                             'trade/order-tpsl': 5,  # 2 requests per 1 second per symbol
                             'trade/batch-orders': 5,  # 2 requests per 1 second per symbol
                             'client/account_mode': 120,
-                            'client/leverage': 120,
+                            'account/set-leverage': 120,
                         },
                     },
                 },
@@ -1546,12 +1546,15 @@ class blofin(Exchange):
 
     def set_leverage(self, leverage, symbol=None, params={}):
         self.load_markets()
-        if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20) and (leverage != 50):
-            raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50')
+        # if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20) and (leverage != 50):
+        #     raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50')
+        # }
         request = {
+            'instId': symbol,
             'leverage': leverage,
+            'marginMode': params['marginMode'],
         }
-        return self.v1PrivatePostClientLeverage(self.extend(request, params))
+        return self.v1PrivatePostAccountSetLeverage(self.extend(request, params))
 
     def fetch_positions(self, symbols=None, params={}):
         self.load_markets()
