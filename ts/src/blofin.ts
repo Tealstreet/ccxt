@@ -2,7 +2,7 @@
 // ---------------------------------------------------------------------------
 
 import { Exchange } from './base/Exchange.js';
-import { ArgumentsRequired, AuthenticationError, RateLimitExceeded, BadRequest, ExchangeError, InvalidOrder, NotSupported } from './base/errors.js';
+import { ArgumentsRequired, AuthenticationError, RateLimitExceeded, BadRequest, ExchangeError, InvalidOrder, NotSupported, BadSymbol } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { TICK_SIZE } from './base/functions/number.js';
 import { Order } from './base/types.js';
@@ -1929,5 +1929,39 @@ export default class blofin extends Exchange {
             this.throwExactlyMatchedException (this.exceptions['exact'], code, feedback);
             throw new ExchangeError (feedback); // unknown message
         }
+    }
+
+    market (symbol) {
+        symbol = symbol.replace ('/', '-');
+        // symbol = symbol + ':USDT';
+        if (this.markets === undefined) {
+            throw new ExchangeError (this.id + ' markets not loaded');
+        }
+        if (this.markets_by_id === undefined) {
+            throw new ExchangeError (this.id + ' markets not loaded');
+        }
+        // TEALSTREET patch for backwards compatability
+        // this.marketHelper (symbol.split (':')[0]);
+        let foundMarket = this.marketHelper (symbol);
+        if (foundMarket) {
+            return foundMarket;
+        }
+        const marketStem = symbol.split (':')[0];
+        const marketParts = marketStem.split ('/');
+        if (marketParts.length === 2) {
+            foundMarket = this.marketHelper (marketParts[0] + '/' + marketParts[1] + ':' + marketParts[1]);
+        }
+        if (foundMarket) {
+            return foundMarket;
+        }
+        foundMarket = this.marketHelper (marketStem + ':USDT') || this.marketHelper (marketStem + ':BTC') || this.marketHelper (marketStem);
+        if (foundMarket) {
+            return foundMarket;
+        }
+        // eslint-disable-next-line no-console
+        // console.log (symbol);
+        // eslint-disable-next-line no-console
+        // console.log (this.markets);
+        throw new BadSymbol (this.id + ' does not have market symbol ' + symbol);
     }
 }

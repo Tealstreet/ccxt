@@ -8,6 +8,7 @@ import hashlib
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
+from ccxt.base.errors import BadSymbol
 from ccxt.base.errors import InvalidOrder
 from ccxt.base.errors import NotSupported
 from ccxt.base.errors import RateLimitExceeded
@@ -1786,3 +1787,30 @@ class blofin(Exchange):
                 self.throw_broadly_matched_exception(self.exceptions['broad'], message, feedback)
             self.throw_exactly_matched_exception(self.exceptions['exact'], code, feedback)
             raise ExchangeError(feedback)  # unknown message
+
+    def market(self, symbol):
+        symbol = symbol.replace('/', '-')
+        # symbol = symbol + ':USDT'
+        if self.markets is None:
+            raise ExchangeError(self.id + ' markets not loaded')
+        if self.markets_by_id is None:
+            raise ExchangeError(self.id + ' markets not loaded')
+        # TEALSTREET patch for backwards compatability
+        # self.market_helper(symbol.split(':')[0])
+        foundMarket = self.market_helper(symbol)
+        if foundMarket:
+            return foundMarket
+        marketStem = symbol.split(':')[0]
+        marketParts = marketStem.split('/')
+        if len(marketParts) == 2:
+            foundMarket = self.market_helper(marketParts[0] + '/' + marketParts[1] + ':' + marketParts[1])
+        if foundMarket:
+            return foundMarket
+        foundMarket = self.market_helper(marketStem + ':USDT') or self.market_helper(marketStem + ':BTC') or self.market_helper(marketStem)
+        if foundMarket:
+            return foundMarket
+        # eslint-disable-next-line no-console
+        # print(symbol)
+        # eslint-disable-next-line no-console
+        # print(self.markets)
+        raise BadSymbol(self.id + ' does not have market symbol ' + symbol)

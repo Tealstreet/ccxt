@@ -1905,4 +1905,38 @@ class blofin extends Exchange {
             throw new ExchangeError($feedback); // unknown $message
         }
     }
+
+    public function market($symbol) {
+        $symbol = str_replace('/', '-', $symbol);
+        // $symbol = $symbol . ':USDT';
+        if ($this->markets === null) {
+            throw new ExchangeError($this->id . ' markets not loaded');
+        }
+        if ($this->markets_by_id === null) {
+            throw new ExchangeError($this->id . ' markets not loaded');
+        }
+        // TEALSTREET patch for backwards compatability
+        // $this->market_helper(explode(':', $symbol)[0]);
+        $foundMarket = $this->market_helper($symbol);
+        if ($foundMarket) {
+            return $foundMarket;
+        }
+        $marketStem = explode(':', $symbol)[0];
+        $marketParts = explode('/', $marketStem);
+        if (strlen($marketParts) === 2) {
+            $foundMarket = $this->market_helper($marketParts[0] . '/' . $marketParts[1] . ':' . $marketParts[1]);
+        }
+        if ($foundMarket) {
+            return $foundMarket;
+        }
+        $foundMarket = $this->market_helper($marketStem . ':USDT') || $this->market_helper($marketStem . ':BTC') || $this->market_helper($marketStem);
+        if ($foundMarket) {
+            return $foundMarket;
+        }
+        // eslint-disable-next-line no-console
+        // var_dump ($symbol);
+        // eslint-disable-next-line no-console
+        // var_dump ($this->markets);
+        throw new BadSymbol($this->id . ' does not have market $symbol ' . $symbol);
+    }
 }
