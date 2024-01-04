@@ -616,6 +616,7 @@ class blofin(Exchange):
             'limit': 'limit',
             'stop': 'conditional',
             'stoplimit': 'trigger',
+            'stopLimit': 'trigger',
             'PO': 'post_only',
             'FOK': 'fok',
             'IOC': 'ioc',
@@ -641,7 +642,7 @@ class blofin(Exchange):
             posSide = 'long'
         marginType = self.safe_string(params, 'marginType', 'cross')
         method = 'v1PrivatePostTradeOrder'
-        if type == 'stop' or type == 'stoplimit':
+        if type == 'stop' or type == 'stopLimit':
             method = 'v1PrivatePostTradeOrderTpsl'
         request = {
             'instId': market['id'],

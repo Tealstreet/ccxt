@@ -627,6 +627,7 @@ class blofin extends Exchange {
             'limit' => 'limit',
             'stop' => 'conditional',
             'stoplimit' => 'trigger',
+            'stopLimit' => 'trigger',
             'PO' => 'post_only',
             'FOK' => 'fok',
             'IOC' => 'ioc',
@@ -657,7 +658,7 @@ class blofin extends Exchange {
         }
         $marginType = $this->safe_string($params, 'marginType', 'cross');
         $method = 'v1PrivatePostTradeOrder';
-        if ($type === 'stop' || $type === 'stoplimit') {
+        if ($type === 'stop' || $type === 'stopLimit') {
             $method = 'v1PrivatePostTradeOrderTpsl';
         }
         $request = array(

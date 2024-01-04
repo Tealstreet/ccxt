@@ -625,6 +625,7 @@ export default class blofin extends Exchange {
             'limit': 'limit',
             'stop': 'conditional',
             'stoplimit': 'trigger',
+            'stopLimit': 'trigger',
             'PO': 'post_only',
             'FOK': 'fok',
             'IOC': 'ioc',
@@ -656,7 +657,7 @@ export default class blofin extends Exchange {
         }
         const marginType = this.safeString(params, 'marginType', 'cross');
         let method = 'v1PrivatePostTradeOrder';
-        if (type === 'stop' || type === 'stoplimit') {
+        if (type === 'stop' || type === 'stopLimit') {
             method = 'v1PrivatePostTradeOrderTpsl';
         }
         let request = {
