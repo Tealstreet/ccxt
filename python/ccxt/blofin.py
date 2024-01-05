@@ -93,6 +93,7 @@ class blofin(Exchange):
                 'repayMargin': False,
                 'setLeverage': True,
                 'setMargin': False,
+                'setMarginMode': True,
                 'transfer': False,
                 'withdraw': False,
             },
@@ -640,7 +641,7 @@ class blofin(Exchange):
             posSide = 'short'
         else:
             posSide = 'long'
-        marginType = self.safe_string(params, 'marginType', 'cross')
+        marginType = self.safe_string(params, 'marginMode', 'cross')
         method = 'v1PrivatePostTradeOrder'
         if type == 'stop' or type == 'stopLimit':
             method = 'v1PrivatePostTradeOrderTpsl'
@@ -1588,6 +1589,18 @@ class blofin(Exchange):
             'instId': symbol,
             'leverage': leverage,
             'marginMode': params['marginMode'],
+        }
+        return self.v1PrivatePostAccountSetLeverage(self.extend(request, params))
+
+    def set_margin_mode(self, marginMode, symbol=None, params={}):
+        self.load_markets()
+        # if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20) and (leverage != 50):
+        #     raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50')
+        # }
+        request = {
+            'instId': symbol,
+            'leverage': params['leverage'],
+            'marginMode': marginMode,
         }
         return self.v1PrivatePostAccountSetLeverage(self.extend(request, params))
 

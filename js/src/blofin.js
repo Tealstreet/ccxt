@@ -85,6 +85,7 @@ export default class blofin extends Exchange {
                 'repayMargin': false,
                 'setLeverage': true,
                 'setMargin': false,
+                'setMarginMode': true,
                 'transfer': false,
                 'withdraw': false,
             },
@@ -655,7 +656,7 @@ export default class blofin extends Exchange {
         else {
             posSide = 'long';
         }
-        const marginType = this.safeString(params, 'marginType', 'cross');
+        const marginType = this.safeString(params, 'marginMode', 'cross');
         let method = 'v1PrivatePostTradeOrder';
         if (type === 'stop' || type === 'stopLimit') {
             method = 'v1PrivatePostTradeOrderTpsl';
@@ -1696,6 +1697,18 @@ export default class blofin extends Exchange {
             'instId': symbol,
             'leverage': leverage,
             'marginMode': params['marginMode'],
+        };
+        return await this.v1PrivatePostAccountSetLeverage(this.extend(request, params));
+    }
+    async setMarginMode(marginMode, symbol = undefined, params = {}) {
+        await this.loadMarkets();
+        // if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
+        //     throw new BadRequest (this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
+        // }
+        const request = {
+            'instId': symbol,
+            'leverage': params['leverage'],
+            'marginMode': marginMode,
         };
         return await this.v1PrivatePostAccountSetLeverage(this.extend(request, params));
     }

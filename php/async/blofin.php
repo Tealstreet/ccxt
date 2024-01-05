@@ -90,6 +90,7 @@ class blofin extends Exchange {
                 'repayMargin' => false,
                 'setLeverage' => true,
                 'setMargin' => false,
+                'setMarginMode' => true,
                 'transfer' => false,
                 'withdraw' => false,
             ),
@@ -674,7 +675,7 @@ class blofin extends Exchange {
             } else {
                 $posSide = 'long';
             }
-            $marginType = $this->safe_string($params, 'marginType', 'cross');
+            $marginType = $this->safe_string($params, 'marginMode', 'cross');
             $method = 'v1PrivatePostTradeOrder';
             if ($type === 'stop' || $type === 'stopLimit') {
                 $method = 'v1PrivatePostTradeOrderTpsl';
@@ -1732,6 +1733,21 @@ class blofin extends Exchange {
                 'instId' => $symbol,
                 'leverage' => $leverage,
                 'marginMode' => $params['marginMode'],
+            );
+            return Async\await($this->v1PrivatePostAccountSetLeverage (array_merge($request, $params)));
+        }) ();
+    }
+
+    public function set_margin_mode($marginMode, $symbol = null, $params = array ()) {
+        return Async\async(function () use ($marginMode, $symbol, $params) {
+            Async\await($this->load_markets());
+            // if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
+            //     throw new BadRequest($this->id . ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
+            // }
+            $request = array(
+                'instId' => $symbol,
+                'leverage' => $params['leverage'],
+                'marginMode' => $marginMode,
             );
             return Async\await($this->v1PrivatePostAccountSetLeverage (array_merge($request, $params)));
         }) ();
