@@ -1729,6 +1729,7 @@ class blofin extends Exchange {
             // if (($leverage !== 1) && ($leverage !== 2) && ($leverage !== 3) && ($leverage !== 4) && ($leverage !== 5) && ($leverage !== 10) && ($leverage !== 15) && ($leverage !== 20) && ($leverage !== 50)) {
             //     throw new BadRequest($this->id . ' $leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
             // }
+            // x
             $request = array(
                 'instId' => $symbol,
                 'leverage' => $leverage,
@@ -1952,21 +1953,41 @@ class blofin extends Exchange {
                 $symbol = 'BTC-USDT';
             }
             $market = $this->market($symbol);
-            $leverageInfo = Async\await($this->fetch_leverage($market['id']));
-            $leverage = $this->safe_integer($leverageInfo, 'leverage');
-            $accountConfig = array(
-                'marginMode' => 'cross',
-                'positionMode' => 'oneway',
-                'markets' => array(),
-                'leverage' => $leverage,
-            );
-            $leverageConfigs = $accountConfig['markets'];
-            $leverageConfigs[$market['symbol']] = array(
-                'leverage' => $leverage,
-                'buyLeverage' => $leverage,
-                'sellLeverage' => $leverage,
-            );
-            return $accountConfig;
+            $leverageInfo = Async\await($this->fetch_leverage($market['id'], $params));
+            $data = $this->safe_value($leverageInfo, 'data');
+            if (!$data) {
+                $leverage = $this->safe_integer($leverageInfo, 'leverage');
+                $marginMode = $this->safe_string($leverageInfo, 'marginMode');
+                $accountConfig = array(
+                    'marginMode' => $marginMode,
+                    'positionMode' => 'oneway',
+                    'markets' => array(),
+                    'leverage' => $leverage,
+                );
+                $leverageConfigs = $accountConfig['markets'];
+                $leverageConfigs[$market['symbol']] = array(
+                    'leverage' => $leverage,
+                    'buyLeverage' => $leverage,
+                    'sellLeverage' => $leverage,
+                );
+                return $accountConfig;
+            } else {
+                $leverage = $this->safe_integer($data, 'leverage');
+                $marginMode = $this->safe_string($data, 'marginMode');
+                $accountConfig = array(
+                    'marginMode' => $marginMode,
+                    'positionMode' => 'oneway',
+                    'markets' => array(),
+                    'leverage' => $leverage,
+                );
+                $leverageConfigs = $accountConfig['markets'];
+                $leverageConfigs[$market['symbol']] = array(
+                    'leverage' => $leverage,
+                    'buyLeverage' => $leverage,
+                    'sellLeverage' => $leverage,
+                );
+                return $accountConfig;
+            }
         }) ();
     }
 

@@ -1585,6 +1585,7 @@ class blofin(Exchange):
         # if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20) and (leverage != 50):
         #     raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50')
         # }
+        # x
         request = {
             'instId': symbol,
             'leverage': leverage,
@@ -1787,21 +1788,40 @@ class blofin(Exchange):
         if symbol == 'BTC/USDT:USDT':
             symbol = 'BTC-USDT'
         market = self.market(symbol)
-        leverageInfo = self.fetch_leverage(market['id'])
-        leverage = self.safe_integer(leverageInfo, 'leverage')
-        accountConfig = {
-            'marginMode': 'cross',
-            'positionMode': 'oneway',
-            'markets': {},
-            'leverage': leverage,
-        }
-        leverageConfigs = accountConfig['markets']
-        leverageConfigs[market['symbol']] = {
-            'leverage': leverage,
-            'buyLeverage': leverage,
-            'sellLeverage': leverage,
-        }
-        return accountConfig
+        leverageInfo = self.fetch_leverage(market['id'], params)
+        data = self.safe_value(leverageInfo, 'data')
+        if not data:
+            leverage = self.safe_integer(leverageInfo, 'leverage')
+            marginMode = self.safe_string(leverageInfo, 'marginMode')
+            accountConfig = {
+                'marginMode': marginMode,
+                'positionMode': 'oneway',
+                'markets': {},
+                'leverage': leverage,
+            }
+            leverageConfigs = accountConfig['markets']
+            leverageConfigs[market['symbol']] = {
+                'leverage': leverage,
+                'buyLeverage': leverage,
+                'sellLeverage': leverage,
+            }
+            return accountConfig
+        else:
+            leverage = self.safe_integer(data, 'leverage')
+            marginMode = self.safe_string(data, 'marginMode')
+            accountConfig = {
+                'marginMode': marginMode,
+                'positionMode': 'oneway',
+                'markets': {},
+                'leverage': leverage,
+            }
+            leverageConfigs = accountConfig['markets']
+            leverageConfigs[market['symbol']] = {
+                'leverage': leverage,
+                'buyLeverage': leverage,
+                'sellLeverage': leverage,
+            }
+            return accountConfig
 
     def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
         if not response:

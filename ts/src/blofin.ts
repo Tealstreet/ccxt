@@ -1706,6 +1706,7 @@ export default class blofin extends Exchange {
         // if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
         //     throw new BadRequest (this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
         // }
+        // x
         const request = {
             'instId': symbol,
             'leverage': leverage,
@@ -1923,21 +1924,41 @@ export default class blofin extends Exchange {
             symbol = 'BTC-USDT';
         }
         const market = this.market (symbol);
-        const leverageInfo = await this.fetchLeverage (market['id']);
-        const leverage = this.safeInteger (leverageInfo, 'leverage');
-        const accountConfig = {
-            'marginMode': 'cross',
-            'positionMode': 'oneway',
-            'markets': {},
-            'leverage': leverage,
-        };
-        const leverageConfigs = accountConfig['markets'];
-        leverageConfigs[market['symbol']] = {
-            'leverage': leverage,
-            'buyLeverage': leverage,
-            'sellLeverage': leverage,
-        };
-        return accountConfig;
+        const leverageInfo = await this.fetchLeverage (market['id'], params);
+        const data = this.safeValue (leverageInfo, 'data');
+        if (!data) {
+            const leverage = this.safeInteger (leverageInfo, 'leverage');
+            const marginMode = this.safeString (leverageInfo, 'marginMode');
+            const accountConfig = {
+                'marginMode': marginMode,
+                'positionMode': 'oneway',
+                'markets': {},
+                'leverage': leverage,
+            };
+            const leverageConfigs = accountConfig['markets'];
+            leverageConfigs[market['symbol']] = {
+                'leverage': leverage,
+                'buyLeverage': leverage,
+                'sellLeverage': leverage,
+            };
+            return accountConfig;
+        } else {
+            const leverage = this.safeInteger (data, 'leverage');
+            const marginMode = this.safeString (data, 'marginMode');
+            const accountConfig = {
+                'marginMode': marginMode,
+                'positionMode': 'oneway',
+                'markets': {},
+                'leverage': leverage,
+            };
+            const leverageConfigs = accountConfig['markets'];
+            leverageConfigs[market['symbol']] = {
+                'leverage': leverage,
+                'buyLeverage': leverage,
+                'sellLeverage': leverage,
+            };
+            return accountConfig;
+        }
     }
 
     handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {
