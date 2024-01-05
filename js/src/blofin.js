@@ -694,7 +694,10 @@ export default class blofin extends Exchange {
             }
             // const tpPrice = this.safeNumber (params, 'tpPrice');
             let tpPrice = undefined;
-            if (stopPrice > basePrice) {
+            if (side === 'sell' && stopPrice >= basePrice) {
+                tpPrice = stopPrice;
+            }
+            else if (side === 'buy' && stopPrice < basePrice) {
                 tpPrice = stopPrice;
             }
             if (tpPrice || stopPrice) {

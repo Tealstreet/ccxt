@@ -675,7 +675,9 @@ class blofin(Exchange):
                 basePrice = ticker['last']
             # tpPrice = self.safe_number(params, 'tpPrice')
             tpPrice = None
-            if stopPrice > basePrice:
+            if side == 'sell' and stopPrice >= basePrice:
+                tpPrice = stopPrice
+            elif side == 'buy' and stopPrice < basePrice:
                 tpPrice = stopPrice
             if tpPrice or stopPrice:
                 if price is None:

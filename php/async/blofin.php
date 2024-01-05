@@ -713,7 +713,9 @@ class blofin extends Exchange {
                 }
                 // $tpPrice = $this->safe_number($params, 'tpPrice');
                 $tpPrice = null;
-                if ($stopPrice > $basePrice) {
+                if ($side === 'sell' && $stopPrice >= $basePrice) {
+                    $tpPrice = $stopPrice;
+                } elseif ($side === 'buy' && $stopPrice < $basePrice) {
                     $tpPrice = $stopPrice;
                 }
                 if ($tpPrice || $stopPrice) {
