@@ -780,13 +780,6 @@ export default class blofin extends Exchange {
             'side': side,
         }));
     }
-    maybeAlgoOrderId(id) {
-        const stringId = this.numberToString(id);
-        if (stringId.length < 9) {
-            return true;
-        }
-        return false;
-    }
     async cancelOrder(id, symbol = undefined, params = {}) {
         /**
          * @method

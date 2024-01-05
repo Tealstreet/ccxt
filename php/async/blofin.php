@@ -796,14 +796,6 @@ class blofin extends Exchange {
         }) ();
     }
 
-    public function maybe_algo_order_id($id) {
-        $stringId = $this->number_to_string($id);
-        if (strlen($stringId) < 9) {
-            return true;
-        }
-        return false;
-    }
-
     public function cancel_order($id, $symbol = null, $params = array ()) {
         return Async\async(function () use ($id, $symbol, $params) {
             /**

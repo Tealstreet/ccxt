@@ -742,12 +742,6 @@ class blofin(Exchange):
             'side': side,
         }))
 
-    def maybe_algo_order_id(self, id):
-        stringId = self.number_to_string(id)
-        if len(stringId) < 9:
-            return True
-        return False
-
     async def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order
