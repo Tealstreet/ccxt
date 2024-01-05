@@ -1072,7 +1072,7 @@ export default class blofin extends Exchange {
         market = this.safeMarket (marketId, market);
         const symbol = marketId;
         const filled = this.safeString (order, 'filledSize');
-        const price = this.safeString2 (order, 'px', 'price');
+        let price = this.safeNumber2 (order, 'px', 'price');
         const average = this.safeString (order, 'averagePrice');
         const status = this.parseOrderStatus (this.safeString (order, 'state'));
         const feeCostString = this.safeString (order, 'fee');
@@ -1103,21 +1103,30 @@ export default class blofin extends Exchange {
         const takeProfitPrice = this.safeNumber2 (order, 'tpTriggerPrice', 'tpOrderPrice');
         const stopLossOrderPrice = this.safeNumber (order, 'slOrderPrice');
         const takeProfitOrderPrice = this.safeNumber (order, 'tpOrderPrice');
+        let triggerPrice = undefined;
+        let stopPrice = undefined;
         if (stopLossPrice) {
             if (stopLossOrderPrice === -1) {
                 type = 'stop';
+                stopPrice = this.safeNumber2 (order, 'tpTriggerPrice', 'slTriggerPrice');
+                triggerPrice = stopPrice;
             } else {
                 type = 'stoplimit';
+                stopPrice = this.safeNumber2 (order, 'tpOrderPrice', 'slOrderPrice');
+                price = this.safeNumber2 (order, 'tpTriggerPrice', 'slTriggerPrice');
             }
         } else if (takeProfitPrice) {
             if (takeProfitOrderPrice === -1) {
                 type = 'stop';
+                stopPrice = this.safeNumber2 (order, 'tpTriggerPrice', 'slTriggerPrice');
+                triggerPrice = stopPrice;
             } else {
                 type = 'stoplimit';
+                stopPrice = this.safeNumber2 (order, 'tpOrderPrice', 'slOrderPrice');
+                price = this.safeNumber2 (order, 'tpTriggerPrice', 'slTriggerPrice');
             }
         }
         // const stopPrice = this.safeNumberN (order, [ 'price', 'stopPrice', 'slTriggerPrice, tpTriggerPrice' ]);
-        const stopPrice = this.safeNumber2 (order, 'tpTriggerPrice', 'slTriggerPrice');
         const reduceOnlyRaw = this.safeString (order, 'reduceOnly');
         let reduceOnly = false;
         if (reduceOnlyRaw) {
@@ -1139,7 +1148,7 @@ export default class blofin extends Exchange {
             'stopLossPrice': stopLossPrice,
             'takeProfitPrice': takeProfitPrice,
             'stopPrice': stopPrice,
-            'triggerPrice': stopPrice,
+            'triggerPrice': triggerPrice,
             'average': average,
             'cost': undefined,
             'amount': amount,

@@ -1009,7 +1009,7 @@ class blofin(Exchange):
         market = self.safe_market(marketId, market)
         symbol = marketId
         filled = self.safe_string(order, 'filledSize')
-        price = self.safe_string_2(order, 'px', 'price')
+        price = self.safe_number_2(order, 'px', 'price')
         average = self.safe_string(order, 'averagePrice')
         status = self.parse_order_status(self.safe_string(order, 'state'))
         feeCostString = self.safe_string(order, 'fee')
@@ -1038,18 +1038,27 @@ class blofin(Exchange):
         takeProfitPrice = self.safe_number_2(order, 'tpTriggerPrice', 'tpOrderPrice')
         stopLossOrderPrice = self.safe_number(order, 'slOrderPrice')
         takeProfitOrderPrice = self.safe_number(order, 'tpOrderPrice')
+        triggerPrice = None
+        stopPrice = None
         if stopLossPrice:
             if stopLossOrderPrice == -1:
                 type = 'stop'
+                stopPrice = self.safe_number_2(order, 'tpTriggerPrice', 'slTriggerPrice')
+                triggerPrice = stopPrice
             else:
                 type = 'stoplimit'
+                stopPrice = self.safe_number_2(order, 'tpOrderPrice', 'slOrderPrice')
+                price = self.safe_number_2(order, 'tpTriggerPrice', 'slTriggerPrice')
         elif takeProfitPrice:
             if takeProfitOrderPrice == -1:
                 type = 'stop'
+                stopPrice = self.safe_number_2(order, 'tpTriggerPrice', 'slTriggerPrice')
+                triggerPrice = stopPrice
             else:
                 type = 'stoplimit'
+                stopPrice = self.safe_number_2(order, 'tpOrderPrice', 'slOrderPrice')
+                price = self.safe_number_2(order, 'tpTriggerPrice', 'slTriggerPrice')
         # stopPrice = self.safe_number_n(order, ['price', 'stopPrice', 'slTriggerPrice, tpTriggerPrice'])
-        stopPrice = self.safe_number_2(order, 'tpTriggerPrice', 'slTriggerPrice')
         reduceOnlyRaw = self.safe_string(order, 'reduceOnly')
         reduceOnly = False
         if reduceOnlyRaw:
@@ -1070,7 +1079,7 @@ class blofin(Exchange):
             'stopLossPrice': stopLossPrice,
             'takeProfitPrice': takeProfitPrice,
             'stopPrice': stopPrice,
-            'triggerPrice': stopPrice,
+            'triggerPrice': triggerPrice,
             'average': average,
             'cost': None,
             'amount': amount,

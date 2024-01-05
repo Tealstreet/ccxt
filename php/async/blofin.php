@@ -1088,7 +1088,7 @@ class blofin extends Exchange {
         $market = $this->safe_market($marketId, $market);
         $symbol = $marketId;
         $filled = $this->safe_string($order, 'filledSize');
-        $price = $this->safe_string_2($order, 'px', 'price');
+        $price = $this->safe_number_2($order, 'px', 'price');
         $average = $this->safe_string($order, 'averagePrice');
         $status = $this->parse_order_status($this->safe_string($order, 'state'));
         $feeCostString = $this->safe_string($order, 'fee');
@@ -1119,21 +1119,30 @@ class blofin extends Exchange {
         $takeProfitPrice = $this->safe_number_2($order, 'tpTriggerPrice', 'tpOrderPrice');
         $stopLossOrderPrice = $this->safe_number($order, 'slOrderPrice');
         $takeProfitOrderPrice = $this->safe_number($order, 'tpOrderPrice');
+        $triggerPrice = null;
+        $stopPrice = null;
         if ($stopLossPrice) {
             if ($stopLossOrderPrice === -1) {
                 $type = 'stop';
+                $stopPrice = $this->safe_number_2($order, 'tpTriggerPrice', 'slTriggerPrice');
+                $triggerPrice = $stopPrice;
             } else {
                 $type = 'stoplimit';
+                $stopPrice = $this->safe_number_2($order, 'tpOrderPrice', 'slOrderPrice');
+                $price = $this->safe_number_2($order, 'tpTriggerPrice', 'slTriggerPrice');
             }
         } elseif ($takeProfitPrice) {
             if ($takeProfitOrderPrice === -1) {
                 $type = 'stop';
+                $stopPrice = $this->safe_number_2($order, 'tpTriggerPrice', 'slTriggerPrice');
+                $triggerPrice = $stopPrice;
             } else {
                 $type = 'stoplimit';
+                $stopPrice = $this->safe_number_2($order, 'tpOrderPrice', 'slOrderPrice');
+                $price = $this->safe_number_2($order, 'tpTriggerPrice', 'slTriggerPrice');
             }
         }
         // $stopPrice = $this->safe_number_n($order, array( 'price', 'stopPrice', 'slTriggerPrice, tpTriggerPrice' ));
-        $stopPrice = $this->safe_number_2($order, 'tpTriggerPrice', 'slTriggerPrice');
         $reduceOnlyRaw = $this->safe_string($order, 'reduceOnly');
         $reduceOnly = false;
         if ($reduceOnlyRaw) {
@@ -1155,7 +1164,7 @@ class blofin extends Exchange {
             'stopLossPrice' => $stopLossPrice,
             'takeProfitPrice' => $takeProfitPrice,
             'stopPrice' => $stopPrice,
-            'triggerPrice' => $stopPrice,
+            'triggerPrice' => $triggerPrice,
             'average' => $average,
             'cost' => null,
             'amount' => $amount,
