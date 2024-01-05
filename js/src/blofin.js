@@ -680,13 +680,12 @@ export default class blofin extends Exchange {
             // unused by blofin right now
             // const triggerType = this.safeStringLower (params, 'trigger', 'mark');
             params = this.omit(params, ['trigger']);
-            if (price !== undefined) {
-                price = -1;
-            }
-            else {
-                orderType = 'conditional';
-                request['orderType'] = orderType;
-            }
+            // if (price !== undefined) {
+            //     price = -1;
+            // } else {
+            //     orderType = 'conditional';
+            //     request['orderType'] = orderType;
+            // }
             let basePrice = this.safeValue(params, 'basePrice');
             if (!basePrice) {
                 const ticker = this.fetchTicker(symbol);
@@ -698,43 +697,48 @@ export default class blofin extends Exchange {
                 tpPrice = stopPrice;
             }
             if (tpPrice || stopPrice) {
-                request['orderType'] = 'oco';
-                if (tpPrice) {
-                    request['tpTriggerPrice'] = this.priceToPrecision(symbol, tpPrice);
-                    request['tpOrderPrice'] = this.priceToPrecision(symbol, -1);
-                }
-                else if (stopPrice) {
-                    request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
-                    request['slOrderPrice'] = this.priceToPrecision(symbol, -1);
-                }
-                request['reduceOnly'] = 'true';
-            }
-            else {
-                // this is from our okx code, but I think second case should be swapped
-                if (side === 'sell') {
-                    if (stopPrice > basePrice) {
-                        request['tpTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
-                        request['tpOrderPrice'] = this.priceToPrecision(symbol, price);
+                if (price === undefined) {
+                    request['orderType'] = 'oco';
+                    if (tpPrice) {
+                        request['tpTriggerPrice'] = this.priceToPrecision(symbol, tpPrice);
+                        request['tpOrderPrice'] = this.priceToPrecision(symbol, -1);
                     }
-                    else {
+                    else if (stopPrice) {
                         request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
-                        request['slOrderPrice'] = this.priceToPrecision(symbol, price);
+                        request['slOrderPrice'] = this.priceToPrecision(symbol, -1);
                     }
+                    // request['price'] = this.priceToPrecision (symbol, price);
+                    request['reduceOnly'] = 'true';
                 }
                 else {
-                    if (stopPrice < basePrice) {
-                        request['tpTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
-                        request['tpOrderPrice'] = this.priceToPrecision(symbol, price);
+                    // this is from our okx code, but I think second case should be swapped
+                    if (side === 'sell') {
+                        if (stopPrice > basePrice) {
+                            request['tpTriggerPrice'] = this.priceToPrecision(symbol, tpPrice);
+                            request['tpOrderPrice'] = this.priceToPrecision(symbol, price);
+                        }
+                        else {
+                            request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
+                            request['slOrderPrice'] = this.priceToPrecision(symbol, price);
+                        }
                     }
                     else {
-                        request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
-                        request['slOrderPrice'] = this.priceToPrecision(symbol, price);
+                        if (stopPrice < basePrice) {
+                            request['tpTriggerPrice'] = this.priceToPrecision(symbol, tpPrice);
+                            request['tpOrderPrice'] = this.priceToPrecision(symbol, price);
+                        }
+                        else {
+                            request['slTriggerPrice'] = this.priceToPrecision(symbol, stopPrice);
+                            request['slOrderPrice'] = this.priceToPrecision(symbol, price);
+                        }
                     }
+                    request['orderType'] = 'conditional';
+                    // request['price'] = this.priceToPrecision (symbol, -1);
+                    // unsupported?
+                    // request['triggerPrice'];
+                    request['reduceOnly'] = 'true';
                 }
-                // unsupported?
-                // request['triggerPrice'];
-                request['price'] = this.priceToPrecision(symbol, price);
-                request['reduceOnly'] = 'true';
+                request['price'] = -1;
             }
             request['positionSide'] = posSide;
         }
@@ -797,7 +801,7 @@ export default class blofin extends Exchange {
             throw new ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets();
-        const type = this.safeString(params, 'type');
+        const type = this.safeStringLower(params, 'type');
         const isStop = type === 'stop' || type === 'stoplimit';
         if (isStop) {
             return this.cancelAlgoOrder(id, symbol, params);

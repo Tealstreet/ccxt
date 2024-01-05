@@ -662,11 +662,12 @@ class blofin(Exchange):
             # unused by blofin right now
             # triggerType = self.safe_string_lower(params, 'trigger', 'mark')
             params = self.omit(params, ['trigger'])
-            if price is not None:
-                price = -1
-            else:
-                orderType = 'conditional'
-                request['orderType'] = orderType
+            # if price is not None:
+            #     price = -1
+            # else:
+            #     orderType = 'conditional'
+            #     request['orderType'] = orderType
+            # }
             basePrice = self.safe_value(params, 'basePrice')
             if not basePrice:
                 ticker = self.fetch_ticker(symbol)
@@ -676,34 +677,38 @@ class blofin(Exchange):
             if stopPrice > basePrice:
                 tpPrice = stopPrice
             if tpPrice or stopPrice:
-                request['orderType'] = 'oco'
-                if tpPrice:
-                    request['tpTriggerPrice'] = self.price_to_precision(symbol, tpPrice)
-                    request['tpOrderPrice'] = self.price_to_precision(symbol, -1)
-                elif stopPrice:
-                    request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
-                    request['slOrderPrice'] = self.price_to_precision(symbol, -1)
-                request['reduceOnly'] = 'true'
-            else:
-                # self is from our okx code, but I think second case should be swapped
-                if side == 'sell':
-                    if stopPrice > basePrice:
-                        request['tpTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
-                        request['tpOrderPrice'] = self.price_to_precision(symbol, price)
-                    else:
+                if price is None:
+                    request['orderType'] = 'oco'
+                    if tpPrice:
+                        request['tpTriggerPrice'] = self.price_to_precision(symbol, tpPrice)
+                        request['tpOrderPrice'] = self.price_to_precision(symbol, -1)
+                    elif stopPrice:
                         request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
-                        request['slOrderPrice'] = self.price_to_precision(symbol, price)
+                        request['slOrderPrice'] = self.price_to_precision(symbol, -1)
+                    # request['price'] = self.price_to_precision(symbol, price)
+                    request['reduceOnly'] = 'true'
                 else:
-                    if stopPrice < basePrice:
-                        request['tpTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
-                        request['tpOrderPrice'] = self.price_to_precision(symbol, price)
+                    # self is from our okx code, but I think second case should be swapped
+                    if side == 'sell':
+                        if stopPrice > basePrice:
+                            request['tpTriggerPrice'] = self.price_to_precision(symbol, tpPrice)
+                            request['tpOrderPrice'] = self.price_to_precision(symbol, price)
+                        else:
+                            request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
+                            request['slOrderPrice'] = self.price_to_precision(symbol, price)
                     else:
-                        request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
-                        request['slOrderPrice'] = self.price_to_precision(symbol, price)
-                # unsupported?
-                # request['triggerPrice']
-                request['price'] = self.price_to_precision(symbol, price)
-                request['reduceOnly'] = 'true'
+                        if stopPrice < basePrice:
+                            request['tpTriggerPrice'] = self.price_to_precision(symbol, tpPrice)
+                            request['tpOrderPrice'] = self.price_to_precision(symbol, price)
+                        else:
+                            request['slTriggerPrice'] = self.price_to_precision(symbol, stopPrice)
+                            request['slOrderPrice'] = self.price_to_precision(symbol, price)
+                    request['orderType'] = 'conditional'
+                    # request['price'] = self.price_to_precision(symbol, -1)
+                    # unsupported?
+                    # request['triggerPrice']
+                    request['reduceOnly'] = 'true'
+                request['price'] = -1
             request['positionSide'] = posSide
         tradeMode = self.safe_string(params, 'tradeMode', 'hedged')
         params = []
@@ -754,7 +759,7 @@ class blofin(Exchange):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         await self.load_markets()
-        type = self.safe_string(params, 'type')
+        type = self.safe_string_lower(params, 'type')
         isStop = type == 'stop' or type == 'stoplimit'
         if isStop:
             return self.cancel_algo_order(id, symbol, params)

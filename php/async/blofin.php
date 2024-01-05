@@ -699,12 +699,12 @@ class blofin extends Exchange {
                 // unused by blofin right now
                 // $triggerType = $this->safe_string_lower($params, 'trigger', 'mark');
                 $params = $this->omit($params, array( 'trigger' ));
-                if ($price !== null) {
-                    $price = -1;
-                } else {
-                    $orderType = 'conditional';
-                    $request['orderType'] = $orderType;
-                }
+                // if ($price !== null) {
+                //     $price = -1;
+                // } else {
+                //     $orderType = 'conditional';
+                //     $request['orderType'] = $orderType;
+                // }
                 $basePrice = $this->safe_value($params, 'basePrice');
                 if (!$basePrice) {
                     $ticker = $this->fetch_ticker($symbol);
@@ -716,38 +716,43 @@ class blofin extends Exchange {
                     $tpPrice = $stopPrice;
                 }
                 if ($tpPrice || $stopPrice) {
-                    $request['orderType'] = 'oco';
-                    if ($tpPrice) {
-                        $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $tpPrice);
-                        $request['tpOrderPrice'] = $this->price_to_precision($symbol, -1);
-                    } elseif ($stopPrice) {
-                        $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
-                        $request['slOrderPrice'] = $this->price_to_precision($symbol, -1);
-                    }
-                    $request['reduceOnly'] = 'true';
-                } else {
-                    // this is from our okx $code, but I think second case should be swapped
-                    if ($side === 'sell') {
-                        if ($stopPrice > $basePrice) {
-                            $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
-                            $request['tpOrderPrice'] = $this->price_to_precision($symbol, $price);
-                        } else {
+                    if ($price === null) {
+                        $request['orderType'] = 'oco';
+                        if ($tpPrice) {
+                            $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $tpPrice);
+                            $request['tpOrderPrice'] = $this->price_to_precision($symbol, -1);
+                        } elseif ($stopPrice) {
                             $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
-                            $request['slOrderPrice'] = $this->price_to_precision($symbol, $price);
+                            $request['slOrderPrice'] = $this->price_to_precision($symbol, -1);
                         }
+                        // $request['price'] = $this->price_to_precision($symbol, $price);
+                        $request['reduceOnly'] = 'true';
                     } else {
-                        if ($stopPrice < $basePrice) {
-                            $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
-                            $request['tpOrderPrice'] = $this->price_to_precision($symbol, $price);
+                        // this is from our okx $code, but I think second case should be swapped
+                        if ($side === 'sell') {
+                            if ($stopPrice > $basePrice) {
+                                $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $tpPrice);
+                                $request['tpOrderPrice'] = $this->price_to_precision($symbol, $price);
+                            } else {
+                                $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
+                                $request['slOrderPrice'] = $this->price_to_precision($symbol, $price);
+                            }
                         } else {
-                            $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
-                            $request['slOrderPrice'] = $this->price_to_precision($symbol, $price);
+                            if ($stopPrice < $basePrice) {
+                                $request['tpTriggerPrice'] = $this->price_to_precision($symbol, $tpPrice);
+                                $request['tpOrderPrice'] = $this->price_to_precision($symbol, $price);
+                            } else {
+                                $request['slTriggerPrice'] = $this->price_to_precision($symbol, $stopPrice);
+                                $request['slOrderPrice'] = $this->price_to_precision($symbol, $price);
+                            }
                         }
+                        $request['orderType'] = 'conditional';
+                        // $request['price'] = $this->price_to_precision($symbol, -1);
+                        // unsupported?
+                        // $request['triggerPrice'];
+                        $request['reduceOnly'] = 'true';
                     }
-                    // unsupported?
-                    // $request['triggerPrice'];
-                    $request['price'] = $this->price_to_precision($symbol, $price);
-                    $request['reduceOnly'] = 'true';
+                    $request['price'] = -1;
                 }
                 $request['positionSide'] = $posSide;
             }
@@ -812,7 +817,7 @@ class blofin extends Exchange {
                 throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
             }
             Async\await($this->load_markets());
-            $type = $this->safe_string($params, 'type');
+            $type = $this->safe_string_lower($params, 'type');
             $isStop = $type === 'stop' || $type === 'stoplimit';
             if ($isStop) {
                 return $this->cancel_algo_order($id, $symbol, $params);
