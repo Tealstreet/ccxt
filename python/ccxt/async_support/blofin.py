@@ -806,28 +806,36 @@ class blofin(Exchange):
         return self.extend(self.parse_order(response), extendParams)
 
     async def cancel_all_orders(self, symbol=None, params={}):
-        """
-        cancel all open orders in a market
-        :param str|None symbol: unified market symbol
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns dict: an list of `order structures <https://docs.ccxt.com/#/?id=order-structure>`
-        """
         if symbol is None:
-            raise ArgumentsRequired(self.id + ' canelOrders() requires a symbol argument')
+            raise ArgumentsRequired(self.id + ' cancelOrders() requires a symbol argument')
         await self.load_markets()
         market = self.market(symbol)
-        request = {
-            'symbol': market['id'],
-        }
-        response = await self.v1PrivateDeleteOrders(self.extend(request, params))
-        await self.v3PrivateDeleteAlgoOrdersPending(self.extend(request, params))
+        instId = market['id']
+        # request = {
+        #     'instId': instId,
+        # }
+        orders = await self.fetch_open_orders(instId)
+        stopOrders = await self.fetch_open_stop_orders(instId)
+        ordersToCancel = []
+        for i in range(0, len(orders)):
+            ordersToCancel.append({
+                'instId': instId,
+                'orderId': orders[i]['id'],
+            })
+        for i in range(0, len(stopOrders)):
+            ordersToCancel.append({
+                'instId': instId,
+                'orderId': stopOrders[i]['id'],
+            })
+        # response = await self.v1PrivatePostTradeCancelOrder(self.extend(request, params))
+        # await self.v1PrivatePostTradeCancelTpsl(self.extend(request, params))
         #
         #     {
         #         "success":true,
         #         "status":"CANCEL_ALL_SENT"
         #     }
         #
-        return response
+        return await self.v1PrivatePostTradeCancelBatchOrders(ordersToCancel)
 
     async def fetch_order(self, id, symbol=None, params={}):
         """

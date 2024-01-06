@@ -859,31 +859,39 @@ export default class blofin extends Exchange {
     }
 
     async cancelAllOrders (symbol: string = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#cancelAllOrders
-         * @description cancel all open orders in a market
-         * @param {string|undefined} symbol unified market symbol
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} an list of [order structures]{@link https://docs.ccxt.com/#/?id=order-structure}
-         */
         if (symbol === undefined) {
-            throw new ArgumentsRequired (this.id + ' canelOrders() requires a symbol argument');
+            throw new ArgumentsRequired (this.id + ' cancelOrders() requires a symbol argument');
         }
         await this.loadMarkets ();
         const market = this.market (symbol);
-        const request = {
-            'symbol': market['id'],
-        };
-        const response = await (this as any).v1PrivateDeleteOrders (this.extend (request, params));
-        await (this as any).v3PrivateDeleteAlgoOrdersPending (this.extend (request, params));
+        const instId = market['id'];
+        // const request = {
+        //     'instId': instId,
+        // };
+        const orders = await this.fetchOpenOrders (instId);
+        const stopOrders = await this.fetchOpenStopOrders (instId);
+        const ordersToCancel = [];
+        for (let i = 0; i < orders.length; i++) {
+            ordersToCancel.push ({
+                'instId': instId,
+                'orderId': orders[i]['id'],
+            });
+        }
+        for (let i = 0; i < stopOrders.length; i++) {
+            ordersToCancel.push ({
+                'instId': instId,
+                'orderId': stopOrders[i]['id'],
+            });
+        }
+        // const response = await (this as any).v1PrivatePostTradeCancelOrder (this.extend (request, params));
+        // await (this as any).v1PrivatePostTradeCancelTpsl (this.extend (request, params));
         //
         //     {
         //         "success":true,
         //         "status":"CANCEL_ALL_SENT"
         //     }
         //
-        return response;
+        return await (this as any).v1PrivatePostTradeCancelBatchOrders (ordersToCancel);
     }
 
     async fetchOrder (id, symbol: string = undefined, params = {}) {

@@ -876,29 +876,39 @@ class blofin extends Exchange {
 
     public function cancel_all_orders($symbol = null, $params = array ()) {
         return Async\async(function () use ($symbol, $params) {
-            /**
-             * cancel all open orders in a $market
-             * @param {string|null} $symbol unified $market $symbol
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} an list of ~@link https://docs.ccxt.com/#/?id=order-structure order structures~
-             */
             if ($symbol === null) {
-                throw new ArgumentsRequired($this->id . ' canelOrders() requires a $symbol argument');
+                throw new ArgumentsRequired($this->id . ' cancelOrders() requires a $symbol argument');
             }
             Async\await($this->load_markets());
             $market = $this->market($symbol);
-            $request = array(
-                'symbol' => $market['id'],
-            );
-            $response = Async\await($this->v1PrivateDeleteOrders (array_merge($request, $params)));
-            Async\await($this->v3PrivateDeleteAlgoOrdersPending (array_merge($request, $params)));
+            $instId = $market['id'];
+            // $request = array(
+            //     'instId' => $instId,
+            // );
+            $orders = Async\await($this->fetch_open_orders($instId));
+            $stopOrders = Async\await($this->fetch_open_stop_orders($instId));
+            $ordersToCancel = array();
+            for ($i = 0; $i < count($orders); $i++) {
+                $ordersToCancel[] = array(
+                    'instId' => $instId,
+                    'orderId' => $orders[$i]['id'],
+                );
+            }
+            for ($i = 0; $i < count($stopOrders); $i++) {
+                $ordersToCancel[] = array(
+                    'instId' => $instId,
+                    'orderId' => $stopOrders[$i]['id'],
+                );
+            }
+            // $response = Async\await($this->v1PrivatePostTradeCancelOrder (array_merge($request, $params)));
+            // Async\await($this->v1PrivatePostTradeCancelTpsl (array_merge($request, $params)));
             //
             //     {
             //         "success":true,
             //         "status":"CANCEL_ALL_SENT"
             //     }
             //
-            return $response;
+            return Async\await($this->v1PrivatePostTradeCancelBatchOrders ($ordersToCancel));
         }) ();
     }
 
