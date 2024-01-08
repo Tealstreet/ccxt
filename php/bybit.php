@@ -6616,6 +6616,7 @@ class bybit extends Exchange {
         if ($subType === 'inverse') {
             $finalParams = $this->omit($finalParams, array( 'settleCoin' ));
         }
+        $finalParams['limit'] = 200;
         $response = $this->$method ($finalParams);
         //
         //     {
@@ -6770,6 +6771,7 @@ class bybit extends Exchange {
         if ($subType === 'inverse') {
             $finalParams = $this->omit($finalParams, array( 'settleCoin' ));
         }
+        $finalParams['limit'] = 200;
         $response = $this->privateGetV5PositionList ($finalParams);
         //
         //     {

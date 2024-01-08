@@ -6222,6 +6222,7 @@ class bybit(Exchange):
         # forcefully exclude settleCoin for inverse since it can come from ccxt.pro
         if subType == 'inverse':
             finalParams = self.omit(finalParams, ['settleCoin'])
+        finalParams['limit'] = 200
         response = getattr(self, method)(finalParams)
         #
         #     {
@@ -6363,6 +6364,7 @@ class bybit(Exchange):
         finalParams = self.extend(request, params)
         if subType == 'inverse':
             finalParams = self.omit(finalParams, ['settleCoin'])
+        finalParams['limit'] = 200
         response = self.privateGetV5PositionList(finalParams)
         #
         #     {

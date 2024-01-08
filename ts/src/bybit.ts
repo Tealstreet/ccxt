@@ -6686,6 +6686,7 @@ export default class bybit extends Exchange {
         if (subType === 'inverse') {
             finalParams = this.omit (finalParams, [ 'settleCoin' ]);
         }
+        finalParams['limit'] = 200;
         const response = await this[method] (finalParams);
         //
         //     {
@@ -6840,6 +6841,7 @@ export default class bybit extends Exchange {
         if (subType === 'inverse') {
             finalParams = this.omit (finalParams, [ 'settleCoin' ]);
         }
+        finalParams['limit'] = 200;
         const response = await (this as any).privateGetV5PositionList (finalParams);
         //
         //     {
