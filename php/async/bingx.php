@@ -952,6 +952,7 @@ class bingx extends Exchange {
             $reduceOnly = $this->safe_value_2($params, 'close', 'reduceOnly', false);
             $basePrice = $this->safe_value($params, 'basePrice');
             $positionSide = null;
+            $positionMode = $this->safe_value($params, 'positionMode', 'oneway');
             if (!$reduceOnly) {
                 if ($side === 'buy') {
                     $positionSide = 'LONG';
@@ -964,6 +965,9 @@ class bingx extends Exchange {
                 } else {
                     $positionSide = 'LONG';
                 }
+            }
+            if ($positionMode === 'oneway') {
+                $positionSide = 'BOTH';
             }
             if ($triggerPrice !== null && $basePrice !== null) {
                 // triggerOrder is NOT stopOrder

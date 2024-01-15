@@ -877,6 +877,7 @@ class bingx(Exchange):
         reduceOnly = self.safe_value_2(params, 'close', 'reduceOnly', False)
         basePrice = self.safe_value(params, 'basePrice')
         positionSide = None
+        positionMode = self.safe_value(params, 'positionMode', 'oneway')
         if not reduceOnly:
             if side == 'buy':
                 positionSide = 'LONG'
@@ -887,6 +888,8 @@ class bingx(Exchange):
                 positionSide = 'SHORT'
             else:
                 positionSide = 'LONG'
+        if positionMode == 'oneway':
+            positionSide = 'BOTH'
         if triggerPrice is not None and basePrice is not None:
             # triggerOrder is NOT stopOrder
             # type = 'market'

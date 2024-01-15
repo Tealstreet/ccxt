@@ -924,6 +924,7 @@ export default class bingx extends Exchange {
         const reduceOnly = this.safeValue2(params, 'close', 'reduceOnly', false);
         const basePrice = this.safeValue(params, 'basePrice');
         let positionSide = undefined;
+        const positionMode = this.safeValue(params, 'positionMode', 'oneway');
         if (!reduceOnly) {
             if (side === 'buy') {
                 positionSide = 'LONG';
@@ -939,6 +940,9 @@ export default class bingx extends Exchange {
             else {
                 positionSide = 'LONG';
             }
+        }
+        if (positionMode === 'oneway') {
+            positionSide = 'BOTH';
         }
         if (triggerPrice !== undefined && basePrice !== undefined) {
             // triggerOrder is NOT stopOrder
