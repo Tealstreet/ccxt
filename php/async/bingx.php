@@ -44,12 +44,15 @@ class bingx extends Exchange {
                 'fetchOpenInterestHistory' => false,
                 'fetchOpenOrders' => true,
                 'fetchOrderBook' => true,
+                'fetchPositionMode' => true,
                 'fetchPositions' => true,
                 'fetchPremiumIndexOHLCV' => false,
                 'fetchTicker' => true,
                 'fetchTrades' => true,
                 'fetchTradingFee' => false,
                 'fetchTradingFees' => false,
+                'setMarginMode' => true,
+                'setPositionMode' => true,
                 'transfer' => false,
             ),
             'urls' => array(
@@ -126,6 +129,7 @@ class bingx extends Exchange {
                                 'swap/v2/trade/openOrders' => 1,
                                 'swap/v2/trade/leverage' => 1,
                                 'swap/v2/trade/marginType' => 1,
+                                'swap/v1/positionSide/dual' => 1,
                             ),
                             'put' => array(
                                 'user/auth/userDataStream' => 1,
@@ -135,6 +139,7 @@ class bingx extends Exchange {
                                 'swap/v2/trade/order' => 1,
                                 'swap/v2/trade/leverage' => 1,
                                 'swap/v2/trade/marginType' => 1,
+                                'swap/v1/positionSide/dual' => 1,
                             ),
                             'delete' => array(
                                 'swap/v2/trade/order' => 1,
@@ -262,6 +267,44 @@ class bingx extends Exchange {
         }) ();
     }
 
+    public function set_position_mode($hedged, $symbol = null, $params = array ()) {
+        return Async\async(function () use ($hedged, $symbol, $params) {
+            Async\await($this->load_markets());
+            $mode = null;
+            if ($hedged) {
+                $mode = 'true';
+            } else {
+                $mode = 'false';
+            }
+            $request = array(
+                'dualSidePosition' => $mode,
+            );
+            // if ($symbol === null) {
+            //     $request['coin'] = 'USDT';
+            // } else {
+            //     $market = $this->market($symbol);
+            //     // TEALSTREET
+            //     $request['category'] = $market['linear'] ? 'linear' : 'inverse';
+            //     // TEALSTREET
+            //     $request['symbol'] = $market['id'];
+            // }
+            //
+            //     {
+            //         "ret_code" => 0,
+            //         "ret_msg" => "ok",
+            //         "ext_code" => "",
+            //         "result" => null,
+            //         "ext_info" => null,
+            //         "time_now" => "1577477968.175013",
+            //         "rate_limit_status" => 74,
+            //         "rate_limit_reset_ms" => 1577477968183,
+            //         "rate_limit" => 75
+            //     }
+            //
+            return Async\await($this->swap2OpenApiPrivatePostSwapV1PositionSideDual (array_merge($request, $params)));
+        }) ();
+    }
+
     public function set_leverage($leverage, $symbol = null, $params = array ()) {
         return Async\async(function () use ($leverage, $symbol, $params) {
             /**
@@ -313,11 +356,13 @@ class bingx extends Exchange {
             $leverageData = $this->safe_value($leverageResponse, 'data');
             $marginTypeResponse = Async\await($this->swap2OpenApiPrivateGetSwapV2TradeMarginType (array_merge($request, $params)));
             $marginTypeData = $this->safe_value($marginTypeResponse, 'data');
-            return $this->parse_account_configuration($leverageData, $marginTypeData, $market);
+            $positionModeResponse = Async\await($this->swap2OpenApiPrivateGetSwapV1PositionSideDual (array_merge($request, $params)));
+            $positionModeData = $this->safe_value($positionModeResponse, 'data');
+            return $this->parse_account_configuration($leverageData, $marginTypeData, $positionModeData, $market);
         }) ();
     }
 
-    public function parse_account_configuration($leverageData, $marginTypeData, $market) {
+    public function parse_account_configuration($leverageData, $marginTypeData, $positionModeData, $market) {
         // {
         //     "marginCoin":"USDT",
         //   "locked":0,
@@ -370,10 +415,15 @@ class bingx extends Exchange {
         $maxBuyLeverage = $this->safe_float($leverageData, 'maxLongLeverage');
         $maxSellLeverage = $this->safe_float($leverageData, 'maxShortLeverage');
         $marginType = $this->safe_string($marginTypeData, 'marginType');
+        $isHedged = $this->safe_string($positionModeData, 'dualSidePosition');
+        $positionMode = 'hedged';
+        if ($isHedged === 'false') {
+            $positionMode = 'oneway';
+        }
         $isIsolated = ($marginType === 'ISOLATED');
         $accountConfig = array(
             'marginMode' => $isIsolated ? 'isolated' : 'cross',
-            'positionMode' => 'hedged',
+            'positionMode' => $positionMode,
             'markets' => array(),
         );
         $leverageConfigs = $accountConfig['markets'];
@@ -382,6 +432,7 @@ class bingx extends Exchange {
             'sellLeverage' => $sellLeverage,
             'maxBuyLeverage' => $maxBuyLeverage,
             'maxSellLeverage' => $maxSellLeverage,
+            'positionMode' => $positionMode,
         );
         return $accountConfig;
     }
@@ -1490,7 +1541,8 @@ class bingx extends Exchange {
         $params = $this->keysort($params);
         if ($access === 'private') {
             $this->check_required_credentials();
-            $isOpenApi = mb_strpos($url, '/v2/') !== false;
+            // positionSide is marked v1 :/
+            $isOpenApi = mb_strpos($url, '/v2/') !== false || mb_strpos($url, 'positionSide/dual') !== false;
             $isUserDataStreamEp = mb_strpos($url, 'userDataStream') !== false;
             if ($isOpenApi || $isUserDataStreamEp) {
                 $params = array_merge($params, array(

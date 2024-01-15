@@ -40,12 +40,15 @@ export default class bingx extends Exchange {
                 'fetchOpenInterestHistory': false,
                 'fetchOpenOrders': true,
                 'fetchOrderBook': true,
+                'fetchPositionMode': true,
                 'fetchPositions': true,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchTicker': true,
                 'fetchTrades': true,
                 'fetchTradingFee': false,
                 'fetchTradingFees': false,
+                'setMarginMode': true,
+                'setPositionMode': true,
                 'transfer': false,
             },
             'urls': {
@@ -122,6 +125,7 @@ export default class bingx extends Exchange {
                                 'swap/v2/trade/openOrders': 1,
                                 'swap/v2/trade/leverage': 1,
                                 'swap/v2/trade/marginType': 1,
+                                'swap/v1/positionSide/dual': 1,
                             },
                             'put': {
                                 'user/auth/userDataStream': 1,
@@ -131,6 +135,7 @@ export default class bingx extends Exchange {
                                 'swap/v2/trade/order': 1,
                                 'swap/v2/trade/leverage': 1,
                                 'swap/v2/trade/marginType': 1,
+                                'swap/v1/positionSide/dual': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
@@ -256,6 +261,42 @@ export default class bingx extends Exchange {
         }
     }
 
+    async setPositionMode (hedged, symbol: string = undefined, params = {}) {
+        await this.loadMarkets ();
+        let mode = undefined;
+        if (hedged) {
+            mode = 'true';
+        } else {
+            mode = 'false';
+        }
+        const request = {
+            'dualSidePosition': mode,
+        };
+        // if (symbol === undefined) {
+        //     request['coin'] = 'USDT';
+        // } else {
+        //     const market = this.market (symbol);
+        //     // TEALSTREET
+        //     request['category'] = market['linear'] ? 'linear' : 'inverse';
+        //     // TEALSTREET
+        //     request['symbol'] = market['id'];
+        // }
+        //
+        //     {
+        //         "ret_code": 0,
+        //         "ret_msg": "ok",
+        //         "ext_code": "",
+        //         "result": null,
+        //         "ext_info": null,
+        //         "time_now": "1577477968.175013",
+        //         "rate_limit_status": 74,
+        //         "rate_limit_reset_ms": 1577477968183,
+        //         "rate_limit": 75
+        //     }
+        //
+        return await (this as any).swap2OpenApiPrivatePostSwapV1PositionSideDual (this.extend (request, params));
+    }
+
     async setLeverage (leverage, symbol: string = undefined, params = {}) {
         /**
          * @method
@@ -306,10 +347,12 @@ export default class bingx extends Exchange {
         const leverageData = this.safeValue (leverageResponse, 'data');
         const marginTypeResponse = await (this as any).swap2OpenApiPrivateGetSwapV2TradeMarginType (this.extend (request, params));
         const marginTypeData = this.safeValue (marginTypeResponse, 'data');
-        return this.parseAccountConfiguration (leverageData, marginTypeData, market);
+        const positionModeResponse = await (this as any).swap2OpenApiPrivateGetSwapV1PositionSideDual (this.extend (request, params));
+        const positionModeData = this.safeValue (positionModeResponse, 'data');
+        return this.parseAccountConfiguration (leverageData, marginTypeData, positionModeData, market);
     }
 
-    parseAccountConfiguration (leverageData, marginTypeData, market) {
+    parseAccountConfiguration (leverageData, marginTypeData, positionModeData, market) {
         // {
         //     "marginCoin":"USDT",
         //   "locked":0,
@@ -362,10 +405,15 @@ export default class bingx extends Exchange {
         const maxBuyLeverage = this.safeFloat (leverageData, 'maxLongLeverage');
         const maxSellLeverage = this.safeFloat (leverageData, 'maxShortLeverage');
         const marginType = this.safeString (marginTypeData, 'marginType');
+        const isHedged = this.safeString (positionModeData, 'dualSidePosition');
+        let positionMode = 'hedged';
+        if (isHedged === 'false') {
+            positionMode = 'oneway';
+        }
         const isIsolated = (marginType === 'ISOLATED');
         const accountConfig = {
             'marginMode': isIsolated ? 'isolated' : 'cross',
-            'positionMode': 'hedged',
+            'positionMode': positionMode,
             'markets': {},
         };
         const leverageConfigs = accountConfig['markets'];
@@ -374,6 +422,7 @@ export default class bingx extends Exchange {
             'sellLeverage': sellLeverage,
             'maxBuyLeverage': maxBuyLeverage,
             'maxSellLeverage': maxSellLeverage,
+            'positionMode': positionMode,
         };
         return accountConfig;
     }
@@ -1474,7 +1523,8 @@ export default class bingx extends Exchange {
         params = this.keysort (params);
         if (access === 'private') {
             this.checkRequiredCredentials ();
-            const isOpenApi = url.indexOf ('/v2/') >= 0;
+            // positionSide is marked v1 :/
+            const isOpenApi = url.indexOf ('/v2/') >= 0 || url.indexOf ('positionSide/dual') >= 0;
             const isUserDataStreamEp = url.indexOf ('userDataStream') >= 0;
             if (isOpenApi || isUserDataStreamEp) {
                 params = this.extend (params, {

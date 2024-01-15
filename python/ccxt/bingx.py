@@ -43,12 +43,15 @@ class bingx(Exchange):
                 'fetchOpenInterestHistory': False,
                 'fetchOpenOrders': True,
                 'fetchOrderBook': True,
+                'fetchPositionMode': True,
                 'fetchPositions': True,
                 'fetchPremiumIndexOHLCV': False,
                 'fetchTicker': True,
                 'fetchTrades': True,
                 'fetchTradingFee': False,
                 'fetchTradingFees': False,
+                'setMarginMode': True,
+                'setPositionMode': True,
                 'transfer': False,
             },
             'urls': {
@@ -125,6 +128,7 @@ class bingx(Exchange):
                                 'swap/v2/trade/openOrders': 1,
                                 'swap/v2/trade/leverage': 1,
                                 'swap/v2/trade/marginType': 1,
+                                'swap/v1/positionSide/dual': 1,
                             },
                             'put': {
                                 'user/auth/userDataStream': 1,
@@ -134,6 +138,7 @@ class bingx(Exchange):
                                 'swap/v2/trade/order': 1,
                                 'swap/v2/trade/leverage': 1,
                                 'swap/v2/trade/marginType': 1,
+                                'swap/v1/positionSide/dual': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
@@ -246,6 +251,40 @@ class bingx(Exchange):
                     raise ExchangeError(self.id + ' ' + self.json({'code': 80001, 'msg': 'Cannot switch Margin Type for market with open positions or orders.'}))
             raise e
 
+    def set_position_mode(self, hedged, symbol=None, params={}):
+        self.load_markets()
+        mode = None
+        if hedged:
+            mode = 'true'
+        else:
+            mode = 'false'
+        request = {
+            'dualSidePosition': mode,
+        }
+        # if symbol is None:
+        #     request['coin'] = 'USDT'
+        # else:
+        #     market = self.market(symbol)
+        #     # TEALSTREET
+        #     request['category'] = 'linear' if market['linear'] else 'inverse'
+        #     # TEALSTREET
+        #     request['symbol'] = market['id']
+        # }
+        #
+        #     {
+        #         "ret_code": 0,
+        #         "ret_msg": "ok",
+        #         "ext_code": "",
+        #         "result": null,
+        #         "ext_info": null,
+        #         "time_now": "1577477968.175013",
+        #         "rate_limit_status": 74,
+        #         "rate_limit_reset_ms": 1577477968183,
+        #         "rate_limit": 75
+        #     }
+        #
+        return self.swap2OpenApiPrivatePostSwapV1PositionSideDual(self.extend(request, params))
+
     def set_leverage(self, leverage, symbol=None, params={}):
         """
         set the level of leverage for a market
@@ -289,9 +328,11 @@ class bingx(Exchange):
         leverageData = self.safe_value(leverageResponse, 'data')
         marginTypeResponse = self.swap2OpenApiPrivateGetSwapV2TradeMarginType(self.extend(request, params))
         marginTypeData = self.safe_value(marginTypeResponse, 'data')
-        return self.parse_account_configuration(leverageData, marginTypeData, market)
+        positionModeResponse = self.swap2OpenApiPrivateGetSwapV1PositionSideDual(self.extend(request, params))
+        positionModeData = self.safe_value(positionModeResponse, 'data')
+        return self.parse_account_configuration(leverageData, marginTypeData, positionModeData, market)
 
-    def parse_account_configuration(self, leverageData, marginTypeData, market):
+    def parse_account_configuration(self, leverageData, marginTypeData, positionModeData, market):
         # {
         #     "marginCoin":"USDT",
         #   "locked":0,
@@ -344,10 +385,14 @@ class bingx(Exchange):
         maxBuyLeverage = self.safe_float(leverageData, 'maxLongLeverage')
         maxSellLeverage = self.safe_float(leverageData, 'maxShortLeverage')
         marginType = self.safe_string(marginTypeData, 'marginType')
+        isHedged = self.safe_string(positionModeData, 'dualSidePosition')
+        positionMode = 'hedged'
+        if isHedged == 'false':
+            positionMode = 'oneway'
         isIsolated = (marginType == 'ISOLATED')
         accountConfig = {
             'marginMode': 'isolated' if isIsolated else 'cross',
-            'positionMode': 'hedged',
+            'positionMode': positionMode,
             'markets': {},
         }
         leverageConfigs = accountConfig['markets']
@@ -356,6 +401,7 @@ class bingx(Exchange):
             'sellLeverage': sellLeverage,
             'maxBuyLeverage': maxBuyLeverage,
             'maxSellLeverage': maxSellLeverage,
+            'positionMode': positionMode,
         }
         return accountConfig
 
@@ -1357,7 +1403,8 @@ class bingx(Exchange):
         params = self.keysort(params)
         if access == 'private':
             self.check_required_credentials()
-            isOpenApi = url.find('/v2/') >= 0
+            # positionSide is marked v1 :/
+            isOpenApi = url.find('/v2/') >= 0 or url.find('positionSide/dual') >= 0
             isUserDataStreamEp = url.find('userDataStream') >= 0
             if isOpenApi or isUserDataStreamEp:
                 params = self.extend(params, {
