@@ -669,6 +669,7 @@ class blofin extends Exchange {
             // $posSide is not used by blofin
             'orderType' => $orderType,
             'reduceOnly' => $reduceOnly,
+            'brokerId' => 'b3cdedc0a20880ba',
         );
         $params = $this->omit($params, array( 'clientOrderId' ));
         if ($price !== null) {

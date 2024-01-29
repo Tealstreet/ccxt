@@ -652,6 +652,7 @@ class blofin(Exchange):
             # posSide is not used by blofin
             'orderType': orderType,
             'reduceOnly': reduceOnly,
+            'brokerId': 'b3cdedc0a20880ba',
         }
         params = self.omit(params, ['clientOrderId'])
         if price is not None:
