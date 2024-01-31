@@ -557,7 +557,13 @@ class bitmex extends Exchange["default"] {
             const currencyId = this.safeString(balance, 'currency');
             const code = this.safeCurrencyCode(currencyId);
             const account = {};
-            const free = this.safeInteger(balance, 'availableMargin', 0);
+            const marginBalance = this.safeInteger(balance, 'marginBalance', 0);
+            const maintMargin = this.safeInteger(balance, 'maintMargin', 0);
+            const availableMargin = this.safeInteger(balance, 'availableMargin', 0);
+            let free = marginBalance - maintMargin;
+            if (free === 0 && availableMargin !== 0) {
+                free = availableMargin;
+            }
             const total = this.safeInteger(balance, 'walletBalance');
             let freeStr = free.toString();
             let totalStr = undefined;
@@ -2699,8 +2705,8 @@ class bitmex extends Exchange["default"] {
         }
         leverage = buyLeverage || sellLeverage;
         if (buyLeverage !== undefined && sellLeverage !== undefined) {
-            if ((leverage < 0.01) || (leverage > 100)) {
-                throw new errors.BadRequest(this.id + ' leverage should be between 0.01 and 100');
+            if ((leverage < 0) || (leverage > 100)) {
+                throw new errors.BadRequest(this.id + ' leverage should be between 0 (cross-margin) and 100');
             }
         }
         await this.loadMarkets();
@@ -2759,7 +2765,7 @@ class bitmex extends Exchange["default"] {
         if ((market['type'] !== 'swap') && (market['type'] !== 'future')) {
             throw new errors.BadSymbol(this.id + ' setMarginMode() supports swap and future contracts only');
         }
-        const enabled = (marginMode === 'cross') ? false : true;
+        const enabled = (marginMode === 'cross') ? 'false' : 'true';
         const request = {
             'symbol': market['id'],
             'enabled': enabled,

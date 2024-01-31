@@ -3177,6 +3177,43 @@ class phemex extends Exchange {
         );
     }
 
+    public function fetch_account_configuration($symbol, $params = array ()) {
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $positions = $this->fetch_positions(array( $symbol ), $params);
+        $buyPosition = $this->safe_value($positions, 0, array());
+        $sellPosition = $this->safe_value($positions, 1, array());
+        $buyLeverage = $this->safe_float($buyPosition, 'leverage');
+        $sellLeverage = $this->safe_float($sellPosition, 'leverage');
+        $_marginMode = $this->safe_string($buyPosition, 'marginMode');
+        $marginMode = 'cross';
+        if ($_marginMode === 'cross') {
+            $marginMode = 'cross';
+        } else {
+            $marginMode = 'isolated';
+        }
+        $_positionMode = $this->safe_string($buyPosition, 'positionMode');
+        $positionMode = 'oneway';
+        if ($_positionMode === 'hedged') {
+            $positionMode = 'hedged';
+        } else {
+            $positionMode = 'oneway';
+        }
+        $accountConfig = array(
+            'marginMode' => $marginMode,
+            'positionMode' => $positionMode,
+            'markets' => array(),
+            'info' => $positions,
+        );
+        $leverageConfigs = $accountConfig['markets'];
+        $leverageConfigs[$market['symbol']] = array(
+            'buyLeverage' => $buyLeverage,
+            'sellLeverage' => $sellLeverage,
+            'positionMode' => $positionMode,
+        );
+        return $accountConfig;
+    }
+
     public function fetch_all_positions($params = array ()) {
         /**
          * fetch all open positions for all currencies

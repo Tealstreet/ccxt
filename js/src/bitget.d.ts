@@ -191,7 +191,7 @@ export default class bitget extends Exchange {
         contractSize: number;
         markPrice: number;
         side: string;
-        hedged: string | boolean;
+        hedged: boolean;
         timestamp: number;
         datetime: string;
         maintenanceMargin: any;
@@ -219,7 +219,7 @@ export default class bitget extends Exchange {
         contractSize: number;
         markPrice: number;
         side: string;
-        hedged: string | boolean;
+        hedged: boolean;
         timestamp: number;
         datetime: string;
         maintenanceMargin: any;
@@ -229,6 +229,22 @@ export default class bitget extends Exchange {
         initialMarginPercentage: any;
         leverage: number;
         marginRatio: any;
+    };
+    fetchPositionsHistory(symbol?: any, since?: any, params?: {}): Promise<any[]>;
+    parseHistoryPosition(position: any, market?: any): {
+        id: string;
+        duration: number;
+        info: any;
+        side: string;
+        convertedMaxSize: string;
+        convertedMarginCurrency: string;
+        symbol: string;
+        entryPrice: string;
+        exitPrice: string;
+        convertedRealizedPnl: string;
+        convertedFees: string;
+        openTimestamp: number;
+        closeTimestamp: number;
     };
     fetchFundingRateHistory(symbol?: any, since?: any, limit?: any, params?: {}): Promise<any>;
     fetchFundingRate(symbol: any, params?: {}): Promise<{

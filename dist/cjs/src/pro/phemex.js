@@ -24,7 +24,7 @@ class phemex extends phemex$1 {
                     'ws': 'wss://testnet.phemex.com/ws',
                 },
                 'api': {
-                    'ws': 'wss://phemex.com/ws',
+                    'ws': 'wss://ws.phemex.com/',
                 },
             },
             'options': {
@@ -497,6 +497,7 @@ class phemex extends phemex$1 {
             'id': requestId,
             'params': [
                 market['id'],
+                true,
             ],
         };
         const request = this.deepExtend(subscribe, params);

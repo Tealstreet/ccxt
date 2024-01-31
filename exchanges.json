@@ -1,1 +1,31 @@
-{}
+{
+    "ids": [
+        "binance",
+        "binancecoinm",
+        "binanceusdm",
+        "bingx",
+        "bitget",
+        "bitmex",
+        "blofin",
+        "bybit",
+        "okex",
+        "okex5",
+        "okx",
+        "phemex",
+        "woo"
+    ],
+    "ws": [
+        "binance",
+        "binancecoinm",
+        "binanceusdm",
+        "bingx",
+        "bitget",
+        "bitmex",
+        "blofin",
+        "bybit",
+        "okex",
+        "okx",
+        "phemex",
+        "woo"
+    ]
+}

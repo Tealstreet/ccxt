@@ -824,7 +824,7 @@ class woo extends Exchange["default"] {
             //     this.parseOrder (rows[0], market),
             //     { 'type': type }
             // );
-            return this.parseOrder(rows[0], market);
+            return this.extend(this.parseOrder(rows[0], market), { 'status': 'open' });
         }
         else {
             await this.loadMarkets();
@@ -874,7 +874,7 @@ class woo extends Exchange["default"] {
             //     order_amount: null, // NOT-null for 'MARKET' order
             //     client_order_id: '0'
             // }
-            return this.extend(this.parseOrder(response, market), { 'type': type });
+            return this.extend(this.parseOrder(response, market), { 'type': type, 'status': 'open' });
         }
     }
     async editOrder(id, symbol, type, side, amount, price = undefined, params = {}) {
@@ -1114,6 +1114,7 @@ class woo extends Exchange["default"] {
             request['start_t'] = since;
         }
         request['size'] = 500;
+        request['status'] = 'INCOMPLETE';
         const ordersResponse = await this.v1PrivateGetOrders(this.extend(request, params));
         //
         //     {
@@ -1325,6 +1326,12 @@ class woo extends Exchange["default"] {
                 'currency': feeCurrency,
             },
             'info': order,
+            // TEALSTREET
+            'reduce': this.safeValue(order, 'reduceOnly'),
+            'trigger': 'Mark',
+            // we don't know this from api
+            // 'close': this.safeValue (order, 'closeOnTrigger'),
+            // TEALSTREET
         }, market);
     }
     parseOrderStatus(status) {

@@ -38,12 +38,15 @@ class bingx extends Exchange["default"] {
                 'fetchOpenInterestHistory': false,
                 'fetchOpenOrders': true,
                 'fetchOrderBook': true,
+                'fetchPositionMode': true,
                 'fetchPositions': true,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchTicker': true,
                 'fetchTrades': true,
                 'fetchTradingFee': false,
                 'fetchTradingFees': false,
+                'setMarginMode': true,
+                'setPositionMode': true,
                 'transfer': false,
             },
             'urls': {
@@ -119,6 +122,7 @@ class bingx extends Exchange["default"] {
                                 'swap/v2/trade/openOrders': 1,
                                 'swap/v2/trade/leverage': 1,
                                 'swap/v2/trade/marginType': 1,
+                                'swap/v1/positionSide/dual': 1,
                             },
                             'put': {
                                 'user/auth/userDataStream': 1,
@@ -128,6 +132,7 @@ class bingx extends Exchange["default"] {
                                 'swap/v2/trade/order': 1,
                                 'swap/v2/trade/leverage': 1,
                                 'swap/v2/trade/marginType': 1,
+                                'swap/v1/positionSide/dual': 1,
                             },
                             'delete': {
                                 'swap/v2/trade/order': 1,
@@ -172,6 +177,33 @@ class bingx extends Exchange["default"] {
                 'listenKeyRefreshRate': 1200000,
                 'defaultType': 'swap',
                 'defaultSubType': 'linear',
+            },
+            'orderTypes': {
+                'market': 'MARKET',
+                'limit': 'LIMIT',
+                'stop': 'STOP',
+                'stoplimit': 'STOP',
+                'marketiftouched': 'TAKE_PROFIT_MARKET',
+                'limitiftouched': 'TAKE_PROFIT',
+            },
+            'reverseOrderTypes': {
+                'market': 'Market',
+                'limit': 'Limit',
+                'stop_market': 'Stop',
+                'stoplimit': 'StopLimit',
+                'take_profit_market': 'Stop',
+                'take_profit': 'StopLimit',
+                'limit_maker': 'Limit',
+            },
+            'triggerTypes': {
+                'Mark': 'MARK_PRICE',
+                'Last': 'CONTRACT_PRICE',
+            },
+            'timeInForces': {
+                'GTC': 'GTC',
+                'PO': 'GTX',
+                'IOC': 'IOC',
+                'FOK': 'FOK',
             },
         });
     }
@@ -225,6 +257,42 @@ class bingx extends Exchange["default"] {
             throw e;
         }
     }
+    async setPositionMode(hedged, symbol = undefined, params = {}) {
+        await this.loadMarkets();
+        let mode = undefined;
+        if (hedged) {
+            mode = 'true';
+        }
+        else {
+            mode = 'false';
+        }
+        const request = {
+            'dualSidePosition': mode,
+        };
+        // if (symbol === undefined) {
+        //     request['coin'] = 'USDT';
+        // } else {
+        //     const market = this.market (symbol);
+        //     // TEALSTREET
+        //     request['category'] = market['linear'] ? 'linear' : 'inverse';
+        //     // TEALSTREET
+        //     request['symbol'] = market['id'];
+        // }
+        //
+        //     {
+        //         "ret_code": 0,
+        //         "ret_msg": "ok",
+        //         "ext_code": "",
+        //         "result": null,
+        //         "ext_info": null,
+        //         "time_now": "1577477968.175013",
+        //         "rate_limit_status": 74,
+        //         "rate_limit_reset_ms": 1577477968183,
+        //         "rate_limit": 75
+        //     }
+        //
+        return await this.swap2OpenApiPrivatePostSwapV1PositionSideDual(this.extend(request, params));
+    }
     async setLeverage(leverage, symbol = undefined, params = {}) {
         /**
          * @method
@@ -273,11 +341,13 @@ class bingx extends Exchange["default"] {
         };
         const leverageResponse = await this.swap2OpenApiPrivateGetSwapV2TradeLeverage(this.extend(request, params));
         const leverageData = this.safeValue(leverageResponse, 'data');
-        const marginTypeResponse = await this.swap2OpenApiPrivateGetSwapV2TradeLeverage(this.extend(request, params));
+        const marginTypeResponse = await this.swap2OpenApiPrivateGetSwapV2TradeMarginType(this.extend(request, params));
         const marginTypeData = this.safeValue(marginTypeResponse, 'data');
-        return this.parseAccountConfiguration(leverageData, marginTypeData, market);
+        const positionModeResponse = await this.swap2OpenApiPrivateGetSwapV1PositionSideDual(this.extend(request, params));
+        const positionModeData = this.safeValue(positionModeResponse, 'data');
+        return this.parseAccountConfiguration(leverageData, marginTypeData, positionModeData, market);
     }
-    parseAccountConfiguration(leverageData, marginTypeData, market) {
+    parseAccountConfiguration(leverageData, marginTypeData, positionModeData, market) {
         // {
         //     "marginCoin":"USDT",
         //   "locked":0,
@@ -327,17 +397,27 @@ class bingx extends Exchange["default"] {
         // };
         const buyLeverage = this.safeFloat(leverageData, 'longLeverage');
         const sellLeverage = this.safeFloat(leverageData, 'shortLeverage');
+        const maxBuyLeverage = this.safeFloat(leverageData, 'maxLongLeverage');
+        const maxSellLeverage = this.safeFloat(leverageData, 'maxShortLeverage');
         const marginType = this.safeString(marginTypeData, 'marginType');
-        const isIsolated = (marginType === 'CROSSED');
+        const isHedged = this.safeString(positionModeData, 'dualSidePosition');
+        let positionMode = 'hedged';
+        if (isHedged === 'false') {
+            positionMode = 'oneway';
+        }
+        const isIsolated = (marginType === 'ISOLATED');
         const accountConfig = {
             'marginMode': isIsolated ? 'isolated' : 'cross',
-            'positionMode': 'hedged',
+            'positionMode': positionMode,
             'markets': {},
         };
         const leverageConfigs = accountConfig['markets'];
         leverageConfigs[market['symbol']] = {
             'buyLeverage': buyLeverage,
             'sellLeverage': sellLeverage,
+            'maxBuyLeverage': maxBuyLeverage,
+            'maxSellLeverage': maxSellLeverage,
+            'positionMode': positionMode,
         };
         return accountConfig;
     }
@@ -514,24 +594,43 @@ class bingx extends Exchange["default"] {
         const symbol = this.safeSymbol(undefined, market);
         const timestamp = this.milliseconds();
         const baseVolume = this.safeString(ticker, 'volume');
-        const last = this.safeString(ticker, 'lastPrice');
+        let last = this.safeString(ticker, 'lastPrice');
+        if (last === '-') {
+            last = undefined;
+        }
+        let high = this.safeString(ticker, 'highPrice');
+        if (high === '-') {
+            high = undefined;
+        }
+        let low = this.safeString(ticker, 'lowPrice');
+        if (low === '-') {
+            low = undefined;
+        }
+        let open = this.safeString(ticker, 'openPrice');
+        if (open === '-') {
+            open = undefined;
+        }
+        let percentage = this.safeString(ticker, 'priceChangePercent');
+        if (percentage === '-') {
+            percentage = undefined;
+        }
         return this.safeTicker({
             'symbol': symbol,
             'timestamp': timestamp,
             'datetime': this.iso8601(timestamp),
-            'high': this.safeString(ticker, 'highPrice'),
-            'low': this.safeString(ticker, 'lowPrice'),
-            'bid': this.safeString(ticker, 'lastPrice'),
+            'high': high,
+            'low': low,
+            'bid': last,
             'bidVolume': undefined,
-            'ask': this.safeString(ticker, 'lastPrice'),
+            'ask': last,
             'askVolume': undefined,
-            'open': this.safeString(ticker, 'openPrice'),
+            'open': open,
             'close': last,
             'last': last,
             'mark': last,
             'previousClose': undefined,
             'change': undefined,
-            'percentage': this.safeString(ticker, 'priceChangePercent'),
+            'percentage': percentage,
             'average': undefined,
             'baseVolume': baseVolume,
             'info': ticker,
@@ -815,12 +914,14 @@ class bingx extends Exchange["default"] {
         const market = this.market(symbol);
         //
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
+        const triggerType = this.safeStringLower2(params, 'trigger', 'workingType');
         // const isTriggerOrder = triggerPrice !== undefined;
         let isStopLossOrder = undefined;
         let isTakeProfitOrder = undefined;
         const reduceOnly = this.safeValue2(params, 'close', 'reduceOnly', false);
         const basePrice = this.safeValue(params, 'basePrice');
         let positionSide = undefined;
+        const positionMode = this.safeValue(params, 'positionMode', 'oneway');
         if (!reduceOnly) {
             if (side === 'buy') {
                 positionSide = 'LONG';
@@ -836,6 +937,9 @@ class bingx extends Exchange["default"] {
             else {
                 positionSide = 'LONG';
             }
+        }
+        if (positionMode === 'oneway') {
+            positionSide = 'BOTH';
         }
         if (triggerPrice !== undefined && basePrice !== undefined) {
             // triggerOrder is NOT stopOrder
@@ -901,6 +1005,16 @@ class bingx extends Exchange["default"] {
             'quantity': amount,
             'positionSide': positionSide,
         };
+        if (type === 'stop' || type === 'stopLimit') {
+            let triggerBy = 'MARK_PRICE';
+            if (triggerType === 'index') {
+                triggerBy = 'INDEX_PRICE';
+            }
+            else if (triggerType === 'last') {
+                triggerBy = 'CONTRACT_PRICE';
+            }
+            request['workingType'] = triggerBy;
+        }
         if (triggerPrice !== undefined) {
             request['stopPrice'] = this.priceToPrecision(symbol, triggerPrice);
             if (convertedType === 'TRIGGER_LIMIT') {
@@ -1184,14 +1298,22 @@ class bingx extends Exchange["default"] {
         const statuses = {
             'pending': 'open',
             'new': 'open',
+            'partially_filled': 'open',
+            'filled': 'closed',
+            'canceled': 'canceled',
+            'pending_cancel': 'canceling',
+            'rejected': 'rejected',
+            'expired': 'expired',
         };
         return this.safeString(statuses, status, status);
     }
     parseStopTrigger(status) {
         const statuses = {
             'market_price': 'mark',
+            'mark_price': 'mark',
             'fill_price': 'last',
-            'index_price': 'index',
+            'contract_price': 'last',
+            'index_price': 'index', // unused
         };
         return this.safeString(statuses, status, status);
     }
@@ -1299,7 +1421,7 @@ class bingx extends Exchange["default"] {
         const average = this.safeString(order, 'avgPrice');
         const type = this.parseOrderType(this.safeStringLower(order, 'type'));
         const timestamp = this.safeInteger(order, 'time');
-        const rawStopTrigger = this.safeString(order, 'trigger');
+        const rawStopTrigger = this.safeStringLower2(order, 'trigger', 'workingType');
         const trigger = this.parseStopTrigger(rawStopTrigger);
         const side = this.safeStringLower(order, 'side');
         const positionSide = this.safeStringLower(order, 'positionSide');
@@ -1406,7 +1528,8 @@ class bingx extends Exchange["default"] {
         params = this.keysort(params);
         if (access === 'private') {
             this.checkRequiredCredentials();
-            const isOpenApi = url.indexOf('/v2/') >= 0;
+            // positionSide is marked v1 :/
+            const isOpenApi = url.indexOf('/v2/') >= 0 || url.indexOf('positionSide/dual') >= 0;
             const isUserDataStreamEp = url.indexOf('userDataStream') >= 0;
             if (isOpenApi || isUserDataStreamEp) {
                 params = this.extend(params, {

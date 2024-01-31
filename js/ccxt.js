@@ -72,6 +72,8 @@ const exchanges = {
     'binancecoinm': binancecoinm,
     'binanceusdm': binanceusdm,
     'bingx': bingx,
+    'bitget': bitget,
+    'bitmex': bitmex,
     'blofin': blofin,
     'bybit': bybit,
     'okex': okex,

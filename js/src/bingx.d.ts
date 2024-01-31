@@ -4,13 +4,14 @@ export default class bingx extends Exchange {
     describe(): any;
     switchIsolated(symbol: any, isIsolated: any, buyLeverage: any, sellLeverage: any, params?: {}): Promise<void>;
     setMarginMode(marginMode: any, symbol?: any, params?: {}): Promise<any>;
+    setPositionMode(hedged: any, symbol?: string, params?: {}): Promise<any>;
     setLeverage(leverage: any, symbol?: string, params?: {}): Promise<any>;
     fetchAccountConfiguration(symbol: any, params?: {}): Promise<{
         marginMode: string;
         positionMode: string;
         markets: {};
     }>;
-    parseAccountConfiguration(leverageData: any, marginTypeData: any, market: any): {
+    parseAccountConfiguration(leverageData: any, marginTypeData: any, positionModeData: any, market: any): {
         marginMode: string;
         positionMode: string;
         markets: {};

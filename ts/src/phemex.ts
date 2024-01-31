@@ -3215,6 +3215,43 @@ export default class phemex extends Exchange {
         };
     }
 
+    async fetchAccountConfiguration (symbol, params = {}) {
+        await this.loadMarkets ();
+        const market = this.market (symbol);
+        const positions = await this.fetchPositions ([ symbol ], params);
+        const buyPosition = this.safeValue (positions, 0, {});
+        const sellPosition = this.safeValue (positions, 1, {});
+        const buyLeverage = this.safeFloat (buyPosition, 'leverage');
+        const sellLeverage = this.safeFloat (sellPosition, 'leverage');
+        const _marginMode = this.safeString (buyPosition, 'marginMode');
+        let marginMode = 'cross';
+        if (_marginMode === 'cross') {
+            marginMode = 'cross';
+        } else {
+            marginMode = 'isolated';
+        }
+        const _positionMode = this.safeString (buyPosition, 'positionMode');
+        let positionMode = 'oneway';
+        if (_positionMode === 'hedged') {
+            positionMode = 'hedged';
+        } else {
+            positionMode = 'oneway';
+        }
+        const accountConfig = {
+            'marginMode': marginMode,
+            'positionMode': positionMode,
+            'markets': {},
+            'info': positions,
+        };
+        const leverageConfigs = accountConfig['markets'];
+        leverageConfigs[market['symbol']] = {
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': positionMode,
+        };
+        return accountConfig;
+    }
+
     async fetchAllPositions (params = {}) {
         /**
          * @method

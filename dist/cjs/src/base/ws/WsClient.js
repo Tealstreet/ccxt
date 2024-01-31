@@ -22,7 +22,7 @@ class WsClient extends Client {
         }
         this.connectionStarted = time.milliseconds();
         this.setConnectionTimeout();
-        const url = this.url;
+        const url = this.url.includes('phemex') ? this.url : `${this.url}${this.url.includes("?") ? "&" : "?"}${+new Date()}`;
         const wsClass = type.safeValue(this.options, "wsClass", WebSocketPlatform);
         if (platform.isNode) {
             this.connection = new wsClass(url, this.protocols, this.options);

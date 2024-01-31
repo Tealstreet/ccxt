@@ -1080,9 +1080,12 @@ class phemex extends Exchange["default"] {
         else {
             baseVolume = this.safeNumber(ohlcv, 7);
         }
+        const lastClose = this.parseNumber(this.fromEp(this.safeString(ohlcv, 2), market));
+        const currentOpen = this.parseNumber(this.fromEp(this.safeString(ohlcv, 3), market));
+        const open = lastClose > 0 ? lastClose : currentOpen;
         return [
             this.safeTimestamp(ohlcv, 0),
-            this.parseNumber(this.fromEp(this.safeString(ohlcv, 3), market)),
+            open,
             this.parseNumber(this.fromEp(this.safeString(ohlcv, 4), market)),
             this.parseNumber(this.fromEp(this.safeString(ohlcv, 5), market)),
             this.parseNumber(this.fromEp(this.safeString(ohlcv, 6), market)),
@@ -3209,6 +3212,44 @@ class phemex extends Exchange["default"] {
             'updated': undefined,
             'fee': fee,
         };
+    }
+    async fetchAccountConfiguration(symbol, params = {}) {
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const positions = await this.fetchPositions([symbol], params);
+        const buyPosition = this.safeValue(positions, 0, {});
+        const sellPosition = this.safeValue(positions, 1, {});
+        const buyLeverage = this.safeFloat(buyPosition, 'leverage');
+        const sellLeverage = this.safeFloat(sellPosition, 'leverage');
+        const _marginMode = this.safeString(buyPosition, 'marginMode');
+        let marginMode = 'cross';
+        if (_marginMode === 'cross') {
+            marginMode = 'cross';
+        }
+        else {
+            marginMode = 'isolated';
+        }
+        const _positionMode = this.safeString(buyPosition, 'positionMode');
+        let positionMode = 'oneway';
+        if (_positionMode === 'hedged') {
+            positionMode = 'hedged';
+        }
+        else {
+            positionMode = 'oneway';
+        }
+        const accountConfig = {
+            'marginMode': marginMode,
+            'positionMode': positionMode,
+            'markets': {},
+            'info': positions,
+        };
+        const leverageConfigs = accountConfig['markets'];
+        leverageConfigs[market['symbol']] = {
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': positionMode,
+        };
+        return accountConfig;
     }
     async fetchAllPositions(params = {}) {
         /**

@@ -3012,6 +3012,40 @@ class phemex(Exchange):
             'fee': fee,
         }
 
+    def fetch_account_configuration(self, symbol, params={}):
+        self.load_markets()
+        market = self.market(symbol)
+        positions = self.fetch_positions([symbol], params)
+        buyPosition = self.safe_value(positions, 0, {})
+        sellPosition = self.safe_value(positions, 1, {})
+        buyLeverage = self.safe_float(buyPosition, 'leverage')
+        sellLeverage = self.safe_float(sellPosition, 'leverage')
+        _marginMode = self.safe_string(buyPosition, 'marginMode')
+        marginMode = 'cross'
+        if _marginMode == 'cross':
+            marginMode = 'cross'
+        else:
+            marginMode = 'isolated'
+        _positionMode = self.safe_string(buyPosition, 'positionMode')
+        positionMode = 'oneway'
+        if _positionMode == 'hedged':
+            positionMode = 'hedged'
+        else:
+            positionMode = 'oneway'
+        accountConfig = {
+            'marginMode': marginMode,
+            'positionMode': positionMode,
+            'markets': {},
+            'info': positions,
+        }
+        leverageConfigs = accountConfig['markets']
+        leverageConfigs[market['symbol']] = {
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': positionMode,
+        }
+        return accountConfig
+
     def fetch_all_positions(self, params={}):
         """
         fetch all open positions for all currencies

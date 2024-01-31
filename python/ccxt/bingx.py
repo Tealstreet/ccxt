@@ -878,9 +878,6 @@ class bingx(Exchange):
         basePrice = self.safe_value(params, 'basePrice')
         positionSide = None
         positionMode = self.safe_value(params, 'positionMode', 'oneway')
-        print('=====')
-        print(params)
-        print(positionMode)
         if not reduceOnly:
             if side == 'buy':
                 positionSide = 'LONG'

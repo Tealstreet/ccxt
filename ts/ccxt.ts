@@ -80,7 +80,9 @@ const exchanges = {
     'binancecoinm':           binancecoinm,
     'binanceusdm':            binanceusdm,
     'bingx':                  bingx,
-    'blofin':                  blofin,
+    'bitget':                 bitget,
+    'bitmex':                 bitmex,
+    'blofin':                 blofin,
     'bybit':                  bybit,
     'okex':                   okex,
     'okex5':                  okex5,
@@ -96,7 +98,7 @@ const pro = {
     'bingx':                  bingxPro,
     'bitget':                 bitgetPro,
     'bitmex':                 bitmexPro,
-    'blofin':                  blofinPro,
+    'blofin':                 blofinPro,
     'bybit':                  bybitPro,
     'okex':                   okexPro,
     'okx':                    okxPro,
@@ -185,7 +187,7 @@ export {
     okex5,
     okx,
     phemex,
-    woo, 
+    woo,    
 }
 
 export default ccxt;

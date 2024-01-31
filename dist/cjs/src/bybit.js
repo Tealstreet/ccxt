@@ -17,6 +17,7 @@ class bybit extends Exchange["default"] {
             'userAgent': undefined,
             'rateLimit': 20,
             'hostname': 'bybit.com',
+            'refCode': 'Tealstreet',
             'pro': true,
             'certified': true,
             'has': {
@@ -381,6 +382,7 @@ class bybit extends Exchange["default"] {
                         // user
                         'v5/user/query-sub-members': 10,
                         'v5/user/query-api': 10,
+                        'v5/user/get-member-type': 10,
                     },
                     'post': {
                         // inverse swap
@@ -546,6 +548,7 @@ class bybit extends Exchange["default"] {
                         'v5/position/set-tpsl-mode': 2.5,
                         'v5/position/set-risk-limit': 2.5,
                         'v5/position/switch-mode': 2.5,
+                        'v5/position/switch-isolated': 2.5,
                         'v5/position/trading-stop': 2.5,
                         'v5/account/upgrade-to-uta': 2.5,
                         'v5/account/set-margin-mode': 2.5,
@@ -1125,7 +1128,7 @@ class bybit extends Exchange["default"] {
         const enableUnifiedMargin = this.safeValue(this.options, 'enableUnifiedMargin');
         const enableUnifiedAccount = this.safeValue(this.options, 'enableUnifiedAccount');
         if (enableUnifiedMargin === undefined || enableUnifiedAccount === undefined) {
-            // const response = await (this as any).privateGetUserV3PrivateQueryApi (params);
+            const response = await this.privateGetUserV3PrivateQueryApi(params);
             //
             //     {
             //         "retCode":0,
@@ -1159,13 +1162,24 @@ class bybit extends Exchange["default"] {
             //         "time":1669735171649
             //     }
             //
-            // const result = this.safeValue (response, 'result', {});
-            // this.options['enableUnifiedMargin'] = this.safeInteger (result, 'unified') === 1;
-            // this.options['enableUnifiedAccount'] = this.safeInteger (result, 'uta') === 1;
-            this.options['enableUnifiedMargin'] = 1;
-            this.options['enableUnifiedAccount'] = 1;
+            const result = this.safeValue(response, 'result', {});
+            this.options['enableUnifiedMargin'] = this.safeInteger(result, 'unified') === 1;
+            this.options['enableUnifiedAccount'] = this.safeInteger(result, 'uta') === 1;
+            // this.options['enableUnifiedMargin'] = 1;
+            // this.options['enableUnifiedAccount'] = 1;
         }
         return [this.options['enableUnifiedMargin'], this.options['enableUnifiedAccount']];
+    }
+    async queryUid(params = {}) {
+        let response = {};
+        try {
+            response = await this.privateGetV5UserGetMemberType(params);
+        }
+        catch (e) {
+            response = {};
+        }
+        const result = this.safeValue(response, 'result', {});
+        return result;
     }
     async upgradeUnifiedAccount(params = {}) {
         const createUnifiedMarginAccount = this.safeValue(this.options, 'createUnifiedMarginAccount');
@@ -1317,125 +1331,15 @@ class bybit extends Exchange["default"] {
         if (this.options['adjustForTimeDifference']) {
             await this.loadTimeDifference();
         }
-        const promisesUnresolved = [
-            this.fetchSpotMarkets(params),
+        const unresolvedPromises = [
             this.fetchDerivativesMarkets({ 'category': 'linear' }),
             this.fetchDerivativesMarkets({ 'category': 'inverse' }),
         ];
-        const promises = await Promise.all(promisesUnresolved);
-        const spotMarkets = promises[0];
-        const linearMarkets = promises[1];
-        const inverseMarkets = promises[2];
-        let markets = spotMarkets;
-        markets = this.arrayConcat(markets, linearMarkets);
+        const promises = await Promise.all(unresolvedPromises);
+        const linearMarkets = promises[0];
+        const inverseMarkets = promises[1];
+        const markets = linearMarkets;
         return this.arrayConcat(markets, inverseMarkets);
-    }
-    async fetchSpotMarkets(params) {
-        const request = {
-            'category': 'spot',
-        };
-        const response = await this.publicGetV5MarketInstrumentsInfo(this.extend(request, params));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "category": "spot",
-        //             "list": [
-        //                 {
-        //                     "symbol": "BTCUSDT",
-        //                     "baseCoin": "BTC",
-        //                     "quoteCoin": "USDT",
-        //                     "innovation": "0",
-        //                     "status": "Trading",
-        //                     "lotSizeFilter": {
-        //                         "basePrecision": "0.000001",
-        //                         "quotePrecision": "0.00000001",
-        //                         "minOrderQty": "0.00004",
-        //                         "maxOrderQty": "63.01197227",
-        //                         "minOrderAmt": "1",
-        //                         "maxOrderAmt": "100000"
-        //                     },
-        //                     "priceFilter": {
-        //                         "tickSize": "0.01"
-        //                     }
-        //                 }
-        //             ]
-        //         },
-        //         "retExtInfo": {},
-        //         "time": 1672712468011
-        //     }
-        //
-        const responseResult = this.safeValue(response, 'result', {});
-        const markets = this.safeValue(responseResult, 'list', []);
-        const result = [];
-        const takerFee = this.parseNumber('0.001');
-        const makerFee = this.parseNumber('0.001');
-        for (let i = 0; i < markets.length; i++) {
-            const market = markets[i];
-            const id = this.safeString(market, 'symbol');
-            const baseId = this.safeString(market, 'baseCoin');
-            const quoteId = this.safeString(market, 'quoteCoin');
-            const base = this.safeCurrencyCode(baseId);
-            const quote = this.safeCurrencyCode(quoteId);
-            const symbol = base + '/' + quote;
-            const status = this.safeString(market, 'status');
-            const active = (status === 'Trading');
-            const lotSizeFilter = this.safeValue(market, 'lotSizeFilter');
-            const priceFilter = this.safeValue(market, 'priceFilter');
-            const quotePrecision = this.safeNumber(lotSizeFilter, 'quotePrecision');
-            result.push({
-                'id': id,
-                'symbol': symbol,
-                'base': base,
-                'quote': quote,
-                'settle': undefined,
-                'baseId': baseId,
-                'quoteId': quoteId,
-                'settleId': undefined,
-                'type': 'spot',
-                'spot': true,
-                'margin': undefined,
-                'swap': false,
-                'future': false,
-                'option': false,
-                'active': active,
-                'contract': false,
-                'linear': undefined,
-                'inverse': undefined,
-                'taker': takerFee,
-                'maker': makerFee,
-                'contractSize': undefined,
-                'expiry': undefined,
-                'expiryDatetime': undefined,
-                'strike': undefined,
-                'optionType': undefined,
-                'precision': {
-                    'amount': this.safeNumber(lotSizeFilter, 'basePrecision'),
-                    'price': this.safeNumber(priceFilter, 'tickSize', quotePrecision),
-                },
-                'limits': {
-                    'leverage': {
-                        'min': this.parseNumber('1'),
-                        'max': undefined,
-                    },
-                    'amount': {
-                        'min': this.safeNumber(lotSizeFilter, 'minOrderQty'),
-                        'max': this.safeNumber(lotSizeFilter, 'maxOrderQty'),
-                    },
-                    'price': {
-                        'min': undefined,
-                        'max': undefined,
-                    },
-                    'cost': {
-                        'min': this.safeNumber(lotSizeFilter, 'minOrderAmt'),
-                        'max': this.safeNumber(lotSizeFilter, 'maxOrderAmt'),
-                    },
-                },
-                'info': market,
-            });
-        }
-        return result;
     }
     async fetchDerivativesMarkets(params) {
         params['limit'] = 1000; // minimize number of requests
@@ -1747,6 +1651,7 @@ class bybit extends Exchange["default"] {
         market = this.safeMarket(marketId, market, undefined, defaultType);
         const symbol = this.safeSymbol(marketId, market, undefined, defaultType);
         const last = this.safeString(ticker, 'lastPrice');
+        const mark = this.safeString(ticker, 'markPrice');
         const open = this.safeString(ticker, 'prevPrice24h');
         let percentage = this.safeString(ticker, 'price24hPcnt');
         percentage = Precise["default"].stringMul(percentage, '100');
@@ -1770,6 +1675,7 @@ class bybit extends Exchange["default"] {
             'open': open,
             'close': last,
             'last': last,
+            'mark': mark,
             'previousClose': undefined,
             'change': undefined,
             'percentage': percentage,
@@ -2277,84 +2183,7 @@ class bybit extends Exchange["default"] {
         return this.filterBySymbolSinceLimit(sorted, symbol, since, limit);
     }
     parseTrade(trade, market = undefined) {
-        const isSpotTrade = ('isBuyerMaker' in trade) || ('feeTokenId' in trade);
-        if (isSpotTrade) {
-            return this.parseSpotTrade(trade, market);
-        }
-        else {
-            return this.parseContractTrade(trade, market);
-        }
-    }
-    parseSpotTrade(trade, market = undefined) {
-        //
-        //   public:
-        //     {
-        //        "price": "39548.68",
-        //        "time": "1651748717850",
-        //        "qty": "0.166872",
-        //        "isBuyerMaker": 0
-        //     }
-        //
-        //   private:
-        //     {
-        //         "orderPrice": "82.5",
-        //         "creatTime": "1666702226326",
-        //         "orderQty": "0.016",
-        //         "isBuyer": "0",
-        //         "isMaker": "0",
-        //         "symbol": "AAVEUSDT",
-        //         "id": "1274785101965716992",
-        //         "orderId": "1274784252359089664",
-        //         "tradeId": "2270000000031365639",
-        //         "execFee": "0",
-        //         "feeTokenId": "AAVE",
-        //         "matchOrderId": "1274785101865076224",
-        //         "makerRebate": "0",
-        //         "executionTime": "1666702226335"
-        //     }
-        //
-        const timestamp = this.safeIntegerN(trade, ['time', 'creatTime']);
-        let takerOrMaker = undefined;
-        let side = undefined;
-        const isBuyerMaker = this.safeInteger(trade, 'isBuyerMaker');
-        if (isBuyerMaker !== undefined) {
-            // if public response
-            side = (isBuyerMaker === 1) ? 'buy' : 'sell';
-        }
-        else {
-            // if private response
-            const isBuyer = this.safeInteger(trade, 'isBuyer');
-            const isMaker = this.safeInteger(trade, 'isMaker');
-            takerOrMaker = (isMaker === 0) ? 'maker' : 'taker';
-            side = (isBuyer === 0) ? 'buy' : 'sell';
-        }
-        const marketId = this.safeString(trade, 'symbol');
-        market = this.safeMarket(marketId, market, undefined, 'spot');
-        let fee = undefined;
-        const feeCost = this.safeString(trade, 'execFee');
-        if (feeCost !== undefined) {
-            const feeToken = this.safeString(trade, 'feeTokenId');
-            const feeCurrency = this.safeCurrencyCode(feeToken);
-            fee = {
-                'cost': feeCost,
-                'currency': feeCurrency,
-            };
-        }
-        return this.safeTrade({
-            'id': this.safeString(trade, 'tradeId'),
-            'info': trade,
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'symbol': market['symbol'],
-            'order': this.safeString(trade, 'orderId'),
-            'type': undefined,
-            'side': side,
-            'takerOrMaker': takerOrMaker,
-            'price': this.safeString2(trade, 'price', 'orderPrice'),
-            'amount': this.safeString2(trade, 'qty', 'orderQty'),
-            'cost': undefined,
-            'fee': fee,
-        }, market);
+        return this.parseContractTrade(trade, market);
     }
     parseContractTrade(trade, market = undefined) {
         //
@@ -2449,12 +2278,6 @@ class bybit extends Exchange["default"] {
         if (market !== undefined) {
             marketType = market['type'];
         }
-        const category = this.safeString(trade, 'category');
-        if (category !== undefined) {
-            if (category === 'spot') {
-                marketType = 'spot';
-            }
-        }
         market = this.safeMarket(marketId, market, undefined, marketType);
         const symbol = market['symbol'];
         const amountString = this.safeStringN(trade, ['execQty', 'orderQty', 'size']);
@@ -2494,13 +2317,7 @@ class bybit extends Exchange["default"] {
         const feeCostString = this.safeString(trade, 'execFee');
         let fee = undefined;
         if (feeCostString !== undefined) {
-            let feeCurrencyCode = undefined;
-            if (market['spot']) {
-                feeCurrencyCode = this.safeString(trade, 'commissionAsset');
-            }
-            else {
-                feeCurrencyCode = market['inverse'] ? market['base'] : market['settle'];
-            }
+            const feeCurrencyCode = market['inverse'] ? market['base'] : market['settle'];
             fee = {
                 'cost': feeCostString,
                 'currency': feeCurrencyCode,
@@ -2881,10 +2698,10 @@ class bybit extends Exchange["default"] {
         //         "time": 1675865290069
         //     }
         //
+        const responseResult = this.safeValue(response, 'result', response);
         const result = {
-            'info': response,
+            'info': responseResult,
         };
-        const responseResult = this.safeValue(response, 'result', {});
         const currencyList = this.safeValueN(responseResult, ['loanAccountList', 'list', 'coin', 'balances', 'balance']);
         if (currencyList === undefined) {
             // usdc wallet
@@ -2895,6 +2712,7 @@ class bybit extends Exchange["default"] {
             result[code] = account;
         }
         else {
+            result['info'] = currencyList;
             for (let i = 0; i < currencyList.length; i++) {
                 const entry = currencyList[i];
                 const accountType = this.safeString(entry, 'accountType');
@@ -2948,23 +2766,8 @@ class bybit extends Exchange["default"] {
         const [enableUnifiedMargin, enableUnifiedAccount] = await this.isUnifiedEnabled();
         let type = undefined;
         [type, params] = this.handleMarketTypeAndParams('fetchBalance', undefined, params);
-        const isSpot = (type === 'spot');
-        if (isSpot) {
-            if (enableUnifiedAccount || enableUnifiedMargin) {
-                method = 'privateGetSpotV3PrivateAccount';
-            }
-            else {
-                let marginMode = undefined;
-                [marginMode, params] = this.handleMarginModeAndParams('fetchBalance', params);
-                if (marginMode !== undefined) {
-                    method = 'privateGetSpotV3PrivateCrossMarginAccount';
-                }
-                else {
-                    method = 'privateGetSpotV3PrivateAccount';
-                }
-            }
-        }
-        else if (enableUnifiedAccount || enableUnifiedMargin) {
+        const category = this.safeString(this.options, 'defaultSubType', 'spot');
+        if (enableUnifiedAccount || enableUnifiedMargin) {
             if (type === 'swap') {
                 type = 'unified';
             }
@@ -2974,24 +2777,22 @@ class bybit extends Exchange["default"] {
                 type = 'contract';
             }
         }
-        if (!isSpot) {
-            const accountTypes = this.safeValue(this.options, 'accountsByType', {});
-            const unifiedType = this.safeStringUpper(accountTypes, type, type);
-            if (unifiedType === 'FUND') {
-                // use this endpoint only we have no other choice
-                // because it requires transfer permission
-                method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery';
+        const accountTypes = this.safeValue(this.options, 'accountsByType', {});
+        const unifiedType = this.safeStringUpper(accountTypes, type, type);
+        if (unifiedType === 'FUND') {
+            // use this endpoint only we have no other choice
+            // because it requires transfer permission
+            method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery';
+        }
+        else {
+            if (enableUnifiedAccount && category !== 'inverse') {
+                method = 'privateGetV5AccountWalletBalance';
             }
             else {
-                if (enableUnifiedAccount) {
-                    method = 'privateGetV5AccountWalletBalance';
-                }
-                else {
-                    method = 'privateGetContractV3PrivateAccountWalletBalance';
-                }
+                method = 'privateGetContractV3PrivateAccountWalletBalance';
             }
-            request['accountType'] = unifiedType;
         }
+        request['accountType'] = unifiedType;
         const response = await this[method](this.extend(request, params));
         //
         // spot wallet
@@ -3117,10 +2918,6 @@ class bybit extends Exchange["default"] {
         return this.safeString(timeInForces, timeInForce, timeInForce);
     }
     parseOrder(order, market = undefined) {
-        const orderCategoryExists = ('orderCategory' in order);
-        if (orderCategoryExists) {
-            return this.parseSpotOrder(order, market);
-        }
         return this.parseContractOrder(order, market);
     }
     parseContractOrder(order, market = undefined) {
@@ -3163,12 +2960,6 @@ class bybit extends Exchange["default"] {
         if (market !== undefined) {
             marketType = market['type'];
         }
-        const category = this.safeString(order, 'category');
-        if (category !== undefined) {
-            if (category === 'spot') {
-                marketType = 'spot';
-            }
-        }
         market = this.safeMarket(marketId, market, undefined, marketType);
         const symbol = market['symbol'];
         const timestamp = this.safeInteger(order, 'createdTime');
@@ -3176,7 +2967,11 @@ class bybit extends Exchange["default"] {
         let type = this.safeStringLower(order, 'orderType');
         const stopOrderType = this.safeStringLower(order, 'stopOrderType');
         const price = this.safeString(order, 'price');
-        const amount = this.safeString(order, 'qty');
+        let amount = this.safeString(order, 'qty');
+        const tpslMode = this.safeString(order, 'tpslMode');
+        if (tpslMode === 'Full') {
+            amount = '0';
+        }
         const cost = this.safeString(order, 'cumExecValue');
         const filled = this.safeString(order, 'cumExecQty');
         const remaining = this.safeString(order, 'leavesQty');
@@ -3202,13 +2997,39 @@ class bybit extends Exchange["default"] {
         const rawTimeInForce = this.safeString(order, 'timeInForce');
         const timeInForce = this.parseTimeInForce(rawTimeInForce);
         const stopPrice = this.omitZero(this.safeString(order, 'triggerPrice'));
-        if (stopOrderType !== undefined) {
+        if (stopOrderType !== undefined && stopOrderType !== 'unknown') {
             if (type === 'market') {
                 type = 'stop';
             }
             else {
                 type = 'stopLimit';
             }
+        }
+        let trigger = this.safeString(order, 'triggerBy');
+        const slTriggerBy = this.safeString(order, 'slTriggerBy');
+        if (trigger === undefined && slTriggerBy !== '') {
+            trigger = slTriggerBy;
+        }
+        const tpTriggerBy = this.safeString(order, 'tpTriggerBy');
+        if (trigger === undefined && tpTriggerBy !== '') {
+            trigger = slTriggerBy;
+        }
+        if (trigger === 'LastPrice') {
+            trigger = 'Last';
+        }
+        else if (trigger === 'IndexPrice') {
+            trigger = 'Index';
+        }
+        else if (trigger === 'MarkPrice') {
+            trigger = 'Mark';
+        }
+        let takeProfit = undefined;
+        if (this.safeFloat(order, 'takeProfit', 0) !== 0) {
+            takeProfit = this.safeString(order, 'takeProfit');
+        }
+        let stopLoss = undefined;
+        if (this.safeFloat(order, 'stopLoss', 0) !== 0) {
+            stopLoss = this.safeString(order, 'stopLoss');
         }
         return this.safeOrder({
             'info': order,
@@ -3234,84 +3055,13 @@ class bybit extends Exchange["default"] {
             'status': status,
             'fee': fee,
             'trades': undefined,
-        }, market);
-    }
-    parseSpotOrder(order, market = undefined) {
-        //
-        //  createOrder, cancelOrer
-        //
-        //     {
-        //         "orderId": "1274754916287346280",
-        //         "orderLinkId": "1666798627015730",
-        //         "symbol": "AAVEUSDT",
-        //         "createTime": "1666698629821",
-        //         "orderPrice": "80",
-        //         "orderQty": "0.11",
-        //         "orderType": "LIMIT",
-        //         "side": "BUY",
-        //         "status": "NEW",
-        //         "timeInForce": "GTC",
-        //         "accountId": "13380434",
-        //         "execQty": "0",
-        //         "orderCategory": "0"
-        //     }
-        //
-        //     fetchOrder, fetchOpenOrders, fetchClosedOrders (and also for conditional orders) there are also present these additional fields:
-        //     {
-        //         "cummulativeQuoteQty": "0",
-        //         "avgPrice": "0",
-        //         "stopPrice": "0.0",
-        //         "icebergQty": "0.0",
-        //         "updateTime": "1666733357444",
-        //         "isWorking": "1",
-        //         "locked": "8.8",
-        //         "executedOrderId": "1279094037543962113", // in conditional order
-        //         "triggerPrice": "0.99", // in conditional order
-        //     }
-        //
-        const marketId = this.safeString(order, 'symbol');
-        market = this.safeMarket(marketId, market, undefined, 'spot');
-        const timestamp = this.safeInteger(order, 'createTime');
-        const type = this.safeStringLower(order, 'orderType');
-        let price = this.safeString(order, 'orderPrice');
-        if (price === '0' && type === 'market') {
-            price = undefined;
-        }
-        const filled = this.safeString(order, 'execQty');
-        const side = this.safeStringLower(order, 'side');
-        const timeInForce = this.parseTimeInForce(this.safeString(order, 'timeInForce'));
-        const triggerPrice = this.safeString(order, 'triggerPrice');
-        const postOnly = (timeInForce === 'PO');
-        let amount = undefined;
-        if (market['spot'] && type === 'market' && side === 'buy') {
-            amount = filled;
-        }
-        else {
-            amount = this.safeString(order, 'orderQty');
-        }
-        return this.safeOrder({
-            'id': this.safeString(order, 'orderId'),
-            'clientOrderId': this.safeString(order, 'orderLinkId'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'lastTradeTimestamp': this.safeInteger(order, 'updateTime'),
-            'symbol': market['symbol'],
-            'type': type,
-            'timeInForce': timeInForce,
-            'postOnly': postOnly,
-            'side': side,
-            'price': price,
-            'triggerPrice': triggerPrice,
-            'stopPrice': triggerPrice,
-            'amount': amount,
-            'cost': this.safeString(order, 'cummulativeQuoteQty'),
-            'average': this.safeString(order, 'avgPrice'),
-            'filled': filled,
-            'remaining': undefined,
-            'status': this.parseOrderStatus(this.safeString(order, 'status')),
-            'fee': undefined,
-            'trades': undefined,
-            'info': order,
+            'takeProfit': takeProfit,
+            'stopLoss': stopLoss,
+            // TEALSTREET
+            'reduce': this.safeValue(order, 'reduceOnly'),
+            'trigger': trigger,
+            'close': this.safeValue(order, 'closeOnTrigger'),
+            // TEALSTREET
         }, market);
     }
     parseStopTrigger(trigger) {
@@ -3430,16 +3180,11 @@ class bybit extends Exchange["default"] {
         this.checkRequiredSymbol('createOrder', symbol);
         const market = this.market(symbol);
         symbol = market['symbol'];
+        // eslint-disable-next-line no-unused-vars
         const [enableUnifiedMargin, enableUnifiedAccount] = await this.isUnifiedEnabled();
         const isUSDCSettled = market['settle'] === 'USDC';
         if (enableUnifiedAccount && !market['inverse']) {
             return await this.createUnifiedAccountOrder(symbol, type, side, amount, price, params);
-        }
-        else if (market['spot']) {
-            return await this.createSpotOrder(symbol, type, side, amount, price, params);
-        }
-        else if (enableUnifiedMargin && !market['inverse']) {
-            return await this.createUnifiedMarginOrder(symbol, type, side, amount, price, params);
         }
         else if (isUSDCSettled) {
             return await this.createUsdcOrder(symbol, type, side, amount, price, params);
@@ -3448,14 +3193,121 @@ class bybit extends Exchange["default"] {
             return await this.createContractV3Order(symbol, type, side, amount, price, params);
         }
     }
+    async createPositionTradeStop(symbol, type, side, amount, price = undefined, params = {}) {
+        await this.loadMarkets();
+        const market = this.market(symbol);
+        const reduceOnly = this.safeValue(params, 'reduceOnly', false);
+        const request = {
+            'symbol': market['id'],
+        };
+        if (market['linear'] || market['spot']) {
+            request['category'] = 'linear';
+        }
+        else if (market['option']) {
+            request['category'] = 'option';
+        }
+        else if (market['inverse']) {
+            request['category'] = 'inverse';
+        }
+        // TEALSTREET  //
+        const positionMode = this.safeValue(params, 'positionMode', 'oneway');
+        request['positionIdx'] = 0;
+        if (positionMode !== 'oneway') {
+            if (reduceOnly) {
+                request['positionIdx'] = (side === 'sell') ? 2 : 1;
+            }
+            else {
+                request['positionIdx'] = (side === 'sell') ? 1 : 2;
+            }
+        }
+        const trailingStop = this.safeString(params, 'trailingStop');
+        if (trailingStop === undefined) {
+            request['tpslMode'] = 'Partial';
+            if (amount === 0) {
+                request['tpslMode'] = 'Full';
+                request['tpOrderType'] = 'Market';
+                request['slOrderType'] = 'Market';
+            }
+        }
+        const stopPrice = this.safeString(params, 'stopPrice');
+        const basePrice = this.safeString(params, 'basePrice');
+        if (!basePrice) {
+            throw new errors.InvalidOrder(this.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders');
+        }
+        let triggerBy = 'LastPrice';
+        if (params['trigger'] === 'Index') {
+            triggerBy = 'IndexPrice';
+        }
+        else if (params['trigger'] === 'Mark') {
+            triggerBy = 'MarkPrice';
+        }
+        if (Precise["default"].stringGt(stopPrice, basePrice)) {
+            if (side === 'buy') {
+                if (trailingStop !== undefined) {
+                    // request['tpslMode'] = 'Full';
+                    request['trailingStop'] = this.priceToPrecision(symbol, trailingStop);
+                }
+                else {
+                    request['stopLoss'] = this.priceToPrecision(symbol, stopPrice);
+                    if (amount !== 0) {
+                        request['slSize'] = this.amountToPrecision(symbol, amount);
+                    }
+                    // request['slTriggerBy'] = 'MarkPrice';
+                    request['slTriggerBy'] = triggerBy;
+                }
+            }
+            else {
+                request['takeProfit'] = this.priceToPrecision(symbol, stopPrice);
+                if (amount !== 0) {
+                    request['tpSize'] = this.amountToPrecision(symbol, amount);
+                }
+                // request['tpTriggerBy'] = 'LastPrice';
+                request['tpTriggerBy'] = triggerBy;
+            }
+        }
+        else {
+            if (side === 'buy') {
+                request['takeProfit'] = this.priceToPrecision(symbol, stopPrice);
+                if (amount !== 0) {
+                    request['tpSize'] = this.amountToPrecision(symbol, amount);
+                }
+                // request['tpTriggerBy'] = 'LastPrice';
+                request['tpTriggerBy'] = triggerBy;
+            }
+            else {
+                if (trailingStop !== undefined) {
+                    // request['tpslMode'] = 'Full';
+                    request['trailingStop'] = this.priceToPrecision(symbol, trailingStop);
+                }
+                else {
+                    request['stopLoss'] = this.priceToPrecision(symbol, stopPrice);
+                    if (amount !== 0) {
+                        request['slSize'] = this.amountToPrecision(symbol, amount);
+                    }
+                    // request['slTriggerBy'] = 'MarkPrice';
+                    request['slTriggerBy'] = triggerBy;
+                }
+            }
+        }
+        params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close', 'trigger', 'basePrice', 'trailingStop']);
+        // eslint-disable-next-line no-unused-vars
+        await this.privatePostV5PositionTradingStop(this.extend(request, params));
+        const stopOrders = await this.fetchOpenOrders(symbol, undefined, undefined, { 'stop': true });
+        const filteredStopOrders = this.filterBySinceLimit(stopOrders, this.seconds() - 10);
+        return this.safeValue(filteredStopOrders, 0);
+    }
     async createUnifiedAccountOrder(symbol, type, side, amount, price = undefined, params = {}) {
         await this.loadMarkets();
         const market = this.market(symbol);
         let lowerCaseType = type.toLowerCase();
         let isStop = false;
+        const bindStops = this.safeValue(params, 'bindStops', true);
         if (lowerCaseType === 'stop') {
             isStop = true;
             lowerCaseType = 'market';
+            if (bindStops) {
+                return this.createPositionTradeStop(symbol, type, side, amount, price, params);
+            }
         }
         else if (lowerCaseType === 'stopLimit') {
             isStop = true;
@@ -3464,31 +3316,22 @@ class bybit extends Exchange["default"] {
         if ((price === undefined) && (lowerCaseType === 'limit')) {
             throw new errors.ArgumentsRequired(this.id + ' createOrder requires a price argument for limit orders');
         }
+        const closeOnTrigger = this.safeValue(params, 'close', false);
+        const reduceOnly = this.safeValue(params, 'reduceOnly', false);
         const request = {
             'symbol': market['id'],
             'side': this.capitalize(side),
-            'orderType': this.capitalize(lowerCaseType), // limit or market
-            // 'timeInForce': 'GTC', // IOC, FOK, PostOnly
-            // 'takeProfit': 123.45, // take profit price, only take effect upon opening the position
-            // 'stopLoss': 123.45, // stop loss price, only take effect upon opening the position
-            // 'reduceOnly': false, // reduce only, required for linear orders
-            // when creating a closing order, bybit recommends a True value for
-            //  closeOnTrigger to avoid failing due to insufficient available margin
-            // 'closeOnTrigger': false, required for linear orders
-            // 'orderLinkId': 'string', // unique client order id, max 36 characters
-            // 'triggerPrice': 123.45, // trigger price, required for conditional orders
-            // 'triggerBy': 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-            // 'tpTriggerby': 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-            // 'slTriggerBy': 'MarkPrice', // IndexPrice, MarkPrice, LastPrice
-            // 'mmp': false // market maker protection
-            // 'positionIdx': 0, // Position mode. Unified account has one-way mode only (0)
-            // 'triggerDirection': 1, // Conditional order param. Used to identify the expected direction of the conditional order. 1: triggered when market price rises to triggerPrice 2: triggered when market price falls to triggerPrice
-            // Valid for spot only.
-            // 'isLeverage': 0, // Whether to borrow. 0(default): false, 1: true
-            // 'orderFilter': 'Order' // Order,tpslOrder. If not passed, Order by default
-            // Valid for option only.
-            // 'orderIv': '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
+            'orderType': this.capitalize(lowerCaseType),
+            'reduceOnly': reduceOnly,
+            'closeOnTrigger': closeOnTrigger,
+            'orderLinkId': this['refCode'] + this.uuid22(),
         };
+        if (amount) {
+            request['qty'] = this.amountToPrecision(symbol, amount);
+        }
+        else {
+            request['qty'] = '0';
+        }
         if (isStop) {
             const close = this.safeValue(params, 'close', false);
             if (close) {
@@ -3497,10 +3340,7 @@ class bybit extends Exchange["default"] {
             const triggerType = this.safeString2(params, 'trigger', 'triggerType', 'Last');
             request['triggerBy'] = this.formatStopTrigger(triggerType);
         }
-        if (market['spot']) {
-            request['category'] = 'spot';
-        }
-        else if (market['linear']) {
+        if (market['linear']) {
             request['category'] = 'linear';
         }
         else if (market['option']) {
@@ -3508,26 +3348,6 @@ class bybit extends Exchange["default"] {
         }
         else {
             throw new errors.NotSupported(this.id + ' createOrder does not allow inverse market orders for ' + symbol + ' markets');
-        }
-        if (market['spot'] && (type === 'market') && (side === 'buy')) {
-            // for market buy it requires the amount of quote currency to spend
-            if (this.options['createMarketBuyOrderRequiresPrice']) {
-                const cost = this.safeNumber(params, 'cost');
-                params = this.omit(params, 'cost');
-                if (price === undefined && cost === undefined) {
-                    throw new errors.InvalidOrder(this.id + " createOrder() requires the price argument with market buy orders to calculate total order cost (amount to spend), where cost = amount * price. Supply a price argument to createOrder() call if you want the cost to be calculated for you from price and amount, or, alternatively, add .options['createMarketBuyOrderRequiresPrice'] = false to supply the cost in the amount argument (the exchange-specific behaviour)");
-                }
-                else {
-                    const amountString = this.numberToString(amount);
-                    const priceString = this.numberToString(price);
-                    const quoteAmount = Precise["default"].stringMul(amountString, priceString);
-                    amount = (cost !== undefined) ? cost : this.parseNumber(quoteAmount);
-                    request['qty'] = this.costToPrecision(symbol, amount);
-                }
-            }
-        }
-        else {
-            request['qty'] = this.amountToPrecision(symbol, amount);
         }
         const isMarket = lowerCaseType === 'market';
         const isLimit = lowerCaseType === 'limit';
@@ -3552,287 +3372,95 @@ class bybit extends Exchange["default"] {
         // TEALSTREET  //
         const positionMode = this.safeValue(params, 'positionMode', 'oneway');
         request['positionIdx'] = 0;
-        const reduceOnly = this.safeValue(params, 'reduceOnly', false);
         if (positionMode !== 'oneway') {
-            if (reduceOnly) {
-                request['positionIdx'] = (side === 'buy') ? 2 : 1;
+            if (isStop) {
+                if ((side === 'buy' && !closeOnTrigger) || (side === 'sell' && closeOnTrigger)) {
+                    request['positionIdx'] = 1;
+                }
+                else if ((side === 'sell' && !closeOnTrigger) || (side === 'buy' && closeOnTrigger)) {
+                    request['positionIdx'] = 2;
+                }
             }
             else {
-                request['positionIdx'] = (side === 'buy') ? 1 : 2;
+                if ((side === 'buy' && !reduceOnly) || (side === 'sell' && reduceOnly)) {
+                    request['positionIdx'] = 1;
+                }
+                else if ((side === 'sell' && !reduceOnly) || (side === 'buy' && reduceOnly)) {
+                    request['positionIdx'] = 2;
+                }
             }
         }
-        request['tpslOrderType'] = 'Partial';
+        request['tpslMode'] = 'Partial';
         if (amount === 0) {
-            request['tpslOrderType'] = 'Full';
+            request['tpslMode'] = 'Full';
             request['tpOrderType'] = 'Market';
             request['slOrderType'] = 'Market';
         }
-        const triggerPrice = this.safeNumber2(params, 'triggerPrice', 'stopPrice');
-        const stopLossTriggerPrice = this.safeNumber(params, 'stopLossPrice', triggerPrice);
-        const takeProfitTriggerPrice = this.safeNumber(params, 'takeProfitPrice');
-        const stopLoss = this.safeNumber(params, 'stopLoss');
-        const takeProfit = this.safeNumber(params, 'takeProfit');
-        const isStopLossTriggerOrder = stopLossTriggerPrice !== undefined;
-        const isTakeProfitTriggerOrder = takeProfitTriggerPrice !== undefined;
-        const isStopLoss = stopLoss !== undefined;
-        const isTakeProfit = takeProfit !== undefined;
-        if (triggerPrice !== undefined) {
-            const isBuy = side === 'buy';
-            const ascending = stopLossTriggerPrice ? !isBuy : isBuy;
-            request['triggerDirection'] = ascending ? 2 : 1;
-            request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
-        }
-        else if (isStopLossTriggerOrder || isTakeProfitTriggerOrder) {
-            if (isStopLossTriggerOrder) {
-                request['triggerPrice'] = this.priceToPrecision(symbol, stopLossTriggerPrice);
-                request['triggerDirection'] = 2;
+        const triggerPrice = this.safeNumber2(params, 'stopPrice', 'triggerPrice');
+        const basePrice = this.safeNumber(params, 'basePrice');
+        if (isStop) {
+            if (!basePrice) {
+                throw new errors.InvalidOrder(this.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders');
             }
-            else {
-                request['triggerPrice'] = this.priceToPrecision(symbol, takeProfitTriggerPrice);
+            if (triggerPrice === undefined) {
+                throw new errors.InvalidOrder(this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
+            }
+            let triggerBy = 'LastPrice';
+            if (params['trigger'] === 'Index') {
+                triggerBy = 'IndexPrice';
+            }
+            else if (params['trigger'] === 'Mark') {
+                triggerBy = 'MarkPrice';
+            }
+            request['triggerBy'] = triggerBy;
+            request['slTriggerBy'] = triggerBy;
+            request['tpTriggerBy'] = triggerBy;
+            // request['triggerBy'] = 'MarkPrice';
+            // request['slTriggerBy'] = 'MarkPrice';
+            // request['tpTriggerBy'] = 'LastPrice';
+            request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
+            if (triggerPrice > basePrice) {
                 request['triggerDirection'] = 1;
             }
-            request['reduceOnly'] = true;
-        }
-        else if (isStopLoss || isTakeProfit) {
-            if (isStopLoss) {
-                request['stopLoss'] = this.priceToPrecision(symbol, stopLoss);
-            }
-            if (isTakeProfit) {
-                request['takeProfit'] = this.priceToPrecision(symbol, takeProfit);
+            else {
+                request['triggerDirection'] = 2;
             }
         }
-        if (market['spot']) {
-            // only works for spot market
-            if (triggerPrice !== undefined || stopLossTriggerPrice !== undefined || takeProfitTriggerPrice !== undefined || isStopLoss || isTakeProfit) {
-                request['orderFilter'] = 'tpslOrder';
-            }
+        const takeProfit = this.safeString(params, 'takeProfit');
+        if (takeProfit !== undefined) {
+            request['takeProfit'] = this.priceToPrecision(symbol, takeProfit);
         }
-        const clientOrderId = this.safeString(params, 'clientOrderId');
-        if (clientOrderId !== undefined) {
-            request['orderLinkId'] = clientOrderId;
-        }
-        else if (market['option']) {
-            // mandatory field for options
-            request['orderLinkId'] = this.uuid16();
+        const stopLoss = this.safeString(params, 'stopLoss');
+        if (stopLoss !== undefined) {
+            request['stopLoss'] = this.priceToPrecision(symbol, stopLoss);
         }
         params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close']);
         const response = await this.privatePostV5OrderCreate(this.extend(request, params));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "orderId": "1321003749386327552",
-        //             "orderLinkId": "spot-test-postonly"
-        //         },
-        //         "retExtInfo": {},
-        //         "time": 1672211918471
-        //     }
-        //
-        const order = this.safeValue(response, 'result', {});
-        return this.parseOrder(order);
-    }
-    async createSpotOrder(symbol, type, side, amount, price = undefined, params = {}) {
-        await this.loadMarkets();
-        const market = this.market(symbol);
-        const upperCaseType = type.toUpperCase();
-        const request = {
-            'symbol': market['id'],
-            'side': this.capitalize(side),
-            'orderType': upperCaseType,
-            'timeInForce': 'GTC', // FOK, IOC
-            // 'orderLinkId': 'string', // unique client order id, max 36 characters
-        };
-        if ((type === 'market') && (side === 'buy')) {
-            // for market buy it requires the amount of quote currency to spend
-            if (this.options['createMarketBuyOrderRequiresPrice']) {
-                const cost = this.safeNumber(params, 'cost');
-                params = this.omit(params, 'cost');
-                if (price === undefined && cost === undefined) {
-                    throw new errors.InvalidOrder(this.id + " createOrder() requires the price argument with market buy orders to calculate total order cost (amount to spend), where cost = amount * price. Supply a price argument to createOrder() call if you want the cost to be calculated for you from price and amount, or, alternatively, add .options['createMarketBuyOrderRequiresPrice'] = false to supply the cost in the amount argument (the exchange-specific behaviour)");
-                }
-                else {
-                    const amountString = this.numberToString(amount);
-                    const priceString = this.numberToString(price);
-                    const quoteAmount = Precise["default"].stringMul(amountString, priceString);
-                    amount = (cost !== undefined) ? cost : this.parseNumber(quoteAmount);
-                    request['orderQty'] = this.costToPrecision(symbol, amount);
-                }
-            }
-        }
-        else {
-            request['orderQty'] = this.amountToPrecision(symbol, amount);
-        }
-        if ((upperCaseType === 'LIMIT') || (upperCaseType === 'LIMIT_MAKER')) {
-            if (price === undefined) {
-                throw new errors.InvalidOrder(this.id + ' createOrder requires a price argument for a ' + type + ' order');
-            }
-            request['orderPrice'] = this.priceToPrecision(symbol, price);
-        }
-        const isPostOnly = this.isPostOnly(upperCaseType === 'MARKET', type === 'LIMIT_MAKER', params);
-        if (isPostOnly) {
-            request['orderType'] = 'LIMIT_MAKER';
-        }
-        const clientOrderId = this.safeString2(params, 'clientOrderId', 'orderLinkId');
-        if (clientOrderId !== undefined) {
-            request['orderLinkId'] = clientOrderId;
-        }
-        params = this.omit(params, ['clientOrderId', 'orderLinkId', 'postOnly']);
-        const brokerId = this.safeString(this.options, 'brokerId');
-        if (brokerId !== undefined) {
-            request['agentSource'] = brokerId;
-        }
-        const triggerPrice = this.safeNumber2(params, 'triggerPrice', 'stopPrice');
-        if (triggerPrice !== undefined) {
-            request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
-        }
-        params = this.omit(params, 'stopPrice');
-        const response = await this.privatePostSpotV3PrivateOrder(this.extend(request, params));
-        //
-        //    {
-        //        "retCode": "0",
-        //        "retMsg": "OK",
-        //        "result": {
-        //            "orderId": "1274754916287346280",
-        //            "orderLinkId": "1666798627015730",
-        //            "symbol": "AAVEUSDT",
-        //            "createTime": "1666698629821",
-        //            "orderPrice": "80",
-        //            "orderQty": "0.11",
-        //            "orderType": "LIMIT",
-        //            "side": "BUY",
-        //            "status": "NEW",
-        //            "timeInForce": "GTC",
-        //            "accountId": "13380434",
-        //            "execQty": "0",
-        //            "orderCategory": "0"
-        //        },
-        //        "retExtMap": {},
-        //        "retExtInfo": null,
-        //        "time": "1666698627926"
-        //    }
-        //
-        const order = this.safeValue(response, 'result', {});
-        return this.parseOrder(order);
-    }
-    async createUnifiedMarginOrder(symbol, type, side, amount, price = undefined, params = {}) {
-        await this.loadMarkets();
-        const market = this.market(symbol);
-        if (!market['linear'] && !market['option']) {
-            throw new errors.NotSupported(this.id + ' createOrder does not allow inverse market orders for ' + symbol + ' markets');
-        }
-        const lowerCaseType = type.toLowerCase();
-        if ((price === undefined) && (lowerCaseType === 'limit')) {
-            throw new errors.ArgumentsRequired(this.id + ' createOrder requires a price argument for limit orders');
-        }
-        const request = {
-            'symbol': market['id'],
-            'side': this.capitalize(side),
-            'orderType': this.capitalize(lowerCaseType),
-            'timeInForce': 'GoodTillCancel',
-            'qty': this.amountToPrecision(symbol, amount),
-            // 'takeProfit': 123.45, // take profit price, only take effect upon opening the position
-            // 'stopLoss': 123.45, // stop loss price, only take effect upon opening the position
-            // 'reduceOnly': false, // reduce only, required for linear orders
-            // when creating a closing order, bybit recommends a True value for
-            //  closeOnTrigger to avoid failing due to insufficient available margin
-            // 'closeOnTrigger': false, required for linear orders
-            // 'orderLinkId': 'string', // unique client order id, max 36 characters
-            // 'triggerPrice': 123.45, // trigger price, required for conditional orders
-            // 'triggerBy': 'MarkPrice', // IndexPrice, MarkPrice
-            // 'tptriggerby': 'MarkPrice', // IndexPrice, MarkPrice
-            // 'slTriggerBy': 'MarkPrice', // IndexPrice, MarkPrice
-            // 'mmp': false // market maker protection
-            // 'positionIdx': 0, // Position mode. unified margin account is only available in One-Way mode, which is 0
-            // 'basePrice': '0', // It will be used to compare with the value of triggerPrice, to decide whether your conditional order will be triggered by crossing trigger price from upper side or lower side. Mainly used to identify the expected direction of the current conditional order.
-            // 'iv': '0', // Implied volatility, for options only; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
-        };
-        if (market['linear']) {
-            request['category'] = 'linear';
-        }
-        else {
-            request['category'] = 'option';
-        }
-        const isMarket = lowerCaseType === 'market';
-        const isLimit = lowerCaseType === 'limit';
-        if (isLimit) {
-            request['price'] = this.priceToPrecision(symbol, price);
-        }
-        const exchangeSpecificParam = this.safeString(params, 'time_in_force');
-        const timeInForce = this.safeStringLower(params, 'timeInForce');
-        const postOnly = this.isPostOnly(isMarket, exchangeSpecificParam === 'PostOnly', params);
-        if (postOnly) {
-            request['timeInForce'] = 'PostOnly';
-        }
-        else if (timeInForce === 'gtc') {
-            request['timeInForce'] = 'GoodTillCancel';
-        }
-        else if (timeInForce === 'fok') {
-            request['timeInForce'] = 'FillOrKill';
-        }
-        else if (timeInForce === 'ioc') {
-            request['timeInForce'] = 'ImmediateOrCancel';
-        }
-        const triggerPrice = this.safeNumber2(params, 'stopPrice', 'triggerPrice');
-        const stopLossTriggerPrice = this.safeNumber(params, 'stopLossPrice', triggerPrice);
-        const takeProfitTriggerPrice = this.safeNumber(params, 'takeProfitPrice');
-        const stopLoss = this.safeNumber(params, 'stopLoss');
-        const takeProfit = this.safeNumber(params, 'takeProfit');
-        const isStopLossTriggerOrder = stopLossTriggerPrice !== undefined;
-        const isTakeProfitTriggerOrder = takeProfitTriggerPrice !== undefined;
-        const isStopLoss = stopLoss !== undefined;
-        const isTakeProfit = takeProfit !== undefined;
-        if (isStopLossTriggerOrder || isTakeProfitTriggerOrder) {
-            request['triggerBy'] = 'LastPrice';
-            const triggerAt = isStopLossTriggerOrder ? stopLossTriggerPrice : takeProfitTriggerPrice;
-            const preciseTriggerPrice = this.priceToPrecision(symbol, triggerAt);
-            request['triggerPrice'] = preciseTriggerPrice;
-            const isBuy = side === 'buy';
-            // logical xor
-            const ascending = stopLossTriggerPrice ? !isBuy : isBuy;
-            const delta = this.numberToString(market['precision']['price']);
-            request['basePrice'] = ascending ? Precise["default"].stringAdd(preciseTriggerPrice, delta) : Precise["default"].stringSub(preciseTriggerPrice, delta);
-        }
-        else if (isStopLoss || isTakeProfit) {
-            if (isStopLoss) {
-                request['stopLoss'] = this.priceToPrecision(symbol, stopLoss);
-            }
-            if (isTakeProfit) {
-                request['takeProfit'] = this.priceToPrecision(symbol, takeProfit);
-            }
-        }
-        const clientOrderId = this.safeString(params, 'clientOrderId');
-        if (clientOrderId !== undefined) {
-            request['orderLinkId'] = clientOrderId;
-        }
-        else if (market['option']) {
-            // mandatory field for options
-            request['orderLinkId'] = this.uuid16();
-        }
-        params = this.omit(params, ['stopPrice', 'timeInForce', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId']);
-        const response = await this.privatePostUnifiedV3PrivateOrderCreate(this.extend(request, params));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "orderId": "e10b0716-7c91-4091-b98a-1fa0f401c7d5",
-        //             "orderLinkId": "test0000003"
-        //         },
-        //         "retExtInfo": null,
-        //         "time": 1664441344238
-        //     }
-        //
         const order = this.safeValue(response, 'result', {});
         return this.parseOrder(order);
     }
     async createContractV3Order(symbol, type, side, amount, price = undefined, params = {}) {
         await this.loadMarkets();
         const market = this.market(symbol);
-        const lowerCaseType = type.toLowerCase();
+        let lowerCaseType = type.toLowerCase();
+        let isStop = false;
+        const bindStops = this.safeValue(params, 'bindStops', true);
+        if (lowerCaseType === 'stop') {
+            isStop = true;
+            lowerCaseType = 'market';
+            if (bindStops) {
+                return this.createPositionTradeStop(symbol, type, side, amount, price, params);
+            }
+        }
+        else if (lowerCaseType === 'stopLimit') {
+            isStop = true;
+            lowerCaseType = 'limit';
+        }
         if ((price === undefined) && (lowerCaseType === 'limit')) {
             throw new errors.ArgumentsRequired(this.id + ' createContractV3Order requires a price argument for limit orders');
         }
+        const closeOnTrigger = this.safeValue(params, 'close', false);
+        const reduceOnly = this.safeValue(params, 'reduceOnly', false);
         const request = {
             'symbol': market['id'],
             'side': this.capitalize(side),
@@ -3841,10 +3469,10 @@ class bybit extends Exchange["default"] {
             'qty': this.amountToPrecision(symbol, amount),
             // 'takeProfit': 123.45, // take profit price, only take effect upon opening the position
             // 'stopLoss': 123.45, // stop loss price, only take effect upon opening the position
-            // 'reduceOnly': false, // reduce only, required for linear orders
+            'reduceOnly': reduceOnly,
             // when creating a closing order, bybit recommends a True value for
             //  closeOnTrigger to avoid failing due to insufficient available margin
-            // 'closeOnTrigger': false, required for linear orders
+            'closeOnTrigger': closeOnTrigger,
             // 'orderLinkId': 'string', // unique client order id, max 36 characters
             // 'triggerPrice': 123.45, // trigger price, required for conditional orders
             // 'triggerBy': 'MarkPrice', // IndexPrice, MarkPrice
@@ -3852,6 +3480,7 @@ class bybit extends Exchange["default"] {
             // 'slTriggerBy': 'MarkPrice', // IndexPrice, MarkPrice
             // 'positionIdx': 0, // Position mode. unified margin account is only available in One-Way mode, which is 0
             // 'triggerDirection': 1, // Trigger direction. Mainly used in conditional order. Trigger the order when market price rises to triggerPrice or falls to triggerPrice. 1: rise; 2: fall
+            'orderLinkId': this['refCode'] + this.uuid22(),
         };
         if (market['future']) {
             const positionIdx = this.safeInteger(params, 'position_idx', 0); // 0 One-Way Mode, 1 Buy-side, 2 Sell-side
@@ -3878,47 +3507,66 @@ class bybit extends Exchange["default"] {
         else if (timeInForce === 'ioc') {
             request['timeInForce'] = 'ImmediateOrCancel';
         }
-        const triggerPrice = this.safeNumber2(params, 'triggerPrice', 'stopPrice');
-        const stopLossTriggerPrice = this.safeNumber(params, 'stopLossPrice', triggerPrice);
-        const takeProfitTriggerPrice = this.safeNumber(params, 'takeProfitPrice');
-        const stopLoss = this.safeNumber(params, 'stopLoss');
-        const takeProfit = this.safeNumber(params, 'takeProfit');
-        const isStopLossTriggerOrder = stopLossTriggerPrice !== undefined;
-        const isTakeProfitTriggerOrder = takeProfitTriggerPrice !== undefined;
-        const isStopLoss = stopLoss !== undefined;
-        const isTakeProfit = takeProfit !== undefined;
-        if (triggerPrice) {
-            const isBuy = side === 'buy';
-            const ascending = stopLossTriggerPrice ? !isBuy : isBuy;
-            request['triggerDirection'] = ascending ? 2 : 1;
-            request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
-        }
-        else if (isStopLossTriggerOrder || isTakeProfitTriggerOrder) {
-            if (isStopLossTriggerOrder) {
-                request['triggerPrice'] = this.priceToPrecision(symbol, stopLossTriggerPrice);
-                request['triggerDirection'] = 2;
+        const positionMode = this.safeValue(params, 'positionMode', 'oneway');
+        request['positionIdx'] = 0;
+        if (positionMode !== 'oneway') {
+            if (isStop) {
+                if ((side === 'buy' && !closeOnTrigger) || (side === 'sell' && closeOnTrigger)) {
+                    request['positionIdx'] = 1;
+                }
+                else if ((side === 'sell' && !closeOnTrigger) || (side === 'buy' && closeOnTrigger)) {
+                    request['positionIdx'] = 2;
+                }
             }
             else {
-                request['triggerPrice'] = this.priceToPrecision(symbol, takeProfitTriggerPrice);
+                if ((side === 'buy' && !reduceOnly) || (side === 'sell' && reduceOnly)) {
+                    request['positionIdx'] = 1;
+                }
+                else if ((side === 'sell' && !reduceOnly) || (side === 'buy' && reduceOnly)) {
+                    request['positionIdx'] = 2;
+                }
+            }
+        }
+        request['tpslMode'] = 'Partial';
+        if (amount === 0) {
+            request['tpslMode'] = 'Full';
+            request['tpOrderType'] = 'Market';
+            request['slOrderType'] = 'Market';
+        }
+        const triggerPrice = this.safeNumber2(params, 'stopPrice', 'triggerPrice');
+        const basePrice = this.safeNumber(params, 'basePrice');
+        if (isStop) {
+            if (!basePrice) {
+                throw new errors.InvalidOrder(this.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders');
+            }
+            if (triggerPrice === undefined) {
+                throw new errors.InvalidOrder(this.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders');
+            }
+            let triggerBy = 'LastPrice';
+            if (params['trigger'] === 'Index') {
+                triggerBy = 'IndexPrice';
+            }
+            else if (params['trigger'] === 'Mark') {
+                triggerBy = 'MarkPrice';
+            }
+            request['triggerBy'] = triggerBy;
+            request['slTriggerBy'] = triggerBy;
+            request['tpTriggerBy'] = triggerBy;
+            request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
+            if (triggerPrice > basePrice) {
                 request['triggerDirection'] = 1;
             }
-            request['reduceOnly'] = true;
-        }
-        else if (isStopLoss || isTakeProfit) {
-            if (isStopLoss) {
-                request['stopLoss'] = this.priceToPrecision(symbol, stopLoss);
-            }
-            if (isTakeProfit) {
-                request['takeProfit'] = this.priceToPrecision(symbol, takeProfit);
+            else {
+                request['triggerDirection'] = 2;
             }
         }
-        const clientOrderId = this.safeString(params, 'clientOrderId');
-        if (clientOrderId !== undefined) {
-            request['orderLinkId'] = clientOrderId;
+        const takeProfit = this.safeString(params, 'takeProfit');
+        if (takeProfit !== undefined) {
+            request['takeProfit'] = this.priceToPrecision(symbol, takeProfit);
         }
-        else if (market['option']) {
-            // mandatory field for options
-            request['orderLinkId'] = this.uuid16();
+        const stopLoss = this.safeString(params, 'stopLoss');
+        if (stopLoss !== undefined) {
+            request['stopLoss'] = this.priceToPrecision(symbol, stopLoss);
         }
         params = this.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId']);
         const response = await this.privatePostContractV3PrivateOrderCreate(this.extend(request, params));
@@ -4000,7 +3648,14 @@ class bybit extends Exchange["default"] {
             const isStopOrder = isStopLossTriggerOrder || isTakeProfitTriggerOrder;
             if (isStopOrder) {
                 request['orderFilter'] = 'StopOrder';
-                request['trigger_by'] = 'LastPrice';
+                let triggerBy = 'LastPrice';
+                if (params['trigger'] === 'Index') {
+                    triggerBy = 'IndexPrice';
+                }
+                else if (params['trigger'] === 'Mark') {
+                    triggerBy = 'MarkPrice';
+                }
+                request['trigger_by'] = triggerBy;
                 const stopPx = isStopLossTriggerOrder ? stopLossTriggerPrice : takeProfitTriggerPrice;
                 const preciseStopPrice = this.priceToPrecision(symbol, stopPx);
                 request['triggerPrice'] = preciseStopPrice;
@@ -4067,7 +3722,6 @@ class bybit extends Exchange["default"] {
         const request = {
             'symbol': market['id'],
             'orderId': id,
-            'qty': this.amountToPrecision(symbol, amount),
             // 'orderLinkId': 'string', // unique client order id, max 36 characters
             // 'takeProfit': 123.45, // take profit price, only take effect upon opening the position
             // 'stopLoss': 123.45, // stop loss price, only take effect upon opening the position
@@ -4078,6 +3732,12 @@ class bybit extends Exchange["default"] {
             // Valid for option only.
             // 'orderIv': '0', // Implied volatility; parameters are passed according to the real value; for example, for 10%, 0.1 is passed
         };
+        if (amount) {
+            request['qty'] = this.amountToPrecision(symbol, amount);
+        }
+        else {
+            request['qty'] = '0';
+        }
         if (market['linear']) {
             request['category'] = 'linear';
         }
@@ -4088,9 +3748,9 @@ class bybit extends Exchange["default"] {
             request['price'] = this.priceToPrecision(symbol, price);
         }
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-        const stopLossPrice = this.safeValue(params, 'stopLossPrice');
+        const stopLossPrice = this.safeValue2(params, 'stopLossPrice', 'stopLoss');
         const isStopLossOrder = stopLossPrice !== undefined;
-        const takeProfitPrice = this.safeValue(params, 'takeProfitPrice');
+        const takeProfitPrice = this.safeValue2(params, 'takeProfitPrice', 'takeProfit');
         const isTakeProfitOrder = takeProfitPrice !== undefined;
         if (isStopLossOrder) {
             request['stopLoss'] = this.priceToPrecision(symbol, stopLossPrice);
@@ -4101,7 +3761,7 @@ class bybit extends Exchange["default"] {
         if (triggerPrice !== undefined) {
             request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
         }
-        params = this.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice']);
+        params = this.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit']);
         const response = await this.privatePostV5OrderAmend(this.extend(request, params));
         //
         //     {
@@ -4185,7 +3845,14 @@ class bybit extends Exchange["default"] {
             request['takeProfit'] = this.priceToPrecision(symbol, takeProfitPrice);
         }
         if (triggerPrice !== undefined) {
-            request['triggerBy'] = 'LastPrice';
+            let triggerBy = 'LastPrice';
+            if (params['trigger'] === 'Index') {
+                triggerBy = 'IndexPrice';
+            }
+            else if (params['trigger'] === 'Mark') {
+                triggerBy = 'MarkPrice';
+            }
+            request['triggerBy'] = triggerBy;
             request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
         }
         const clientOrderId = this.safeString(params, 'clientOrderId');
@@ -4219,10 +3886,10 @@ class bybit extends Exchange["default"] {
             request['price'] = this.priceToPrecision(symbol, price);
         }
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
-        const stopLossPrice = this.safeValue(params, 'stopLossPrice');
-        const isStopLossOrder = stopLossPrice !== undefined;
-        const takeProfitPrice = this.safeValue(params, 'takeProfitPrice');
-        const isTakeProfitOrder = takeProfitPrice !== undefined;
+        const stopLossPrice = this.safeValue2(params, 'stopLossPrice', 'stopLoss');
+        const isStopLossOrder = stopLossPrice !== undefined && stopLossPrice > 0;
+        const takeProfitPrice = this.safeValue2(params, 'takeProfitPrice', 'takeProfit');
+        const isTakeProfitOrder = takeProfitPrice !== undefined && takeProfitPrice > 0;
         if (isStopLossOrder) {
             request['stopLoss'] = this.priceToPrecision(symbol, stopLossPrice);
         }
@@ -4232,7 +3899,7 @@ class bybit extends Exchange["default"] {
         if (triggerPrice !== undefined) {
             request['triggerPrice'] = this.priceToPrecision(symbol, triggerPrice);
         }
-        params = this.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice']);
+        params = this.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit']);
         const response = await this.privatePostContractV3PrivateOrderReplace(this.extend(request, params));
         //
         // contract v3
@@ -4261,7 +3928,7 @@ class bybit extends Exchange["default"] {
         await this.loadMarkets();
         const market = this.market(symbol);
         const [enableUnifiedMargin, enableUnifiedAccount] = await this.isUnifiedEnabled();
-        if (enableUnifiedAccount) {
+        if (enableUnifiedAccount && !market['inverse']) {
             return await this.editUnifiedAccountOrder(id, symbol, type, side, amount, price, params);
         }
         else if (market['spot']) {
@@ -4317,44 +3984,6 @@ class bybit extends Exchange["default"] {
         //         },
         //         "retExtInfo": {},
         //         "time": 1672217377164
-        //     }
-        //
-        const result = this.safeValue(response, 'result', {});
-        return this.parseOrder(result, market);
-    }
-    async cancelSpotOrder(id, symbol = undefined, params = {}) {
-        await this.loadMarkets();
-        const market = this.market(symbol);
-        const request = {
-        // 'order_link_id': 'string', // one of order_id, stop_order_id or order_link_id is required
-        // 'orderId': id
-        };
-        if (id !== undefined) { // The user can also use argument params["order_link_id"]
-            request['orderId'] = id;
-        }
-        const response = await this.privatePostSpotV3PrivateCancelOrder(this.extend(request, params));
-        //
-        //     {
-        //         "retCode": "0",
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "orderId": "1275046248585414144",
-        //             "orderLinkId": "1666733357434617",
-        //             "symbol": "AAVEUSDT",
-        //             "status": "NEW",
-        //             "accountId": "13380434",
-        //             "createTime": "1666733357438",
-        //             "orderPrice": "80",
-        //             "orderQty": "0.11",
-        //             "execQty": "0",
-        //             "timeInForce": "GTC",
-        //             "orderType": "LIMIT",
-        //             "side": "BUY",
-        //             "orderCategory": "0"
-        //         },
-        //         "retExtMap": {},
-        //         "retExtInfo": null,
-        //         "time": "1666733839493"
         //     }
         //
         const result = this.safeValue(response, 'result', {});
@@ -4489,11 +4118,8 @@ class bybit extends Exchange["default"] {
         const market = this.market(symbol);
         const [enableUnifiedMargin, enableUnifiedAccount] = await this.isUnifiedEnabled();
         const isUsdcSettled = market['settle'] === 'USDC';
-        if (enableUnifiedAccount) {
+        if (enableUnifiedAccount && !market['inverse']) {
             return await this.cancelUnifiedAccountOrder(id, symbol, params);
-        }
-        else if (market['spot']) {
-            return await this.cancelSpotOrder(id, symbol, params);
         }
         else if (enableUnifiedMargin && !market['inverse']) {
             return await this.cancelUnifiedMarginOrder(id, symbol, params);
@@ -4538,7 +4164,12 @@ class bybit extends Exchange["default"] {
         if (isStop) {
             request['orderFilter'] = 'tpslOrder';
         }
-        const response = await this.privatePostV5OrderCancelAll(this.extend(request, params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        let finalParams = this.extend(request, params);
+        if (subType === 'inverse') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        const response = await this.privatePostV5OrderCancelAll(finalParams);
         //
         //     {
         //         "retCode": 0,
@@ -4611,7 +4242,12 @@ class bybit extends Exchange["default"] {
         if (isStop) {
             request['orderFilter'] = 'StopOrder';
         }
-        const response = await this.privatePostUnifiedV3PrivateOrderCancelAll(this.extend(request, params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        let finalParams = this.extend(request, params);
+        if (subType === 'inverse') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        const response = await this.privatePostUnifiedV3PrivateOrderCancelAll(finalParams);
         //
         //     {
         //         "retCode": 0,
@@ -4711,7 +4347,12 @@ class bybit extends Exchange["default"] {
         if (settle !== undefined) {
             request['settleCoin'] = settle;
         }
-        const response = await this.privatePostContractV3PrivateOrderCancelAll(this.extend(request, params));
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        let finalParams = this.extend(request, params);
+        if (request['settleCoin'] !== 'USDT' && request['settleCoin'] !== 'USDC') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        const response = await this.privatePostContractV3PrivateOrderCancelAll(finalParams);
         //
         // contract v3
         //
@@ -5230,6 +4871,7 @@ class bybit extends Exchange["default"] {
     }
     async fetchUnifiedAccountOpenOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
+        limit = limit || 50;
         const request = {
         // 'symbol': market['id'],
         // 'category': string, Type of derivatives product: linear or option.
@@ -5347,7 +4989,19 @@ class bybit extends Exchange["default"] {
         //
         const result = this.safeValue(response, 'result', {});
         const data = this.safeValue(result, 'list', []);
-        return this.parseOrders(data, market, since, limit);
+        let parsedOrders = this.parseOrders(data, market, since, limit);
+        let paginationCursor = this.safeString(result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privateGetV5OrderRealtime(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const data = this.safeValue(result, 'list', []);
+                parsedOrders = this.arrayConcat(parsedOrders, this.parseOrders(data, market, since, limit));
+                paginationCursor = this.safeString(result, 'nextPageCursor');
+            }
+        }
+        return parsedOrders;
     }
     async fetchSpotOpenOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
@@ -5395,11 +5049,24 @@ class bybit extends Exchange["default"] {
         //     }
         //
         const result = this.safeValue(response, 'result', {});
-        const orders = this.safeValue(result, 'list', []);
-        return this.parseOrders(orders, market, since, limit);
+        const data = this.safeValue(result, 'list', []);
+        let parsedOrders = this.parseOrders(data, market, since, limit);
+        let paginationCursor = this.safeString(result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privateGetSpotV3PrivateOpenOrders(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const data = this.safeValue(result, 'list', []);
+                parsedOrders = this.arrayConcat(parsedOrders, this.parseOrders(data, market, since, limit));
+                paginationCursor = this.safeString(result, 'nextPageCursor');
+            }
+        }
+        return parsedOrders;
     }
     async fetchUnifiedMarginOpenOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
+        limit = limit || 50;
         const request = {};
         let market = undefined;
         if (symbol === undefined) {
@@ -5476,11 +5143,24 @@ class bybit extends Exchange["default"] {
         //     }
         //
         const result = this.safeValue(response, 'result', {});
-        const orders = this.safeValue(result, 'list', []);
-        return this.parseOrders(orders, market, since, limit);
+        const data = this.safeValue(result, 'list', []);
+        let parsedOrders = this.parseOrders(data, market, since, limit);
+        let paginationCursor = this.safeString(result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privateGetUnifiedV3PrivateOrderUnfilledOrders(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const data = this.safeValue(result, 'list', []);
+                parsedOrders = this.arrayConcat(parsedOrders, this.parseOrders(data, market, since, limit));
+                paginationCursor = this.safeString(result, 'nextPageCursor');
+            }
+        }
+        return parsedOrders;
     }
     async fetchDerivativesOpenOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
+        limit = limit || 50;
         let market = undefined;
         let settle = undefined;
         const request = {
@@ -5578,11 +5258,24 @@ class bybit extends Exchange["default"] {
         //     }
         //
         const result = this.safeValue(response, 'result', {});
-        const orders = this.safeValue(result, 'list', []);
-        return this.parseOrders(orders, market, since, limit);
+        const data = this.safeValue(result, 'list', []);
+        let parsedOrders = this.parseOrders(data, market, since, limit);
+        let paginationCursor = this.safeString(result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privateGetV5OrderRealtime(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const data = this.safeValue(result, 'list', []);
+                parsedOrders = this.arrayConcat(parsedOrders, this.parseOrders(data, market, since, limit));
+                paginationCursor = this.safeString(result, 'nextPageCursor');
+            }
+        }
+        return parsedOrders;
     }
     async fetchUSDCOpenOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
+        limit = limit || 50;
         const request = {};
         let market = undefined;
         if (symbol !== undefined) {
@@ -5593,8 +5286,6 @@ class bybit extends Exchange["default"] {
         [type, params] = this.handleMarketTypeAndParams('fetchUSDCOpenOrders', market, params);
         request['category'] = (type === 'swap') ? 'perpetual' : 'option';
         const response = await this.privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders(this.extend(request, params));
-        const result = this.safeValue(response, 'result', {});
-        const orders = this.safeValue(result, 'dataList', []);
         //
         //     {
         //         "retCode": 0,
@@ -5621,7 +5312,21 @@ class bybit extends Exchange["default"] {
         //         }
         //     }
         //
-        return this.parseOrders(orders, market, since, limit);
+        const result = this.safeValue(response, 'result', {});
+        const data = this.safeValue(result, 'dataList', []);
+        let parsedOrders = this.parseOrders(data, market, since, limit);
+        let paginationCursor = this.safeString(result, 'cursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privatePostOptionUsdcOpenapiPrivateV1QueryActiveOrders(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const data = this.safeValue(result, 'dataList', []);
+                parsedOrders = this.arrayConcat(parsedOrders, this.parseOrders(data, market, since, limit));
+                paginationCursor = this.safeString(result, 'cursor');
+            }
+        }
+        return parsedOrders;
     }
     async fetchOpenOrders(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         /**
@@ -5706,19 +5411,12 @@ class bybit extends Exchange["default"] {
             market = this.market(symbol);
             request['symbol'] = market['id'];
         }
-        let type = undefined;
-        [type, params] = this.handleMarketTypeAndParams('fetchMyTrades', market, params);
-        if (type === 'spot') {
-            request['category'] = 'spot';
+        let subType = undefined;
+        [subType, params] = this.handleSubTypeAndParams('fetchMyTrades', market, params);
+        if (subType === 'inverse') {
+            throw new errors.NotSupported(this.id + ' fetchMyTrades() does not support ' + subType + ' markets.');
         }
-        else {
-            let subType = undefined;
-            [subType, params] = this.handleSubTypeAndParams('fetchMyTrades', market, params);
-            if (subType === 'inverse') {
-                throw new errors.NotSupported(this.id + ' fetchMyTrades() does not support ' + subType + ' markets.');
-            }
-            request['category'] = subType;
-        }
+        request['category'] = subType;
         if (since !== undefined) {
             request['startTime'] = since;
         }
@@ -5768,62 +5466,19 @@ class bybit extends Exchange["default"] {
         //
         const result = this.safeValue(response, 'result', {});
         const trades = this.safeValue(result, 'list', []);
-        return this.parseTrades(trades, market, since, limit);
-    }
-    async fetchMySpotTrades(symbol = undefined, since = undefined, limit = undefined, params = {}) {
-        if (symbol === undefined) {
-            throw new errors.ArgumentsRequired(this.id + ' fetchMySpotTrades() requires a symbol argument');
+        let parsedTrades = this.parseTrades(trades, market, since, limit);
+        let paginationCursor = this.safeString(result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privateGetV5ExecutionList(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const trades = this.safeValue(result, 'list', []);
+                parsedTrades = this.arrayConcat(parsedTrades, this.parseTrades(trades, market, since, limit));
+                paginationCursor = this.safeString(result, 'nextPageCursor');
+            }
         }
-        await this.loadMarkets();
-        const market = this.market(symbol);
-        const request = {
-            'symbol': market['id'],
-            // 'orderId': 'f185806b-b801-40ff-adec-52289370ed62', // if not provided will return user's trading records
-            // 'startTime': parseInt (since / 1000),
-            // 'endTime': 0,
-            // 'fromTradeId': '',
-            // 'toTradeId': '',
-            // 'limit' 20, // max 50
-        };
-        if (since !== undefined) {
-            request['startTime'] = since;
-        }
-        if (limit !== undefined) {
-            request['limit'] = limit; // default 20, max 50
-        }
-        const response = await this.privateGetSpotV3PrivateMyTrades(this.extend(request, params));
-        //
-        //    {
-        //         "retCode": "0",
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "list": [
-        //                 {
-        //                     "symbol": "AAVEUSDT",
-        //                     "id": "1274785101965716992",
-        //                     "orderId": "1274784252359089664",
-        //                     "tradeId": "2270000000031365639",
-        //                     "orderPrice": "82.5",
-        //                     "orderQty": "0.016",
-        //                     "execFee": "0",
-        //                     "feeTokenId": "AAVE",
-        //                     "creatTime": "1666702226326",
-        //                     "isBuyer": "0",
-        //                     "isMaker": "0",
-        //                     "matchOrderId": "1274785101865076224",
-        //                     "makerRebate": "0",
-        //                     "executionTime": "1666702226335"
-        //                 },
-        //             ]
-        //         },
-        //         "retExtMap": {},
-        //         "retExtInfo": null,
-        //         "time": "1666768215157"
-        //     }
-        //
-        const result = this.safeValue(response, 'result', {});
-        const trades = this.safeValue(result, 'list', []);
-        return this.parseTrades(trades, market, since, limit);
+        return parsedTrades;
     }
     async fetchMyUnifiedMarginTrades(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
@@ -5891,7 +5546,19 @@ class bybit extends Exchange["default"] {
         //
         const result = this.safeValue(response, 'result', {});
         const trades = this.safeValue(result, 'list', []);
-        return this.parseTrades(trades, market, since, limit);
+        let parsedTrades = this.parseTrades(trades, market, since, limit);
+        let paginationCursor = this.safeString(result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privateGetUnifiedV3PrivateExecutionList(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const trades = this.safeValue(result, 'list', []);
+                parsedTrades = this.arrayConcat(parsedTrades, this.parseTrades(trades, market, since, limit));
+                paginationCursor = this.safeString(result, 'nextPageCursor');
+            }
+        }
+        return parsedTrades;
     }
     async fetchMyContractTrades(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         if (symbol === undefined) {
@@ -5967,7 +5634,19 @@ class bybit extends Exchange["default"] {
         //
         const result = this.safeValue(response, 'result', {});
         const trades = this.safeValue(result, 'list', []);
-        return this.parseTrades(trades, market, since, limit);
+        let parsedTrades = this.parseTrades(trades, market, since, limit);
+        let paginationCursor = this.safeString(result, 'nextPageCursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privateGetV5ExecutionList(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const trades = this.safeValue(result, 'list', []);
+                parsedTrades = this.arrayConcat(parsedTrades, this.parseTrades(trades, market, since, limit));
+                paginationCursor = this.safeString(result, 'nextPageCursor');
+            }
+        }
+        return parsedTrades;
     }
     async fetchMyUsdcTrades(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         await this.loadMarkets();
@@ -6011,8 +5690,20 @@ class bybit extends Exchange["default"] {
         //     }
         //
         const result = this.safeValue(response, 'result', {});
-        const dataList = this.safeValue(result, 'dataList', []);
-        return this.parseTrades(dataList, market, since, limit);
+        const trades = this.safeValue(result, 'dataList', []);
+        let parsedTrades = this.parseTrades(trades, market, since, limit);
+        let paginationCursor = this.safeString(result, 'cursor');
+        if (paginationCursor !== undefined) {
+            while (paginationCursor !== undefined) {
+                params['cursor'] = paginationCursor;
+                const response = await this.privatePostOptionUsdcOpenapiPrivateV1ExecutionList(this.extend(request, params));
+                const result = this.safeValue(response, 'result', {});
+                const trades = this.safeValue(result, 'dataList', []);
+                parsedTrades = this.arrayConcat(parsedTrades, this.parseTrades(trades, market, since, limit));
+                paginationCursor = this.safeString(result, 'cursor');
+            }
+        }
+        return parsedTrades;
     }
     async fetchMyTrades(symbol = undefined, since = undefined, limit = undefined, params = {}) {
         /**
@@ -6037,12 +5728,18 @@ class bybit extends Exchange["default"] {
         }
         let subType = undefined;
         [subType, params] = this.handleSubTypeAndParams('fetchMyTrades', market, params);
+        const splitId = symbol.split(':');
+        const settleSuffix = this.safeString(splitId, 2);
+        if (settleSuffix === 'USDC') {
+            settle = 'USDC';
+        }
         const isInverse = subType === 'inverse';
         const isUsdcSettled = settle === 'USDC';
         const isLinearSettle = isUsdcSettled || (settle === 'USDT');
         if (isInverse && isLinearSettle) {
             throw new errors.ArgumentsRequired(this.id + ' fetchMyTrades with inverse subType requires settle to not be USDT or USDC');
         }
+        // eslint-disable-next-line no-unused-vars
         const [type, query] = this.handleMarketTypeAndParams('fetchMyTrades', market, params);
         const [enableUnifiedMargin, enableUnifiedAccount] = await this.isUnifiedEnabled();
         if (enableUnifiedAccount && !isInverse) {
@@ -6052,14 +5749,12 @@ class bybit extends Exchange["default"] {
             }
             return await this.fetchMyUnifiedTrades(symbol, since, limit, query);
         }
-        else if (type === 'spot') {
-            return await this.fetchMySpotTrades(symbol, since, limit, query);
-        }
         else if (enableUnifiedMargin && !isInverse) {
             return await this.fetchMyUnifiedMarginTrades(symbol, since, limit, query);
         }
         else if (isUsdcSettled) {
-            return await this.fetchMyUsdcTrades(symbol, since, limit, query);
+            // return await this.fetchMyUsdcTrades (symbol, since, limit, query);
+            return [];
         }
         else {
             return await this.fetchMyContractTrades(symbol, since, limit, query);
@@ -6725,7 +6420,7 @@ class bybit extends Exchange["default"] {
         const result = this.safeValue(response, 'result', {});
         return this.parseTransaction(result, currency);
     }
-    async fetchPosition(symbol, params = {}) {
+    async fetchPosition(symbol, params = {}, first = true) {
         /**
          * @method
          * @name bybit#fetchPosition
@@ -6743,17 +6438,9 @@ class bybit extends Exchange["default"] {
         let method = undefined;
         const [enableUnifiedMargin, enableUnifiedAccount] = await this.isUnifiedEnabled();
         const isUsdcSettled = market['settle'] === 'USDC';
+        request['category'] = this.safeString(this.options, 'defaultSubType', 'spot');
         if (enableUnifiedMargin || enableUnifiedAccount) {
             method = (enableUnifiedAccount) ? 'privateGetV5PositionList' : 'privateGetUnifiedV3PrivatePositionList';
-            if (market['option']) {
-                request['category'] = 'option';
-            }
-            else if (market['linear']) {
-                request['category'] = 'linear';
-            }
-            else {
-                request['category'] = 'inverse';
-            }
         }
         else if (isUsdcSettled) {
             method = 'privatePostOptionUsdcOpenapiPrivateV1QueryPosition';
@@ -6765,15 +6452,6 @@ class bybit extends Exchange["default"] {
             }
         }
         else {
-            if (market['linear']) {
-                request['category'] = 'linear';
-            }
-            else if (market['inverse']) {
-                request['category'] = 'inverse';
-            }
-            else {
-                throw new errors.NotSupported(this.id + ' fetchPosition() does not allow option market orders for ' + symbol + ' markets');
-            }
             method = 'privateGetV5PositionList';
         }
         const response = await this[method](this.extend(request, params));
@@ -6919,30 +6597,93 @@ class bybit extends Exchange["default"] {
         const result = this.safeValue(response, 'result', {});
         const positions = this.safeValue2(result, 'list', 'dataList', []);
         const timestamp = this.safeInteger(response, 'time');
-        const first = this.safeValue(positions, 0);
-        const position = this.parsePosition(first, market);
-        return this.extend(position, {
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-        });
+        if (first) {
+            this.safeValue(positions, 0);
+            const position = this.parsePosition(first, market);
+            return this.extend(position, {
+                'timestamp': timestamp,
+                'datetime': this.iso8601(timestamp),
+            });
+        }
+        else {
+            const parsedPositions = [];
+            for (let i = 0; i < positions.length; i++) {
+                const parsedPosition = this.parsePosition(positions[i], market);
+                parsedPositions.push(this.extend(parsedPosition, {
+                    'timestamp': timestamp,
+                    'datetime': this.iso8601(timestamp),
+                }));
+            }
+            return parsedPositions;
+        }
     }
     async fetchAccountConfiguration(symbol, params = {}) {
         await this.loadMarkets();
-        const position = await this.fetchPosition(symbol);
-        return this.parseAccountConfiguration(position);
+        const market = this.market(symbol);
+        let promises = [
+            this.fetchPosition(symbol, {}, false),
+        ];
+        const isUnified = market['linear'] && await this.isUnifiedEnabled();
+        if (isUnified) {
+            promises.push(this.privateGetV5AccountInfo());
+        }
+        promises = await Promise.all(promises);
+        const positions = promises[0];
+        let accountInfo = undefined;
+        if (isUnified) {
+            const accountInfoResponse = promises[1];
+            accountInfo = this.safeValue(accountInfoResponse, 'result');
+        }
+        return this.parseAccountConfiguration(positions, accountInfo);
     }
-    parseAccountConfiguration(position) {
+    parseAccountConfiguration(positions, accountInfo) {
+        let marginMode = undefined;
+        if (accountInfo !== undefined) {
+            marginMode = this.safeString(accountInfo, 'marginMode');
+            if (marginMode === 'ISOLATED_MARGIN') {
+                marginMode = 'isolated';
+            }
+            else {
+                marginMode = 'cross';
+            }
+        }
+        else {
+            marginMode = this.safeString(positions[0], 'marginMode');
+        }
+        let leverage = undefined;
+        let buyLeverage = undefined;
+        let sellLeverage = undefined;
+        for (let i = 0; i < positions.length; i++) {
+            const position = positions[i];
+            const side = this.safeString(position, 'side');
+            if (side === 'long') {
+                buyLeverage = this.safeNumber(position, 'leverage');
+            }
+            else if (side === 'short') {
+                sellLeverage = this.safeNumber(position, 'leverage');
+            }
+            else {
+                const foundLeverage = this.safeNumber(position, 'leverage');
+                buyLeverage = foundLeverage;
+                sellLeverage = foundLeverage;
+            }
+        }
+        leverage = buyLeverage || sellLeverage;
         const accountConfig = {
-            'leverage': this.safeNumber(position, 'leverage'),
-            'positionMode': this.safeString(position, 'positionMode'),
-            'marginMode': this.safeString(position, 'marginMode'),
+            'leverage': leverage,
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': this.safeString(positions[0], 'positionMode'),
+            'marginMode': marginMode,
             'markets': {},
         };
-        const symbol = this.safeString(position, 'symbol');
+        const symbol = this.safeString(positions[0], 'symbol');
         accountConfig['markets'][symbol] = {
-            'leverage': this.safeNumber(position, 'leverage'),
-            'positionMode': this.safeString(position, 'positionMode'),
-            'marginMode': this.safeString(position, 'marginMode'),
+            'leverage': leverage,
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+            'positionMode': this.safeString(positions[0], 'positionMode'),
+            'marginMode': marginMode,
         };
         return accountConfig;
     }
@@ -6972,9 +6713,6 @@ class bybit extends Exchange["default"] {
             const market = this.market(first);
             settle = market['settle'];
         }
-        if (enableUnified[1]) {
-            request['settleCoin'] = settle;
-        }
         // market undefined
         [type, params] = this.handleMarketTypeAndParams('fetchPositions', undefined, params);
         let subType = undefined;
@@ -6983,8 +6721,17 @@ class bybit extends Exchange["default"] {
         if (type === 'option') {
             request['category'] = 'option';
         }
+        if (enableUnified[1] && subType !== 'inverse') {
+            request['settleCoin'] = settle;
+        }
         const method = (enableUnified[1]) ? 'privateGetV5PositionList' : 'privateGetUnifiedV3PrivatePositionList';
-        const response = await this[method](this.extend(request, params));
+        let finalParams = this.extend(request, params);
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        if (subType === 'inverse') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        finalParams['limit'] = 200;
+        const response = await this[method](finalParams);
         //
         //     {
         //         "retCode": 0,
@@ -7126,13 +6873,19 @@ class bybit extends Exchange["default"] {
             }
         }
         [settle, params] = this.handleOptionAndParams(params, 'fetchPositions', 'settle', settle);
-        if (settle !== undefined) {
-            request['settleCoin'] = settle;
-        }
         let subType = undefined;
         [subType, params] = this.handleSubTypeAndParams('fetchPositions', market, params, 'linear');
         request['category'] = subType;
-        const response = await this.privateGetV5PositionList(this.extend(request, params));
+        if (settle !== undefined && subType !== 'inverse') {
+            request['settleCoin'] = settle;
+        }
+        // forcefully exclude settleCoin for inverse since it can come from ccxt.pro
+        let finalParams = this.extend(request, params);
+        if (subType === 'inverse') {
+            finalParams = this.omit(finalParams, ['settleCoin']);
+        }
+        finalParams['limit'] = 200;
+        const response = await this.privateGetV5PositionList(finalParams);
         //
         //     {
         //         "retCode": 0,
@@ -7176,6 +6929,30 @@ class bybit extends Exchange["default"] {
         const result = this.safeValue(response, 'result', {});
         const positions = this.safeValue(result, 'list', []);
         return this.parsePositions(positions, symbols, params);
+    }
+    async fetchAllPositions(params = {}) {
+        /**
+         * @method
+         * @name bybit#fetchAllPositions
+         * @description fetch all open positions for all currencies
+         */
+        const [subType] = this.handleSubTypeAndParams('fetchAllPositions', undefined, params);
+        const linearSettleCoins = ['USDT'];
+        let promises = [];
+        if (subType !== 'inverse') {
+            for (let i = 0; i < linearSettleCoins.length; i++) {
+                promises.push(this.fetchPositions(undefined, { 'subType': 'linear', 'settleCoin': linearSettleCoins[i] }));
+            }
+        }
+        else {
+            promises.push(this.fetchPositions(undefined, { 'subType': 'inverse', 'settleCoin': 'BTC' }));
+        }
+        promises = await Promise.all(promises);
+        let result = [];
+        for (let i = 0; i < promises.length; i++) {
+            result = this.arrayConcat(result, promises[i]);
+        }
+        return result;
     }
     async fetchPositions(symbols = undefined, params = {}) {
         /**
@@ -7338,7 +7115,7 @@ class bybit extends Exchange["default"] {
         let size = Precise["default"].stringAbs(this.safeString(position, 'size'));
         let side = this.safeString(position, 'side');
         const positionIdx = this.safeString(position, 'positionIdx');
-        if (!side && positionIdx !== '0') {
+        if ((!side || side === '' || side === 'None') && positionIdx !== '0') {
             if (positionIdx === '1') {
                 side = 'Buy';
             }
@@ -7363,9 +7140,9 @@ class bybit extends Exchange["default"] {
         const unrealisedPnl = this.omitZero(this.safeString(position, 'unrealisedPnl'));
         let initialMarginString = this.safeString(position, 'positionIM');
         let maintenanceMarginString = this.safeString(position, 'positionMM');
-        let timestamp = this.parse8601(this.safeString(position, 'updated_at'));
+        let timestamp = this.parse8601(this.safeString2(position, 'updated_at', 'updated_time'));
         if (timestamp === undefined) {
-            timestamp = this.safeInteger(position, 'updatedAt');
+            timestamp = this.safeInteger2(position, 'updatedAt', 'updatedTime');
         }
         // default to cross of USDC margined positions
         const tradeMode = this.safeInteger(position, 'tradeMode', 0);
@@ -7421,11 +7198,10 @@ class bybit extends Exchange["default"] {
             }
         }
         let status = true;
-        if (size === '0') {
-            status = false;
-        }
         let active = true;
-        if (this.safeString(position, 'positionStatus') !== 'Normal') {
+        const positionStatus = this.safeString(position, 'positionStatus');
+        if (positionStatus !== 'Normal' || size === '0') {
+            status = false;
             active = false;
         }
         return {
@@ -7528,25 +7304,28 @@ class bybit extends Exchange["default"] {
         await this.loadMarkets();
         const values = await this.isUnifiedEnabled();
         const isUnifiedAccount = this.safeValue(values, 1);
-        if (isUnifiedAccount) {
+        const market = this.market(symbol);
+        if (isUnifiedAccount && market['linear']) {
             return await this.setUnifiedMarginMode(marginMode, symbol, params);
         }
         return await this.setDerivativesMarginMode(marginMode, symbol, params);
     }
     async setUnifiedMarginMode(marginMode, symbol = undefined, params = {}) {
         await this.loadMarkets();
-        if ((marginMode !== 'REGULAR_MARGIN') && (marginMode !== 'PORTFOLIO_MARGIN')) {
-            throw new errors.BadRequest(this.id + ' setMarginMode() marginMode must be either REGULAR_MARGIN or PORTFOLIO_MARGIN');
+        let formattedMarginMode = marginMode;
+        if (marginMode === 'isolated') {
+            formattedMarginMode = 'ISOLATED_MARGIN';
+        }
+        else if (marginMode === 'cross') {
+            formattedMarginMode = 'REGULAR_MARGIN';
+        }
+        else {
+            throw new errors.BadRequest(this.id + ' setMarginMode() does not support marginMode ' + marginMode + '');
         }
         const request = {
-            'setMarginMode': marginMode,
+            'setMarginMode': formattedMarginMode,
         };
         const response = await this.privatePostV5AccountSetMarginMode(this.extend(request, params));
-        //
-        //  {
-        //      "setMarginMode": "PORTFOLIO_MARGIN"
-        //  }
-        //
         return response;
     }
     async setDerivativesMarginMode(marginMode, symbol = undefined, params = {}) {
@@ -7629,13 +7408,15 @@ class bybit extends Exchange["default"] {
         // engage in leverage setting
         // we reuse the code here instead of having two methods
         leverage = this.numberToString(leverage);
+        const buyLeverage = this.safeString(params, 'buyLeverage', leverage);
+        const sellLeverage = this.safeString(params, 'sellLeverage', leverage);
         let method = undefined;
         let request = undefined;
         if (enableUnifiedMargin || enableUnifiedAccount || !isUsdcSettled) {
             request = {
                 'symbol': market['id'],
-                'buyLeverage': leverage,
-                'sellLeverage': leverage,
+                'buyLeverage': buyLeverage,
+                'sellLeverage': sellLeverage,
             };
             if (enableUnifiedAccount) {
                 if (market['linear']) {
@@ -7671,8 +7452,8 @@ class bybit extends Exchange["default"] {
         }
         // TEALSTREET
         params = {
-            'buyLeverage': this.safeString(params, 'buyLeverage') || request['buyLeverage'],
-            'sellLeverage': this.safeString(params, 'sellLeverage') || request['sellLeverage'],
+            'buyLeverage': buyLeverage || request['buyLeverage'],
+            'sellLeverage': sellLeverage || request['sellLeverage'],
         };
         // TEALSTREET
         return await this[method](this.extend(request, params));

@@ -184,6 +184,12 @@ export default class phemex extends Exchange {
         updated: any;
         fee: any;
     };
+    fetchAccountConfiguration(symbol: any, params?: {}): Promise<{
+        marginMode: string;
+        positionMode: string;
+        markets: {};
+        info: any;
+    }>;
     fetchAllPositions(params?: {}): Promise<any[]>;
     fetchPositions(symbols?: string[], params?: {}): Promise<any>;
     parsePosition(position: any, market?: any): {
