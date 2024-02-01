@@ -3208,6 +3208,7 @@ class phemex extends Exchange {
         $leverageConfigs = $accountConfig['markets'];
         $leverageConfigs[$market['symbol']] = array(
             'buyLeverage' => $buyLeverage,
+            'leverage' => $buyLeverage,
             'sellLeverage' => $sellLeverage,
             'positionMode' => $positionMode,
         );

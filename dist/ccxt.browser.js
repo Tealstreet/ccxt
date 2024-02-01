@@ -43531,6 +43531,7 @@ class phemex extends _Exchange.Exchange {
     const leverageConfigs = accountConfig['markets'];
     leverageConfigs[market['symbol']] = {
       'buyLeverage': buyLeverage,
+      'leverage': buyLeverage,
       'sellLeverage': sellLeverage,
       'positionMode': positionMode
     };
