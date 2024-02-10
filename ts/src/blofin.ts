@@ -200,6 +200,7 @@ export default class blofin extends Exchange {
                     '-1103': InvalidOrder, // { "code": -1103,  "message": "The order price is not following the tick size rule for the symbol." }
                     '-1104': InvalidOrder, // { "code": -1104,  "message": "The order quantity is not following the step size rule for the symbol." }
                     '-1105': InvalidOrder, // { "code": -1105,  "message": "Price is X% too high or X% too low from the mid price." }
+                    '103003': InvalidOrder, // {'orderId': None, 'clientOrderId': '', 'msg': 'Order failed. Insufficient USDT margin in account', 'code': '103003'}
                 },
                 'broad': {
                     'symbol must not be blank': BadRequest, // when sending 'cancelOrder' without symbol [-1005]
@@ -1997,9 +1998,9 @@ export default class blofin extends Exchange {
         //    }
         //
         const code = this.safeString (response, 'code');
+        const data = this.safeValue (response, 'data', []);
         if (code !== '0') {
             const feedback = this.id + ' ' + body;
-            const data = this.safeValue (response, 'data', []);
             for (let i = 0; i < data.length; i++) {
                 const error = data[i];
                 const errorCode = this.safeString (error, 'sCode');
@@ -2009,6 +2010,24 @@ export default class blofin extends Exchange {
             }
             this.throwExactlyMatchedException (this.exceptions['exact'], code, feedback);
             throw new ExchangeError (feedback); // unknown message
+        }
+        for (let i = 0; i < data.length; i++) {
+            // hack bc not always array and this.isArray not working
+            let error = null;
+            try {
+                error = data[i];
+            } catch (e) {
+                continue;
+            }
+            const errorCode = this.safeString2 (error, 'sCode', 'code', '0');
+            if (errorCode !== '0') {
+                const message = this.safeString2 (error, 'sMsg', 'msg');
+                const feedback = this.id + ' ' + message;
+                this.throwExactlyMatchedException (this.exceptions['exact'], errorCode, feedback);
+                this.throwBroadlyMatchedException (this.exceptions['broad'], message, feedback);
+                // fuck it cant keep up with all the blofin errors
+                throw new InvalidOrder (feedback);
+            }
         }
     }
 

@@ -209,6 +209,7 @@ class blofin(Exchange):
                     '-1103': InvalidOrder,  # {"code": -1103,  "message": "The order price is not following the tick size rule for the symbol."}
                     '-1104': InvalidOrder,  # {"code": -1104,  "message": "The order quantity is not following the step size rule for the symbol."}
                     '-1105': InvalidOrder,  # {"code": -1105,  "message": "Price is X% too high or X% too low from the mid price."}
+                    '103003': InvalidOrder,  # {'orderId': None, 'clientOrderId': '', 'msg': 'Order failed. Insufficient USDT margin in account', 'code': '103003'}
                 },
                 'broad': {
                     'symbol must not be blank': BadRequest,  # when sending 'cancelOrder' without symbol [-1005]
@@ -1858,9 +1859,9 @@ class blofin(Exchange):
         #    }
         #
         code = self.safe_string(response, 'code')
+        data = self.safe_value(response, 'data', [])
         if code != '0':
             feedback = self.id + ' ' + body
-            data = self.safe_value(response, 'data', [])
             for i in range(0, len(data)):
                 error = data[i]
                 errorCode = self.safe_string(error, 'sCode')
@@ -1869,6 +1870,21 @@ class blofin(Exchange):
                 self.throw_broadly_matched_exception(self.exceptions['broad'], message, feedback)
             self.throw_exactly_matched_exception(self.exceptions['exact'], code, feedback)
             raise ExchangeError(feedback)  # unknown message
+        for i in range(0, len(data)):
+            # hack bc not always array and self.is_array not working
+            error = None
+            try:
+                error = data[i]
+            except Exception as e:
+                continue
+            errorCode = self.safe_string_2(error, 'sCode', 'code', '0')
+            if errorCode != '0':
+                message = self.safe_string_2(error, 'sMsg', 'msg')
+                feedback = self.id + ' ' + message
+                self.throw_exactly_matched_exception(self.exceptions['exact'], errorCode, feedback)
+                self.throw_broadly_matched_exception(self.exceptions['broad'], message, feedback)
+                # fuck it cant keep up with all the blofin errors
+                raise InvalidOrder(feedback)
 
     def market(self, symbol):
         symbol = symbol.replace('/', '-')

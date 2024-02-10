@@ -199,6 +199,7 @@ class blofin extends Exchange {
                     '-1103' => '\\ccxt\\InvalidOrder', // array( "code" => -1103,  "message" => "The order price is not following the tick size rule for the symbol." )
                     '-1104' => '\\ccxt\\InvalidOrder', // array( "code" => -1104,  "message" => "The order quantity is not following the step size rule for the symbol." )
                     '-1105' => '\\ccxt\\InvalidOrder', // array( "code" => -1105,  "message" => "Price is X% too high or X% too low from the mid price." )
+                    '103003' => '\\ccxt\\InvalidOrder', // array('orderId' => None, 'clientOrderId' => '', 'msg' => 'Order failed. Insufficient USDT margin in account', 'code' => '103003')
                 ),
                 'broad' => array(
                     'symbol must not be blank' => '\\ccxt\\BadRequest', // when sending 'cancelOrder' without symbol [-1005]
@@ -1974,9 +1975,9 @@ class blofin extends Exchange {
         //    }
         //
         $code = $this->safe_string($response, 'code');
+        $data = $this->safe_value($response, 'data', array());
         if ($code !== '0') {
             $feedback = $this->id . ' ' . $body;
-            $data = $this->safe_value($response, 'data', array());
             for ($i = 0; $i < count($data); $i++) {
                 $error = $data[$i];
                 $errorCode = $this->safe_string($error, 'sCode');
@@ -1986,6 +1987,24 @@ class blofin extends Exchange {
             }
             $this->throw_exactly_matched_exception($this->exceptions['exact'], $code, $feedback);
             throw new ExchangeError($feedback); // unknown $message
+        }
+        for ($i = 0; $i < count($data); $i++) {
+            // hack bc not always array and array($this, 'is_array') not working
+            $error = null;
+            try {
+                $error = $data[$i];
+            } catch (Exception $e) {
+                continue;
+            }
+            $errorCode = $this->safe_string_2($error, 'sCode', 'code', '0');
+            if ($errorCode !== '0') {
+                $message = $this->safe_string_2($error, 'sMsg', 'msg');
+                $feedback = $this->id . ' ' . $message;
+                $this->throw_exactly_matched_exception($this->exceptions['exact'], $errorCode, $feedback);
+                $this->throw_broadly_matched_exception($this->exceptions['broad'], $message, $feedback);
+                // fuck it cant keep up with all the blofin errors
+                throw new InvalidOrder($feedback);
+            }
         }
     }
 

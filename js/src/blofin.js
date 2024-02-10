@@ -668,7 +668,7 @@ export default class blofin extends Exchange {
             // posSide is not used by blofin
             'orderType': orderType,
             'reduceOnly': reduceOnly,
-            'brokerId': 'b3cdedc0a20880ba',
+            // 'brokerId': 'b3cdedc0a20880ba',
         };
         params = this.omit(params, ['clientOrderId']);
         if (price !== undefined) {
@@ -1971,9 +1971,9 @@ export default class blofin extends Exchange {
         //    }
         //
         const code = this.safeString(response, 'code');
+        const data = this.safeValue(response, 'data', []);
         if (code !== '0') {
             const feedback = this.id + ' ' + body;
-            const data = this.safeValue(response, 'data', []);
             for (let i = 0; i < data.length; i++) {
                 const error = data[i];
                 const errorCode = this.safeString(error, 'sCode');
@@ -1983,6 +1983,16 @@ export default class blofin extends Exchange {
             }
             this.throwExactlyMatchedException(this.exceptions['exact'], code, feedback);
             throw new ExchangeError(feedback); // unknown message
+        }
+        for (let i = 0; i < data.length; i++) {
+            const error = data[i];
+            const errorCode = this.safeString2(error, 'sCode', 'code', '0');
+            if (errorCode !== '0') {
+                const message = this.safeString2(error, 'sMsg', 'msg');
+                const feedback = this.id + ' ' + message;
+                this.throwExactlyMatchedException(this.exceptions['exact'], errorCode, feedback);
+                this.throwBroadlyMatchedException(this.exceptions['broad'], message, feedback);
+            }
         }
     }
     market(symbol) {
