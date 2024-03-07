@@ -12,7 +12,8 @@
         "okex5",
         "okx",
         "phemex",
-        "woo"
+        "woo",
+        "woofi"
     ],
     "ws": [
         "binance",
@@ -26,6 +27,7 @@
         "okex",
         "okx",
         "phemex",
-        "woo"
+        "woo",
+        "woofi"
     ]
 }

@@ -54,6 +54,7 @@ import okex5 from './src/okex5.js';
 import okx from './src/okx.js';
 import phemex from './src/phemex.js';
 import woo from './src/woo.js';
+import woofi from './src/woofi.js';
 // pro exchanges
 import binancePro from './src/pro/binance.js';
 import binancecoinmPro from './src/pro/binancecoinm.js';
@@ -67,6 +68,7 @@ import okexPro from './src/pro/okex.js';
 import okxPro from './src/pro/okx.js';
 import phemexPro from './src/pro/phemex.js';
 import wooPro from './src/pro/woo.js';
+import woofiPro from './src/pro/woofi.js';
 const exchanges = {
     'binance': binance,
     'binancecoinm': binancecoinm,
@@ -81,6 +83,7 @@ const exchanges = {
     'okx': okx,
     'phemex': phemex,
     'woo': woo,
+    'woofi': woofi,
 };
 const pro = {
     'binance': binancePro,
@@ -95,6 +98,7 @@ const pro = {
     'okx': okxPro,
     'phemex': phemexPro,
     'woo': wooPro,
+    'woofi': woofiPro,
 };
 for (const exchange in pro) {
     // const ccxtExchange = exchanges[exchange]
@@ -108,6 +112,6 @@ pro.exchanges = Object.keys(pro);
 pro['Exchange'] = Exchange; // now the same for rest and ts
 //-----------------------------------------------------------------------------
 const ccxt = Object.assign({ version, Exchange, Precise, 'exchanges': Object.keys(exchanges), 'pro': pro }, exchanges, functions, errors);
-export { version, Exchange, exchanges, pro, Precise, functions, errors, BaseError, ExchangeError, PermissionDenied, AccountNotEnabled, AccountSuspended, ArgumentsRequired, BadRequest, BadSymbol, MarginModeAlreadySet, BadResponse, NullResponse, InsufficientFunds, InvalidAddress, InvalidOrder, OrderNotFound, OrderNotCached, CancelPending, OrderImmediatelyFillable, OrderNotFillable, DuplicateOrderId, NotSupported, NetworkError, DDoSProtection, RateLimitExceeded, ExchangeNotAvailable, OnMaintenance, InvalidNonce, RequestTimeout, AuthenticationError, AddressPending, binance, binancecoinm, binanceusdm, bingx, bitget, bitmex, blofin, bybit, okex, okex5, okx, phemex, woo, };
+export { version, Exchange, exchanges, pro, Precise, functions, errors, BaseError, ExchangeError, PermissionDenied, AccountNotEnabled, AccountSuspended, ArgumentsRequired, BadRequest, BadSymbol, MarginModeAlreadySet, BadResponse, NullResponse, InsufficientFunds, InvalidAddress, InvalidOrder, OrderNotFound, OrderNotCached, CancelPending, OrderImmediatelyFillable, OrderNotFillable, DuplicateOrderId, NotSupported, NetworkError, DDoSProtection, RateLimitExceeded, ExchangeNotAvailable, OnMaintenance, InvalidNonce, RequestTimeout, AuthenticationError, AddressPending, binance, binancecoinm, binanceusdm, bingx, bitget, bitmex, blofin, bybit, okex, okex5, okx, phemex, woo, woofi, };
 export default ccxt;
 //-----------------------------------------------------------------------------

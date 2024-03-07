@@ -200,7 +200,8 @@ export default class blofin extends Exchange {
                     '-1102': InvalidOrder,
                     '-1103': InvalidOrder,
                     '-1104': InvalidOrder,
-                    '-1105': InvalidOrder, // { "code": -1105,  "message": "Price is X% too high or X% too low from the mid price." }
+                    '-1105': InvalidOrder,
+                    '103003': InvalidOrder, // {'orderId': None, 'clientOrderId': '', 'msg': 'Order failed. Insufficient USDT margin in account', 'code': '103003'}
                 },
                 'broad': {
                     'symbol must not be blank': BadRequest,
@@ -668,7 +669,7 @@ export default class blofin extends Exchange {
             // posSide is not used by blofin
             'orderType': orderType,
             'reduceOnly': reduceOnly,
-            // 'brokerId': 'b3cdedc0a20880ba',
+            'brokerId': 'b3cdedc0a20880ba',
         };
         params = this.omit(params, ['clientOrderId']);
         if (price !== undefined) {
@@ -1985,13 +1986,22 @@ export default class blofin extends Exchange {
             throw new ExchangeError(feedback); // unknown message
         }
         for (let i = 0; i < data.length; i++) {
-            const error = data[i];
+            // hack bc not always array and this.isArray not working
+            let error = null;
+            try {
+                error = data[i];
+            }
+            catch (e) {
+                continue;
+            }
             const errorCode = this.safeString2(error, 'sCode', 'code', '0');
             if (errorCode !== '0') {
                 const message = this.safeString2(error, 'sMsg', 'msg');
                 const feedback = this.id + ' ' + message;
                 this.throwExactlyMatchedException(this.exceptions['exact'], errorCode, feedback);
                 this.throwBroadlyMatchedException(this.exceptions['broad'], message, feedback);
+                // fuck it cant keep up with all the blofin errors
+                throw new InvalidOrder(feedback);
             }
         }
     }
