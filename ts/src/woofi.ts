@@ -301,9 +301,10 @@ export default class woofi extends Exchange {
         // }
         //
         const result = [];
-        const data = this.safeValue (response, 'rows', []);
-        for (let i = 0; i < data.length; i++) {
-            const market = data[i];
+        const data = this.safeValue (response, 'data', {});
+        const rows = this.safeValue (data, 'rows', []);
+        for (let i = 0; i < rows.length; i++) {
+            const market = rows[i];
             const marketId = this.safeString (market, 'symbol');
             const parts = marketId.split ('_');
             let marketType = this.safeStringLower (parts, 0);

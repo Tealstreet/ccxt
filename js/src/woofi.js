@@ -172,6 +172,12 @@ export default class woofi extends Exchange {
                             'funding_fee/history': 30,
                             'positions': 3.33,
                             'position/{symbol}': 3.33,
+                            'client/holding': 1,
+                            'algo/order/{oid}': 1,
+                            'algo/orders': 1,
+                            'balances': 1,
+                            'accountinfo': 60,
+                            'buypower': 1,
                         },
                         'post': {
                             'order': 5,
@@ -180,33 +186,6 @@ export default class woofi extends Exchange {
                             'interest/repay': 60,
                             'client/account_mode': 120,
                             'client/leverage': 120,
-                        },
-                        'delete': {
-                            'order': 1,
-                            'client/order': 1,
-                            'orders': 1,
-                            'asset/withdraw': 120, // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                        },
-                    },
-                },
-                'v2': {
-                    'private': {
-                        'get': {
-                            'client/holding': 1,
-                        },
-                    },
-                },
-                'v3': {
-                    'private': {
-                        'get': {
-                            'algo/order/{oid}': 1,
-                            'algo/orders': 1,
-                            'balances': 1,
-                            'accountinfo': 60,
-                            'positions': 3.33,
-                            'buypower': 1,
-                        },
-                        'post': {
                             'algo/order': 5,
                         },
                         'put': {
@@ -216,6 +195,10 @@ export default class woofi extends Exchange {
                             'algo/order/client/{oid}': 2,
                         },
                         'delete': {
+                            'order': 1,
+                            'client/order': 1,
+                            'orders': 1,
+                            'asset/withdraw': 120,
                             'algo/order/{oid}': 1,
                             'algo/orders/pending': 1,
                             'algo/orders/pending/{symbol}': 1,
@@ -319,9 +302,10 @@ export default class woofi extends Exchange {
         // }
         //
         const result = [];
-        const data = this.safeValue(response, 'rows', []);
-        for (let i = 0; i < data.length; i++) {
-            const market = data[i];
+        const data = this.safeValue(response, 'data', {});
+        const rows = this.safeValue(data, 'rows', []);
+        for (let i = 0; i < rows.length; i++) {
+            const market = rows[i];
             const marketId = this.safeString(market, 'symbol');
             const parts = marketId.split('_');
             let marketType = this.safeStringLower(parts, 0);
@@ -537,7 +521,7 @@ export default class woofi extends Exchange {
          * @returns {object} a dictionary of [fee structures]{@link https://docs.ccxt.com/#/?id=fee-structure} indexed by market symbols
          */
         await this.loadMarkets();
-        const response = await this.v3PrivateGetAccountinfo(params);
+        const response = await this.v1PrivateGetAccountinfo(params);
         //
         //     {
         //         "success": true,
@@ -804,12 +788,12 @@ export default class woofi extends Exchange {
             request['triggerPrice'] = triggerPrice;
             request['quantity'] = this.amountToPrecision(symbol, amount);
             params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
-            // const response = await (this as any).v3PrivatePostAlgoOrder (this.extend (request, params));
+            // const response = await (this as any).v1PrivatePostAlgoOrder (this.extend (request, params));
             const brokerId = this.safeString(this.options, 'brokerId');
             if (brokerId !== undefined) {
                 request['brokerId'] = brokerId;
             }
-            const response = await this.v3PrivatePostAlgoOrder(request);
+            const response = await this.v1PrivatePostAlgoOrder(request);
             // {
             //     success: true,
             //     timestamp: '1641383206.489',
@@ -967,7 +951,7 @@ export default class woofi extends Exchange {
             market = this.market(symbol);
         }
         request['symbol'] = market['id'];
-        const response = await this.v3PrivateDeleteAlgoOrderOid(this.extend(request, params));
+        const response = await this.v1PrivateDeleteAlgoOrderOid(this.extend(request, params));
         //
         // { success: true, status: 'CANCEL_SENT' }
         //
@@ -1023,7 +1007,7 @@ export default class woofi extends Exchange {
             'symbol': market['id'],
         };
         const response = await this.v1PrivateDeleteOrders(this.extend(request, params));
-        await this.v3PrivateDeleteAlgoOrdersPending(this.extend(request, params));
+        await this.v1PrivateDeleteAlgoOrdersPending(this.extend(request, params));
         //
         //     {
         //         "success":true,
@@ -1156,7 +1140,7 @@ export default class woofi extends Exchange {
         for (let i = 0; i < 50; i++) {
             request['size'] = 50;
             request['page'] = i + 1;
-            const algoOrdersResponse = await this.v3PrivateGetAlgoOrders(this.extend(request, params));
+            const algoOrdersResponse = await this.v1PrivateGetAlgoOrders(this.extend(request, params));
             const algoOrdersData = this.safeValue(algoOrdersResponse, 'data');
             const algoOrdersMeta = this.safeValue(algoOrdersData, 'meta');
             const newRows = this.safeValue(algoOrdersData, 'rows');
@@ -1582,7 +1566,7 @@ export default class woofi extends Exchange {
          * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
          */
         await this.loadMarkets();
-        const response = await this.v3PrivateGetBalances(params);
+        const response = await this.v1PrivateGetBalances(params);
         //
         //     {
         //         "success": true,
@@ -2144,7 +2128,7 @@ export default class woofi extends Exchange {
                 'x-api-key': this.apiKey,
                 'x-api-timestamp': ts,
             };
-            if (version === 'v3') {
+            if (version === 'v1') {
                 auth = ts + method + '/' + version + '/' + pathWithParams;
                 if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
                     body = this.json(params);
@@ -2391,7 +2375,7 @@ export default class woofi extends Exchange {
     }
     async fetchLeverage(symbol, params = {}) {
         await this.loadMarkets();
-        const response = await this.v3PrivateGetAccountinfo(params);
+        const response = await this.v1PrivateGetAccountinfo(params);
         //
         //     {
         //         "success": true,
@@ -2463,7 +2447,7 @@ export default class woofi extends Exchange {
     }
     async fetchPositions(symbols = undefined, params = {}) {
         await this.loadMarkets();
-        const response = await this.v3PrivateGetPositions(params);
+        const response = await this.v1PrivateGetPositions(params);
         //
         //     {
         //         "success": true,

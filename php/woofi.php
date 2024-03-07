@@ -170,6 +170,12 @@ class woofi extends Exchange {
                             'funding_fee/history' => 30,
                             'positions' => 3.33, // 30 requests per 10 seconds
                             'position/{symbol}' => 3.33,
+                            'client/holding' => 1,
+                            'algo/order/{oid}' => 1,
+                            'algo/orders' => 1,
+                            'balances' => 1,
+                            'accountinfo' => 60,
+                            'buypower' => 1,
                         ),
                         'post' => array(
                             'order' => 5, // 2 requests per 1 second per symbol
@@ -178,33 +184,6 @@ class woofi extends Exchange {
                             'interest/repay' => 60,
                             'client/account_mode' => 120,
                             'client/leverage' => 120,
-                        ),
-                        'delete' => array(
-                            'order' => 1,
-                            'client/order' => 1,
-                            'orders' => 1,
-                            'asset/withdraw' => 120,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                        ),
-                    ),
-                ),
-                'v2' => array(
-                    'private' => array(
-                        'get' => array(
-                            'client/holding' => 1,
-                        ),
-                    ),
-                ),
-                'v3' => array(
-                    'private' => array(
-                        'get' => array(
-                            'algo/order/{oid}' => 1,
-                            'algo/orders' => 1,
-                            'balances' => 1,
-                            'accountinfo' => 60,
-                            'positions' => 3.33,
-                            'buypower' => 1,
-                        ),
-                        'post' => array(
                             'algo/order' => 5,
                         ),
                         'put' => array(
@@ -214,6 +193,10 @@ class woofi extends Exchange {
                             'algo/order/client/{oid}' => 2,
                         ),
                         'delete' => array(
+                            'order' => 1,
+                            'client/order' => 1,
+                            'orders' => 1,
+                            'asset/withdraw' => 120,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
                             'algo/order/{oid}' => 1,
                             'algo/orders/pending' => 1,
                             'algo/orders/pending/{symbol}' => 1,
@@ -296,7 +279,7 @@ class woofi extends Exchange {
         $response = $this->v1PublicGetInfo ($params);
         //
         // {
-        //     rows => [
+        //     $rows => [
         //         array(
         //             $symbol => "SPOT_AAVE_USDT",
         //             quote_min => 0,
@@ -316,9 +299,10 @@ class woofi extends Exchange {
         // }
         //
         $result = array();
-        $data = $this->safe_value($response, 'rows', array());
-        for ($i = 0; $i < count($data); $i++) {
-            $market = $data[$i];
+        $data = $this->safe_value($response, 'data', array());
+        $rows = $this->safe_value($data, 'rows', array());
+        for ($i = 0; $i < count($rows); $i++) {
+            $market = $rows[$i];
             $marketId = $this->safe_string($market, 'symbol');
             $parts = explode('_', $marketId);
             $marketType = $this->safe_string_lower($parts, 0);
@@ -534,7 +518,7 @@ class woofi extends Exchange {
          * @return {array} a dictionary of ~@link https://docs.ccxt.com/#/?id=fee-structure fee structures~ indexed by market symbols
          */
         $this->load_markets();
-        $response = $this->v3PrivateGetAccountinfo ($params);
+        $response = $this->v1PrivateGetAccountinfo ($params);
         //
         //     {
         //         "success" => true,
@@ -799,12 +783,12 @@ class woofi extends Exchange {
             $request['triggerPrice'] = $triggerPrice;
             $request['quantity'] = $this->amount_to_precision($symbol, $amount);
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
-            // $response = $this->v3PrivatePostAlgoOrder (array_merge($request, $params));
+            // $response = $this->v1PrivatePostAlgoOrder (array_merge($request, $params));
             $brokerId = $this->safe_string($this->options, 'brokerId');
             if ($brokerId !== null) {
                 $request['brokerId'] = $brokerId;
             }
-            $response = $this->v3PrivatePostAlgoOrder ($request);
+            $response = $this->v1PrivatePostAlgoOrder ($request);
             // {
             //     success => true,
             //     timestamp => '1641383206.489',
@@ -964,7 +948,7 @@ class woofi extends Exchange {
             $market = $this->market($symbol);
         }
         $request['symbol'] = $market['id'];
-        $response = $this->v3PrivateDeleteAlgoOrderOid (array_merge($request, $params));
+        $response = $this->v1PrivateDeleteAlgoOrderOid (array_merge($request, $params));
         //
         // array( success => true, status => 'CANCEL_SENT' )
         //
@@ -1018,7 +1002,7 @@ class woofi extends Exchange {
             'symbol' => $market['id'],
         );
         $response = $this->v1PrivateDeleteOrders (array_merge($request, $params));
-        $this->v3PrivateDeleteAlgoOrdersPending (array_merge($request, $params));
+        $this->v1PrivateDeleteAlgoOrdersPending (array_merge($request, $params));
         //
         //     {
         //         "success":true,
@@ -1147,7 +1131,7 @@ class woofi extends Exchange {
         for ($i = 0; $i < 50; $i++) {
             $request['size'] = 50;
             $request['page'] = $i + 1;
-            $algoOrdersResponse = $this->v3PrivateGetAlgoOrders (array_merge($request, $params));
+            $algoOrdersResponse = $this->v1PrivateGetAlgoOrders (array_merge($request, $params));
             $algoOrdersData = $this->safe_value($algoOrdersResponse, 'data');
             $algoOrdersMeta = $this->safe_value($algoOrdersData, 'meta');
             $newRows = $this->safe_value($algoOrdersData, 'rows');
@@ -1574,7 +1558,7 @@ class woofi extends Exchange {
          * @return {array} a ~@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure balance structure~
          */
         $this->load_markets();
-        $response = $this->v3PrivateGetBalances ($params);
+        $response = $this->v1PrivateGetBalances ($params);
         //
         //     {
         //         "success" => true,
@@ -2133,7 +2117,7 @@ class woofi extends Exchange {
                 'x-api-key' => $this->apiKey,
                 'x-api-timestamp' => $ts,
             );
-            if ($version === 'v3') {
+            if ($version === 'v1') {
                 $auth = $ts . $method . '/' . $version . '/' . $pathWithParams;
                 if ($method === 'POST' || $method === 'PUT' || $method === 'DELETE') {
                     $body = $this->json($params);
@@ -2385,7 +2369,7 @@ class woofi extends Exchange {
 
     public function fetch_leverage($symbol, $params = array ()) {
         $this->load_markets();
-        $response = $this->v3PrivateGetAccountinfo ($params);
+        $response = $this->v1PrivateGetAccountinfo ($params);
         //
         //     {
         //         "success" => true,
@@ -2460,7 +2444,7 @@ class woofi extends Exchange {
 
     public function fetch_positions($symbols = null, $params = array ()) {
         $this->load_markets();
-        $response = $this->v3PrivateGetPositions ($params);
+        $response = $this->v1PrivateGetPositions ($params);
         //
         //     {
         //         "success" => true,

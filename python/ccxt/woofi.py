@@ -178,6 +178,12 @@ class woofi(Exchange):
                             'funding_fee/history': 30,
                             'positions': 3.33,  # 30 requests per 10 seconds
                             'position/{symbol}': 3.33,
+                            'client/holding': 1,
+                            'algo/order/{oid}': 1,
+                            'algo/orders': 1,
+                            'balances': 1,
+                            'accountinfo': 60,
+                            'buypower': 1,
                         },
                         'post': {
                             'order': 5,  # 2 requests per 1 second per symbol
@@ -186,33 +192,6 @@ class woofi(Exchange):
                             'interest/repay': 60,
                             'client/account_mode': 120,
                             'client/leverage': 120,
-                        },
-                        'delete': {
-                            'order': 1,
-                            'client/order': 1,
-                            'orders': 1,
-                            'asset/withdraw': 120,  # implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                        },
-                    },
-                },
-                'v2': {
-                    'private': {
-                        'get': {
-                            'client/holding': 1,
-                        },
-                    },
-                },
-                'v3': {
-                    'private': {
-                        'get': {
-                            'algo/order/{oid}': 1,
-                            'algo/orders': 1,
-                            'balances': 1,
-                            'accountinfo': 60,
-                            'positions': 3.33,
-                            'buypower': 1,
-                        },
-                        'post': {
                             'algo/order': 5,
                         },
                         'put': {
@@ -222,6 +201,10 @@ class woofi(Exchange):
                             'algo/order/client/{oid}': 2,
                         },
                         'delete': {
+                            'order': 1,
+                            'client/order': 1,
+                            'orders': 1,
+                            'asset/withdraw': 120,  # implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
                             'algo/order/{oid}': 1,
                             'algo/orders/pending': 1,
                             'algo/orders/pending/{symbol}': 1,
@@ -323,9 +306,10 @@ class woofi(Exchange):
         # }
         #
         result = []
-        data = self.safe_value(response, 'rows', [])
-        for i in range(0, len(data)):
-            market = data[i]
+        data = self.safe_value(response, 'data', {})
+        rows = self.safe_value(data, 'rows', [])
+        for i in range(0, len(rows)):
+            market = rows[i]
             marketId = self.safe_string(market, 'symbol')
             parts = marketId.split('_')
             marketType = self.safe_string_lower(parts, 0)
@@ -530,7 +514,7 @@ class woofi(Exchange):
         :returns dict: a dictionary of `fee structures <https://docs.ccxt.com/#/?id=fee-structure>` indexed by market symbols
         """
         self.load_markets()
-        response = self.v3PrivateGetAccountinfo(params)
+        response = self.v1PrivateGetAccountinfo(params)
         #
         #     {
         #         "success": True,
@@ -786,11 +770,11 @@ class woofi(Exchange):
             request['triggerPrice'] = triggerPrice
             request['quantity'] = self.amount_to_precision(symbol, amount)
             params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
-            # response = self.v3PrivatePostAlgoOrder(self.extend(request, params))
+            # response = self.v1PrivatePostAlgoOrder(self.extend(request, params))
             brokerId = self.safe_string(self.options, 'brokerId')
             if brokerId is not None:
                 request['brokerId'] = brokerId
-            response = self.v3PrivatePostAlgoOrder(request)
+            response = self.v1PrivatePostAlgoOrder(request)
             # {
             #     success: True,
             #     timestamp: '1641383206.489',
@@ -932,7 +916,7 @@ class woofi(Exchange):
         if symbol is not None:
             market = self.market(symbol)
         request['symbol'] = market['id']
-        response = self.v3PrivateDeleteAlgoOrderOid(self.extend(request, params))
+        response = self.v1PrivateDeleteAlgoOrderOid(self.extend(request, params))
         #
         # {success: True, status: 'CANCEL_SENT'}
         #
@@ -980,7 +964,7 @@ class woofi(Exchange):
             'symbol': market['id'],
         }
         response = self.v1PrivateDeleteOrders(self.extend(request, params))
-        self.v3PrivateDeleteAlgoOrdersPending(self.extend(request, params))
+        self.v1PrivateDeleteAlgoOrdersPending(self.extend(request, params))
         #
         #     {
         #         "success":true,
@@ -1104,7 +1088,7 @@ class woofi(Exchange):
         for i in range(0, 50):
             request['size'] = 50
             request['page'] = i + 1
-            algoOrdersResponse = self.v3PrivateGetAlgoOrders(self.extend(request, params))
+            algoOrdersResponse = self.v1PrivateGetAlgoOrders(self.extend(request, params))
             algoOrdersData = self.safe_value(algoOrdersResponse, 'data')
             algoOrdersMeta = self.safe_value(algoOrdersData, 'meta')
             newRows = self.safe_value(algoOrdersData, 'rows')
@@ -1503,7 +1487,7 @@ class woofi(Exchange):
         :returns dict: a `balance structure <https://docs.ccxt.com/en/latest/manual.html?#balance-structure>`
         """
         self.load_markets()
-        response = self.v3PrivateGetBalances(params)
+        response = self.v1PrivateGetBalances(params)
         #
         #     {
         #         "success": True,
@@ -2022,7 +2006,7 @@ class woofi(Exchange):
                 'x-api-key': self.apiKey,
                 'x-api-timestamp': ts,
             }
-            if version == 'v3':
+            if version == 'v1':
                 auth = ts + method + '/' + version + '/' + pathWithParams
                 if method == 'POST' or method == 'PUT' or method == 'DELETE':
                     body = self.json(params)
@@ -2254,7 +2238,7 @@ class woofi(Exchange):
 
     def fetch_leverage(self, symbol, params={}):
         self.load_markets()
-        response = self.v3PrivateGetAccountinfo(params)
+        response = self.v1PrivateGetAccountinfo(params)
         #
         #     {
         #         "success": True,
@@ -2325,7 +2309,7 @@ class woofi(Exchange):
 
     def fetch_positions(self, symbols=None, params={}):
         self.load_markets()
-        response = self.v3PrivateGetPositions(params)
+        response = self.v1PrivateGetPositions(params)
         #
         #     {
         #         "success": True,
