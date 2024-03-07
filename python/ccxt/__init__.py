@@ -86,6 +86,7 @@ from ccxt.okex5 import okex5                                          # noqa: F4
 from ccxt.okx import okx                                              # noqa: F401
 from ccxt.phemex import phemex                                        # noqa: F401
 from ccxt.woo import woo                                              # noqa: F401
+from ccxt.woofi import woofi                                          # noqa: F401
 
 exchanges = [
     'binance',
@@ -101,6 +102,7 @@ exchanges = [
     'okx',
     'phemex',
     'woo',
+    'woofi',
 ]
 
 base = [

@@ -66,6 +66,7 @@ from ccxt.async_support.okex5 import okex5                                      
 from ccxt.async_support.okx import okx                                          # noqa: F401
 from ccxt.async_support.phemex import phemex                                    # noqa: F401
 from ccxt.async_support.woo import woo                                          # noqa: F401
+from ccxt.async_support.woofi import woofi                                       # noqa: F401
 
 exchanges = [
     'binance',
@@ -81,6 +82,7 @@ exchanges = [
     'okx',
     'phemex',
     'woo',
+    'woofi',
 ]
 
 base = [
