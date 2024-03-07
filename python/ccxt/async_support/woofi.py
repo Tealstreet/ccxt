@@ -5,6 +5,9 @@
 
 from ccxt.async_support.base.exchange import Exchange
 import hashlib
+from base58 import b58encode
+from base64 import urlsafe_b64encode
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
@@ -868,9 +871,9 @@ class woofi(Exchange):
             request['triggerPrice'] = triggerPrice
         if amount is not None:
             request['quantity'] = self.amount_to_precision(symbol, amount)
-        method = 'v3PrivatePutOrderOid'
+        method = 'v1PrivatePutOrderOid'
         if self.maybe_algo_order_id(id):
-            method = 'v3PrivatePutAlgoOrderOid'
+            method = 'v1PrivatePutAlgoOrderOid'
         response = await getattr(self, method)(self.extend(request, params))
         #
         #     {
@@ -986,7 +989,7 @@ class woofi(Exchange):
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         chosenSpotMethod = None
         if self.maybe_algo_order_id(id):
-            chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid'
+            chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid'
         elif clientOrderId:
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId'
             request['client_order_id'] = clientOrderId
@@ -1487,7 +1490,7 @@ class woofi(Exchange):
         :returns dict: a `balance structure <https://docs.ccxt.com/en/latest/manual.html?#balance-structure>`
         """
         await self.load_markets()
-        response = await self.v1PrivateGetBalances(params)
+        response = await self.v1PrivateGetClientHolding(params)
         #
         #     {
         #         "success": True,
@@ -2003,8 +2006,9 @@ class woofi(Exchange):
             ts = str(self.nonce())
             url += pathWithParams
             headers = {
-                'x-api-key': self.apiKey,
-                'x-api-timestamp': ts,
+                'orderly-key': self.apiKey,
+                'orderly-account-id': self.uid,
+                'orderly-timestamp': ts,
             }
             if version == 'v1':
                 auth = ts + method + '/' + version + '/' + pathWithParams
@@ -2025,7 +2029,7 @@ class woofi(Exchange):
                     url += '?' + auth
                 auth += '|' + ts
                 headers['content-type'] = 'application/x-www-form-urlencoded'
-            headers['x-api-signature'] = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256)
+            headers['orderly-signature'] = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):

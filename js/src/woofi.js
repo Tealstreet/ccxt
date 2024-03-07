@@ -895,9 +895,9 @@ export default class woofi extends Exchange {
         if (amount !== undefined) {
             request['quantity'] = this.amountToPrecision(symbol, amount);
         }
-        let method = 'v3PrivatePutOrderOid';
+        let method = 'v1PrivatePutOrderOid';
         if (this.maybeAlgoOrderId(id)) {
-            method = 'v3PrivatePutAlgoOrderOid';
+            method = 'v1PrivatePutAlgoOrderOid';
         }
         const response = await this[method](this.extend(request, params));
         //
@@ -1031,7 +1031,7 @@ export default class woofi extends Exchange {
         const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
         let chosenSpotMethod = undefined;
         if (this.maybeAlgoOrderId(id)) {
-            chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid';
+            chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid';
         }
         else if (clientOrderId) {
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
@@ -1566,7 +1566,7 @@ export default class woofi extends Exchange {
          * @returns {object} a [balance structure]{@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure}
          */
         await this.loadMarkets();
-        const response = await this.v1PrivateGetBalances(params);
+        const response = await this.v1PrivateGetClientHolding(params);
         //
         //     {
         //         "success": true,
@@ -2125,8 +2125,9 @@ export default class woofi extends Exchange {
             const ts = this.nonce().toString();
             url += pathWithParams;
             headers = {
-                'x-api-key': this.apiKey,
-                'x-api-timestamp': ts,
+                'orderly-key': this.apiKey,
+                'orderly-account-id': this.uid,
+                'orderly-timestamp': ts,
             };
             if (version === 'v1') {
                 auth = ts + method + '/' + version + '/' + pathWithParams;
@@ -2154,7 +2155,7 @@ export default class woofi extends Exchange {
                 auth += '|' + ts;
                 headers['content-type'] = 'application/x-www-form-urlencoded';
             }
-            headers['x-api-signature'] = this.hmac(this.encode(auth), this.encode(this.secret), 'sha256');
+            headers['orderly-signature'] = this.hmac(this.encode(auth), this.encode(this.secret), 'sha256');
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }

@@ -826,6 +826,12 @@ class Transpiler {
             libraries.push ('import numbers')
         }
 
+        if (bodyAsString.match (/woofi/)) {
+            libraries.push ('from base58 import b58encode')
+            libraries.push ('from base64 import urlsafe_b64encode')
+            libraries.push ('from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey')
+        }
+
         const errorImports = []
 
         for (let error in errors) {

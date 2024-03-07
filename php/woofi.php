@@ -892,9 +892,9 @@ class woofi extends Exchange {
         if ($amount !== null) {
             $request['quantity'] = $this->amount_to_precision($symbol, $amount);
         }
-        $method = 'v3PrivatePutOrderOid';
+        $method = 'v1PrivatePutOrderOid';
         if ($this->maybe_algo_order_id($id)) {
-            $method = 'v3PrivatePutAlgoOrderOid';
+            $method = 'v1PrivatePutAlgoOrderOid';
         }
         $response = $this->$method (array_merge($request, $params));
         //
@@ -1025,7 +1025,7 @@ class woofi extends Exchange {
         $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
         $chosenSpotMethod = null;
         if ($this->maybe_algo_order_id($id)) {
-            $chosenSpotMethod = 'v3PrivateDeleteAlgoOrderOid';
+            $chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid';
         } elseif ($clientOrderId) {
             $chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
             $request['client_order_id'] = $clientOrderId;
@@ -1558,7 +1558,7 @@ class woofi extends Exchange {
          * @return {array} a ~@link https://docs.ccxt.com/en/latest/manual.html?#balance-structure balance structure~
          */
         $this->load_markets();
-        $response = $this->v1PrivateGetBalances ($params);
+        $response = $this->v1PrivateGetClientHolding ($params);
         //
         //     {
         //         "success" => true,
@@ -2114,8 +2114,9 @@ class woofi extends Exchange {
             $ts = (string) $this->nonce();
             $url .= $pathWithParams;
             $headers = array(
-                'x-api-key' => $this->apiKey,
-                'x-api-timestamp' => $ts,
+                'orderly-key' => $this->apiKey,
+                'orderly-account-id' => $this->uid,
+                'orderly-timestamp' => $ts,
             );
             if ($version === 'v1') {
                 $auth = $ts . $method . '/' . $version . '/' . $pathWithParams;
@@ -2140,7 +2141,7 @@ class woofi extends Exchange {
                 $auth .= '|' . $ts;
                 $headers['content-type'] = 'application/x-www-form-urlencoded';
             }
-            $headers['x-api-signature'] = $this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256');
+            $headers['orderly-signature'] = $this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256');
         }
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }
