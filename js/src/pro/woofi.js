@@ -5,12 +5,12 @@
 // EDIT THE CORRESPONDENT .ts FILE INSTEAD
 
 // ----------------------------------------------------------------------------
-import wooRest from '../woo.js';
+import woofiRest from '../woo.js';
 import { ExchangeError, AuthenticationError } from '../base/errors.js';
 import { ArrayCacheByTimestamp, ArrayCacheBySymbolById, ArrayCache } from '../base/ws/Cache.js';
 import { Precise } from '../base/Precise.js';
 // ----------------------------------------------------------------------------
-export default class woo extends wooRest {
+export default class woofi extends woofiRest {
     describe() {
         return this.deepExtend(super.describe(), {
             'has': {

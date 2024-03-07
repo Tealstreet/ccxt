@@ -10,7 +10,7 @@ import { ArgumentsRequired, AuthenticationError, RateLimitExceeded, BadRequest, 
 import { Precise } from './base/Precise.js';
 import { TICK_SIZE } from './base/functions/number.js';
 // ---------------------------------------------------------------------------
-export default class woo extends Exchange {
+export default class woofi extends Exchange {
     describe() {
         return this.deepExtend(super.describe(), {
             'id': 'woofi',
