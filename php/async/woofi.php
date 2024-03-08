@@ -1927,7 +1927,7 @@ class woofi extends Exchange {
             //     }
             //
             $result = $this->safe_value($response, 'data');
-            $leverage = $this->safe_number($result, 'leverage');
+            $leverage = $this->safe_number($result, 'max_leverage');
             return array(
                 'info' => $response,
                 'leverage' => $leverage,

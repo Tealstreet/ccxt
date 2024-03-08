@@ -1784,7 +1784,7 @@ class woofi(Exchange):
         #     }
         #
         result = self.safe_value(response, 'data')
-        leverage = self.safe_number(result, 'leverage')
+        leverage = self.safe_number(result, 'max_leverage')
         return {
             'info': response,
             'leverage': leverage,

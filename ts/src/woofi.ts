@@ -1909,7 +1909,7 @@ export default class woofi extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'data');
-        const leverage = this.safeNumber (result, 'leverage');
+        const leverage = this.safeNumber (result, 'max_leverage');
         return {
             'info': response,
             'leverage': leverage,
