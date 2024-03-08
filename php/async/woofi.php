@@ -2201,7 +2201,9 @@ class woofi extends Exchange {
                 $auth .= '|' . $ts;
                 $headers['content-type'] = 'application/x-www-form-urlencoded';
             }
-            $headers['orderly-signature'] = $this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256');
+            // $headers['orderly-signature'] = $this->hmac($this->encode($auth), $this->encode($this->secret), 'sha256');
+            $signer = new Signer ($this->uid, $this->secret);
+            $headers['orderly-signature'] = $signer->sign_request ($auth);
         }
         return array( 'url' => $url, 'method' => $method, 'body' => $body, 'headers' => $headers );
     }

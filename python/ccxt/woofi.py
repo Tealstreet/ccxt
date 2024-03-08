@@ -5,9 +5,7 @@
 
 from ccxt.base.exchange import Exchange
 import hashlib
-from base58 import b58encode
-from base64 import urlsafe_b64encode
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from ccxt.base.signer import Signer
 from ccxt.base.errors import ExchangeError
 from ccxt.base.errors import ArgumentsRequired
 from ccxt.base.errors import BadRequest
@@ -2029,7 +2027,9 @@ class woofi(Exchange):
                     url += '?' + auth
                 auth += '|' + ts
                 headers['content-type'] = 'application/x-www-form-urlencoded'
-            headers['orderly-signature'] = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256)
+            # headers['orderly-signature'] = self.hmac(self.encode(auth), self.encode(self.secret), hashlib.sha256)
+            signer = Signer(self.uid, self.secret)
+            headers['orderly-signature'] = signer.sign_request(auth)
         return {'url': url, 'method': method, 'body': body, 'headers': headers}
 
     def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):

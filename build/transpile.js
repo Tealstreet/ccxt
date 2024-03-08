@@ -827,9 +827,7 @@ class Transpiler {
         }
 
         if (bodyAsString.match (/woofi/)) {
-            libraries.push ('from base58 import b58encode')
-            libraries.push ('from base64 import urlsafe_b64encode')
-            libraries.push ('from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey')
+            libraries.push ('from ccxt.base.signer import Signer')
         }
 
         const errorImports = []
