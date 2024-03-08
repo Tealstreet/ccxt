@@ -187,9 +187,9 @@ class woofi extends Exchange {
                             'algo/order' => 5,
                         ),
                         'put' => array(
-                            'order/{oid}' => 2,
+                            'order' => 2,
                             'order/client/{oid}' => 2,
-                            'algo/order/{oid}' => 2,
+                            'algo/order' => 2,
                             'algo/order/client/{oid}' => 2,
                         ),
                         'delete' => array(
@@ -715,7 +715,7 @@ class woofi extends Exchange {
             $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
             $request = array(
                 'symbol' => $market['id'],
-                'algoType' => 'STOP',
+                'algo_type' => 'STOP',
                 'type' => $algoOrderType,
                 'side' => $orderSide,
             );
@@ -725,13 +725,13 @@ class woofi extends Exchange {
             if ($price !== null) {
                 $request['price'] = $this->price_to_precision($symbol, $price);
             }
-            $request['triggerPrice'] = $triggerPrice;
+            $request['trigger_price'] = $triggerPrice;
             $request['quantity'] = $this->amount_to_precision($symbol, $amount);
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
             // $response = $this->v1PrivatePostAlgoOrder (array_merge($request, $params));
             $brokerId = $this->safe_string($this->options, 'brokerId');
             if ($brokerId !== null) {
-                $request['brokerId'] = $brokerId;
+                $request['broker_id'] = $brokerId;
             }
             $response = $this->v1PrivatePostAlgoOrder ($request);
             // {
@@ -823,7 +823,7 @@ class woofi extends Exchange {
         $this->load_markets();
         $market = $this->market($symbol);
         $request = array(
-            'oid' => $id,
+            'order_id' => $id,
             // 'quantity' => $this->amount_to_precision($symbol, $amount),
             // 'price' => $this->price_to_precision($symbol, $price),
         );
@@ -832,14 +832,14 @@ class woofi extends Exchange {
         }
         $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
         if ($triggerPrice !== null) {
-            $request['triggerPrice'] = $triggerPrice;
+            $request['trigger_price'] = $triggerPrice;
         }
         if ($amount !== null) {
             $request['quantity'] = $this->amount_to_precision($symbol, $amount);
         }
-        $method = 'v1PrivatePutOrderOid';
+        $method = 'v1PrivatePutOrder';
         if ($this->maybe_algo_order_id($id)) {
-            $method = 'v1PrivatePutAlgoOrderOid';
+            $method = 'v1PrivatePutAlgoOrder';
         }
         $response = $this->$method (array_merge($request, $params));
         //
@@ -909,8 +909,9 @@ class woofi extends Exchange {
         $isByClientOrder = $clientOrderIdExchangeSpecific !== null;
         if ($isByClientOrder) {
             $request['client_order_id'] = $clientOrderIdExchangeSpecific;
-            $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'client_order_id' ));
+            $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'client_order_id', 'type' ));
         } else {
+            $params = $this->omit($params, array( 'type' ));
             $request['order_id'] = $id;
         }
         $market = null;
@@ -923,11 +924,11 @@ class woofi extends Exchange {
         // array( success => true, status => 'CANCEL_SENT' )
         //
         $extendParams = array( 'symbol' => $symbol );
-        if ($isByClientOrder) {
-            $extendParams['client_order_id'] = $clientOrderIdExchangeSpecific;
-        } else {
-            $extendParams['id'] = $id;
-        }
+        // if ($isByClientOrder) {
+        //     $extendParams['client_order_id'] = $clientOrderIdExchangeSpecific;
+        // } else {
+        $extendParams['id'] = $id;
+        // }
         return array_merge($this->parse_order($response), $extendParams);
     }
 
@@ -1130,7 +1131,7 @@ class woofi extends Exchange {
     }
 
     public function parse_order($order, $market = null) {
-        $isAlgoOrder = 'algoType' in $order;
+        $isAlgoOrder = 'algo_type' in $order;
         if ($isAlgoOrder) {
             return $this->parse_algo_order($order, $market);
         } else {
@@ -1204,29 +1205,29 @@ class woofi extends Exchange {
         // * fetchOrder
         // * fetchOrders
         // $isFromFetchOrder = (is_array($order) && array_key_exists('order_tag', $order)); TO_DO
-        $timestamp = $this->safe_timestamp_2($order, 'timestamp', 'createdTime');
-        $orderId = $this->safe_string($order, 'algoOrderId');
-        $clientOrderId = $this->safe_string($order, 'clientOrderId'); // Somehow, this always returns 0 for limit $order
+        $timestamp = $this->safe_timestamp_2($order, 'timestamp', 'created_time');
+        $orderId = $this->safe_string($order, 'algo_order_id');
+        $clientOrderId = $this->safe_string($order, 'algo_order_id'); // Somehow, this always returns 0 for limit $order
         $marketId = $this->safe_string($order, 'symbol');
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
-        $price = $this->safe_string_2($order, 'price', 'triggerPrice');
-        $stopPrice = $this->safe_string_2($order, 'triggerPrice', 'price');
+        $price = $this->safe_string_2($order, 'price', 'trigger_price');
+        $stopPrice = $this->safe_string_2($order, 'trigger_price', 'price');
         $amount = $this->safe_string_2($order, 'order_quantity', 'quantity'); // This is base $amount
         $cost = $this->safe_string_2($order, 'order_amount', 'amount'); // This is quote $amount
-        $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algoType'));
+        $orderType = $this->parse_order_type($this->safe_string_lower_2($order, 'order_type', 'type'), $this->safe_string_lower($order, 'algo_type'));
         $tsOrderType = $orderType;
         if ($orderType === 'market') {
             $tsOrderType = 'stop';
         }
-        $status = $this->safe_value($order, 'algoStatus');
+        $status = $this->safe_value($order, 'algo_status');
         $side = $this->safe_string_lower($order, 'side');
         $filled = $this->safe_value($order, 'executed');
         $average = $this->safe_string($order, 'average_executed_price');
         $remaining = Precise::string_sub($cost, $filled);
-        $fee = $this->safe_value($order, 'totalFee');
-        $feeCurrency = $this->safe_string($order, 'feeAsset');
-        $transactions = $this->safe_value($order, 'Transactions');
+        $fee = $this->safe_value($order, 'total_fee');
+        $feeCurrency = $this->safe_string($order, 'fee_asset');
+        // $transactions = $this->safe_value($order, 'Transactions');
         return $this->safe_order(array(
             'id' => $orderId,
             'clientOrderId' => $clientOrderId,
@@ -1248,7 +1249,7 @@ class woofi extends Exchange {
             'filled' => $filled,
             'remaining' => $remaining, // TO_DO
             'cost' => $cost,
-            'trades' => $transactions,
+            // 'trades' => $transactions,
             'fee' => array(
                 'cost' => $fee,
                 'currency' => $feeCurrency,
@@ -1592,7 +1593,8 @@ class woofi extends Exchange {
             );
             if ($version === 'v1') {
                 $auth = $ts . $method . '/' . $version . '/' . $pathWithParams;
-                if ($method === 'POST' || $method === 'PUT' || $method === 'DELETE') {
+                if ($method === 'POST' || $method === 'PUT') {
+                    $headers['content-type'] = 'application/x-www-form-urlencoded';
                     $body = $this->json($params);
                     $auth .= $body;
                 } else {
@@ -1602,10 +1604,14 @@ class woofi extends Exchange {
                         $auth .= '?' . $query;
                     }
                 }
-                $headers['content-type'] = 'application/json';
+                if ($method === 'DELETE') {
+                    $headers['content-type'] = 'application/x-www-form-urlencoded';
+                } else {
+                    $headers['content-type'] = 'application/json';
+                }
             } else {
                 $auth = $this->urlencode($params);
-                if ($method === 'POST' || $method === 'PUT' || $method === 'DELETE') {
+                if ($method === 'POST' || $method === 'PUT') {
                     $body = $auth;
                 } else {
                     $url .= '?' . $auth;
@@ -1944,7 +1950,7 @@ class woofi extends Exchange {
         //     }
         //
         $result = $this->safe_value($response, 'data', array());
-        $positions = $this->safe_value($result, 'positions', array());
+        $positions = $this->safe_value($result, 'rows', array());
         return $this->parse_positions($positions, $symbols);
     }
 
@@ -1966,7 +1972,7 @@ class woofi extends Exchange {
         //
         $contract = $this->safe_string($position, 'symbol');
         $market = $this->safe_market($contract, $market);
-        $size = $this->safe_string($position, 'holding');
+        $size = $this->safe_string($position, 'position_qty');
         $side = null;
         if (Precise::string_gt($size, '0')) {
             $side = 'long';
@@ -1974,9 +1980,9 @@ class woofi extends Exchange {
             $side = 'short';
         }
         $contractSize = $this->safe_string($market, 'contractSize');
-        $markPrice = $this->safe_string($position, 'markPrice');
+        $markPrice = $this->safe_string($position, 'mark_price');
         $timestamp = $this->safe_timestamp($position, 'timestamp');
-        $entryPrice = $this->safe_string($position, 'averageOpenPrice');
+        $entryPrice = $this->safe_string($position, 'average_open_price');
         $priceDifference = Precise::string_sub($markPrice, $entryPrice);
         $unrealisedPnl = Precise::string_mul($priceDifference, $size);
         return array(
@@ -1985,9 +1991,9 @@ class woofi extends Exchange {
             'symbol' => $market['symbol'],
             'notional' => null,
             'marginMode' => 'cross',
-            'liquidationPrice' => $this->safe_number($position, 'estLiqPrice'),
+            'liquidationPrice' => $this->safe_number($position, 'est_liq_price'),
             'entryPrice' => $this->parse_number($entryPrice),
-            'realizedPnl' => $this->safe_string($position, 'pnl24H'),
+            'realizedPnl' => $this->safe_string($position, 'pnl_24_h'),
             'unrealizedPnl' => $this->parse_number($unrealisedPnl),
             'percentage' => null,
             'contracts' => $this->parse_number($size),
@@ -1995,8 +2001,8 @@ class woofi extends Exchange {
             'markPrice' => $this->parse_number($markPrice),
             'side' => $side,
             'hedged' => false,
-            'timestamp' => $timestamp,
-            'datetime' => $this->iso8601($timestamp),
+            'timestamp' => $timestamp / 1000,
+            'datetime' => $this->iso8601($timestamp / 1000),
             'maintenanceMargin' => null,
             'maintenanceMarginPercentage' => null,
             'collateral' => null,

@@ -188,9 +188,9 @@ export default class woofi extends Exchange {
                             'algo/order': 5,
                         },
                         'put': {
-                            'order/{oid}': 2,
+                            'order': 2,
                             'order/client/{oid}': 2,
-                            'algo/order/{oid}': 2,
+                            'algo/order': 2,
                             'algo/order/client/{oid}': 2,
                         },
                         'delete': {
@@ -724,7 +724,7 @@ export default class woofi extends Exchange {
             const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
             const request = {
                 'symbol': market['id'],
-                'algoType': 'STOP',
+                'algo_type': 'STOP',
                 'type': algoOrderType,
                 'side': orderSide,
             };
@@ -734,13 +734,13 @@ export default class woofi extends Exchange {
             if (price !== undefined) {
                 request['price'] = this.priceToPrecision (symbol, price);
             }
-            request['triggerPrice'] = triggerPrice;
+            request['trigger_price'] = triggerPrice;
             request['quantity'] = this.amountToPrecision (symbol, amount);
             params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ]);
             // const response = await (this as any).v1PrivatePostAlgoOrder (this.extend (request, params));
             const brokerId = this.safeString (this.options, 'brokerId');
             if (brokerId !== undefined) {
-                request['brokerId'] = brokerId;
+                request['broker_id'] = brokerId;
             }
             const response = await (this as any).v1PrivatePostAlgoOrder (request);
             // {
@@ -834,7 +834,7 @@ export default class woofi extends Exchange {
         await this.loadMarkets ();
         const market = this.market (symbol);
         const request = {
-            'oid': id,
+            'order_id': id,
             // 'quantity': this.amountToPrecision (symbol, amount),
             // 'price': this.priceToPrecision (symbol, price),
         };
@@ -843,14 +843,14 @@ export default class woofi extends Exchange {
         }
         const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
         if (triggerPrice !== undefined) {
-            request['triggerPrice'] = triggerPrice;
+            request['trigger_price'] = triggerPrice;
         }
         if (amount !== undefined) {
             request['quantity'] = this.amountToPrecision (symbol, amount);
         }
-        let method = 'v1PrivatePutOrderOid';
+        let method = 'v1PrivatePutOrder';
         if (this.maybeAlgoOrderId (id)) {
-            method = 'v1PrivatePutAlgoOrderOid';
+            method = 'v1PrivatePutAlgoOrder';
         }
         const response = await (this as any)[method] (this.extend (request, params));
         //
@@ -922,8 +922,9 @@ export default class woofi extends Exchange {
         const isByClientOrder = clientOrderIdExchangeSpecific !== undefined;
         if (isByClientOrder) {
             request['client_order_id'] = clientOrderIdExchangeSpecific;
-            params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'client_order_id' ]);
+            params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'client_order_id', 'type' ]);
         } else {
+            params = this.omit (params, [ 'type' ]);
             request['order_id'] = id;
         }
         let market = undefined;
@@ -936,11 +937,11 @@ export default class woofi extends Exchange {
         // { success: true, status: 'CANCEL_SENT' }
         //
         const extendParams = { 'symbol': symbol };
-        if (isByClientOrder) {
-            extendParams['client_order_id'] = clientOrderIdExchangeSpecific;
-        } else {
-            extendParams['id'] = id;
-        }
+        // if (isByClientOrder) {
+        //     extendParams['client_order_id'] = clientOrderIdExchangeSpecific;
+        // } else {
+        extendParams['id'] = id;
+        // }
         return this.extend (this.parseOrder (response), extendParams);
     }
 
@@ -1149,7 +1150,7 @@ export default class woofi extends Exchange {
     }
 
     parseOrder (order, market = undefined) {
-        const isAlgoOrder = 'algoType' in order;
+        const isAlgoOrder = 'algo_type' in order;
         if (isAlgoOrder) {
             return this.parseAlgoOrder (order, market);
         } else {
@@ -1223,29 +1224,29 @@ export default class woofi extends Exchange {
         // * fetchOrder
         // * fetchOrders
         // const isFromFetchOrder = ('order_tag' in order); TO_DO
-        const timestamp = this.safeTimestamp2 (order, 'timestamp', 'createdTime');
-        const orderId = this.safeString (order, 'algoOrderId');
-        const clientOrderId = this.safeString (order, 'clientOrderId'); // Somehow, this always returns 0 for limit order
+        const timestamp = this.safeTimestamp2 (order, 'timestamp', 'created_time');
+        const orderId = this.safeString (order, 'algo_order_id');
+        const clientOrderId = this.safeString (order, 'algo_order_id'); // Somehow, this always returns 0 for limit order
         const marketId = this.safeString (order, 'symbol');
         market = this.safeMarket (marketId, market);
         const symbol = market['symbol'];
-        const price = this.safeString2 (order, 'price', 'triggerPrice');
-        const stopPrice = this.safeString2 (order, 'triggerPrice', 'price');
+        const price = this.safeString2 (order, 'price', 'trigger_price');
+        const stopPrice = this.safeString2 (order, 'trigger_price', 'price');
         const amount = this.safeString2 (order, 'order_quantity', 'quantity'); // This is base amount
         const cost = this.safeString2 (order, 'order_amount', 'amount'); // This is quote amount
-        const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'), this.safeStringLower (order, 'algoType'));
+        const orderType = this.parseOrderType (this.safeStringLower2 (order, 'order_type', 'type'), this.safeStringLower (order, 'algo_type'));
         let tsOrderType = orderType;
         if (orderType === 'market') {
             tsOrderType = 'stop';
         }
-        const status = this.safeValue (order, 'algoStatus');
+        const status = this.safeValue (order, 'algo_status');
         const side = this.safeStringLower (order, 'side');
         const filled = this.safeValue (order, 'executed');
         const average = this.safeString (order, 'average_executed_price');
         const remaining = Precise.stringSub (cost, filled);
-        const fee = this.safeValue (order, 'totalFee');
-        const feeCurrency = this.safeString (order, 'feeAsset');
-        const transactions = this.safeValue (order, 'Transactions');
+        const fee = this.safeValue (order, 'total_fee');
+        const feeCurrency = this.safeString (order, 'fee_asset');
+        // const transactions = this.safeValue (order, 'Transactions');
         return this.safeOrder ({
             'id': orderId,
             'clientOrderId': clientOrderId,
@@ -1267,7 +1268,7 @@ export default class woofi extends Exchange {
             'filled': filled,
             'remaining': remaining, // TO_DO
             'cost': cost,
-            'trades': transactions,
+            // 'trades': transactions,
             'fee': {
                 'cost': fee,
                 'currency': feeCurrency,
@@ -1621,7 +1622,8 @@ export default class woofi extends Exchange {
             };
             if (version === 'v1') {
                 auth = ts + method + '/' + version + '/' + pathWithParams;
-                if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
+                if (method === 'POST' || method === 'PUT') {
+                    headers['content-type'] = 'application/x-www-form-urlencoded';
                     body = this.json (params);
                     auth += body;
                 } else {
@@ -1631,10 +1633,14 @@ export default class woofi extends Exchange {
                         auth += '?' + query;
                     }
                 }
-                headers['content-type'] = 'application/json';
+                if (method === 'DELETE') {
+                    headers['content-type'] = 'application/x-www-form-urlencoded';
+                } else {
+                    headers['content-type'] = 'application/json';
+                }
             } else {
                 auth = this.urlencode (params);
-                if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
+                if (method === 'POST' || method === 'PUT') {
                     body = auth;
                 } else {
                     url += '?' + auth;
@@ -1973,7 +1979,7 @@ export default class woofi extends Exchange {
         //     }
         //
         const result = this.safeValue (response, 'data', {});
-        const positions = this.safeValue (result, 'positions', []);
+        const positions = this.safeValue (result, 'rows', []);
         return this.parsePositions (positions, symbols);
     }
 
@@ -1995,7 +2001,7 @@ export default class woofi extends Exchange {
         //
         const contract = this.safeString (position, 'symbol');
         market = this.safeMarket (contract, market);
-        const size = this.safeString (position, 'holding');
+        const size = this.safeString (position, 'position_qty');
         let side = undefined;
         if (Precise.stringGt (size, '0')) {
             side = 'long';
@@ -2003,9 +2009,9 @@ export default class woofi extends Exchange {
             side = 'short';
         }
         const contractSize = this.safeString (market, 'contractSize');
-        const markPrice = this.safeString (position, 'markPrice');
+        const markPrice = this.safeString (position, 'mark_price');
         const timestamp = this.safeTimestamp (position, 'timestamp');
-        const entryPrice = this.safeString (position, 'averageOpenPrice');
+        const entryPrice = this.safeString (position, 'average_open_price');
         const priceDifference = Precise.stringSub (markPrice, entryPrice);
         const unrealisedPnl = Precise.stringMul (priceDifference, size);
         return {
@@ -2014,9 +2020,9 @@ export default class woofi extends Exchange {
             'symbol': market['symbol'],
             'notional': undefined,
             'marginMode': 'cross',
-            'liquidationPrice': this.safeNumber (position, 'estLiqPrice'),
+            'liquidationPrice': this.safeNumber (position, 'est_liq_price'),
             'entryPrice': this.parseNumber (entryPrice),
-            'realizedPnl': this.safeString (position, 'pnl24H'),
+            'realizedPnl': this.safeString (position, 'pnl_24_h'),
             'unrealizedPnl': this.parseNumber (unrealisedPnl),
             'percentage': undefined,
             'contracts': this.parseNumber (size),
@@ -2024,8 +2030,8 @@ export default class woofi extends Exchange {
             'markPrice': this.parseNumber (markPrice),
             'side': side,
             'hedged': false,
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
+            'timestamp': timestamp / 1000,
+            'datetime': this.iso8601 (timestamp / 1000),
             'maintenanceMargin': undefined,
             'maintenanceMarginPercentage': undefined,
             'collateral': undefined,

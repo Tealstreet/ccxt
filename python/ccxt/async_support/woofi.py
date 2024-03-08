@@ -196,9 +196,9 @@ class woofi(Exchange):
                             'algo/order': 5,
                         },
                         'put': {
-                            'order/{oid}': 2,
+                            'order': 2,
                             'order/client/{oid}': 2,
-                            'algo/order/{oid}': 2,
+                            'algo/order': 2,
                             'algo/order/client/{oid}': 2,
                         },
                         'delete': {
@@ -707,7 +707,7 @@ class woofi(Exchange):
             triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
             request = {
                 'symbol': market['id'],
-                'algoType': 'STOP',
+                'algo_type': 'STOP',
                 'type': algoOrderType,
                 'side': orderSide,
             }
@@ -715,13 +715,13 @@ class woofi(Exchange):
                 request['reduceOnly'] = reduceOnly
             if price is not None:
                 request['price'] = self.price_to_precision(symbol, price)
-            request['triggerPrice'] = triggerPrice
+            request['trigger_price'] = triggerPrice
             request['quantity'] = self.amount_to_precision(symbol, amount)
             params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
             # response = await self.v1PrivatePostAlgoOrder(self.extend(request, params))
             brokerId = self.safe_string(self.options, 'brokerId')
             if brokerId is not None:
-                request['brokerId'] = brokerId
+                request['broker_id'] = brokerId
             response = await self.v1PrivatePostAlgoOrder(request)
             # {
             #     success: True,
@@ -805,7 +805,7 @@ class woofi(Exchange):
         await self.load_markets()
         market = self.market(symbol)
         request = {
-            'oid': id,
+            'order_id': id,
             # 'quantity': self.amount_to_precision(symbol, amount),
             # 'price': self.price_to_precision(symbol, price),
         }
@@ -813,12 +813,12 @@ class woofi(Exchange):
             request['price'] = self.price_to_precision(symbol, price)
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
         if triggerPrice is not None:
-            request['triggerPrice'] = triggerPrice
+            request['trigger_price'] = triggerPrice
         if amount is not None:
             request['quantity'] = self.amount_to_precision(symbol, amount)
-        method = 'v1PrivatePutOrderOid'
+        method = 'v1PrivatePutOrder'
         if self.maybe_algo_order_id(id):
-            method = 'v1PrivatePutAlgoOrderOid'
+            method = 'v1PrivatePutAlgoOrder'
         response = await getattr(self, method)(self.extend(request, params))
         #
         #     {
@@ -879,8 +879,9 @@ class woofi(Exchange):
         isByClientOrder = clientOrderIdExchangeSpecific is not None
         if isByClientOrder:
             request['client_order_id'] = clientOrderIdExchangeSpecific
-            params = self.omit(params, ['clOrdID', 'clientOrderId', 'client_order_id'])
+            params = self.omit(params, ['clOrdID', 'clientOrderId', 'client_order_id', 'type'])
         else:
+            params = self.omit(params, ['type'])
             request['order_id'] = id
         market = None
         if symbol is not None:
@@ -891,10 +892,11 @@ class woofi(Exchange):
         # {success: True, status: 'CANCEL_SENT'}
         #
         extendParams = {'symbol': symbol}
-        if isByClientOrder:
-            extendParams['client_order_id'] = clientOrderIdExchangeSpecific
-        else:
-            extendParams['id'] = id
+        # if isByClientOrder:
+        #     extendParams['client_order_id'] = clientOrderIdExchangeSpecific
+        # else:
+        extendParams['id'] = id
+        # }
         return self.extend(self.parse_order(response), extendParams)
 
     async def cancel_all_orders(self, symbol=None, params={}):
@@ -1082,7 +1084,7 @@ class woofi(Exchange):
         return self.safe_string_lower(types, type, type)
 
     def parse_order(self, order, market=None):
-        isAlgoOrder = 'algoType' in order
+        isAlgoOrder = 'algo_type' in order
         if isAlgoOrder:
             return self.parse_algo_order(order, market)
         else:
@@ -1153,28 +1155,28 @@ class woofi(Exchange):
         # * fetchOrder
         # * fetchOrders
         # isFromFetchOrder = ('order_tag' in order); TO_DO
-        timestamp = self.safe_timestamp_2(order, 'timestamp', 'createdTime')
-        orderId = self.safe_string(order, 'algoOrderId')
-        clientOrderId = self.safe_string(order, 'clientOrderId')  # Somehow, self always returns 0 for limit order
+        timestamp = self.safe_timestamp_2(order, 'timestamp', 'created_time')
+        orderId = self.safe_string(order, 'algo_order_id')
+        clientOrderId = self.safe_string(order, 'algo_order_id')  # Somehow, self always returns 0 for limit order
         marketId = self.safe_string(order, 'symbol')
         market = self.safe_market(marketId, market)
         symbol = market['symbol']
-        price = self.safe_string_2(order, 'price', 'triggerPrice')
-        stopPrice = self.safe_string_2(order, 'triggerPrice', 'price')
+        price = self.safe_string_2(order, 'price', 'trigger_price')
+        stopPrice = self.safe_string_2(order, 'trigger_price', 'price')
         amount = self.safe_string_2(order, 'order_quantity', 'quantity')  # This is base amount
         cost = self.safe_string_2(order, 'order_amount', 'amount')  # This is quote amount
-        orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'), self.safe_string_lower(order, 'algoType'))
+        orderType = self.parse_order_type(self.safe_string_lower_2(order, 'order_type', 'type'), self.safe_string_lower(order, 'algo_type'))
         tsOrderType = orderType
         if orderType == 'market':
             tsOrderType = 'stop'
-        status = self.safe_value(order, 'algoStatus')
+        status = self.safe_value(order, 'algo_status')
         side = self.safe_string_lower(order, 'side')
         filled = self.safe_value(order, 'executed')
         average = self.safe_string(order, 'average_executed_price')
         remaining = Precise.string_sub(cost, filled)
-        fee = self.safe_value(order, 'totalFee')
-        feeCurrency = self.safe_string(order, 'feeAsset')
-        transactions = self.safe_value(order, 'Transactions')
+        fee = self.safe_value(order, 'total_fee')
+        feeCurrency = self.safe_string(order, 'fee_asset')
+        # transactions = self.safe_value(order, 'Transactions')
         return self.safe_order({
             'id': orderId,
             'clientOrderId': clientOrderId,
@@ -1196,7 +1198,7 @@ class woofi(Exchange):
             'filled': filled,
             'remaining': remaining,  # TO_DO
             'cost': cost,
-            'trades': transactions,
+            # 'trades': transactions,
             'fee': {
                 'cost': fee,
                 'currency': feeCurrency,
@@ -1516,7 +1518,8 @@ class woofi(Exchange):
             }
             if version == 'v1':
                 auth = ts + method + '/' + version + '/' + pathWithParams
-                if method == 'POST' or method == 'PUT' or method == 'DELETE':
+                if method == 'POST' or method == 'PUT':
+                    headers['content-type'] = 'application/x-www-form-urlencoded'
                     body = self.json(params)
                     auth += body
                 else:
@@ -1524,10 +1527,13 @@ class woofi(Exchange):
                         query = self.urlencode(params)
                         url += '?' + query
                         auth += '?' + query
-                headers['content-type'] = 'application/json'
+                if method == 'DELETE':
+                    headers['content-type'] = 'application/x-www-form-urlencoded'
+                else:
+                    headers['content-type'] = 'application/json'
             else:
                 auth = self.urlencode(params)
-                if method == 'POST' or method == 'PUT' or method == 'DELETE':
+                if method == 'POST' or method == 'PUT':
                     body = auth
                 else:
                     url += '?' + auth
@@ -1844,7 +1850,7 @@ class woofi(Exchange):
         #     }
         #
         result = self.safe_value(response, 'data', {})
-        positions = self.safe_value(result, 'positions', [])
+        positions = self.safe_value(result, 'rows', [])
         return self.parse_positions(positions, symbols)
 
     def parse_position(self, position, market=None):
@@ -1865,16 +1871,16 @@ class woofi(Exchange):
         #
         contract = self.safe_string(position, 'symbol')
         market = self.safe_market(contract, market)
-        size = self.safe_string(position, 'holding')
+        size = self.safe_string(position, 'position_qty')
         side = None
         if Precise.string_gt(size, '0'):
             side = 'long'
         else:
             side = 'short'
         contractSize = self.safe_string(market, 'contractSize')
-        markPrice = self.safe_string(position, 'markPrice')
+        markPrice = self.safe_string(position, 'mark_price')
         timestamp = self.safe_timestamp(position, 'timestamp')
-        entryPrice = self.safe_string(position, 'averageOpenPrice')
+        entryPrice = self.safe_string(position, 'average_open_price')
         priceDifference = Precise.string_sub(markPrice, entryPrice)
         unrealisedPnl = Precise.string_mul(priceDifference, size)
         return {
@@ -1883,9 +1889,9 @@ class woofi(Exchange):
             'symbol': market['symbol'],
             'notional': None,
             'marginMode': 'cross',
-            'liquidationPrice': self.safe_number(position, 'estLiqPrice'),
+            'liquidationPrice': self.safe_number(position, 'est_liq_price'),
             'entryPrice': self.parse_number(entryPrice),
-            'realizedPnl': self.safe_string(position, 'pnl24H'),
+            'realizedPnl': self.safe_string(position, 'pnl_24_h'),
             'unrealizedPnl': self.parse_number(unrealisedPnl),
             'percentage': None,
             'contracts': self.parse_number(size),
@@ -1893,8 +1899,8 @@ class woofi(Exchange):
             'markPrice': self.parse_number(markPrice),
             'side': side,
             'hedged': False,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
+            'timestamp': timestamp / 1000,
+            'datetime': self.iso8601(timestamp / 1000),
             'maintenanceMargin': None,
             'maintenanceMarginPercentage': None,
             'collateral': None,
