@@ -5,7 +5,7 @@
 // EDIT THE CORRESPONDENT .ts FILE INSTEAD
 
 // ----------------------------------------------------------------------------
-import woofiRest from '../woo.js';
+import woofiRest from '../woofi.js';
 import { ExchangeError, AuthenticationError } from '../base/errors.js';
 import { ArrayCacheByTimestamp, ArrayCacheBySymbolById, ArrayCache } from '../base/ws/Cache.js';
 import { Precise } from '../base/Precise.js';

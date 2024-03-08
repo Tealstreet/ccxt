@@ -9,6 +9,7 @@ import { Exchange } from './base/Exchange.js';
 import { ArgumentsRequired, AuthenticationError, RateLimitExceeded, BadRequest, ExchangeError, InvalidOrder } from './base/errors.js';
 import { Precise } from './base/Precise.js';
 import { TICK_SIZE } from './base/functions/number.js';
+import { Signer } from './base/Signer.js';
 // ---------------------------------------------------------------------------
 export default class woofi extends Exchange {
     describe() {
@@ -2155,7 +2156,9 @@ export default class woofi extends Exchange {
                 auth += '|' + ts;
                 headers['content-type'] = 'application/x-www-form-urlencoded';
             }
-            headers['orderly-signature'] = this.hmac(this.encode(auth), this.encode(this.secret), 'sha256');
+            // headers['orderly-signature'] = this.hmac (this.encode (auth), this.encode (this.secret), 'sha256');
+            const signer = new Signer(this.uid, this.secret);
+            headers['orderly-signature'] = signer.sign_request(auth);
         }
         return { 'url': url, 'method': method, 'body': body, 'headers': headers };
     }

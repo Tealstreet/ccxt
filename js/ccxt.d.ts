@@ -18,6 +18,7 @@ import okex5 from './src/okex5.js';
 import okx from './src/okx.js';
 import phemex from './src/phemex.js';
 import woo from './src/woo.js';
+import woofi from './src/woofi.js';
 import binancePro from './src/pro/binance.js';
 import binancecoinmPro from './src/pro/binancecoinm.js';
 import binanceusdmPro from './src/pro/binanceusdm.js';
@@ -30,6 +31,7 @@ import okexPro from './src/pro/okex.js';
 import okxPro from './src/pro/okx.js';
 import phemexPro from './src/pro/phemex.js';
 import wooPro from './src/pro/woo.js';
+import woofiPro from './src/pro/woofi.js';
 declare const exchanges: {
     binance: typeof binance;
     binancecoinm: typeof binancecoinm;
@@ -44,6 +46,7 @@ declare const exchanges: {
     okx: typeof okx;
     phemex: typeof phemex;
     woo: typeof woo;
+    woofi: typeof woofi;
 };
 declare const pro: {
     binance: typeof binancePro;
@@ -58,6 +61,7 @@ declare const pro: {
     okx: typeof okxPro;
     phemex: typeof phemexPro;
     woo: typeof wooPro;
+    woofi: typeof woofiPro;
 };
 declare const ccxt: {
     version: string;
@@ -77,6 +81,7 @@ declare const ccxt: {
         okx: typeof okxPro;
         phemex: typeof phemexPro;
         woo: typeof wooPro;
+        woofi: typeof woofiPro;
     };
 } & {
     binance: typeof binance;
@@ -92,6 +97,7 @@ declare const ccxt: {
     okx: typeof okx;
     phemex: typeof phemex;
     woo: typeof woo;
+    woofi: typeof woofi;
 } & typeof functions & typeof errors;
-export { version, Exchange, exchanges, pro, Precise, functions, errors, BaseError, ExchangeError, PermissionDenied, AccountNotEnabled, AccountSuspended, ArgumentsRequired, BadRequest, BadSymbol, MarginModeAlreadySet, BadResponse, NullResponse, InsufficientFunds, InvalidAddress, InvalidOrder, OrderNotFound, OrderNotCached, CancelPending, OrderImmediatelyFillable, OrderNotFillable, DuplicateOrderId, NotSupported, NetworkError, DDoSProtection, RateLimitExceeded, ExchangeNotAvailable, OnMaintenance, InvalidNonce, RequestTimeout, AuthenticationError, AddressPending, Market, Trade, Fee, Ticker, OrderBook, Order, Transaction, Tickers, Currency, Balance, DepositAddress, WithdrawalResponse, DepositAddressResponse, OHLCV, Balances, PartialBalances, binance, binancecoinm, binanceusdm, bingx, bitget, bitmex, blofin, bybit, okex, okex5, okx, phemex, woo, };
+export { version, Exchange, exchanges, pro, Precise, functions, errors, BaseError, ExchangeError, PermissionDenied, AccountNotEnabled, AccountSuspended, ArgumentsRequired, BadRequest, BadSymbol, MarginModeAlreadySet, BadResponse, NullResponse, InsufficientFunds, InvalidAddress, InvalidOrder, OrderNotFound, OrderNotCached, CancelPending, OrderImmediatelyFillable, OrderNotFillable, DuplicateOrderId, NotSupported, NetworkError, DDoSProtection, RateLimitExceeded, ExchangeNotAvailable, OnMaintenance, InvalidNonce, RequestTimeout, AuthenticationError, AddressPending, Market, Trade, Fee, Ticker, OrderBook, Order, Transaction, Tickers, Currency, Balance, DepositAddress, WithdrawalResponse, DepositAddressResponse, OHLCV, Balances, PartialBalances, binance, binancecoinm, binanceusdm, bingx, bitget, bitmex, blofin, bybit, okex, okex5, okx, phemex, woo, woofi, };
 export default ccxt;
