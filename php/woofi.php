@@ -1170,8 +1170,8 @@ class woofi extends Exchange {
         return $this->safe_order(array(
             'id' => $orderId,
             'clientOrderId' => $clientOrderId,
-            'timestamp' => $timestamp / 1000,
-            'datetime' => $this->iso8601($timestamp / 1000),
+            'timestamp' => $timestamp ? $timestamp / 1000 : null,
+            'datetime' => $timestamp ? $this->iso8601($timestamp / 1000) : null,
             'lastTradeTimestamp' => null,
             'status' => $this->parse_order_status($status),
             'symbol' => $symbol,
@@ -1231,8 +1231,8 @@ class woofi extends Exchange {
         return $this->safe_order(array(
             'id' => $orderId,
             'clientOrderId' => $clientOrderId,
-            'timestamp' => $timestamp / 1000,
-            'datetime' => $this->iso8601($timestamp / 1000),
+            'timestamp' => $timestamp ? $timestamp / 1000 : null,
+            'datetime' => $timestamp ? $this->iso8601($timestamp / 1000) : null,
             'lastTradeTimestamp' => null,
             'status' => $this->parse_order_status($status),
             'symbol' => $symbol,

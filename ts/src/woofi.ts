@@ -1189,8 +1189,8 @@ export default class woofi extends Exchange {
         return this.safeOrder ({
             'id': orderId,
             'clientOrderId': clientOrderId,
-            'timestamp': timestamp / 1000,
-            'datetime': this.iso8601 (timestamp / 1000),
+            'timestamp': timestamp ? timestamp / 1000 : undefined,
+            'datetime': timestamp ? this.iso8601 (timestamp / 1000) : undefined,
             'lastTradeTimestamp': undefined,
             'status': this.parseOrderStatus (status),
             'symbol': symbol,
@@ -1250,8 +1250,8 @@ export default class woofi extends Exchange {
         return this.safeOrder ({
             'id': orderId,
             'clientOrderId': clientOrderId,
-            'timestamp': timestamp / 1000,
-            'datetime': this.iso8601 (timestamp / 1000),
+            'timestamp': timestamp ? timestamp / 1000 : undefined,
+            'datetime': timestamp ? this.iso8601 (timestamp / 1000) : undefined,
             'lastTradeTimestamp': undefined,
             'status': this.parseOrderStatus (status),
             'symbol': symbol,
