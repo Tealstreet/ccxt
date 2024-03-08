@@ -1121,8 +1121,8 @@ class woofi(Exchange):
         return self.safe_order({
             'id': orderId,
             'clientOrderId': clientOrderId,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
+            'timestamp': timestamp / 1000,
+            'datetime': self.iso8601(timestamp / 1000),
             'lastTradeTimestamp': None,
             'status': self.parse_order_status(status),
             'symbol': symbol,
@@ -1180,8 +1180,8 @@ class woofi(Exchange):
         return self.safe_order({
             'id': orderId,
             'clientOrderId': clientOrderId,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
+            'timestamp': timestamp / 1000,
+            'datetime': self.iso8601(timestamp / 1000),
             'lastTradeTimestamp': None,
             'status': self.parse_order_status(status),
             'symbol': symbol,

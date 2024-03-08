@@ -78,7 +78,7 @@ export default class woofi extends Exchange {
                 'fetchTime': false,
                 'fetchTrades': true,
                 'fetchTradingFee': false,
-                'fetchTradingFees': true,
+                'fetchTradingFees': false,
                 'fetchTransactions': true,
                 'fetchTransfers': true,
                 'fetchWithdrawals': true,
@@ -190,9 +190,9 @@ export default class woofi extends Exchange {
                             'algo/order': 5,
                         },
                         'put': {
-                            'order/{oid}': 2,
+                            'order': 2,
                             'order/client/{oid}': 2,
-                            'algo/order/{oid}': 2,
+                            'algo/order': 2,
                             'algo/order/client/{oid}': 2,
                         },
                         'delete': {
@@ -512,62 +512,6 @@ export default class woofi extends Exchange {
         }
         return fee;
     }
-    async fetchTradingFees(params = {}) {
-        /**
-         * @method
-         * @name woo#fetchTradingFees
-         * @description fetch the trading fees for multiple markets
-         * @see https://docs.woo.org/#get-account-information-new
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a dictionary of [fee structures]{@link https://docs.ccxt.com/#/?id=fee-structure} indexed by market symbols
-         */
-        await this.loadMarkets();
-        const response = await this.v1PrivateGetAccountinfo(params);
-        //
-        //     {
-        //         "success": true,
-        //         "data": {
-        //             "applicationId": "dsa",
-        //             "account": "dsa",
-        //             "alias": "haha",
-        //             "accountMode": "MARGIN",
-        //             "leverage": 1,
-        //             "takerFeeRate": 1,
-        //             "makerFeeRate": 1,
-        //             "interestRate": 1,
-        //             "futuresTakerFeeRate": 1,
-        //             "futuresMakerFeeRate": 1,
-        //             "otpauth": true,
-        //             "marginRatio": 1,
-        //             "openMarginRatio": 1,
-        //             "initialMarginRatio": 1,
-        //             "maintenanceMarginRatio": 1,
-        //             "totalCollateral": 1,
-        //             "freeCollateral": 1,
-        //             "totalAccountValue": 1,
-        //             "totalVaultValue": 1,
-        //             "totalStakingValue": 1
-        //         },
-        //         "timestamp": 1673323685109
-        //     }
-        //
-        const data = this.safeValue(response, 'data', {});
-        const maker = this.safeString(data, 'makerFeeRate');
-        const taker = this.safeString(data, 'takerFeeRate');
-        const result = {};
-        for (let i = 0; i < this.symbols.length; i++) {
-            const symbol = this.symbols[i];
-            result[symbol] = {
-                'info': response,
-                'symbol': symbol,
-                'maker': this.parseNumber(Precise.stringDiv(maker, '10000')),
-                'taker': this.parseNumber(Precise.stringDiv(taker, '10000')),
-                'percentage': true,
-                'tierBased': true,
-            };
-        }
-        return result;
-    }
     async fetchCurrencies(params = {}) {
         /**
          * @method
@@ -776,7 +720,7 @@ export default class woofi extends Exchange {
             const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
             const request = {
                 'symbol': market['id'],
-                'algoType': 'STOP',
+                'algo_type': 'STOP',
                 'type': algoOrderType,
                 'side': orderSide,
             };
@@ -786,13 +730,13 @@ export default class woofi extends Exchange {
             if (price !== undefined) {
                 request['price'] = this.priceToPrecision(symbol, price);
             }
-            request['triggerPrice'] = triggerPrice;
+            request['trigger_price'] = triggerPrice;
             request['quantity'] = this.amountToPrecision(symbol, amount);
             params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
             // const response = await (this as any).v1PrivatePostAlgoOrder (this.extend (request, params));
             const brokerId = this.safeString(this.options, 'brokerId');
             if (brokerId !== undefined) {
-                request['brokerId'] = brokerId;
+                request['broker_id'] = brokerId;
             }
             const response = await this.v1PrivatePostAlgoOrder(request);
             // {
@@ -882,7 +826,7 @@ export default class woofi extends Exchange {
         await this.loadMarkets();
         const market = this.market(symbol);
         const request = {
-            'oid': id,
+            'order_id': id,
             // 'quantity': this.amountToPrecision (symbol, amount),
             // 'price': this.priceToPrecision (symbol, price),
         };
@@ -891,14 +835,14 @@ export default class woofi extends Exchange {
         }
         const triggerPrice = this.safeValue2(params, 'stopPrice', 'triggerPrice');
         if (triggerPrice !== undefined) {
-            request['triggerPrice'] = triggerPrice;
+            request['trigger_price'] = triggerPrice;
         }
         if (amount !== undefined) {
             request['quantity'] = this.amountToPrecision(symbol, amount);
         }
-        let method = 'v1PrivatePutOrderOid';
+        let method = 'v1PrivatePutOrder';
         if (this.maybeAlgoOrderId(id)) {
-            method = 'v1PrivatePutAlgoOrderOid';
+            method = 'v1PrivatePutAlgoOrder';
         }
         const response = await this[method](this.extend(request, params));
         //
@@ -967,9 +911,10 @@ export default class woofi extends Exchange {
         const isByClientOrder = clientOrderIdExchangeSpecific !== undefined;
         if (isByClientOrder) {
             request['client_order_id'] = clientOrderIdExchangeSpecific;
-            params = this.omit(params, ['clOrdID', 'clientOrderId', 'client_order_id']);
+            params = this.omit(params, ['clOrdID', 'clientOrderId', 'client_order_id', 'type']);
         }
         else {
+            params = this.omit(params, ['type']);
             request['order_id'] = id;
         }
         let market = undefined;
@@ -982,12 +927,11 @@ export default class woofi extends Exchange {
         // { success: true, status: 'CANCEL_SENT' }
         //
         const extendParams = { 'symbol': symbol };
-        if (isByClientOrder) {
-            extendParams['client_order_id'] = clientOrderIdExchangeSpecific;
-        }
-        else {
-            extendParams['id'] = id;
-        }
+        // if (isByClientOrder) {
+        //     extendParams['client_order_id'] = clientOrderIdExchangeSpecific;
+        // } else {
+        extendParams['id'] = id;
+        // }
         return this.extend(this.parseOrder(response), extendParams);
     }
     async cancelAllOrders(symbol = undefined, params = {}) {
@@ -1135,12 +1079,14 @@ export default class woofi extends Exchange {
         //         ]
         //     }
         //
-        const ordersData = this.safeValue(ordersResponse, 'rows');
+        const ordersData = this.safeValue(ordersResponse, 'data', {});
+        const ordersRows = this.safeValue(ordersData, 'rows', []);
         let total = 0;
         let algoOrdersRows = [];
         for (let i = 0; i < 50; i++) {
             request['size'] = 50;
             request['page'] = i + 1;
+            request['algo_type'] = 'STOP';
             const algoOrdersResponse = await this.v1PrivateGetAlgoOrders(this.extend(request, params));
             const algoOrdersData = this.safeValue(algoOrdersResponse, 'data');
             const algoOrdersMeta = this.safeValue(algoOrdersData, 'meta');
@@ -1152,7 +1098,7 @@ export default class woofi extends Exchange {
                 break;
             }
         }
-        const allOrdersData = this.arrayConcat(ordersData, algoOrdersRows);
+        const allOrdersData = this.arrayConcat(ordersRows, algoOrdersRows);
         return this.parseOrders(allOrdersData, market, since, limit, params);
     }
     parseTimeInForce(timeInForce) {
@@ -1191,7 +1137,7 @@ export default class woofi extends Exchange {
         return this.safeStringLower(types, type, type);
     }
     parseOrder(order, market = undefined) {
-        const isAlgoOrder = 'algoType' in order;
+        const isAlgoOrder = 'algo_type' in order;
         if (isAlgoOrder) {
             return this.parseAlgoOrder(order, market);
         }
@@ -1230,8 +1176,8 @@ export default class woofi extends Exchange {
         return this.safeOrder({
             'id': orderId,
             'clientOrderId': clientOrderId,
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
+            'timestamp': timestamp / 1000,
+            'datetime': this.iso8601(timestamp / 1000),
             'lastTradeTimestamp': undefined,
             'status': this.parseOrderStatus(status),
             'symbol': symbol,
@@ -1264,34 +1210,34 @@ export default class woofi extends Exchange {
         // * fetchOrder
         // * fetchOrders
         // const isFromFetchOrder = ('order_tag' in order); TO_DO
-        const timestamp = this.safeTimestamp2(order, 'timestamp', 'createdTime');
-        const orderId = this.safeString(order, 'algoOrderId');
-        const clientOrderId = this.safeString(order, 'clientOrderId'); // Somehow, this always returns 0 for limit order
+        const timestamp = this.safeTimestamp2(order, 'timestamp', 'created_time');
+        const orderId = this.safeString(order, 'algo_order_id');
+        const clientOrderId = this.safeString(order, 'algo_order_id'); // Somehow, this always returns 0 for limit order
         const marketId = this.safeString(order, 'symbol');
         market = this.safeMarket(marketId, market);
         const symbol = market['symbol'];
-        const price = this.safeString2(order, 'price', 'triggerPrice');
-        const stopPrice = this.safeString2(order, 'triggerPrice', 'price');
+        const price = this.safeString2(order, 'price', 'trigger_price');
+        const stopPrice = this.safeString2(order, 'trigger_price', 'price');
         const amount = this.safeString2(order, 'order_quantity', 'quantity'); // This is base amount
         const cost = this.safeString2(order, 'order_amount', 'amount'); // This is quote amount
-        const orderType = this.parseOrderType(this.safeStringLower2(order, 'order_type', 'type'), this.safeStringLower(order, 'algoType'));
+        const orderType = this.parseOrderType(this.safeStringLower2(order, 'order_type', 'type'), this.safeStringLower(order, 'algo_type'));
         let tsOrderType = orderType;
         if (orderType === 'market') {
             tsOrderType = 'stop';
         }
-        const status = this.safeValue(order, 'algoStatus');
+        const status = this.safeValue(order, 'algo_status');
         const side = this.safeStringLower(order, 'side');
         const filled = this.safeValue(order, 'executed');
         const average = this.safeString(order, 'average_executed_price');
         const remaining = Precise.stringSub(cost, filled);
-        const fee = this.safeValue(order, 'totalFee');
-        const feeCurrency = this.safeString(order, 'feeAsset');
-        const transactions = this.safeValue(order, 'Transactions');
+        const fee = this.safeValue(order, 'total_fee');
+        const feeCurrency = this.safeString(order, 'fee_asset');
+        // const transactions = this.safeValue (order, 'Transactions');
         return this.safeOrder({
             'id': orderId,
             'clientOrderId': clientOrderId,
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
+            'timestamp': timestamp / 1000,
+            'datetime': this.iso8601(timestamp / 1000),
             'lastTradeTimestamp': undefined,
             'status': this.parseOrderStatus(status),
             'symbol': symbol,
@@ -1308,7 +1254,7 @@ export default class woofi extends Exchange {
             'filled': filled,
             'remaining': remaining,
             'cost': cost,
-            'trades': transactions,
+            // 'trades': transactions,
             'fee': {
                 'cost': fee,
                 'currency': feeCurrency,
@@ -1609,483 +1555,6 @@ export default class woofi extends Exchange {
         }
         return this.safeBalance(result);
     }
-    async fetchDepositAddress(code, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchDepositAddress
-         * @description fetch the deposit address for a currency associated with this account
-         * @param {string} code unified currency code
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} an [address structure]{@link https://docs.ccxt.com/#/?id=address-structure}
-         */
-        // this method is TODO because of networks unification
-        await this.loadMarkets();
-        const currency = this.currency(code);
-        const networkCodeDefault = this.defaultNetworkCodeForCurrency(code);
-        const networkCode = this.safeString(params, 'network', networkCodeDefault);
-        params = this.omit(params, 'network');
-        const codeForExchange = networkCode + '_' + currency['code'];
-        const request = {
-            'token': codeForExchange,
-        };
-        const response = await this.v1PrivateGetAssetDeposit(this.extend(request, params));
-        // {
-        //     success: true,
-        //     address: '3Jmtjx5544T4smrit9Eroe4PCrRkpDeKjP',
-        //     extra: ''
-        // }
-        const tag = this.safeString(response, 'extra');
-        const address = this.safeString(response, 'address');
-        this.checkAddress(address);
-        return {
-            'currency': code,
-            'address': address,
-            'tag': tag,
-            'network': networkCode,
-            'info': response,
-        };
-    }
-    async getAssetHistoryRows(code = undefined, since = undefined, limit = undefined, params = {}) {
-        await this.loadMarkets();
-        const request = {};
-        let currency = undefined;
-        if (code !== undefined) {
-            currency = this.currency(code);
-            request['balance_token'] = currency['id'];
-        }
-        if (since !== undefined) {
-            request['start_t'] = since;
-        }
-        if (limit !== undefined) {
-            request['pageSize'] = limit;
-        }
-        const transactionType = this.safeString(params, 'type');
-        params = this.omit(params, 'type');
-        if (transactionType !== undefined) {
-            request['type'] = transactionType;
-        }
-        const response = await this.v1PrivateGetAssetHistory(this.extend(request, params));
-        // {
-        //     rows: [
-        //       {
-        //         id: '22010508193900165',
-        //         token: 'TRON_USDT',
-        //         extra: '',
-        //         amount: '13.75848500',
-        //         status: 'COMPLETED',
-        //         account: null,
-        //         description: null,
-        //         user_id: '42222',
-        //         application_id: '6ad2b303-f354-45c0-8105-9f5f19d0e335',
-        //         external_id: '220105081900134',
-        //         target_address: 'TXnyFSnAYad3YCaqtwMw9jvXKkeU39NLnK',
-        //         source_address: 'TYDzsYUEpvnYmQk4zGP9sWWcTEd2MiAtW6',
-        //         type: 'BALANCE',
-        //         token_side: 'DEPOSIT',
-        //         tx_id: '35b0004022f6b3ad07f39a0b7af199f6b258c2c3e2c7cdc93c67efa74fd625ee',
-        //         fee_token: '',
-        //         fee_amount: '0.00000000',
-        //         created_time: '1641370779.442',
-        //         updated_time: '1641370779.465',
-        //         is_new_target_address: null,
-        //         confirmed_number: '29',
-        //         confirming_threshold: '27',
-        //         audit_tag: '1',
-        //         audit_result: '0',
-        //         balance_token: null, // TODO -write to support, that this seems broken. here should be the token id
-        //         network_name: null // TODO -write to support, that this seems broken. here should be the network id
-        //       }
-        //     ],
-        //     meta: { total: '1', records_per_page: '25', current_page: '1' },
-        //     success: true
-        // }
-        return [currency, this.safeValue(response, 'rows', {})];
-    }
-    async fetchLedger(code = undefined, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchLedger
-         * @description fetch the history of changes, actions done by the user or operations that altered balance of the user
-         * @param {string|undefined} code unified currency code, default is undefined
-         * @param {int|undefined} since timestamp in ms of the earliest ledger entry, default is undefined
-         * @param {int|undefined} limit max number of ledger entrys to return, default is undefined
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a [ledger structure]{@link https://docs.ccxt.com/#/?id=ledger-structure}
-         */
-        const [currency, rows] = await this.getAssetHistoryRows(code, since, limit, params);
-        return this.parseLedger(rows, currency, since, limit, params);
-    }
-    parseLedgerEntry(item, currency = undefined) {
-        const networkizedCode = this.safeString(item, 'token');
-        const currencyDefined = this.getCurrencyFromChaincode(networkizedCode, currency);
-        const code = currencyDefined['code'];
-        const amount = this.safeNumber(item, 'amount');
-        const side = this.safeString(item, 'token_side');
-        const direction = (side === 'DEPOSIT') ? 'in' : 'out';
-        const timestamp = this.safeTimestamp(item, 'created_time');
-        const fee = this.parseTokenAndFeeTemp(item, 'fee_token', 'fee_amount');
-        return {
-            'id': this.safeString(item, 'id'),
-            'currency': code,
-            'account': this.safeString(item, 'account'),
-            'referenceAccount': undefined,
-            'referenceId': this.safeString(item, 'tx_id'),
-            'status': this.parseTransactionStatus(this.safeString(item, 'status')),
-            'amount': amount,
-            'before': undefined,
-            'after': undefined,
-            'fee': fee,
-            'direction': direction,
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'type': this.parseLedgerEntryType(this.safeString(item, 'type')),
-            'info': item,
-        };
-    }
-    parseLedgerEntryType(type) {
-        const types = {
-            'BALANCE': 'transaction',
-            'COLLATERAL': 'transfer', // Funds moved between portfolios
-        };
-        return this.safeString(types, type, type);
-    }
-    getCurrencyFromChaincode(networkizedCode, currency) {
-        if (currency !== undefined) {
-            return currency;
-        }
-        else {
-            const parts = networkizedCode.split('_');
-            const partsLength = parts.length;
-            const firstPart = this.safeString(parts, 0);
-            let currencyId = this.safeString(parts, 1, firstPart);
-            if (partsLength > 2) {
-                currencyId += '_' + this.safeString(parts, 2);
-            }
-            currency = this.safeCurrency(currencyId);
-        }
-        return currency;
-    }
-    async fetchDeposits(code = undefined, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchDeposits
-         * @description fetch all deposits made to an account
-         * @param {string|undefined} code unified currency code
-         * @param {int|undefined} since the earliest time in ms to fetch deposits for
-         * @param {int|undefined} limit the maximum number of deposits structures to retrieve
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {[object]} a list of [transaction structures]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        const request = {
-            'token_side': 'DEPOSIT',
-        };
-        return await this.fetchTransactions(code, since, limit, this.extend(request, params));
-    }
-    async fetchWithdrawals(code = undefined, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchWithdrawals
-         * @description fetch all withdrawals made from an account
-         * @param {string|undefined} code unified currency code
-         * @param {int|undefined} since the earliest time in ms to fetch withdrawals for
-         * @param {int|undefined} limit the maximum number of withdrawals structures to retrieve
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {[object]} a list of [transaction structures]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        const request = {
-            'token_side': 'WITHDRAW',
-        };
-        return await this.fetchTransactions(code, since, limit, this.extend(request, params));
-    }
-    async fetchTransactions(code = undefined, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchTransactions
-         * @description fetch history of deposits and withdrawals
-         * @param {string|undefined} code unified currency code for the currency of the transactions, default is undefined
-         * @param {int|undefined} since timestamp in ms of the earliest transaction, default is undefined
-         * @param {int|undefined} limit max number of transactions to return, default is undefined
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a list of [transaction structure]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        const request = {
-            'type': 'BALANCE',
-        };
-        const [currency, rows] = await this.getAssetHistoryRows(code, since, limit, this.extend(request, params));
-        //
-        //     {
-        //         "rows":[],
-        //         "meta":{
-        //             "total":0,
-        //             "records_per_page":25,
-        //             "current_page":1
-        //         },
-        //         "success":true
-        //     }
-        //
-        return this.parseTransactions(rows, currency, since, limit, params);
-    }
-    parseTransaction(transaction, currency = undefined) {
-        // example in fetchLedger
-        const networkizedCode = this.safeString(transaction, 'token');
-        const currencyDefined = this.getCurrencyFromChaincode(networkizedCode, currency);
-        const code = currencyDefined['code'];
-        let movementDirection = this.safeStringLower(transaction, 'token_side');
-        if (movementDirection === 'withdraw') {
-            movementDirection = 'withdrawal';
-        }
-        const fee = this.parseTokenAndFeeTemp(transaction, 'fee_token', 'fee_amount');
-        const addressTo = this.safeString(transaction, 'target_address');
-        const addressFrom = this.safeString(transaction, 'source_address');
-        const timestamp = this.safeTimestamp(transaction, 'created_time');
-        return {
-            'id': this.safeString2(transaction, 'id', 'withdraw_id'),
-            'txid': this.safeString(transaction, 'tx_id'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'address': undefined,
-            'addressFrom': addressFrom,
-            'addressTo': addressTo,
-            'tag': this.safeString(transaction, 'extra'),
-            'type': movementDirection,
-            'amount': this.safeNumber(transaction, 'amount'),
-            'currency': code,
-            'status': this.parseTransactionStatus(this.safeString(transaction, 'status')),
-            'updated': this.safeTimestamp(transaction, 'updated_time'),
-            'fee': fee,
-            'info': transaction,
-        };
-    }
-    parseTransactionStatus(status) {
-        const statuses = {
-            'NEW': 'pending',
-            'CONFIRMING': 'pending',
-            'PROCESSING': 'pending',
-            'COMPLETED': 'ok',
-            'CANCELED': 'canceled',
-        };
-        return this.safeString(statuses, status, status);
-    }
-    async transfer(code, amount, fromAccount, toAccount, params = {}) {
-        /**
-         * @method
-         * @name woo#transfer
-         * @description transfer currency internally between wallets on the same account
-         * @param {string} code unified currency code
-         * @param {float} amount amount to transfer
-         * @param {string} fromAccount account to transfer from
-         * @param {string} toAccount account to transfer to
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a [transfer structure]{@link https://docs.ccxt.com/#/?id=transfer-structure}
-         */
-        await this.loadMarkets();
-        const currency = this.currency(code);
-        const request = {
-            'token': currency['id'],
-            'amount': this.parseNumber(amount),
-            'from_application_id': fromAccount,
-            'to_application_id': toAccount,
-        };
-        const response = await this.v1PrivatePostAssetMainSubTransfer(this.extend(request, params));
-        //
-        //     {
-        //         "success": true,
-        //         "id": 200
-        //     }
-        //
-        const transfer = this.parseTransfer(response, currency);
-        const transferOptions = this.safeValue(this.options, 'transfer', {});
-        const fillResponseFromRequest = this.safeValue(transferOptions, 'fillResponseFromRequest', true);
-        if (fillResponseFromRequest) {
-            transfer['amount'] = amount;
-            transfer['fromAccount'] = fromAccount;
-            transfer['toAccount'] = toAccount;
-        }
-        return transfer;
-    }
-    async fetchTransfers(code = undefined, since = undefined, limit = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#fetchTransfers
-         * @description fetch a history of internal transfers made on an account
-         * @param {string|undefined} code unified currency code of the currency transferred
-         * @param {int|undefined} since the earliest time in ms to fetch transfers for
-         * @param {int|undefined} limit the maximum number of  transfers structures to retrieve
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {[object]} a list of [transfer structures]{@link https://docs.ccxt.com/#/?id=transfer-structure}
-         */
-        const request = {
-            'type': 'COLLATERAL',
-        };
-        const [currency, rows] = await this.getAssetHistoryRows(code, since, limit, this.extend(request, params));
-        return this.parseTransfers(rows, currency, since, limit, params);
-    }
-    parseTransfer(transfer, currency = undefined) {
-        //
-        //    getAssetHistoryRows
-        //        {
-        //            "created_time": "1579399877.041",  // Unix epoch time in seconds
-        //            "updated_time": "1579399877.041",  // Unix epoch time in seconds
-        //            "id": "202029292829292",
-        //            "external_id": "202029292829292",
-        //            "application_id": null,
-        //            "token": "ETH",
-        //            "target_address": "0x31d64B3230f8baDD91dE1710A65DF536aF8f7cDa",
-        //            "source_address": "0x70fd25717f769c7f9a46b319f0f9103c0d887af0",
-        //            "extra": "",
-        //            "type": "BALANCE",
-        //            "token_side": "DEPOSIT",
-        //            "amount": 1000,
-        //            "tx_id": "0x8a74c517bc104c8ebad0c3c3f64b1f302ed5f8bca598ae4459c63419038106b6",
-        //            "fee_token": null,
-        //            "fee_amount": null,
-        //            "status": "CONFIRMING"
-        //        }
-        //
-        //    v1PrivatePostAssetMainSubTransfer
-        //        {
-        //            "success": true,
-        //            "id": 200
-        //        }
-        //
-        const networkizedCode = this.safeString(transfer, 'token');
-        const currencyDefined = this.getCurrencyFromChaincode(networkizedCode, currency);
-        const code = currencyDefined['code'];
-        let movementDirection = this.safeStringLower(transfer, 'token_side');
-        if (movementDirection === 'withdraw') {
-            movementDirection = 'withdrawal';
-        }
-        let fromAccount = undefined;
-        let toAccount = undefined;
-        if (movementDirection === 'withdraw') {
-            fromAccount = undefined;
-            toAccount = 'spot';
-        }
-        else if (movementDirection === 'deposit') {
-            fromAccount = 'spot';
-            toAccount = undefined;
-        }
-        const timestamp = this.safeTimestamp(transfer, 'created_time');
-        const success = this.safeValue(transfer, 'success');
-        let status = undefined;
-        if (success !== undefined) {
-            status = success ? 'ok' : 'failed';
-        }
-        return {
-            'id': this.safeString(transfer, 'id'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
-            'currency': code,
-            'amount': this.safeNumber(transfer, 'amount'),
-            'fromAccount': fromAccount,
-            'toAccount': toAccount,
-            'status': this.parseTransferStatus(this.safeString(transfer, 'status', status)),
-            'info': transfer,
-        };
-    }
-    parseTransferStatus(status) {
-        const statuses = {
-            'NEW': 'pending',
-            'CONFIRMING': 'pending',
-            'PROCESSING': 'pending',
-            'COMPLETED': 'ok',
-            'CANCELED': 'canceled',
-        };
-        return this.safeString(statuses, status, status);
-    }
-    async withdraw(code, amount, address, tag = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#withdraw
-         * @description make a withdrawal
-         * @param {string} code unified currency code
-         * @param {float} amount the amount to withdraw
-         * @param {string} address the address to withdraw to
-         * @param {string|undefined} tag
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a [transaction structure]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        [tag, params] = this.handleWithdrawTagAndParams(tag, params);
-        await this.loadMarkets();
-        this.checkAddress(address);
-        const currency = this.currency(code);
-        const request = {
-            'amount': amount,
-            'address': address,
-        };
-        if (tag !== undefined) {
-            request['extra'] = tag;
-        }
-        const networks = this.safeValue(this.options, 'networks', {});
-        const currencyNetworks = this.safeValue(currency, 'networks', {});
-        const network = this.safeStringUpper(params, 'network');
-        const networkId = this.safeString(networks, network, network);
-        const coinNetwork = this.safeValue(currencyNetworks, networkId, {});
-        const coinNetworkId = this.safeString(coinNetwork, 'id');
-        if (coinNetworkId === undefined) {
-            throw new BadRequest(this.id + ' withdraw() require network parameter');
-        }
-        request['token'] = coinNetworkId;
-        const response = await this.v1PrivatePostAssetWithdraw(this.extend(request, params));
-        //
-        //     {
-        //         "success": true,
-        //         "withdraw_id": "20200119145703654"
-        //     }
-        //
-        return this.parseTransaction(response, currency);
-    }
-    async repayMargin(code, amount, symbol = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#repayMargin
-         * @description repay borrowed margin and interest
-         * @see https://docs.woo.org/#repay-interest
-         * @param {string} code unified currency code of the currency to repay
-         * @param {float} amount the amount to repay
-         * @param {string|undefined} symbol not used by woo.repayMargin ()
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} a [margin loan structure]{@link https://docs.ccxt.com/#/?id=margin-loan-structure}
-         */
-        await this.loadMarkets();
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market(symbol);
-            symbol = market['symbol'];
-        }
-        const currency = this.currency(code);
-        const request = {
-            'token': currency['id'],
-            'amount': this.currencyToPrecision(code, amount),
-        };
-        const response = await this.v1PrivatePostInterestRepay(this.extend(request, params));
-        //
-        //     {
-        //         "success": true,
-        //     }
-        //
-        const transaction = this.parseMarginLoan(response, currency);
-        return this.extend(transaction, {
-            'amount': amount,
-            'symbol': symbol,
-        });
-    }
-    parseMarginLoan(info, currency = undefined) {
-        //
-        //     {
-        //         "success": true,
-        //     }
-        //
-        return {
-            'id': undefined,
-            'currency': this.safeCurrencyCode(undefined, currency),
-            'amount': undefined,
-            'symbol': undefined,
-            'timestamp': undefined,
-            'datetime': undefined,
-            'info': info,
-        };
-    }
     nonce() {
         return this.milliseconds();
     }
@@ -2132,7 +1601,8 @@ export default class woofi extends Exchange {
             };
             if (version === 'v1') {
                 auth = ts + method + '/' + version + '/' + pathWithParams;
-                if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
+                if (method === 'POST' || method === 'PUT') {
+                    headers['content-type'] = 'application/x-www-form-urlencoded';
                     body = this.json(params);
                     auth += body;
                 }
@@ -2143,11 +1613,16 @@ export default class woofi extends Exchange {
                         auth += '?' + query;
                     }
                 }
-                headers['content-type'] = 'application/json';
+                if (method === 'DELETE') {
+                    headers['content-type'] = 'application/x-www-form-urlencoded';
+                }
+                else {
+                    headers['content-type'] = 'application/json';
+                }
             }
             else {
                 auth = this.urlencode(params);
-                if (method === 'POST' || method === 'PUT' || method === 'DELETE') {
+                if (method === 'POST' || method === 'PUT') {
                     body = auth;
                 }
                 else {
@@ -2379,7 +1854,7 @@ export default class woofi extends Exchange {
     }
     async fetchLeverage(symbol, params = {}) {
         await this.loadMarkets();
-        const response = await this.v1PrivateGetAccountinfo(params);
+        const response = await this.v1PrivateGetClientInfo(params);
         //
         //     {
         //         "success": true,
@@ -2409,7 +1884,7 @@ export default class woofi extends Exchange {
         //     }
         //
         const result = this.safeValue(response, 'data');
-        const leverage = this.safeNumber(result, 'leverage');
+        const leverage = this.safeNumber(result, 'max_leverage');
         return {
             'info': response,
             'leverage': leverage,
@@ -2476,7 +1951,7 @@ export default class woofi extends Exchange {
         //     }
         //
         const result = this.safeValue(response, 'data', {});
-        const positions = this.safeValue(result, 'positions', []);
+        const positions = this.safeValue(result, 'rows', []);
         return this.parsePositions(positions, symbols);
     }
     parsePosition(position, market = undefined) {
@@ -2497,7 +1972,7 @@ export default class woofi extends Exchange {
         //
         const contract = this.safeString(position, 'symbol');
         market = this.safeMarket(contract, market);
-        const size = this.safeString(position, 'holding');
+        const size = this.safeString(position, 'position_qty');
         let side = undefined;
         if (Precise.stringGt(size, '0')) {
             side = 'long';
@@ -2506,9 +1981,9 @@ export default class woofi extends Exchange {
             side = 'short';
         }
         const contractSize = this.safeString(market, 'contractSize');
-        const markPrice = this.safeString(position, 'markPrice');
+        const markPrice = this.safeString(position, 'mark_price');
         const timestamp = this.safeTimestamp(position, 'timestamp');
-        const entryPrice = this.safeString(position, 'averageOpenPrice');
+        const entryPrice = this.safeString(position, 'average_open_price');
         const priceDifference = Precise.stringSub(markPrice, entryPrice);
         const unrealisedPnl = Precise.stringMul(priceDifference, size);
         return {
@@ -2517,9 +1992,9 @@ export default class woofi extends Exchange {
             'symbol': market['symbol'],
             'notional': undefined,
             'marginMode': 'cross',
-            'liquidationPrice': this.safeNumber(position, 'estLiqPrice'),
+            'liquidationPrice': this.safeNumber(position, 'est_liq_price'),
             'entryPrice': this.parseNumber(entryPrice),
-            'realizedPnl': this.safeString(position, 'pnl24H'),
+            'realizedPnl': this.safeString(position, 'pnl_24_h'),
             'unrealizedPnl': this.parseNumber(unrealisedPnl),
             'percentage': undefined,
             'contracts': this.parseNumber(size),
@@ -2527,8 +2002,8 @@ export default class woofi extends Exchange {
             'markPrice': this.parseNumber(markPrice),
             'side': side,
             'hedged': false,
-            'timestamp': timestamp,
-            'datetime': this.iso8601(timestamp),
+            'timestamp': timestamp / 1000,
+            'datetime': this.iso8601(timestamp / 1000),
             'maintenanceMargin': undefined,
             'maintenanceMarginPercentage': undefined,
             'collateral': undefined,
