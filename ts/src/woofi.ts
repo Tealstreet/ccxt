@@ -198,7 +198,7 @@ export default class woofi extends Exchange {
                             'client/order': 1,
                             'orders': 1,
                             'asset/withdraw': 120,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                            'algo/order/{oid}': 1,
+                            'algo/order': 1,
                             'algo/orders/pending': 1,
                             'algo/orders/pending/{symbol}': 1,
                             'orders/pending': 1,
@@ -731,10 +731,11 @@ export default class woofi extends Exchange {
             if (reduceOnly) {
                 request['reduceOnly'] = reduceOnly;
             }
-            if (price !== undefined) {
-                request['price'] = this.priceToPrecision (symbol, price);
-            }
+            // if (price !== undefined) {
+            //     request['price'] = this.priceToPrecision (symbol, price);
+            // }
             request['trigger_price'] = triggerPrice;
+            request['trigger_price_type'] = 'MARK_PRICE';
             request['quantity'] = this.amountToPrecision (symbol, amount);
             params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ]);
             // const response = await (this as any).v1PrivatePostAlgoOrder (this.extend (request, params));
@@ -900,13 +901,13 @@ export default class woofi extends Exchange {
 
     async cancelAlgoOrder (id, symbol: string = undefined, params = {}) {
         const request = {};
-        request['oid'] = id;
+        request['order_id'] = id;
         let market = undefined;
         if (symbol !== undefined) {
             market = this.market (symbol);
         }
         request['symbol'] = market['id'];
-        const response = await (this as any).v1PrivateDeleteAlgoOrderOid (this.extend (request, params));
+        const response = await (this as any).v1PrivateDeleteAlgoOrder (this.extend (request, params));
         //
         // { success: true, status: 'CANCEL_SENT' }
         //

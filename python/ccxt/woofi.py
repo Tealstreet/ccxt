@@ -206,7 +206,7 @@ class woofi(Exchange):
                             'client/order': 1,
                             'orders': 1,
                             'asset/withdraw': 120,  # implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                            'algo/order/{oid}': 1,
+                            'algo/order': 1,
                             'algo/orders/pending': 1,
                             'algo/orders/pending/{symbol}': 1,
                             'orders/pending': 1,
@@ -713,9 +713,11 @@ class woofi(Exchange):
             }
             if reduceOnly:
                 request['reduceOnly'] = reduceOnly
-            if price is not None:
-                request['price'] = self.price_to_precision(symbol, price)
+            # if price is not None:
+            #     request['price'] = self.price_to_precision(symbol, price)
+            # }
             request['trigger_price'] = triggerPrice
+            request['trigger_price_type'] = 'MARK_PRICE'
             request['quantity'] = self.amount_to_precision(symbol, amount)
             params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
             # response = self.v1PrivatePostAlgoOrder(self.extend(request, params))
@@ -790,51 +792,6 @@ class woofi(Exchange):
                 {'type': type, 'status': 'open'}
             )
 
-    def edit_order(self, id, symbol, type, side, amount, price=None, params={}):
-        """
-        edit a trade order
-        :param str id: order id
-        :param str symbol: unified symbol of the market to create an order in
-        :param str type: 'market' or 'limit'
-        :param str side: 'buy' or 'sell'
-        :param float amount: how much of currency you want to trade in units of base currency
-        :param float|None price: the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns dict: an `order structure <https://docs.ccxt.com/#/?id=order-structure>`
-        """
-        self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'order_id': id,
-            # 'quantity': self.amount_to_precision(symbol, amount),
-            # 'price': self.price_to_precision(symbol, price),
-        }
-        if price is not None and type != 'stop':
-            request['price'] = self.price_to_precision(symbol, price)
-        triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        if triggerPrice is not None:
-            request['trigger_price'] = triggerPrice
-        if amount is not None:
-            request['quantity'] = self.amount_to_precision(symbol, amount)
-        method = 'v1PrivatePutOrder'
-        if self.maybe_algo_order_id(id):
-            method = 'v1PrivatePutAlgoOrder'
-        response = getattr(self, method)(self.extend(request, params))
-        #
-        #     {
-        #         "code": 0,
-        #         "data": {
-        #             "status": "string",
-        #             "success": True
-        #         },
-        #         "message": "string",
-        #         "success": True,
-        #         "timestamp": 0
-        #     }
-        #
-        data = self.safe_value(response, 'data', {})
-        return self.parse_order(data, market)
-
     def maybe_algo_order_id(self, id):
         stringId = self.number_to_string(id)
         if len(stringId) < 9:
@@ -859,12 +816,12 @@ class woofi(Exchange):
 
     def cancel_algo_order(self, id, symbol=None, params={}):
         request = {}
-        request['oid'] = id
+        request['order_id'] = id
         market = None
         if symbol is not None:
             market = self.market(symbol)
         request['symbol'] = market['id']
-        response = self.v1PrivateDeleteAlgoOrderOid(self.extend(request, params))
+        response = self.v1PrivateDeleteAlgoOrder(self.extend(request, params))
         #
         # {success: True, status: 'CANCEL_SENT'}
         #

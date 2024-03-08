@@ -201,7 +201,7 @@ class woofi extends Exchange {
                             'client/order' => 1,
                             'orders' => 1,
                             'asset/withdraw' => 120,  // implemented in ccxt, disabled on the exchange side https://kronosresearch.github.io/wootrade-documents/#cancel-withdraw-request
-                            'algo/order/{oid}' => 1,
+                            'algo/order' => 1,
                             'algo/orders/pending' => 1,
                             'algo/orders/pending/{symbol}' => 1,
                             'orders/pending' => 1,
@@ -733,10 +733,11 @@ class woofi extends Exchange {
                 if ($reduceOnly) {
                     $request['reduceOnly'] = $reduceOnly;
                 }
-                if ($price !== null) {
-                    $request['price'] = $this->price_to_precision($symbol, $price);
-                }
+                // if ($price !== null) {
+                //     $request['price'] = $this->price_to_precision($symbol, $price);
+                // }
                 $request['trigger_price'] = $triggerPrice;
+                $request['trigger_price_type'] = 'MARK_PRICE';
                 $request['quantity'] = $this->amount_to_precision($symbol, $amount);
                 $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
                 // $response = Async\await($this->v1PrivatePostAlgoOrder (array_merge($request, $params)));
@@ -820,58 +821,6 @@ class woofi extends Exchange {
         }) ();
     }
 
-    public function edit_order($id, $symbol, $type, $side, $amount, $price = null, $params = array ()) {
-        return Async\async(function () use ($id, $symbol, $type, $side, $amount, $price, $params) {
-            /**
-             * edit a trade order
-             * @param {string} $id order $id
-             * @param {string} $symbol unified $symbol of the $market to create an order in
-             * @param {string} $type 'market' or 'limit'
-             * @param {string} $side 'buy' or 'sell'
-             * @param {float} $amount how much of currency you want to trade in units of base currency
-             * @param {float|null} $price the $price at which the order is to be fullfilled, in units of the quote currency, ignored in $market orders
-             * @param {array} $params extra parameters specific to the woo api endpoint
-             * @return {array} an ~@link https://docs.ccxt.com/#/?$id=order-structure order structure~
-             */
-            Async\await($this->load_markets());
-            $market = $this->market($symbol);
-            $request = array(
-                'order_id' => $id,
-                // 'quantity' => $this->amount_to_precision($symbol, $amount),
-                // 'price' => $this->price_to_precision($symbol, $price),
-            );
-            if ($price !== null && $type !== 'stop') {
-                $request['price'] = $this->price_to_precision($symbol, $price);
-            }
-            $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-            if ($triggerPrice !== null) {
-                $request['trigger_price'] = $triggerPrice;
-            }
-            if ($amount !== null) {
-                $request['quantity'] = $this->amount_to_precision($symbol, $amount);
-            }
-            $method = 'v1PrivatePutOrder';
-            if ($this->maybe_algo_order_id($id)) {
-                $method = 'v1PrivatePutAlgoOrder';
-            }
-            $response = Async\await($this->$method (array_merge($request, $params)));
-            //
-            //     {
-            //         "code" => 0,
-            //         "data" => array(
-            //             "status" => "string",
-            //             "success" => true
-            //         ),
-            //         "message" => "string",
-            //         "success" => true,
-            //         "timestamp" => 0
-            //     }
-            //
-            $data = $this->safe_value($response, 'data', array());
-            return $this->parse_order($data, $market);
-        }) ();
-    }
-
     public function maybe_algo_order_id($id) {
         $stringId = $this->number_to_string($id);
         if (strlen($stringId) < 9) {
@@ -904,13 +853,13 @@ class woofi extends Exchange {
     public function cancel_algo_order($id, $symbol = null, $params = array ()) {
         return Async\async(function () use ($id, $symbol, $params) {
             $request = array();
-            $request['oid'] = $id;
+            $request['order_id'] = $id;
             $market = null;
             if ($symbol !== null) {
                 $market = $this->market($symbol);
             }
             $request['symbol'] = $market['id'];
-            $response = Async\await($this->v1PrivateDeleteAlgoOrderOid (array_merge($request, $params)));
+            $response = Async\await($this->v1PrivateDeleteAlgoOrder (array_merge($request, $params)));
             //
             // array( success => true, status => 'CANCEL_SENT' )
             //
