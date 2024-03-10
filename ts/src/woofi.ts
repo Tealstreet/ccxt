@@ -729,7 +729,7 @@ export default class woofi extends Exchange {
                 'side': orderSide,
             };
             if (reduceOnly) {
-                request['reduceOnly'] = reduceOnly;
+                request['reduce_only'] = reduceOnly;
             }
             // if (price !== undefined) {
             //     request['price'] = this.priceToPrecision (symbol, price);
