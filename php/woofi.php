@@ -720,7 +720,7 @@ class woofi extends Exchange {
                 'side' => $orderSide,
             );
             if ($reduceOnly) {
-                $request['reduceOnly'] = $reduceOnly;
+                $request['reduce_only'] = $reduceOnly;
             }
             // if ($price !== null) {
             //     $request['price'] = $this->price_to_precision($symbol, $price);
@@ -807,6 +807,56 @@ class woofi extends Exchange {
                 array( 'type' => $type, 'status' => 'open' )
             );
         }
+    }
+
+    public function edit_order($id, $symbol, $type, $side, $amount, $price = null, $params = array ()) {
+        /**
+         * edit a trade order
+         * @param {string} $id order $id
+         * @param {string} $symbol unified $symbol of the $market to create an order in
+         * @param {string} $type 'market' or 'limit'
+         * @param {string} $side 'buy' or 'sell'
+         * @param {float} $amount how much of currency you want to trade in units of base currency
+         * @param {float|null} $price the $price at which the order is to be fullfilled, in units of the quote currency, ignored in $market orders
+         * @param {array} $params extra parameters specific to the woo api endpoint
+         * @return {array} an ~@link https://docs.ccxt.com/#/?$id=order-structure order structure~
+         */
+        $this->load_markets();
+        $market = $this->market($symbol);
+        $request = array(
+            'order_id' => $id,
+            // 'quantity' => $this->amount_to_precision($symbol, $amount),
+            // 'price' => $this->price_to_precision($symbol, $price),
+        );
+        if ($price !== null && $type !== 'stop') {
+            $request['price'] = $this->price_to_precision($symbol, $price);
+        }
+        $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
+        if ($triggerPrice !== null) {
+            $request['trigger_price'] = $triggerPrice;
+        }
+        if ($amount !== null) {
+            $request['quantity'] = $this->amount_to_precision($symbol, $amount);
+        }
+        $method = 'v1PrivatePutOrder';
+        if ($this->maybe_algo_order_id($id)) {
+            $method = 'v1PrivatePutAlgoOrder';
+        }
+        $response = $this->$method (array_merge($request, $params));
+        //
+        //     {
+        //         "code" => 0,
+        //         "data" => array(
+        //             "status" => "string",
+        //             "success" => true
+        //         ),
+        //         "message" => "string",
+        //         "success" => true,
+        //         "timestamp" => 0
+        //     }
+        //
+        $data = $this->safe_value($response, 'data', array());
+        return $this->parse_order($data, $market);
     }
 
     public function maybe_algo_order_id($id) {
