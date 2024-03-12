@@ -852,7 +852,7 @@ class woofi extends Exchange {
                 $request['quantity'] = $this->amount_to_precision($symbol, $amount);
             }
             $method = 'v1PrivatePutOrder';
-            if ($this->maybe_algo_order_id($id)) {
+            if ($type === 'stop' || $this->maybe_algo_order_id($id)) {
                 $method = 'v1PrivatePutAlgoOrder';
             }
             $response = Async\await($this->$method (array_merge($request, $params)));
@@ -1233,8 +1233,8 @@ class woofi extends Exchange {
         // * fetchOrders
         // $isFromFetchOrder = (is_array($order) && array_key_exists('order_tag', $order)); TO_DO
         $timestamp = $this->safe_timestamp_2($order, 'timestamp', 'created_time');
-        $orderId = $this->safe_string($order, 'algo_order_id');
-        $clientOrderId = $this->safe_string($order, 'algo_order_id'); // Somehow, this always returns 0 for limit $order
+        $orderId = $this->safe_string_n($order, array( 'algo_order_id', 'algoOrderId' ));
+        $clientOrderId = $this->safe_string_n($order, array( 'algo_order_id', 'algoOrderId' )); // Somehow, this always returns 0 for limit $order
         $marketId = $this->safe_string($order, 'symbol');
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];

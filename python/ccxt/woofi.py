@@ -819,7 +819,7 @@ class woofi(Exchange):
         if amount is not None:
             request['quantity'] = self.amount_to_precision(symbol, amount)
         method = 'v1PrivatePutOrder'
-        if self.maybe_algo_order_id(id):
+        if type == 'stop' or self.maybe_algo_order_id(id):
             method = 'v1PrivatePutAlgoOrder'
         response = getattr(self, method)(self.extend(request, params))
         #
@@ -1158,8 +1158,8 @@ class woofi(Exchange):
         # * fetchOrders
         # isFromFetchOrder = ('order_tag' in order); TO_DO
         timestamp = self.safe_timestamp_2(order, 'timestamp', 'created_time')
-        orderId = self.safe_string(order, 'algo_order_id')
-        clientOrderId = self.safe_string(order, 'algo_order_id')  # Somehow, self always returns 0 for limit order
+        orderId = self.safe_string_n(order, ['algo_order_id', 'algoOrderId'])
+        clientOrderId = self.safe_string_n(order, ['algo_order_id', 'algoOrderId'])  # Somehow, self always returns 0 for limit order
         marketId = self.safe_string(order, 'symbol')
         market = self.safe_market(marketId, market)
         symbol = market['symbol']

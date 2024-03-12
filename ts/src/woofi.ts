@@ -850,7 +850,7 @@ export default class woofi extends Exchange {
             request['quantity'] = this.amountToPrecision (symbol, amount);
         }
         let method = 'v1PrivatePutOrder';
-        if (this.maybeAlgoOrderId (id)) {
+        if (type === 'stop' || this.maybeAlgoOrderId (id)) {
             method = 'v1PrivatePutAlgoOrder';
         }
         const response = await (this as any)[method] (this.extend (request, params));
@@ -1226,8 +1226,8 @@ export default class woofi extends Exchange {
         // * fetchOrders
         // const isFromFetchOrder = ('order_tag' in order); TO_DO
         const timestamp = this.safeTimestamp2 (order, 'timestamp', 'created_time');
-        const orderId = this.safeString (order, 'algo_order_id');
-        const clientOrderId = this.safeString (order, 'algo_order_id'); // Somehow, this always returns 0 for limit order
+        const orderId = this.safeStringN (order, [ 'algo_order_id', 'algoOrderId' ]);
+        const clientOrderId = this.safeStringN (order, [ 'algo_order_id', 'algoOrderId' ]); // Somehow, this always returns 0 for limit order
         const marketId = this.safeString (order, 'symbol');
         market = this.safeMarket (marketId, market);
         const symbol = market['symbol'];
