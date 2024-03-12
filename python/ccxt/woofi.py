@@ -792,51 +792,6 @@ class woofi(Exchange):
                 {'type': type, 'status': 'open'}
             )
 
-    def edit_order(self, id, symbol, type, side, amount, price=None, params={}):
-        """
-        edit a trade order
-        :param str id: order id
-        :param str symbol: unified symbol of the market to create an order in
-        :param str type: 'market' or 'limit'
-        :param str side: 'buy' or 'sell'
-        :param float amount: how much of currency you want to trade in units of base currency
-        :param float|None price: the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns dict: an `order structure <https://docs.ccxt.com/#/?id=order-structure>`
-        """
-        self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'order_id': id,
-            # 'quantity': self.amount_to_precision(symbol, amount),
-            # 'price': self.price_to_precision(symbol, price),
-        }
-        if price is not None and type != 'stop':
-            request['price'] = self.price_to_precision(symbol, price)
-        triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        if triggerPrice is not None:
-            request['trigger_price'] = triggerPrice
-        if amount is not None:
-            request['quantity'] = self.amount_to_precision(symbol, amount)
-        method = 'v1PrivatePutOrder'
-        if type == 'stop':
-            method = 'v1PrivatePutAlgoOrder'
-        response = getattr(self, method)(self.extend(request, params))
-        #
-        #     {
-        #         "code": 0,
-        #         "data": {
-        #             "status": "string",
-        #             "success": True
-        #         },
-        #         "message": "string",
-        #         "success": True,
-        #         "timestamp": 0
-        #     }
-        #
-        data = self.safe_value(response, 'data', {})
-        return self.parse_order(data, market)
-
     def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order

@@ -818,58 +818,6 @@ export default class woofi extends Exchange {
         }
     }
 
-    async editOrder (id, symbol, type, side, amount, price = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#editOrder
-         * @description edit a trade order
-         * @param {string} id order id
-         * @param {string} symbol unified symbol of the market to create an order in
-         * @param {string} type 'market' or 'limit'
-         * @param {string} side 'buy' or 'sell'
-         * @param {float} amount how much of currency you want to trade in units of base currency
-         * @param {float|undefined} price the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
-         */
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'order_id': id,
-            // 'quantity': this.amountToPrecision (symbol, amount),
-            // 'price': this.priceToPrecision (symbol, price),
-        };
-        if (price !== undefined && type !== 'stop') {
-            request['price'] = this.priceToPrecision (symbol, price);
-        }
-        const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
-        if (triggerPrice !== undefined) {
-            request['trigger_price'] = triggerPrice;
-        }
-        if (amount !== undefined) {
-            request['quantity'] = this.amountToPrecision (symbol, amount);
-        }
-        let method = 'v1PrivatePutOrder';
-        if (type === 'stop') {
-            method = 'v1PrivatePutAlgoOrder';
-        }
-        const response = await (this as any)[method] (this.extend (request, params));
-        //
-        //     {
-        //         "code": 0,
-        //         "data": {
-        //             "status": "string",
-        //             "success": true
-        //         },
-        //         "message": "string",
-        //         "success": true,
-        //         "timestamp": 0
-        //     }
-        //
-        const data = this.safeValue (response, 'data', {});
-        return this.parseOrder (data, market);
-    }
-
     async cancelOrder (id, symbol: string = undefined, params = {}) {
         /**
          * @method
