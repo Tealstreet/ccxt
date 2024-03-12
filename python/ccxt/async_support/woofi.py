@@ -819,7 +819,7 @@ class woofi(Exchange):
         if amount is not None:
             request['quantity'] = self.amount_to_precision(symbol, amount)
         method = 'v1PrivatePutOrder'
-        if type == 'stop' or self.maybe_algo_order_id(id):
+        if type == 'stop':
             method = 'v1PrivatePutAlgoOrder'
         response = await getattr(self, method)(self.extend(request, params))
         #
@@ -837,12 +837,6 @@ class woofi(Exchange):
         data = self.safe_value(response, 'data', {})
         return self.parse_order(data, market)
 
-    def maybe_algo_order_id(self, id):
-        stringId = self.number_to_string(id)
-        if len(stringId) < 9:
-            return True
-        return False
-
     async def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order
@@ -854,7 +848,7 @@ class woofi(Exchange):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         await self.load_markets()
-        if self.maybe_algo_order_id(id):
+        if params['type'] == 'stop':
             return self.cancel_algo_order(id, symbol, params)
         else:
             return self.cancel_regular_order(id, symbol, params)
@@ -937,9 +931,7 @@ class woofi(Exchange):
         request = {}
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         chosenSpotMethod = None
-        if self.maybe_algo_order_id(id):
-            chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid'
-        elif clientOrderId:
+        if clientOrderId:
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId'
             request['client_order_id'] = clientOrderId
         else:

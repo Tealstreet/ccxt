@@ -852,7 +852,7 @@ class woofi extends Exchange {
                 $request['quantity'] = $this->amount_to_precision($symbol, $amount);
             }
             $method = 'v1PrivatePutOrder';
-            if ($type === 'stop' || $this->maybe_algo_order_id($id)) {
+            if ($type === 'stop') {
                 $method = 'v1PrivatePutAlgoOrder';
             }
             $response = Async\await($this->$method (array_merge($request, $params)));
@@ -873,14 +873,6 @@ class woofi extends Exchange {
         }) ();
     }
 
-    public function maybe_algo_order_id($id) {
-        $stringId = $this->number_to_string($id);
-        if (strlen($stringId) < 9) {
-            return true;
-        }
-        return false;
-    }
-
     public function cancel_order($id, $symbol = null, $params = array ()) {
         return Async\async(function () use ($id, $symbol, $params) {
             /**
@@ -894,7 +886,7 @@ class woofi extends Exchange {
                 throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
             }
             Async\await($this->load_markets());
-            if ($this->maybe_algo_order_id($id)) {
+            if ($params['type'] === 'stop') {
                 return $this->cancel_algo_order($id, $symbol, $params);
             } else {
                 return $this->cancel_regular_order($id, $symbol, $params);
@@ -994,9 +986,7 @@ class woofi extends Exchange {
             $request = array();
             $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
             $chosenSpotMethod = null;
-            if ($this->maybe_algo_order_id($id)) {
-                $chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid';
-            } elseif ($clientOrderId) {
+            if ($clientOrderId) {
                 $chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
                 $request['client_order_id'] = $clientOrderId;
             } else {

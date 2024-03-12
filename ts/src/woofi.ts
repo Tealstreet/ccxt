@@ -850,7 +850,7 @@ export default class woofi extends Exchange {
             request['quantity'] = this.amountToPrecision (symbol, amount);
         }
         let method = 'v1PrivatePutOrder';
-        if (type === 'stop' || this.maybeAlgoOrderId (id)) {
+        if (type === 'stop') {
             method = 'v1PrivatePutAlgoOrder';
         }
         const response = await (this as any)[method] (this.extend (request, params));
@@ -870,14 +870,6 @@ export default class woofi extends Exchange {
         return this.parseOrder (data, market);
     }
 
-    maybeAlgoOrderId (id) {
-        const stringId = this.numberToString (id);
-        if (stringId.length < 9) {
-            return true;
-        }
-        return false;
-    }
-
     async cancelOrder (id, symbol: string = undefined, params = {}) {
         /**
          * @method
@@ -892,7 +884,7 @@ export default class woofi extends Exchange {
             throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets ();
-        if (this.maybeAlgoOrderId (id)) {
+        if (params['type'] === 'stop') {
             return this.cancelAlgoOrder (id, symbol, params);
         } else {
             return this.cancelRegularOrder (id, symbol, params);
@@ -988,9 +980,7 @@ export default class woofi extends Exchange {
         const request = {};
         const clientOrderId = this.safeString2 (params, 'clOrdID', 'clientOrderId');
         let chosenSpotMethod = undefined;
-        if (this.maybeAlgoOrderId (id)) {
-            chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid';
-        } else if (clientOrderId) {
+        if (clientOrderId) {
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
             request['client_order_id'] = clientOrderId;
         } else {

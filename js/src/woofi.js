@@ -842,7 +842,7 @@ export default class woofi extends Exchange {
             request['quantity'] = this.amountToPrecision(symbol, amount);
         }
         let method = 'v1PrivatePutOrder';
-        if (this.maybeAlgoOrderId(id)) {
+        if (type === 'stop') {
             method = 'v1PrivatePutAlgoOrder';
         }
         const response = await this[method](this.extend(request, params));
@@ -861,13 +861,6 @@ export default class woofi extends Exchange {
         const data = this.safeValue(response, 'data', {});
         return this.parseOrder(data, market);
     }
-    maybeAlgoOrderId(id) {
-        const stringId = this.numberToString(id);
-        if (stringId.length < 9) {
-            return true;
-        }
-        return false;
-    }
     async cancelOrder(id, symbol = undefined, params = {}) {
         /**
          * @method
@@ -882,7 +875,7 @@ export default class woofi extends Exchange {
             throw new ArgumentsRequired(this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets();
-        if (this.maybeAlgoOrderId(id)) {
+        if (params['type'] === 'stop') {
             return this.cancelAlgoOrder(id, symbol, params);
         }
         else {
@@ -976,10 +969,7 @@ export default class woofi extends Exchange {
         const request = {};
         const clientOrderId = this.safeString2(params, 'clOrdID', 'clientOrderId');
         let chosenSpotMethod = undefined;
-        if (this.maybeAlgoOrderId(id)) {
-            chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid';
-        }
-        else if (clientOrderId) {
+        if (clientOrderId) {
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
             request['client_order_id'] = clientOrderId;
         }
@@ -1212,8 +1202,8 @@ export default class woofi extends Exchange {
         // * fetchOrders
         // const isFromFetchOrder = ('order_tag' in order); TO_DO
         const timestamp = this.safeTimestamp2(order, 'timestamp', 'created_time');
-        const orderId = this.safeString(order, 'algo_order_id');
-        const clientOrderId = this.safeString(order, 'algo_order_id'); // Somehow, this always returns 0 for limit order
+        const orderId = this.safeStringN(order, ['algo_order_id', 'algoOrderId']);
+        const clientOrderId = this.safeStringN(order, ['algo_order_id', 'algoOrderId']); // Somehow, this always returns 0 for limit order
         const marketId = this.safeString(order, 'symbol');
         market = this.safeMarket(marketId, market);
         const symbol = market['symbol'];
