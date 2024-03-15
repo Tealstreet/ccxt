@@ -730,10 +730,7 @@ class woofi extends Exchange {
             $request['quantity'] = $this->amount_to_precision($symbol, $amount);
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
             // $response = $this->v1PrivatePostAlgoOrder (array_merge($request, $params));
-            $brokerId = $this->safe_string($this->options, 'brokerId');
-            if ($brokerId !== null) {
-                $request['broker_id'] = $brokerId;
-            }
+            $request['order_tag'] = 'TEALSTREET';
             $response = $this->v1PrivatePostAlgoOrder ($request);
             // {
             //     success => true,
@@ -786,10 +783,7 @@ class woofi extends Exchange {
             if ($clientOrderId !== null) {
                 $request['client_order_id'] = $clientOrderId;
             }
-            $brokerId = $this->safe_string($this->options, 'brokerId');
-            if ($brokerId !== null) {
-                $request['broker_id'] = $brokerId;
-            }
+            $request['order_tag'] = 'TEALSTREET';
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
             $response = $this->v1PrivatePostOrder (array_merge($request, $params));
             // {

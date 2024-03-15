@@ -735,10 +735,7 @@ export default class woofi extends Exchange {
             request['quantity'] = this.amountToPrecision(symbol, amount);
             params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
             // const response = await (this as any).v1PrivatePostAlgoOrder (this.extend (request, params));
-            const brokerId = this.safeString(this.options, 'brokerId');
-            if (brokerId !== undefined) {
-                request['broker_id'] = brokerId;
-            }
+            request['order_tag'] = 'TEALSTREET';
             const response = await this.v1PrivatePostAlgoOrder(request);
             // {
             //     success: true,
@@ -791,10 +788,7 @@ export default class woofi extends Exchange {
             if (clientOrderId !== undefined) {
                 request['client_order_id'] = clientOrderId;
             }
-            const brokerId = this.safeString(this.options, 'brokerId');
-            if (brokerId !== undefined) {
-                request['broker_id'] = brokerId;
-            }
+            request['order_tag'] = 'TEALSTREET';
             params = this.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce']);
             const response = await this.v1PrivatePostOrder(this.extend(request, params));
             // {

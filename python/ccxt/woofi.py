@@ -721,9 +721,7 @@ class woofi(Exchange):
             request['quantity'] = self.amount_to_precision(symbol, amount)
             params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
             # response = self.v1PrivatePostAlgoOrder(self.extend(request, params))
-            brokerId = self.safe_string(self.options, 'brokerId')
-            if brokerId is not None:
-                request['broker_id'] = brokerId
+            request['order_tag'] = 'TEALSTREET'
             response = self.v1PrivatePostAlgoOrder(request)
             # {
             #     success: True,
@@ -772,9 +770,7 @@ class woofi(Exchange):
             clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
             if clientOrderId is not None:
                 request['client_order_id'] = clientOrderId
-            brokerId = self.safe_string(self.options, 'brokerId')
-            if brokerId is not None:
-                request['broker_id'] = brokerId
+            request['order_tag'] = 'TEALSTREET'
             params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
             response = self.v1PrivatePostOrder(self.extend(request, params))
             # {
