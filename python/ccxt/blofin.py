@@ -155,8 +155,9 @@ class blofin(Exchange):
                             'trade/order-tpsl': 5,  # 2 requests per 1 second per symbol
                             'trade/batch-orders': 5,  # 2 requests per 1 second per symbol
                             'client/account_mode': 120,
-                            'account/set-leverage': 120,
+                            'account/set-leverage': 5,
                             'account/set-position-mode': 120,
+                            'account/set-margin-mode': 120,
                         },
                     },
                 },
@@ -1609,25 +1610,42 @@ class blofin(Exchange):
         # if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20) and (leverage != 50):
         #     raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50')
         # }
-        # x
-        request = {
-            'instId': symbol,
-            'leverage': leverage,
-            'marginMode': params['marginMode'],
-        }
-        return self.v1PrivatePostAccountSetLeverage(self.extend(request, params))
+        positionMode = self.safe_string(params, 'positionMode', 'oneway')
+        if positionMode == 'oneway':
+            request = {
+                'instId': symbol,
+                'leverage': leverage,
+                'marginMode': params['marginMode'],
+            }
+            return self.v1PrivatePostAccountSetLeverage(self.extend(request, params))
+        else:
+            promises = []
+            request = {
+                'instId': symbol,
+                'marginMode': params['marginMode'],
+            }
+            buyLeverage = self.safe_string(params, 'buyLeverage')
+            if buyLeverage is not None:
+                buyRequest = self.extend(request, {
+                    'positionSide': 'long',
+                    'leverage': buyLeverage,
+                })
+                promises.append(self.v1PrivatePostAccountSetLeverage(buyRequest))
+            sellLeverage = self.safe_string(params, 'sellLeverage')
+            if sellLeverage is not None:
+                sellRequest = self.extend(request, {
+                    'positionSide': 'short',
+                    'leverage': sellLeverage,
+                })
+                promises.append(self.v1PrivatePostAccountSetLeverage(sellRequest))
+            return promises
 
     def set_margin_mode(self, marginMode, symbol=None, params={}):
         self.load_markets()
-        # if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20) and (leverage != 50):
-        #     raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50')
-        # }
         request = {
-            'instId': symbol,
-            'leverage': params['leverage'],
             'marginMode': marginMode,
         }
-        return self.v1PrivatePostAccountSetLeverage(self.extend(request, params))
+        return self.v1PrivatePostAccountSetMarginMode(self.extend(request, params))
 
     def fetch_positions(self, symbols=None, params={}):
         self.load_markets()

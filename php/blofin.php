@@ -145,8 +145,9 @@ class blofin extends Exchange {
                             'trade/order-tpsl' => 5, // 2 requests per 1 second per symbol
                             'trade/batch-orders' => 5, // 2 requests per 1 second per symbol
                             'client/account_mode' => 120,
-                            'account/set-leverage' => 120,
+                            'account/set-leverage' => 5,
                             'account/set-position-mode' => 120,
+                            'account/set-margin-mode' => 120,
                         ),
                     ),
                 ),
@@ -1707,26 +1708,46 @@ class blofin extends Exchange {
         // if (($leverage !== 1) && ($leverage !== 2) && ($leverage !== 3) && ($leverage !== 4) && ($leverage !== 5) && ($leverage !== 10) && ($leverage !== 15) && ($leverage !== 20) && ($leverage !== 50)) {
         //     throw new BadRequest($this->id . ' $leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
         // }
-        // x
-        $request = array(
-            'instId' => $symbol,
-            'leverage' => $leverage,
-            'marginMode' => $params['marginMode'],
-        );
-        return $this->v1PrivatePostAccountSetLeverage (array_merge($request, $params));
+        $positionMode = $this->safe_string($params, 'positionMode', 'oneway');
+        if ($positionMode === 'oneway') {
+            $request = array(
+                'instId' => $symbol,
+                'leverage' => $leverage,
+                'marginMode' => $params['marginMode'],
+            );
+            return $this->v1PrivatePostAccountSetLeverage (array_merge($request, $params));
+        } else {
+            $promises = array();
+            $request = array(
+                'instId' => $symbol,
+                'marginMode' => $params['marginMode'],
+            );
+            $buyLeverage = $this->safe_string($params, 'buyLeverage');
+            if ($buyLeverage !== null) {
+                $buyRequest = array_merge($request, array(
+                    'positionSide' => 'long',
+                    'leverage' => $buyLeverage,
+                ));
+                $promises[] = $this->v1PrivatePostAccountSetLeverage ($buyRequest);
+            }
+            $sellLeverage = $this->safe_string($params, 'sellLeverage');
+            if ($sellLeverage !== null) {
+                $sellRequest = array_merge($request, array(
+                    'positionSide' => 'short',
+                    'leverage' => $sellLeverage,
+                ));
+                $promises[] = $this->v1PrivatePostAccountSetLeverage ($sellRequest);
+            }
+            return $promises;
+        }
     }
 
     public function set_margin_mode($marginMode, $symbol = null, $params = array ()) {
         $this->load_markets();
-        // if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
-        //     throw new BadRequest($this->id . ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
-        // }
         $request = array(
-            'instId' => $symbol,
-            'leverage' => $params['leverage'],
             'marginMode' => $marginMode,
         );
-        return $this->v1PrivatePostAccountSetLeverage (array_merge($request, $params));
+        return $this->v1PrivatePostAccountSetMarginMode (array_merge($request, $params));
     }
 
     public function fetch_positions($symbols = null, $params = array ()) {

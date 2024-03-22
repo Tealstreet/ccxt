@@ -146,8 +146,9 @@ export default class blofin extends Exchange {
                             'trade/order-tpsl': 5, // 2 requests per 1 second per symbol
                             'trade/batch-orders': 5, // 2 requests per 1 second per symbol
                             'client/account_mode': 120,
-                            'account/set-leverage': 120,
+                            'account/set-leverage': 5,
                             'account/set-position-mode': 120,
+                            'account/set-margin-mode': 120,
                         },
                     },
                 },
@@ -1730,26 +1731,46 @@ export default class blofin extends Exchange {
         // if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
         //     throw new BadRequest (this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
         // }
-        // x
-        const request = {
-            'instId': symbol,
-            'leverage': leverage,
-            'marginMode': params['marginMode'],
-        };
-        return await (this as any).v1PrivatePostAccountSetLeverage (this.extend (request, params));
+        const positionMode = this.safeString (params, 'positionMode', 'oneway');
+        if (positionMode === 'oneway') {
+            const request = {
+                'instId': symbol,
+                'leverage': leverage,
+                'marginMode': params['marginMode'],
+            };
+            return await (this as any).v1PrivatePostAccountSetLeverage (this.extend (request, params));
+        } else {
+            const promises = [];
+            const request = {
+                'instId': symbol,
+                'marginMode': params['marginMode'],
+            };
+            const buyLeverage = this.safeString (params, 'buyLeverage');
+            if (buyLeverage !== undefined) {
+                const buyRequest = this.extend (request, {
+                    'positionSide': 'long',
+                    'leverage': buyLeverage,
+                });
+                promises.push ((this as any).v1PrivatePostAccountSetLeverage (buyRequest));
+            }
+            const sellLeverage = this.safeString (params, 'sellLeverage');
+            if (sellLeverage !== undefined) {
+                const sellRequest = this.extend (request, {
+                    'positionSide': 'short',
+                    'leverage': sellLeverage,
+                });
+                promises.push ((this as any).v1PrivatePostAccountSetLeverage (sellRequest));
+            }
+            return await Promise.all (promises);
+        }
     }
 
     async setMarginMode (marginMode, symbol: string = undefined, params = {}) {
         await this.loadMarkets ();
-        // if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
-        //     throw new BadRequest (this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
-        // }
         const request = {
-            'instId': symbol,
-            'leverage': params['leverage'],
             'marginMode': marginMode,
         };
-        return await (this as any).v1PrivatePostAccountSetLeverage (this.extend (request, params));
+        return await (this as any).v1PrivatePostAccountSetMarginMode (this.extend (request, params));
     }
 
     async fetchPositions (symbols: string[] = undefined, params = {}) {
