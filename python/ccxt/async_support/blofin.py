@@ -76,7 +76,7 @@ class blofin(Exchange):
                 'fetchOrders': True,
                 'fetchOrderTrades': True,
                 'fetchPosition': False,
-                'fetchPositionMode': False,
+                'fetchPositionMode': True,
                 'fetchPositions': True,
                 'fetchPremiumIndexOHLCV': False,
                 'fetchStatus': False,
@@ -137,6 +137,9 @@ class blofin(Exchange):
                     'private': {
                         'get': {
                             'account/leverage-info': 1,
+                            'account/batch-leverage-info': 1,
+                            'account/margin-mode': 1,
+                            'account/position-mode': 1,
                             'asset/balances': 1,
                             'account/positions': 1,
                             'trade/orders-pending': 1,
@@ -1800,40 +1803,48 @@ class blofin(Exchange):
         if symbol == 'BTC/USDT:USDT':
             symbol = 'BTC-USDT'
         market = self.market(symbol)
-        leverageInfo = await self.fetch_leverage(market['id'], params)
-        data = self.safe_value(leverageInfo, 'data')
-        if not data:
-            leverage = self.safe_integer(leverageInfo, 'leverage')
-            marginMode = self.safe_string(leverageInfo, 'marginMode')
+        marginModeRequest = {
+            'instId': market['id'],
+        }
+        marginModeResponse = await self.v1PrivateGetAccountMarginMode(marginModeRequest)
+        marginModeData = self.safe_value(marginModeResponse, 'data')
+        marginMode = self.safe_string(marginModeData, 'marginMode')
+        posModeRequest = {
+            'instId': market['id'],
+            'marginMode': marginMode,
+        }
+        posModeRes = await self.v1PrivateGetAccountBatchLeverageInfo(posModeRequest)
+        posModeData = self.safe_value(posModeRes, 'data')
+        accountConfig = {}
+        if len(posModeData) == 1:
+            posInfo = self.safe_value(posModeData, 0)
+            leverage = self.safe_string(posInfo, 'leverage')
             accountConfig = {
                 'marginMode': marginMode,
                 'positionMode': 'oneway',
+                'leverage': leverage,
                 'markets': {},
+            }
+            accountConfig['markets'][symbol] = {
                 'leverage': leverage,
             }
-            leverageConfigs = accountConfig['markets']
-            leverageConfigs[market['symbol']] = {
-                'leverage': leverage,
-                'buyLeverage': leverage,
-                'sellLeverage': leverage,
-            }
-            return accountConfig
         else:
-            leverage = self.safe_integer(data, 'leverage')
-            marginMode = self.safe_string(data, 'marginMode')
+            buyPosInfo = self.safe_value(posModeData, 0)
+            sellPosInfo = self.safe_value(posModeData, 1)
+            buyLeverage = self.safe_string(buyPosInfo, 'leverage')
+            sellLeverage = self.safe_string(sellPosInfo, 'leverage')
             accountConfig = {
                 'marginMode': marginMode,
-                'positionMode': 'oneway',
+                'positionMode': 'hedged',
+                'buyLeverage': buyLeverage,
+                'sellLeverage': sellLeverage,
                 'markets': {},
-                'leverage': leverage,
             }
-            leverageConfigs = accountConfig['markets']
-            leverageConfigs[market['symbol']] = {
-                'leverage': leverage,
-                'buyLeverage': leverage,
-                'sellLeverage': leverage,
+            accountConfig['markets'][symbol] = {
+                'buyLeverage': buyLeverage,
+                'sellLeverage': sellLeverage,
             }
-            return accountConfig
+        return accountConfig
 
     def handle_errors(self, httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody):
         if not response:

@@ -67,7 +67,7 @@ export default class blofin extends Exchange {
                 'fetchOrders': true,
                 'fetchOrderTrades': true,
                 'fetchPosition': false,
-                'fetchPositionMode': false,
+                'fetchPositionMode': true,
                 'fetchPositions': true,
                 'fetchPremiumIndexOHLCV': false,
                 'fetchStatus': false,
@@ -128,6 +128,9 @@ export default class blofin extends Exchange {
                     'private': {
                         'get': {
                             'account/leverage-info': 1,
+                            'account/batch-leverage-info': 1,
+                            'account/margin-mode': 1,
+                            'account/position-mode': 1,
                             'asset/balances': 1,
                             'account/positions': 1,
                             'trade/orders-pending': 1,
@@ -1936,41 +1939,49 @@ export default class blofin extends Exchange {
             symbol = 'BTC-USDT';
         }
         const market = this.market (symbol);
-        const leverageInfo = await this.fetchLeverage (market['id'], params);
-        const data = this.safeValue (leverageInfo, 'data');
-        if (!data) {
-            const leverage = this.safeInteger (leverageInfo, 'leverage');
-            const marginMode = this.safeString (leverageInfo, 'marginMode');
-            const accountConfig = {
+        const marginModeRequest = {
+            'instId': market['id'],
+        };
+        const marginModeResponse = await (this as any).v1PrivateGetAccountMarginMode (marginModeRequest);
+        const marginModeData = this.safeValue (marginModeResponse, 'data');
+        const marginMode = this.safeString (marginModeData, 'marginMode');
+        const posModeRequest = {
+            'instId': market['id'],
+            'marginMode': marginMode,
+        };
+        const posModeRes = await (this as any).v1PrivateGetAccountBatchLeverageInfo (posModeRequest);
+        const posModeData = this.safeValue (posModeRes, 'data');
+        let accountConfig = {};
+        if (posModeData.length === 1) {
+            const posInfo = this.safeValue (posModeData, 0);
+            const leverage = this.safeString (posInfo, 'leverage');
+            accountConfig = {
                 'marginMode': marginMode,
                 'positionMode': 'oneway',
+                'leverage': leverage,
                 'markets': {},
+            };
+            accountConfig['markets'][symbol] = {
                 'leverage': leverage,
             };
-            const leverageConfigs = accountConfig['markets'];
-            leverageConfigs[market['symbol']] = {
-                'leverage': leverage,
-                'buyLeverage': leverage,
-                'sellLeverage': leverage,
-            };
-            return accountConfig;
         } else {
-            const leverage = this.safeInteger (data, 'leverage');
-            const marginMode = this.safeString (data, 'marginMode');
-            const accountConfig = {
+            const buyPosInfo = this.safeValue (posModeData, 0);
+            const sellPosInfo = this.safeValue (posModeData, 1);
+            const buyLeverage = this.safeString (buyPosInfo, 'leverage');
+            const sellLeverage = this.safeString (sellPosInfo, 'leverage');
+            accountConfig = {
                 'marginMode': marginMode,
-                'positionMode': 'oneway',
+                'positionMode': 'hedged',
+                'buyLeverage': buyLeverage,
+                'sellLeverage': sellLeverage,
                 'markets': {},
-                'leverage': leverage,
             };
-            const leverageConfigs = accountConfig['markets'];
-            leverageConfigs[market['symbol']] = {
-                'leverage': leverage,
-                'buyLeverage': leverage,
-                'sellLeverage': leverage,
+            accountConfig['markets'][symbol] = {
+                'buyLeverage': buyLeverage,
+                'sellLeverage': sellLeverage,
             };
-            return accountConfig;
         }
+        return accountConfig;
     }
 
     handleErrors (httpCode, reason, url, method, headers, body, response, requestHeaders, requestBody) {

@@ -345,6 +345,7 @@ class Exchange {
         'okx',
         'phemex',
         'woo',
+        'woofi',
     );
 
     public static $camelcase_methods = array(

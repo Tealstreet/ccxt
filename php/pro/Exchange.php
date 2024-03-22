@@ -31,5 +31,6 @@ Exchange::$exchanges = array(
     'okx',
     'phemex',
     'woo',
+    'woofi',
 );
 

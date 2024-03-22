@@ -191,7 +191,7 @@ export {
     okex5,
     okx,
     phemex,
-    woo,    
+    woo,
     woofi,    
 }
 

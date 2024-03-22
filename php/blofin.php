@@ -66,7 +66,7 @@ class blofin extends Exchange {
                 'fetchOrders' => true,
                 'fetchOrderTrades' => true,
                 'fetchPosition' => false,
-                'fetchPositionMode' => false,
+                'fetchPositionMode' => true,
                 'fetchPositions' => true,
                 'fetchPremiumIndexOHLCV' => false,
                 'fetchStatus' => false,
@@ -127,6 +127,9 @@ class blofin extends Exchange {
                     'private' => array(
                         'get' => array(
                             'account/leverage-info' => 1,
+                            'account/batch-leverage-info' => 1,
+                            'account/margin-mode' => 1,
+                            'account/position-mode' => 1,
                             'asset/balances' => 1,
                             'account/positions' => 1,
                             'trade/orders-pending' => 1,
@@ -1913,41 +1916,49 @@ class blofin extends Exchange {
             $symbol = 'BTC-USDT';
         }
         $market = $this->market($symbol);
-        $leverageInfo = $this->fetch_leverage($market['id'], $params);
-        $data = $this->safe_value($leverageInfo, 'data');
-        if (!$data) {
-            $leverage = $this->safe_integer($leverageInfo, 'leverage');
-            $marginMode = $this->safe_string($leverageInfo, 'marginMode');
+        $marginModeRequest = array(
+            'instId' => $market['id'],
+        );
+        $marginModeResponse = $this->v1PrivateGetAccountMarginMode ($marginModeRequest);
+        $marginModeData = $this->safe_value($marginModeResponse, 'data');
+        $marginMode = $this->safe_string($marginModeData, 'marginMode');
+        $posModeRequest = array(
+            'instId' => $market['id'],
+            'marginMode' => $marginMode,
+        );
+        $posModeRes = $this->v1PrivateGetAccountBatchLeverageInfo ($posModeRequest);
+        $posModeData = $this->safe_value($posModeRes, 'data');
+        $accountConfig = array();
+        if (strlen($posModeData) === 1) {
+            $posInfo = $this->safe_value($posModeData, 0);
+            $leverage = $this->safe_string($posInfo, 'leverage');
             $accountConfig = array(
                 'marginMode' => $marginMode,
                 'positionMode' => 'oneway',
+                'leverage' => $leverage,
                 'markets' => array(),
+            );
+            $accountConfig['markets'][$symbol] = array(
                 'leverage' => $leverage,
             );
-            $leverageConfigs = $accountConfig['markets'];
-            $leverageConfigs[$market['symbol']] = array(
-                'leverage' => $leverage,
-                'buyLeverage' => $leverage,
-                'sellLeverage' => $leverage,
-            );
-            return $accountConfig;
         } else {
-            $leverage = $this->safe_integer($data, 'leverage');
-            $marginMode = $this->safe_string($data, 'marginMode');
+            $buyPosInfo = $this->safe_value($posModeData, 0);
+            $sellPosInfo = $this->safe_value($posModeData, 1);
+            $buyLeverage = $this->safe_string($buyPosInfo, 'leverage');
+            $sellLeverage = $this->safe_string($sellPosInfo, 'leverage');
             $accountConfig = array(
                 'marginMode' => $marginMode,
-                'positionMode' => 'oneway',
+                'positionMode' => 'hedged',
+                'buyLeverage' => $buyLeverage,
+                'sellLeverage' => $sellLeverage,
                 'markets' => array(),
-                'leverage' => $leverage,
             );
-            $leverageConfigs = $accountConfig['markets'];
-            $leverageConfigs[$market['symbol']] = array(
-                'leverage' => $leverage,
-                'buyLeverage' => $leverage,
-                'sellLeverage' => $leverage,
+            $accountConfig['markets'][$symbol] = array(
+                'buyLeverage' => $buyLeverage,
+                'sellLeverage' => $sellLeverage,
             );
-            return $accountConfig;
         }
+        return $accountConfig;
     }
 
     public function handle_errors($httpCode, $reason, $url, $method, $headers, $body, $response, $requestHeaders, $requestBody) {

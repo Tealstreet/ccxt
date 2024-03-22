@@ -24,6 +24,7 @@ from ccxt.pro.okex import okex                                            # noqa
 from ccxt.pro.okx import okx                                              # noqa: F401
 from ccxt.pro.phemex import phemex                                        # noqa: F401
 from ccxt.pro.woo import woo                                              # noqa: F401
+from ccxt.pro.woofi import woofi                                          # noqa: F401
 
 exchanges = [
     'binance',
@@ -38,4 +39,5 @@ exchanges = [
     'okx',
     'phemex',
     'woo',
+    'woofi',
 ]

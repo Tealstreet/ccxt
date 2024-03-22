@@ -28,12 +28,12 @@ require('./_virtual/types.cjs.js');
 require('./_virtual/index.cjs5.js');
 require('./_virtual/components.cjs.js');
 require('./_virtual/formats.cjs.js');
-require('./_virtual/pkcs1.cjs.js');
+require('./_virtual/pkcs1.cjs2.js');
 require('./_virtual/pkcs8.cjs.js');
 require('./_virtual/jsbn.cjs.js');
 require('./_virtual/rsa.cjs.js');
 require('./_virtual/NodeRSA.cjs.js');
-require('./_virtual/pkcs1.cjs2.js');
+require('./_virtual/pkcs1.cjs.js');
 require('./_virtual/schemes.cjs.js');
 require('./_virtual/utils.cjs2.js');
 require('./_virtual/formats.cjs2.js');
@@ -58,6 +58,7 @@ var okex5 = require('./src/okex5.js');
 var okx = require('./src/okx.js');
 var phemex = require('./src/phemex.js');
 var woo = require('./src/woo.js');
+var woofi = require('./src/woofi.js');
 var binance$1 = require('./src/pro/binance.js');
 var binancecoinm$1 = require('./src/pro/binancecoinm.js');
 var binanceusdm$1 = require('./src/pro/binanceusdm.js');
@@ -70,6 +71,7 @@ var okex$1 = require('./src/pro/okex.js');
 var okx$1 = require('./src/pro/okx.js');
 var phemex$1 = require('./src/pro/phemex.js');
 var woo$1 = require('./src/pro/woo.js');
+var woofi$1 = require('./src/pro/woofi.js');
 
 //-----------------------------------------------------------------------------
 // this is updated by vss.js when building
@@ -89,6 +91,7 @@ const exchanges = {
     'okx': okx,
     'phemex': phemex,
     'woo': woo,
+    'woofi': woofi,
 };
 const pro = {
     'binance': binance$1,
@@ -103,6 +106,7 @@ const pro = {
     'okx': okx$1,
     'phemex': phemex$1,
     'woo': woo$1,
+    'woofi': woofi$1,
 };
 pro.exchanges = Object.keys(pro);
 pro['Exchange'] = Exchange["default"]; // now the same for rest and ts
@@ -157,6 +161,7 @@ exports.okex5 = okex5;
 exports.okx = okx;
 exports.phemex = phemex;
 exports.woo = woo;
+exports.woofi = woofi;
 exports["default"] = ccxt;
 exports.exchanges = exchanges;
 exports.pro = pro;
