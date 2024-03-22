@@ -1704,14 +1704,9 @@ class blofin(Exchange):
         notionalString = self.safe_string(position, 'notionalUsd')
         notional = self.parse_number(notionalString)
         marginType = self.safe_string(position, 'marginMode')
-        initialMarginString = None
         entryPriceString = self.safe_string(position, 'averagePrice')
         unrealizedPnlString = self.safe_string(position, 'unrealizedPnl')
-        if marginType == 'cross':
-            initialMarginString = self.safe_string(position, 'initialMargin')
-        #  else {
-        #     # initialMarginString = self.safe_string(position, 'margin')
-        # }
+        initialMarginString = self.safe_string_2(position, 'initialMargin', 'margin')
         maintenanceMarginString = self.safe_string(position, 'maintenanceMargin')
         maintenanceMargin = self.parse_number(maintenanceMarginString)
         initialMarginPercentage = None

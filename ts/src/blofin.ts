@@ -1833,15 +1833,9 @@ export default class blofin extends Exchange {
         const notionalString = this.safeString (position, 'notionalUsd');
         const notional = this.parseNumber (notionalString);
         const marginType = this.safeString (position, 'marginMode');
-        let initialMarginString = undefined;
         const entryPriceString = this.safeString (position, 'averagePrice');
         const unrealizedPnlString = this.safeString (position, 'unrealizedPnl');
-        if (marginType === 'cross') {
-            initialMarginString = this.safeString (position, 'initialMargin');
-        }
-        //  else {
-        //     // initialMarginString = this.safeString (position, 'margin');
-        // }
+        const initialMarginString = this.safeString2 (position, 'initialMargin', 'margin');
         const maintenanceMarginString = this.safeString (position, 'maintenanceMargin');
         const maintenanceMargin = this.parseNumber (maintenanceMarginString);
         let initialMarginPercentage = undefined;

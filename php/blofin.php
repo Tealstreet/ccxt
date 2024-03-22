@@ -1810,15 +1810,9 @@ class blofin extends Exchange {
         $notionalString = $this->safe_string($position, 'notionalUsd');
         $notional = $this->parse_number($notionalString);
         $marginType = $this->safe_string($position, 'marginMode');
-        $initialMarginString = null;
         $entryPriceString = $this->safe_string($position, 'averagePrice');
         $unrealizedPnlString = $this->safe_string($position, 'unrealizedPnl');
-        if ($marginType === 'cross') {
-            $initialMarginString = $this->safe_string($position, 'initialMargin');
-        }
-        //  else {
-        //     // $initialMarginString = $this->safe_string($position, 'margin');
-        // }
+        $initialMarginString = $this->safe_string_2($position, 'initialMargin', 'margin');
         $maintenanceMarginString = $this->safe_string($position, 'maintenanceMargin');
         $maintenanceMargin = $this->parse_number($maintenanceMarginString);
         $initialMarginPercentage = null;
