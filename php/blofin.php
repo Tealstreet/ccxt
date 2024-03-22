@@ -657,27 +657,30 @@ class blofin extends Exchange {
             $params = $this->omit($params, array( 'reduceOnly' ));
         }
         $side = strtolower($side);
+        $marginType = $this->safe_string($params, 'marginMode', 'cross');
+        $method = 'v1PrivatePostTradeOrder';
+        if ($type === 'stop' || $type === 'stopLimit') {
+            $method = 'v1PrivatePostTradeOrderTpsl';
+        }
         $posSide = null;
         if (($side === 'buy' && $reduceOnly) || ($side === 'sell' && !$reduceOnly)) {
             $posSide = 'short';
         } else {
             $posSide = 'long';
         }
-        $marginType = $this->safe_string($params, 'marginMode', 'cross');
-        $method = 'v1PrivatePostTradeOrder';
-        if ($type === 'stop' || $type === 'stopLimit') {
-            $method = 'v1PrivatePostTradeOrderTpsl';
-        }
         $request = array(
             'instId' => $market['id'],
             'marginMode' => $marginType,
             'side' => $side,
-            // $posSide is not used by blofin
             'orderType' => $orderType,
             'reduceOnly' => $reduceOnly,
         );
+        $positionMode = $this->safe_string($params, 'positionMode', 'oneway');
+        $params = $this->omit($params, array( 'positionMode' ));
+        if ($positionMode === 'hedged') {
+            $request['positionSide'] = $posSide;
+        }
         $brokerId = $this->safe_string($this->options, 'brokerId');
-        var_dump ($brokerId);
         if ($brokerId) {
             $request['brokerId'] = $brokerId;
         }
@@ -752,20 +755,20 @@ class blofin extends Exchange {
             }
             $request['positionSide'] = $posSide;
         }
-        $tradeMode = $this->safe_string($params, 'tradeMode', 'hedged');
-        $params = array();
-        if ($tradeMode) {
-            $params = $this->omit($params, array( 'tradeMode' ));
-            if ($tradeMode === 'oneway') {
-                $request = $this->omit($request, array( 'positionSide' ));
-            }
-            // not implement for blofin yet
-            // if ($tradeMode === 'oneway') {
-            //     $request['positionSide'] = 'oneway';
-            // } else {
-            // $request = $this->omit($request, ['positionSide'])
-            // }
-        }
+        // $tradeMode = $this->safe_string($params, 'tradeMode', 'hedged');
+        // $params = array();
+        // if ($tradeMode) {
+        //     $params = $this->omit($params, array( 'tradeMode' ));
+        //     if ($tradeMode === 'oneway') {
+        //         $request = $this->omit($request, array( 'positionSide' ));
+        //     }
+        //     // not implement for blofin yet
+        //     // if ($tradeMode === 'oneway') {
+        //     //     $request['positionSide'] = 'oneway';
+        //     // } else {
+        //     // $request = $this->omit($request, ['positionSide'])
+        //     // }
+        // }
         if ($marginType) {
             $params = $this->omit($params, array( 'marginType' ));
             $request['marginMode'] = $marginType;

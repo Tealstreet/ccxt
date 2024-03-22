@@ -642,25 +642,27 @@ class blofin(Exchange):
                 reduceOnly = True
             params = self.omit(params, ['reduceOnly'])
         side = side.lower()
+        marginType = self.safe_string(params, 'marginMode', 'cross')
+        method = 'v1PrivatePostTradeOrder'
+        if type == 'stop' or type == 'stopLimit':
+            method = 'v1PrivatePostTradeOrderTpsl'
         posSide = None
         if (side == 'buy' and reduceOnly) or (side == 'sell' and not reduceOnly):
             posSide = 'short'
         else:
             posSide = 'long'
-        marginType = self.safe_string(params, 'marginMode', 'cross')
-        method = 'v1PrivatePostTradeOrder'
-        if type == 'stop' or type == 'stopLimit':
-            method = 'v1PrivatePostTradeOrderTpsl'
         request = {
             'instId': market['id'],
             'marginMode': marginType,
             'side': side,
-            # posSide is not used by blofin
             'orderType': orderType,
             'reduceOnly': reduceOnly,
         }
+        positionMode = self.safe_string(params, 'positionMode', 'oneway')
+        params = self.omit(params, ['positionMode'])
+        if positionMode == 'hedged':
+            request['positionSide'] = posSide
         brokerId = self.safe_string(self.options, 'brokerId')
-        print(brokerId)
         if brokerId:
             request['brokerId'] = brokerId
         params = self.omit(params, ['clientOrderId'])
@@ -723,18 +725,20 @@ class blofin(Exchange):
                     request['reduceOnly'] = 'true'
                 request['price'] = -1
             request['positionSide'] = posSide
-        tradeMode = self.safe_string(params, 'tradeMode', 'hedged')
-        params = []
-        if tradeMode:
-            params = self.omit(params, ['tradeMode'])
-            if tradeMode == 'oneway':
-                request = self.omit(request, ['positionSide'])
-            # not implement for blofin yet
-            # if tradeMode == 'oneway':
-            #     request['positionSide'] = 'oneway'
-            # else:
-            # request = self.omit(request, ['positionSide'])
-            # }
+        # tradeMode = self.safe_string(params, 'tradeMode', 'hedged')
+        # params = []
+        # if tradeMode:
+        #     params = self.omit(params, ['tradeMode'])
+        #     if tradeMode == 'oneway':
+        #         request = self.omit(request, ['positionSide'])
+        #     }
+        #     # not implement for blofin yet
+        #     # if tradeMode == 'oneway':
+        #     #     request['positionSide'] = 'oneway'
+        #     # else:
+        #     # request = self.omit(request, ['positionSide'])
+        #     # }
+        # }
         if marginType:
             params = self.omit(params, ['marginType'])
             request['marginMode'] = marginType

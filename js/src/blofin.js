@@ -655,6 +655,11 @@ export default class blofin extends Exchange {
             params = this.omit(params, ['reduceOnly']);
         }
         side = side.toLowerCase();
+        const marginType = this.safeString(params, 'marginMode', 'cross');
+        let method = 'v1PrivatePostTradeOrder';
+        if (type === 'stop' || type === 'stopLimit') {
+            method = 'v1PrivatePostTradeOrderTpsl';
+        }
         let posSide = undefined;
         if ((side === 'buy' && reduceOnly) || (side === 'sell' && !reduceOnly)) {
             posSide = 'short';
@@ -662,21 +667,19 @@ export default class blofin extends Exchange {
         else {
             posSide = 'long';
         }
-        const marginType = this.safeString(params, 'marginMode', 'cross');
-        let method = 'v1PrivatePostTradeOrder';
-        if (type === 'stop' || type === 'stopLimit') {
-            method = 'v1PrivatePostTradeOrderTpsl';
-        }
         let request = {
             'instId': market['id'],
             'marginMode': marginType,
             'side': side,
-            // posSide is not used by blofin
             'orderType': orderType,
             'reduceOnly': reduceOnly,
         };
+        const positionMode = this.safeString(params, 'positionMode', 'oneway');
+        params = this.omit(params, ['positionMode']);
+        if (positionMode === 'hedged') {
+            request['positionSide'] = posSide;
+        }
         const brokerId = this.safeString(this.options, 'brokerId');
-        console.log(brokerId);
         if (brokerId) {
             request['brokerId'] = brokerId;
         }
@@ -757,20 +760,20 @@ export default class blofin extends Exchange {
             }
             request['positionSide'] = posSide;
         }
-        const tradeMode = this.safeString(params, 'tradeMode', 'hedged');
-        params = [];
-        if (tradeMode) {
-            params = this.omit(params, ['tradeMode']);
-            if (tradeMode === 'oneway') {
-                request = this.omit(request, ['positionSide']);
-            }
-            // not implement for blofin yet
-            // if (tradeMode === 'oneway') {
-            //     request['positionSide'] = 'oneway';
-            // } else {
-            // request = this.omit (request, ['positionSide'])
-            // }
-        }
+        // const tradeMode = this.safeString (params, 'tradeMode', 'hedged');
+        // params = [];
+        // if (tradeMode) {
+        //     params = this.omit (params, [ 'tradeMode' ]);
+        //     if (tradeMode === 'oneway') {
+        //         request = this.omit (request, [ 'positionSide' ]);
+        //     }
+        //     // not implement for blofin yet
+        //     // if (tradeMode === 'oneway') {
+        //     //     request['positionSide'] = 'oneway';
+        //     // } else {
+        //     // request = this.omit (request, ['positionSide'])
+        //     // }
+        // }
         if (marginType) {
             params = this.omit(params, ['marginType']);
             request['marginMode'] = marginType;
