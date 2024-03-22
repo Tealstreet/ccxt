@@ -7,8 +7,6 @@ export default class woofi extends Exchange {
     parseTokenAndFeeTemp(item: any, feeTokenKey: any, feeAmountKey: any): any;
     fetchCurrencies(params?: {}): Promise<{}>;
     createOrder(symbol: any, type: any, side: any, amount: any, price?: any, params?: {}): Promise<any>;
-    editOrder(id: any, symbol: any, type: any, side: any, amount: any, price?: any, params?: {}): Promise<any>;
-    maybeAlgoOrderId(id: any): boolean;
     cancelOrder(id: any, symbol?: string, params?: {}): Promise<any>;
     cancelAlgoOrder(id: any, symbol?: string, params?: {}): Promise<any>;
     cancelRegularOrder(id: any, symbol?: string, params?: {}): Promise<any>;
