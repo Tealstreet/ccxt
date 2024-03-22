@@ -133,6 +133,7 @@ export default class blofin extends Exchange {
         status: string;
         tradeMode: string;
     };
+    setPositionMode(hedged: any, symbol?: any, params?: {}): Promise<any>;
     fetchAccountConfiguration(symbol: any, params?: {}): Promise<{}>;
     handleErrors(httpCode: any, reason: any, url: any, method: any, headers: any, body: any, response: any, requestHeaders: any, requestBody: any): void;
     market(symbol: any): any;

@@ -24241,7 +24241,7 @@ class blofin extends _Exchange.Exchange {
         'fetchOrders': true,
         'fetchOrderTrades': true,
         'fetchPosition': false,
-        'fetchPositionMode': true,
+        'fetchPositionMode': false,
         'fetchPositions': true,
         'fetchPremiumIndexOHLCV': false,
         'fetchStatus': false,
@@ -24259,6 +24259,7 @@ class blofin extends _Exchange.Exchange {
         'setLeverage': true,
         'setMargin': false,
         'setMarginMode': true,
+        'setPositionMode': true,
         'transfer': false,
         'withdraw': false
       },
@@ -24302,7 +24303,7 @@ class blofin extends _Exchange.Exchange {
               'account/leverage-info': 1,
               'account/batch-leverage-info': 1,
               'account/margin-mode': 1,
-              'account/position-mode': 1,
+              // 'account/position-mode': 1,
               'asset/balances': 1,
               'account/positions': 1,
               'trade/orders-pending': 1,
@@ -24317,7 +24318,8 @@ class blofin extends _Exchange.Exchange {
               'trade/order-tpsl': 5,
               'trade/batch-orders': 5,
               'client/account_mode': 120,
-              'account/set-leverage': 120
+              'account/set-leverage': 120,
+              'account/set-position-mode': 120
             }
           }
         }
@@ -24352,9 +24354,10 @@ class blofin extends _Exchange.Exchange {
         },
         'transfer': {
           'fillResponseFromRequest': true
-        },
-        'brokerId': 'ab82cb09-cfec-4473-80a3-b740779d0644'
+        }
+        // 'brokerId': 'ab82cb09-cfec-4473-80a3-b740779d0644',
       },
+
       'commonCurrencies': {},
       'exceptions': {
         'exact': {
@@ -24847,9 +24850,13 @@ class blofin extends _Exchange.Exchange {
       'side': side,
       // posSide is not used by blofin
       'orderType': orderType,
-      'reduceOnly': reduceOnly,
-      'brokerId': 'b3cdedc0a20880ba'
+      'reduceOnly': reduceOnly
     };
+    const brokerId = this.safeString(this.options, 'brokerId');
+    console.log(brokerId);
+    if (brokerId) {
+      request['brokerId'] = brokerId;
+    }
     params = this.omit(params, ['clientOrderId']);
     if (price !== undefined) {
       request['price'] = this.priceToPrecision(symbol, price);
@@ -26073,6 +26080,16 @@ class blofin extends _Exchange.Exchange {
     };
   }
 
+  async setPositionMode(hedged, symbol = undefined, params = {}) {
+    let positionMode = 'net_mode';
+    if (hedged) {
+      positionMode = 'long_short_mode';
+    }
+    const request = {
+      'positionMode': positionMode
+    };
+    return await this.v1PrivatePostAccountSetPositionMode(this.extend(request, params));
+  }
   async fetchAccountConfiguration(symbol, params = {}) {
     await this.loadMarkets();
     if (symbol === 'BTC/USDT:USDT') {
@@ -26149,7 +26166,7 @@ class blofin extends _Exchange.Exchange {
     //
     const code = this.safeString(response, 'code');
     const data = this.safeValue(response, 'data', []);
-    if (code !== '0') {
+    if (code !== '0' && code !== '1') {
       const feedback = this.id + ' ' + body;
       for (let i = 0; i < data.length; i++) {
         const error = data[i];

@@ -76,7 +76,7 @@ class blofin(Exchange):
                 'fetchOrders': True,
                 'fetchOrderTrades': True,
                 'fetchPosition': False,
-                'fetchPositionMode': True,
+                'fetchPositionMode': False,
                 'fetchPositions': True,
                 'fetchPremiumIndexOHLCV': False,
                 'fetchStatus': False,
@@ -94,6 +94,7 @@ class blofin(Exchange):
                 'setLeverage': True,
                 'setMargin': False,
                 'setMarginMode': True,
+                'setPositionMode': True,
                 'transfer': False,
                 'withdraw': False,
             },
@@ -139,7 +140,7 @@ class blofin(Exchange):
                             'account/leverage-info': 1,
                             'account/batch-leverage-info': 1,
                             'account/margin-mode': 1,
-                            'account/position-mode': 1,
+                            # 'account/position-mode': 1,
                             'asset/balances': 1,
                             'account/positions': 1,
                             'trade/orders-pending': 1,
@@ -155,6 +156,7 @@ class blofin(Exchange):
                             'trade/batch-orders': 5,  # 2 requests per 1 second per symbol
                             'client/account_mode': 120,
                             'account/set-leverage': 120,
+                            'account/set-position-mode': 120,
                         },
                     },
                 },
@@ -190,7 +192,7 @@ class blofin(Exchange):
                 'transfer': {
                     'fillResponseFromRequest': True,
                 },
-                'brokerId': 'ab82cb09-cfec-4473-80a3-b740779d0644',
+                # 'brokerId': 'ab82cb09-cfec-4473-80a3-b740779d0644',
             },
             'commonCurrencies': {},
             'exceptions': {
@@ -656,8 +658,11 @@ class blofin(Exchange):
             # posSide is not used by blofin
             'orderType': orderType,
             'reduceOnly': reduceOnly,
-            'brokerId': 'b3cdedc0a20880ba',
         }
+        brokerId = self.safe_string(self.options, 'brokerId')
+        print(brokerId)
+        if brokerId:
+            request['brokerId'] = brokerId
         params = self.omit(params, ['clientOrderId'])
         if price is not None:
             request['price'] = self.price_to_precision(symbol, price)
@@ -1798,6 +1803,15 @@ class blofin(Exchange):
             # 'tradeMode': tradeMode,
         }
 
+    def set_position_mode(self, hedged, symbol=None, params={}):
+        positionMode = 'net_mode'
+        if hedged:
+            positionMode = 'long_short_mode'
+        request = {
+            'positionMode': positionMode,
+        }
+        return self.v1PrivatePostAccountSetPositionMode(self.extend(request, params))
+
     def fetch_account_configuration(self, symbol, params={}):
         self.load_markets()
         if symbol == 'BTC/USDT:USDT':
@@ -1871,7 +1885,7 @@ class blofin(Exchange):
         #
         code = self.safe_string(response, 'code')
         data = self.safe_value(response, 'data', [])
-        if code != '0':
+        if code != '0' and code != '1':
             feedback = self.id + ' ' + body
             for i in range(0, len(data)):
                 error = data[i]

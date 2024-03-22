@@ -66,7 +66,7 @@ class blofin extends Exchange {
                 'fetchOrders' => true,
                 'fetchOrderTrades' => true,
                 'fetchPosition' => false,
-                'fetchPositionMode' => true,
+                'fetchPositionMode' => false,
                 'fetchPositions' => true,
                 'fetchPremiumIndexOHLCV' => false,
                 'fetchStatus' => false,
@@ -84,6 +84,7 @@ class blofin extends Exchange {
                 'setLeverage' => true,
                 'setMargin' => false,
                 'setMarginMode' => true,
+                'setPositionMode' => true,
                 'transfer' => false,
                 'withdraw' => false,
             ),
@@ -129,7 +130,7 @@ class blofin extends Exchange {
                             'account/leverage-info' => 1,
                             'account/batch-leverage-info' => 1,
                             'account/margin-mode' => 1,
-                            'account/position-mode' => 1,
+                            // 'account/position-mode' => 1,
                             'asset/balances' => 1,
                             'account/positions' => 1,
                             'trade/orders-pending' => 1,
@@ -145,6 +146,7 @@ class blofin extends Exchange {
                             'trade/batch-orders' => 5, // 2 requests per 1 second per symbol
                             'client/account_mode' => 120,
                             'account/set-leverage' => 120,
+                            'account/set-position-mode' => 120,
                         ),
                     ),
                 ),
@@ -180,7 +182,7 @@ class blofin extends Exchange {
                 'transfer' => array(
                     'fillResponseFromRequest' => true,
                 ),
-                'brokerId' => 'ab82cb09-cfec-4473-80a3-b740779d0644',
+                // 'brokerId' => 'ab82cb09-cfec-4473-80a3-b740779d0644',
             ),
             'commonCurrencies' => array(),
             'exceptions' => array(
@@ -673,8 +675,12 @@ class blofin extends Exchange {
             // $posSide is not used by blofin
             'orderType' => $orderType,
             'reduceOnly' => $reduceOnly,
-            'brokerId' => 'b3cdedc0a20880ba',
         );
+        $brokerId = $this->safe_string($this->options, 'brokerId');
+        var_dump ($brokerId);
+        if ($brokerId) {
+            $request['brokerId'] = $brokerId;
+        }
         $params = $this->omit($params, array( 'clientOrderId' ));
         if ($price !== null) {
             $request['price'] = $this->price_to_precision($symbol, $price);
@@ -1910,6 +1916,17 @@ class blofin extends Exchange {
         );
     }
 
+    public function set_position_mode($hedged, $symbol = null, $params = array ()) {
+        $positionMode = 'net_mode';
+        if ($hedged) {
+            $positionMode = 'long_short_mode';
+        }
+        $request = array(
+            'positionMode' => $positionMode,
+        );
+        return $this->v1PrivatePostAccountSetPositionMode (array_merge($request, $params));
+    }
+
     public function fetch_account_configuration($symbol, $params = array ()) {
         $this->load_markets();
         if ($symbol === 'BTC/USDT:USDT') {
@@ -1987,7 +2004,7 @@ class blofin extends Exchange {
         //
         $code = $this->safe_string($response, 'code');
         $data = $this->safe_value($response, 'data', array());
-        if ($code !== '0') {
+        if ($code !== '0' && $code !== '1') {
             $feedback = $this->id . ' ' . $body;
             for ($i = 0; $i < count($data); $i++) {
                 $error = $data[$i];
