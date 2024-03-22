@@ -729,7 +729,7 @@ export default class woofi extends Exchange {
                 'side': orderSide,
             };
             if (reduceOnly) {
-                request['reduceOnly'] = reduceOnly;
+                request['reduce_only'] = reduceOnly;
             }
             // if (price !== undefined) {
             //     request['price'] = this.priceToPrecision (symbol, price);
@@ -739,10 +739,7 @@ export default class woofi extends Exchange {
             request['quantity'] = this.amountToPrecision (symbol, amount);
             params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ]);
             // const response = await (this as any).v1PrivatePostAlgoOrder (this.extend (request, params));
-            const brokerId = this.safeString (this.options, 'brokerId');
-            if (brokerId !== undefined) {
-                request['broker_id'] = brokerId;
-            }
+            request['order_tag'] = 'TEALSTREET';
             const response = await (this as any).v1PrivatePostAlgoOrder (request);
             // {
             //     success: true,
@@ -795,10 +792,7 @@ export default class woofi extends Exchange {
             if (clientOrderId !== undefined) {
                 request['client_order_id'] = clientOrderId;
             }
-            const brokerId = this.safeString (this.options, 'brokerId');
-            if (brokerId !== undefined) {
-                request['broker_id'] = brokerId;
-            }
+            request['order_tag'] = 'TEALSTREET';
             params = this.omit (params, [ 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ]);
             const response = await (this as any).v1PrivatePostOrder (this.extend (request, params));
             // {
@@ -818,66 +812,6 @@ export default class woofi extends Exchange {
         }
     }
 
-    async editOrder (id, symbol, type, side, amount, price = undefined, params = {}) {
-        /**
-         * @method
-         * @name woo#editOrder
-         * @description edit a trade order
-         * @param {string} id order id
-         * @param {string} symbol unified symbol of the market to create an order in
-         * @param {string} type 'market' or 'limit'
-         * @param {string} side 'buy' or 'sell'
-         * @param {float} amount how much of currency you want to trade in units of base currency
-         * @param {float|undefined} price the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-         * @param {object} params extra parameters specific to the woo api endpoint
-         * @returns {object} an [order structure]{@link https://docs.ccxt.com/#/?id=order-structure}
-         */
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'order_id': id,
-            // 'quantity': this.amountToPrecision (symbol, amount),
-            // 'price': this.priceToPrecision (symbol, price),
-        };
-        if (price !== undefined && type !== 'stop') {
-            request['price'] = this.priceToPrecision (symbol, price);
-        }
-        const triggerPrice = this.safeValue2 (params, 'stopPrice', 'triggerPrice');
-        if (triggerPrice !== undefined) {
-            request['trigger_price'] = triggerPrice;
-        }
-        if (amount !== undefined) {
-            request['quantity'] = this.amountToPrecision (symbol, amount);
-        }
-        let method = 'v1PrivatePutOrder';
-        if (this.maybeAlgoOrderId (id)) {
-            method = 'v1PrivatePutAlgoOrder';
-        }
-        const response = await (this as any)[method] (this.extend (request, params));
-        //
-        //     {
-        //         "code": 0,
-        //         "data": {
-        //             "status": "string",
-        //             "success": true
-        //         },
-        //         "message": "string",
-        //         "success": true,
-        //         "timestamp": 0
-        //     }
-        //
-        const data = this.safeValue (response, 'data', {});
-        return this.parseOrder (data, market);
-    }
-
-    maybeAlgoOrderId (id) {
-        const stringId = this.numberToString (id);
-        if (stringId.length < 9) {
-            return true;
-        }
-        return false;
-    }
-
     async cancelOrder (id, symbol: string = undefined, params = {}) {
         /**
          * @method
@@ -892,7 +826,7 @@ export default class woofi extends Exchange {
             throw new ArgumentsRequired (this.id + ' cancelOrder() requires a symbol argument');
         }
         await this.loadMarkets ();
-        if (this.maybeAlgoOrderId (id)) {
+        if (params['type'] === 'stop') {
             return this.cancelAlgoOrder (id, symbol, params);
         } else {
             return this.cancelRegularOrder (id, symbol, params);
@@ -988,9 +922,7 @@ export default class woofi extends Exchange {
         const request = {};
         const clientOrderId = this.safeString2 (params, 'clOrdID', 'clientOrderId');
         let chosenSpotMethod = undefined;
-        if (this.maybeAlgoOrderId (id)) {
-            chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid';
-        } else if (clientOrderId) {
+        if (clientOrderId) {
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
             request['client_order_id'] = clientOrderId;
         } else {
@@ -1226,8 +1158,8 @@ export default class woofi extends Exchange {
         // * fetchOrders
         // const isFromFetchOrder = ('order_tag' in order); TO_DO
         const timestamp = this.safeTimestamp2 (order, 'timestamp', 'created_time');
-        const orderId = this.safeString (order, 'algo_order_id');
-        const clientOrderId = this.safeString (order, 'algo_order_id'); // Somehow, this always returns 0 for limit order
+        const orderId = this.safeStringN (order, [ 'algo_order_id', 'algoOrderId' ]);
+        const clientOrderId = this.safeStringN (order, [ 'algo_order_id', 'algoOrderId' ]); // Somehow, this always returns 0 for limit order
         const marketId = this.safeString (order, 'symbol');
         market = this.safeMarket (marketId, market);
         const symbol = market['symbol'];

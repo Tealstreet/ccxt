@@ -712,7 +712,7 @@ class woofi(Exchange):
                 'side': orderSide,
             }
             if reduceOnly:
-                request['reduceOnly'] = reduceOnly
+                request['reduce_only'] = reduceOnly
             # if price is not None:
             #     request['price'] = self.price_to_precision(symbol, price)
             # }
@@ -721,9 +721,7 @@ class woofi(Exchange):
             request['quantity'] = self.amount_to_precision(symbol, amount)
             params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
             # response = await self.v1PrivatePostAlgoOrder(self.extend(request, params))
-            brokerId = self.safe_string(self.options, 'brokerId')
-            if brokerId is not None:
-                request['broker_id'] = brokerId
+            request['order_tag'] = 'TEALSTREET'
             response = await self.v1PrivatePostAlgoOrder(request)
             # {
             #     success: True,
@@ -772,9 +770,7 @@ class woofi(Exchange):
             clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
             if clientOrderId is not None:
                 request['client_order_id'] = clientOrderId
-            brokerId = self.safe_string(self.options, 'brokerId')
-            if brokerId is not None:
-                request['broker_id'] = brokerId
+            request['order_tag'] = 'TEALSTREET'
             params = self.omit(params, ['clOrdID', 'clientOrderId', 'postOnly', 'timeInForce'])
             response = await self.v1PrivatePostOrder(self.extend(request, params))
             # {
@@ -792,57 +788,6 @@ class woofi(Exchange):
                 {'type': type, 'status': 'open'}
             )
 
-    async def edit_order(self, id, symbol, type, side, amount, price=None, params={}):
-        """
-        edit a trade order
-        :param str id: order id
-        :param str symbol: unified symbol of the market to create an order in
-        :param str type: 'market' or 'limit'
-        :param str side: 'buy' or 'sell'
-        :param float amount: how much of currency you want to trade in units of base currency
-        :param float|None price: the price at which the order is to be fullfilled, in units of the quote currency, ignored in market orders
-        :param dict params: extra parameters specific to the woo api endpoint
-        :returns dict: an `order structure <https://docs.ccxt.com/#/?id=order-structure>`
-        """
-        await self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'order_id': id,
-            # 'quantity': self.amount_to_precision(symbol, amount),
-            # 'price': self.price_to_precision(symbol, price),
-        }
-        if price is not None and type != 'stop':
-            request['price'] = self.price_to_precision(symbol, price)
-        triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        if triggerPrice is not None:
-            request['trigger_price'] = triggerPrice
-        if amount is not None:
-            request['quantity'] = self.amount_to_precision(symbol, amount)
-        method = 'v1PrivatePutOrder'
-        if self.maybe_algo_order_id(id):
-            method = 'v1PrivatePutAlgoOrder'
-        response = await getattr(self, method)(self.extend(request, params))
-        #
-        #     {
-        #         "code": 0,
-        #         "data": {
-        #             "status": "string",
-        #             "success": True
-        #         },
-        #         "message": "string",
-        #         "success": True,
-        #         "timestamp": 0
-        #     }
-        #
-        data = self.safe_value(response, 'data', {})
-        return self.parse_order(data, market)
-
-    def maybe_algo_order_id(self, id):
-        stringId = self.number_to_string(id)
-        if len(stringId) < 9:
-            return True
-        return False
-
     async def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order
@@ -854,7 +799,7 @@ class woofi(Exchange):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' cancelOrder() requires a symbol argument')
         await self.load_markets()
-        if self.maybe_algo_order_id(id):
+        if params['type'] == 'stop':
             return self.cancel_algo_order(id, symbol, params)
         else:
             return self.cancel_regular_order(id, symbol, params)
@@ -937,9 +882,7 @@ class woofi(Exchange):
         request = {}
         clientOrderId = self.safe_string_2(params, 'clOrdID', 'clientOrderId')
         chosenSpotMethod = None
-        if self.maybe_algo_order_id(id):
-            chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid'
-        elif clientOrderId:
+        if clientOrderId:
             chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId'
             request['client_order_id'] = clientOrderId
         else:
@@ -1158,8 +1101,8 @@ class woofi(Exchange):
         # * fetchOrders
         # isFromFetchOrder = ('order_tag' in order); TO_DO
         timestamp = self.safe_timestamp_2(order, 'timestamp', 'created_time')
-        orderId = self.safe_string(order, 'algo_order_id')
-        clientOrderId = self.safe_string(order, 'algo_order_id')  # Somehow, self always returns 0 for limit order
+        orderId = self.safe_string_n(order, ['algo_order_id', 'algoOrderId'])
+        clientOrderId = self.safe_string_n(order, ['algo_order_id', 'algoOrderId'])  # Somehow, self always returns 0 for limit order
         marketId = self.safe_string(order, 'symbol')
         market = self.safe_market(marketId, market)
         symbol = market['symbol']

@@ -720,7 +720,7 @@ class woofi extends Exchange {
                 'side' => $orderSide,
             );
             if ($reduceOnly) {
-                $request['reduceOnly'] = $reduceOnly;
+                $request['reduce_only'] = $reduceOnly;
             }
             // if ($price !== null) {
             //     $request['price'] = $this->price_to_precision($symbol, $price);
@@ -730,10 +730,7 @@ class woofi extends Exchange {
             $request['quantity'] = $this->amount_to_precision($symbol, $amount);
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
             // $response = $this->v1PrivatePostAlgoOrder (array_merge($request, $params));
-            $brokerId = $this->safe_string($this->options, 'brokerId');
-            if ($brokerId !== null) {
-                $request['broker_id'] = $brokerId;
-            }
+            $request['order_tag'] = 'TEALSTREET';
             $response = $this->v1PrivatePostAlgoOrder ($request);
             // {
             //     success => true,
@@ -786,10 +783,7 @@ class woofi extends Exchange {
             if ($clientOrderId !== null) {
                 $request['client_order_id'] = $clientOrderId;
             }
-            $brokerId = $this->safe_string($this->options, 'brokerId');
-            if ($brokerId !== null) {
-                $request['broker_id'] = $brokerId;
-            }
+            $request['order_tag'] = 'TEALSTREET';
             $params = $this->omit($params, array( 'clOrdID', 'clientOrderId', 'postOnly', 'timeInForce' ));
             $response = $this->v1PrivatePostOrder (array_merge($request, $params));
             // {
@@ -809,64 +803,6 @@ class woofi extends Exchange {
         }
     }
 
-    public function edit_order($id, $symbol, $type, $side, $amount, $price = null, $params = array ()) {
-        /**
-         * edit a trade order
-         * @param {string} $id order $id
-         * @param {string} $symbol unified $symbol of the $market to create an order in
-         * @param {string} $type 'market' or 'limit'
-         * @param {string} $side 'buy' or 'sell'
-         * @param {float} $amount how much of currency you want to trade in units of base currency
-         * @param {float|null} $price the $price at which the order is to be fullfilled, in units of the quote currency, ignored in $market orders
-         * @param {array} $params extra parameters specific to the woo api endpoint
-         * @return {array} an ~@link https://docs.ccxt.com/#/?$id=order-structure order structure~
-         */
-        $this->load_markets();
-        $market = $this->market($symbol);
-        $request = array(
-            'order_id' => $id,
-            // 'quantity' => $this->amount_to_precision($symbol, $amount),
-            // 'price' => $this->price_to_precision($symbol, $price),
-        );
-        if ($price !== null && $type !== 'stop') {
-            $request['price'] = $this->price_to_precision($symbol, $price);
-        }
-        $triggerPrice = $this->safe_value_2($params, 'stopPrice', 'triggerPrice');
-        if ($triggerPrice !== null) {
-            $request['trigger_price'] = $triggerPrice;
-        }
-        if ($amount !== null) {
-            $request['quantity'] = $this->amount_to_precision($symbol, $amount);
-        }
-        $method = 'v1PrivatePutOrder';
-        if ($this->maybe_algo_order_id($id)) {
-            $method = 'v1PrivatePutAlgoOrder';
-        }
-        $response = $this->$method (array_merge($request, $params));
-        //
-        //     {
-        //         "code" => 0,
-        //         "data" => array(
-        //             "status" => "string",
-        //             "success" => true
-        //         ),
-        //         "message" => "string",
-        //         "success" => true,
-        //         "timestamp" => 0
-        //     }
-        //
-        $data = $this->safe_value($response, 'data', array());
-        return $this->parse_order($data, $market);
-    }
-
-    public function maybe_algo_order_id($id) {
-        $stringId = $this->number_to_string($id);
-        if (strlen($stringId) < 9) {
-            return true;
-        }
-        return false;
-    }
-
     public function cancel_order($id, $symbol = null, $params = array ()) {
         /**
          * cancels an open order
@@ -879,7 +815,7 @@ class woofi extends Exchange {
             throw new ArgumentsRequired($this->id . ' cancelOrder() requires a $symbol argument');
         }
         $this->load_markets();
-        if ($this->maybe_algo_order_id($id)) {
+        if ($params['type'] === 'stop') {
             return $this->cancel_algo_order($id, $symbol, $params);
         } else {
             return $this->cancel_regular_order($id, $symbol, $params);
@@ -971,9 +907,7 @@ class woofi extends Exchange {
         $request = array();
         $clientOrderId = $this->safe_string_2($params, 'clOrdID', 'clientOrderId');
         $chosenSpotMethod = null;
-        if ($this->maybe_algo_order_id($id)) {
-            $chosenSpotMethod = 'v1PrivateDeleteAlgoOrderOid';
-        } elseif ($clientOrderId) {
+        if ($clientOrderId) {
             $chosenSpotMethod = 'v1PrivateGetClientOrderClientOrderId';
             $request['client_order_id'] = $clientOrderId;
         } else {
@@ -1207,8 +1141,8 @@ class woofi extends Exchange {
         // * fetchOrders
         // $isFromFetchOrder = (is_array($order) && array_key_exists('order_tag', $order)); TO_DO
         $timestamp = $this->safe_timestamp_2($order, 'timestamp', 'created_time');
-        $orderId = $this->safe_string($order, 'algo_order_id');
-        $clientOrderId = $this->safe_string($order, 'algo_order_id'); // Somehow, this always returns 0 for limit $order
+        $orderId = $this->safe_string_n($order, array( 'algo_order_id', 'algoOrderId' ));
+        $clientOrderId = $this->safe_string_n($order, array( 'algo_order_id', 'algoOrderId' )); // Somehow, this always returns 0 for limit $order
         $marketId = $this->safe_string($order, 'symbol');
         $market = $this->safe_market($marketId, $market);
         $symbol = $market['symbol'];
