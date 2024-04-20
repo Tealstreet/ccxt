@@ -1741,7 +1741,7 @@ class bitmex(Exchange):
                 raise InvalidOrder(self.id + ' createOrder() does not support reduceOnly for ' + market['type'] + ' orders, reduceOnly orders are supported for swap and future markets only')
         brokerId = self.safe_string(self.options, 'brokerId', 'CCXT')
         # TEALSTREET
-        timeInForce = self.safe_value(params, 'timeInForce', 'GTC')
+        timeInForce = self.safe_value(params, 'timeInForce')
         trigger = self.safe_value(params, 'trigger', None)
         closeOnTrigger = self.safe_value_2(params, 'closeOnTrigger', 'close', False)
         execInstValues = []
@@ -1759,11 +1759,12 @@ class bitmex(Exchange):
             'symbol': market['id'],
             'side': self.capitalize(side),
             'orderQty': float(self.amount_to_precision(symbol, amount)),
-            'timeInForce': timeInForce,
             'text': brokerId,
             'clOrdID': brokerId + self.uuid22(22),
             'execInst': ','.join(execInstValues),
         }
+        if timeInForce is not None and timeInForce != 'GTC':
+            request['timeInForce'] = timeInForce
         if (orderType == 'Stop') or (orderType == 'StopLimit') or (orderType == 'MarketIfTouched') or (orderType == 'LimitIfTouched'):
             stopPrice = self.safe_number_2(params, 'stopPx', 'stopPrice')
             if stopPrice is None:

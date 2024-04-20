@@ -1842,7 +1842,7 @@ class bitmex extends Exchange {
             }
             $brokerId = $this->safe_string($this->options, 'brokerId', 'CCXT');
             // TEALSTREET
-            $timeInForce = $this->safe_value($params, 'timeInForce', 'GTC');
+            $timeInForce = $this->safe_value($params, 'timeInForce');
             $trigger = $this->safe_value($params, 'trigger', null);
             $closeOnTrigger = $this->safe_value_2($params, 'closeOnTrigger', 'close', false);
             $execInstValues = array();
@@ -1864,11 +1864,13 @@ class bitmex extends Exchange {
                 'symbol' => $market['id'],
                 'side' => $this->capitalize($side),
                 'orderQty' => floatval($this->amount_to_precision($symbol, $amount)),
-                'timeInForce' => $timeInForce,
                 'text' => $brokerId,
                 'clOrdID' => $brokerId . $this->uuid22(22),
                 'execInst' => implode(',', $execInstValues),
             );
+            if ($timeInForce !== null && $timeInForce !== 'GTC') {
+                $request['timeInForce'] = $timeInForce;
+            }
             if (($orderType === 'Stop') || ($orderType === 'StopLimit') || ($orderType === 'MarketIfTouched') || ($orderType === 'LimitIfTouched')) {
                 $stopPrice = $this->safe_number_2($params, 'stopPx', 'stopPrice');
                 if ($stopPrice === null) {
