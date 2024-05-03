@@ -3,135 +3,199 @@
 var _commonjsHelpers = require('./_commonjsHelpers.js');
 
 const commonjsRegister = _commonjsHelpers.commonjsRegister;
-commonjsRegister("/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa/index.cjs", function (module, exports) {
-var curves = _commonjsHelpers.commonjsRequire("../curves.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa");
-var utils = _commonjsHelpers.commonjsRequire("../utils.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa");
+commonjsRegister("/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec/index.cjs", function (module, exports) {
+var BN = _commonjsHelpers.commonjsRequire("../../../../BN/bn.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec");
+var HmacDRBG = _commonjsHelpers.commonjsRequire("../../hmac-drbg/hmac-drbg.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec");
+var elliptic = _commonjsHelpers.commonjsRequire("../../elliptic.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec");
+var utils = elliptic.utils;
 var assert = utils.assert;
-var parseBytes = utils.parseBytes;
-var KeyPair = _commonjsHelpers.commonjsRequire("./key.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa");
-var Signature = _commonjsHelpers.commonjsRequire("./signature.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa");
-const BN = _commonjsHelpers.commonjsRequire("../../../../BN/bn.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa");
-const CryptoJS = _commonjsHelpers.commonjsRequire("../../../../crypto-js/crypto-js.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/eddsa");
-function byteArrayToWordArray(ba) {
-    const wa = [];
-    for (let i = 0; i < ba.length; i++) {
-        wa[(i / 4) | 0] |= ba[i] << (24 - 8 * i);
+var KeyPair = _commonjsHelpers.commonjsRequire("./key.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec");
+var Signature = _commonjsHelpers.commonjsRequire("./signature.cjs", "/$$rollup_base$$/js/src/static_dependencies/elliptic/lib/elliptic/ec");
+function EC(options) {
+    if (!(this instanceof EC))
+        return new EC(options);
+    // Shortcut `elliptic.ec(curve-name)`
+    if (typeof options === 'string') {
+        assert(elliptic.curves.hasOwnProperty(options), 'Unknown curve ' + options);
+        options = elliptic.curves[options];
     }
-    return CryptoJS.lib.WordArray.create(wa, ba.length);
+    // Shortcut for `elliptic.ec(elliptic.curves.curveName)`
+    if (options instanceof elliptic.curves.PresetCurve)
+        options = { curve: options };
+    this.curve = options.curve.curve;
+    this.n = this.curve.n;
+    this.nh = this.n.ushrn(1);
+    this.g = this.curve.g;
+    // Point on curve
+    this.g = options.curve.g;
+    this.g.precompute(options.curve.n.bitLength() + 1);
+    // Hash for function for DRBG
+    this.hash = options.hash || options.curve.hash;
 }
-function EDDSA(curveName) {
-    assert(curveName === 'ed25519', 'only tested with ed25519 so far');
-    if (!(this instanceof EDDSA))
-        return new EDDSA(curveName);
-    var curve = curves[curveName].curve;
-    this.curve = curve;
-    this.g = curve.g;
-    this.g.precompute(curve.n.bitLength() + 1);
-    this.pointClass = curve.point().constructor;
-    this.encodingLength = Math.ceil(curve.n.bitLength() / 8);
-    this.byteArrayToWordArray = byteArrayToWordArray;
-    //this.hash = hash.sha512;
-}
-module.exports = EDDSA;
-/**
-* @param {Array|String} message - message bytes
-* @param {Array|String|KeyPair} secret - secret bytes or a keypair
-* @returns {Signature} - signature
-*/
-EDDSA.prototype.sign = function sign(message, secret) {
-    message = parseBytes(message);
-    var key = this.keyFromSecret(secret);
-    var r = this.hashInt(key.secret(), message);
-    var R = this.g.mul(r);
-    var Rencoded = this.encodePoint(R);
-    var s_ = this.hashInt(Rencoded, key.pubBytes(), message);
-    s_ = s_.mul(key.priv());
-    var S = r.add(s_).umod(this.curve.n);
-    return this.makeSignature({ R: R, S: S, Rencoded: Rencoded });
+module.exports = EC;
+EC.prototype.keyPair = function keyPair(options) {
+    return new KeyPair(this, options);
 };
-/**
- * @param {Array|String} message - message bytes
- * @param {Array|String|KeyPair} secret - secret bytes or a keypair
- * @returns {Signature} - signature
- */
-EDDSA.prototype.signModified = function sign(message, secret) {
-    message = parseBytes(message);
-    var key = this.keyFromSecret(secret);
-    // convert between curve25519 and ed25519 keys
-    const secretLE = new BN(key.secret(), 16, 'le');
-    const pubKey = this.encodePoint(this.g.mul(secretLE));
-    const signBit = pubKey[31] & 0x80;
-    var r = this.hashInt(key.secret(), message);
-    var R = this.g.mul(r);
-    var Rencoded = this.encodePoint(R);
-    let s_ = this.hashInt(Rencoded, pubKey, message);
-    s_ = s_.mul(secretLE);
-    var S = r.add(s_).umod(this.curve.n);
-    var Sencoded = S.toArray('le', 32);
-    Sencoded[31] |= signBit;
-    return this.makeSignature({ R: R, S: S, Rencoded: Rencoded, Sencoded: Sencoded });
+EC.prototype.keyFromPrivate = function keyFromPrivate(priv, enc) {
+    return KeyPair.fromPrivate(this, priv, enc);
 };
-/**
-* @param {Array} message - message bytes
-* @param {Array|String|Signature} sig - sig bytes
-* @param {Array|String|Point|KeyPair} pub - public key
-* @returns {Boolean} - true if public key matches sig of message
-*/
-EDDSA.prototype.verify = function verify(message, sig, pub) {
-    message = parseBytes(message);
-    sig = this.makeSignature(sig);
-    var key = this.keyFromPublic(pub);
-    var h = this.hashInt(sig.Rencoded(), key.pubBytes(), message);
-    var SG = this.g.mul(sig.S());
-    var RplusAh = sig.R().add(key.pub().mul(h));
-    return RplusAh.eq(SG);
+EC.prototype.keyFromPublic = function keyFromPublic(pub, enc) {
+    return KeyPair.fromPublic(this, pub, enc);
 };
-EDDSA.prototype.hashInt = function hashInt() {
-    let toHash = Array.from(arguments).reduce((a, b) => a.concat(b));
-    toHash = byteArrayToWordArray(toHash);
-    const digest = CryptoJS['SHA512'](toHash).toString(CryptoJS.enc.Hex);
-    return utils.intFromLE(digest).umod(this.curve.n);
+EC.prototype.genKeyPair = function genKeyPair(options) {
+    if (!options)
+        options = {};
+    // Instantiate Hmac_DRBG
+    var drbg = new HmacDRBG({
+        hash: this.hash,
+        pers: options.pers,
+        persEnc: options.persEnc || 'utf8',
+        entropy: options.entropy || null,
+        entropyEnc: options.entropy && options.entropyEnc || 'utf8',
+        nonce: this.n.toArray()
+    });
+    var bytes = this.n.byteLength();
+    var ns2 = this.n.sub(new BN(2));
+    do {
+        var priv = new BN(drbg.generate(bytes));
+        if (priv.cmp(ns2) > 0)
+            continue;
+        priv.iaddn(1);
+        return this.keyFromPrivate(priv);
+    } while (true);
 };
-EDDSA.prototype.keyFromPublic = function keyFromPublic(pub) {
-    return KeyPair.fromPublic(this, pub);
+EC.prototype._truncateToN = function truncateToN(msg, truncOnly) {
+    var delta = msg.byteLength() * 8 - this.n.bitLength();
+    if (delta > 0)
+        msg = msg.ushrn(delta);
+    if (!truncOnly && msg.cmp(this.n) >= 0)
+        return msg.sub(this.n);
+    else
+        return msg;
 };
-EDDSA.prototype.keyFromSecret = function keyFromSecret(secret) {
-    return KeyPair.fromSecret(this, secret);
+EC.prototype.sign = function sign(msg, key, enc, options) {
+    if (typeof enc === 'object') {
+        options = enc;
+        enc = null;
+    }
+    if (!options)
+        options = {};
+    key = this.keyFromPrivate(key, enc);
+    msg = this._truncateToN(new BN(msg, 16));
+    // Zero-extend key to provide enough entropy
+    var bytes = this.n.byteLength();
+    var bkey = key.getPrivate().toArray('be', bytes);
+    // Zero-extend nonce to have the same byte size as N
+    var nonce = msg.toArray('be', bytes);
+    // Instantiate Hmac_DRBG
+    var drbg = new HmacDRBG({
+        hash: this.hash,
+        entropy: options['extraEntropy'] ? bkey.concat(options['extraEntropy']) : bkey,
+        nonce: nonce,
+        pers: options.pers,
+        persEnc: options.persEnc || 'utf8'
+    });
+    // Number of bytes to generate
+    var ns1 = this.n.sub(new BN(1));
+    for (var iter = 0; true; iter++) {
+        var k = options.k ?
+            options.k(iter) :
+            new BN(drbg.generate(this.n.byteLength()));
+        k = this._truncateToN(k, true);
+        if (k.cmpn(1) <= 0 || k.cmp(ns1) >= 0)
+            continue;
+        var kp = this.g.mul(k);
+        if (kp.isInfinity())
+            continue;
+        var kpX = kp.getX();
+        var r = kpX.umod(this.n);
+        if (r.cmpn(0) === 0)
+            continue;
+        var s = k.invm(this.n).mul(r.mul(key.getPrivate()).iadd(msg));
+        s = s.umod(this.n);
+        if (s.cmpn(0) === 0)
+            continue;
+        var recoveryParam = (kp.getY().isOdd() ? 1 : 0) |
+            (kpX.cmp(r) !== 0 ? 2 : 0);
+        // Use complement of `s`, if it is > `n / 2`
+        if (options.canonical && s.cmp(this.nh) > 0) {
+            s = this.n.sub(s);
+            recoveryParam ^= 1;
+        }
+        return new Signature({ r: r, s: s, recoveryParam: recoveryParam });
+    }
 };
-EDDSA.prototype.makeSignature = function makeSignature(sig) {
-    if (sig instanceof Signature)
-        return sig;
-    return new Signature(this, sig);
+EC.prototype.verify = function verify(msg, signature, key, enc) {
+    msg = this._truncateToN(new BN(msg, 16));
+    key = this.keyFromPublic(key, enc);
+    signature = new Signature(signature, 'hex');
+    // Perform primitive values validation
+    var r = signature.r;
+    var s = signature.s;
+    if (r.cmpn(1) < 0 || r.cmp(this.n) >= 0)
+        return false;
+    if (s.cmpn(1) < 0 || s.cmp(this.n) >= 0)
+        return false;
+    // Validate signature
+    var sinv = s.invm(this.n);
+    var u1 = sinv.mul(msg).umod(this.n);
+    var u2 = sinv.mul(r).umod(this.n);
+    if (!this.curve._maxwellTrick) {
+        var p = this.g.mulAdd(u1, key.getPublic(), u2);
+        if (p.isInfinity())
+            return false;
+        return p.getX().umod(this.n).cmp(r) === 0;
+    }
+    // NOTE: Greg Maxwell's trick, inspired by:
+    // https://git.io/vad3K
+    var p = this.g.jmulAdd(u1, key.getPublic(), u2);
+    if (p.isInfinity())
+        return false;
+    // Compare `p.x` of Jacobian point with `r`,
+    // this will do `p.x == r * p.z^2` instead of multiplying `p.x` by the
+    // inverse of `p.z^2`
+    return p.eqXToP(r);
 };
-/**
-* * https://tools.ietf.org/html/draft-josefsson-eddsa-ed25519-03#section-5.2
-*
-* EDDSA defines methods for encoding and decoding points and integers. These are
-* helper convenience methods, that pass along to utility functions implied
-* parameters.
-*
-*/
-EDDSA.prototype.encodePoint = function encodePoint(point) {
-    var enc = point.getY().toArray('le', this.encodingLength);
-    enc[this.encodingLength - 1] |= point.getX().isOdd() ? 0x80 : 0;
-    return enc;
+EC.prototype.recoverPubKey = function (msg, signature, j, enc) {
+    assert((3 & j) === j, 'The recovery param is more than two bits');
+    signature = new Signature(signature, enc);
+    var n = this.n;
+    var e = new BN(msg);
+    var r = signature.r;
+    var s = signature.s;
+    // A set LSB signifies that the y-coordinate is odd
+    var isYOdd = j & 1;
+    var isSecondKey = j >> 1;
+    if (r.cmp(this.curve.p.umod(this.curve.n)) >= 0 && isSecondKey)
+        throw new Error('Unable to find sencond key candinate');
+    // 1.1. Let x = r + jn.
+    if (isSecondKey)
+        r = this.curve.pointFromX(r.add(this.curve.n), isYOdd);
+    else
+        r = this.curve.pointFromX(r, isYOdd);
+    var rInv = signature.r.invm(n);
+    var s1 = n.sub(e).mul(rInv).umod(n);
+    var s2 = s.mul(rInv).umod(n);
+    // 1.6.1 Compute Q = r^-1 (sR -  eG)
+    //               Q = r^-1 (sR + -eG)
+    return this.g.mulAdd(s1, r, s2);
 };
-EDDSA.prototype.decodePoint = function decodePoint(bytes) {
-    bytes = utils.parseBytes(bytes);
-    var lastIx = bytes.length - 1;
-    var normed = bytes.slice(0, lastIx).concat(bytes[lastIx] & ~0x80);
-    var xIsOdd = (bytes[lastIx] & 0x80) !== 0;
-    var y = utils.intFromLE(normed);
-    return this.curve.pointFromY(y, xIsOdd);
-};
-EDDSA.prototype.encodeInt = function encodeInt(num) {
-    return num.toArray('le', this.encodingLength);
-};
-EDDSA.prototype.decodeInt = function decodeInt(bytes) {
-    return utils.intFromLE(bytes);
-};
-EDDSA.prototype.isPoint = function isPoint(val) {
-    return val instanceof this.pointClass;
+EC.prototype.getKeyRecoveryParam = function (e, signature, Q, enc) {
+    signature = new Signature(signature, enc);
+    if (signature.recoveryParam !== null)
+        return signature.recoveryParam;
+    for (var i = 0; i < 4; i++) {
+        var Qprime;
+        try {
+            Qprime = this.recoverPubKey(e, signature, i);
+        }
+        catch (e) {
+            continue;
+        }
+        if (Qprime.eq(Q))
+            return i;
+    }
+    throw new Error('Unable to find valid recovery factor');
 };
 
 });

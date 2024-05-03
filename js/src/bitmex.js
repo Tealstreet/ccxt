@@ -1814,7 +1814,7 @@ export default class bitmex extends Exchange {
         }
         const brokerId = this.safeString(this.options, 'brokerId', 'CCXT');
         // TEALSTREET
-        let timeInForce = this.safeValue(params, 'timeInForce', 'GTC');
+        let timeInForce = this.safeValue(params, 'timeInForce');
         const trigger = this.safeValue(params, 'trigger', undefined);
         const closeOnTrigger = this.safeValue2(params, 'closeOnTrigger', 'close', false);
         const execInstValues = [];
@@ -1836,11 +1836,13 @@ export default class bitmex extends Exchange {
             'symbol': market['id'],
             'side': this.capitalize(side),
             'orderQty': parseFloat(this.amountToPrecision(symbol, amount)),
-            'timeInForce': timeInForce,
             'text': brokerId,
             'clOrdID': brokerId + this.uuid22(22),
             'execInst': execInstValues.join(','),
         };
+        if (timeInForce !== undefined && timeInForce !== 'GTC') {
+            request['timeInForce'] = timeInForce;
+        }
         if ((orderType === 'Stop') || (orderType === 'StopLimit') || (orderType === 'MarketIfTouched') || (orderType === 'LimitIfTouched')) {
             const stopPrice = this.safeNumber2(params, 'stopPx', 'stopPrice');
             if (stopPrice === undefined) {

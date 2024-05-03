@@ -298,6 +298,7 @@ class bingx(Exchange):
             raise ArgumentsRequired(self.id + ' setLeverage() requires a symbol argument')
         buyLeverage = self.safe_number(params, 'buyLeverage', leverage)
         sellLeverage = self.safe_number(params, 'sellLeverage', leverage)
+        positionMode = self.safe_string(params, 'positionMode')
         await self.load_markets()
         market = self.market(symbol)
         params = self.omit(params, ['marginMode', 'positionMode'])
@@ -305,14 +306,19 @@ class bingx(Exchange):
         request = {
             'symbol': market['id'],
         }
-        if buyLeverage is not None:
-            request['leverage'] = self.parse_to_int(buyLeverage)
-            request['side'] = 'LONG'
+        if positionMode == 'oneway':
+            request['leverage'] = self.parse_to_int(buyLeverage or sellLeverage)
+            request['side'] = 'BOTH'
             promises.append(self.swap2OpenApiPrivatePostSwapV2TradeLeverage(self.extend(request, params)))
-        if sellLeverage is not None:
-            request['leverage'] = self.parse_to_int(sellLeverage)
-            request['side'] = 'SHORT'
-            promises.append(self.swap2OpenApiPrivatePostSwapV2TradeLeverage(self.extend(request, params)))
+        else:
+            if buyLeverage is not None:
+                request['leverage'] = self.parse_to_int(buyLeverage)
+                request['side'] = 'LONG'
+                promises.append(self.swap2OpenApiPrivatePostSwapV2TradeLeverage(self.extend(request, params)))
+            if sellLeverage is not None:
+                request['leverage'] = self.parse_to_int(sellLeverage)
+                request['side'] = 'SHORT'
+                promises.append(self.swap2OpenApiPrivatePostSwapV2TradeLeverage(self.extend(request, params)))
         promises = await asyncio.gather(*promises)
         if len(promises) == 1:
             return promises[0]

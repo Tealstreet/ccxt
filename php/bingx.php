@@ -308,6 +308,7 @@ class bingx extends Exchange {
         }
         $buyLeverage = $this->safe_number($params, 'buyLeverage', $leverage);
         $sellLeverage = $this->safe_number($params, 'sellLeverage', $leverage);
+        $positionMode = $this->safe_string($params, 'positionMode');
         $this->load_markets();
         $market = $this->market($symbol);
         $params = $this->omit($params, array( 'marginMode', 'positionMode' ));
@@ -315,15 +316,21 @@ class bingx extends Exchange {
         $request = array(
             'symbol' => $market['id'],
         );
-        if ($buyLeverage !== null) {
-            $request['leverage'] = $this->parse_to_int($buyLeverage);
-            $request['side'] = 'LONG';
+        if ($positionMode === 'oneway') {
+            $request['leverage'] = $this->parse_to_int($buyLeverage || $sellLeverage);
+            $request['side'] = 'BOTH';
             $promises[] = $this->swap2OpenApiPrivatePostSwapV2TradeLeverage (array_merge($request, $params));
-        }
-        if ($sellLeverage !== null) {
-            $request['leverage'] = $this->parse_to_int($sellLeverage);
-            $request['side'] = 'SHORT';
-            $promises[] = $this->swap2OpenApiPrivatePostSwapV2TradeLeverage (array_merge($request, $params));
+        } else {
+            if ($buyLeverage !== null) {
+                $request['leverage'] = $this->parse_to_int($buyLeverage);
+                $request['side'] = 'LONG';
+                $promises[] = $this->swap2OpenApiPrivatePostSwapV2TradeLeverage (array_merge($request, $params));
+            }
+            if ($sellLeverage !== null) {
+                $request['leverage'] = $this->parse_to_int($sellLeverage);
+                $request['side'] = 'SHORT';
+                $promises[] = $this->swap2OpenApiPrivatePostSwapV2TradeLeverage (array_merge($request, $params));
+            }
         }
         $promises = $promises;
         if (strlen($promises) === 1) {

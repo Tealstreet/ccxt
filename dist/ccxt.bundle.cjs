@@ -30033,6 +30033,7 @@ class bingx$1 extends Exchange {
         }
         const buyLeverage = this.safeNumber(params, 'buyLeverage', leverage);
         const sellLeverage = this.safeNumber(params, 'sellLeverage', leverage);
+        const positionMode = this.safeString(params, 'positionMode');
         await this.loadMarkets();
         const market = this.market(symbol);
         params = this.omit(params, ['marginMode', 'positionMode']);
@@ -30040,15 +30041,22 @@ class bingx$1 extends Exchange {
         const request = {
             'symbol': market['id'],
         };
-        if (buyLeverage !== undefined) {
-            request['leverage'] = this.parseToInt(buyLeverage);
-            request['side'] = 'LONG';
+        if (positionMode === 'oneway') {
+            request['leverage'] = this.parseToInt(buyLeverage || sellLeverage);
+            request['side'] = 'BOTH';
             promises.push(this.swap2OpenApiPrivatePostSwapV2TradeLeverage(this.extend(request, params)));
         }
-        if (sellLeverage !== undefined) {
-            request['leverage'] = this.parseToInt(sellLeverage);
-            request['side'] = 'SHORT';
-            promises.push(this.swap2OpenApiPrivatePostSwapV2TradeLeverage(this.extend(request, params)));
+        else {
+            if (buyLeverage !== undefined) {
+                request['leverage'] = this.parseToInt(buyLeverage);
+                request['side'] = 'LONG';
+                promises.push(this.swap2OpenApiPrivatePostSwapV2TradeLeverage(this.extend(request, params)));
+            }
+            if (sellLeverage !== undefined) {
+                request['leverage'] = this.parseToInt(sellLeverage);
+                request['side'] = 'SHORT';
+                promises.push(this.swap2OpenApiPrivatePostSwapV2TradeLeverage(this.extend(request, params)));
+            }
         }
         promises = await Promise.all(promises);
         if (promises.length === 1) {
@@ -37364,7 +37372,7 @@ class bitmex$1 extends Exchange {
         }
         const brokerId = this.safeString(this.options, 'brokerId', 'CCXT');
         // TEALSTREET
-        let timeInForce = this.safeValue(params, 'timeInForce', 'GTC');
+        let timeInForce = this.safeValue(params, 'timeInForce');
         const trigger = this.safeValue(params, 'trigger', undefined);
         const closeOnTrigger = this.safeValue2(params, 'closeOnTrigger', 'close', false);
         const execInstValues = [];
@@ -37386,11 +37394,13 @@ class bitmex$1 extends Exchange {
             'symbol': market['id'],
             'side': this.capitalize(side),
             'orderQty': parseFloat(this.amountToPrecision(symbol, amount)),
-            'timeInForce': timeInForce,
             'text': brokerId,
             'clOrdID': brokerId + this.uuid22(22),
             'execInst': execInstValues.join(','),
         };
+        if (timeInForce !== undefined && timeInForce !== 'GTC') {
+            request['timeInForce'] = timeInForce;
+        }
         if ((orderType === 'Stop') || (orderType === 'StopLimit') || (orderType === 'MarketIfTouched') || (orderType === 'LimitIfTouched')) {
             const stopPrice = this.safeNumber2(params, 'stopPx', 'stopPrice');
             if (stopPrice === undefined) {

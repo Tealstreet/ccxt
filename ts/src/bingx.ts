@@ -312,6 +312,7 @@ export default class bingx extends Exchange {
         }
         const buyLeverage = this.safeNumber (params, 'buyLeverage', leverage);
         const sellLeverage = this.safeNumber (params, 'sellLeverage', leverage);
+        const positionMode = this.safeString (params, 'positionMode');
         await this.loadMarkets ();
         const market = this.market (symbol);
         params = this.omit (params, [ 'marginMode', 'positionMode' ]);
@@ -319,15 +320,21 @@ export default class bingx extends Exchange {
         const request = {
             'symbol': market['id'],
         };
-        if (buyLeverage !== undefined) {
-            request['leverage'] = this.parseToInt (buyLeverage);
-            request['side'] = 'LONG';
+        if (positionMode === 'oneway') {
+            request['leverage'] = this.parseToInt (buyLeverage || sellLeverage);
+            request['side'] = 'BOTH';
             promises.push ((this as any).swap2OpenApiPrivatePostSwapV2TradeLeverage (this.extend (request, params)));
-        }
-        if (sellLeverage !== undefined) {
-            request['leverage'] = this.parseToInt (sellLeverage);
-            request['side'] = 'SHORT';
-            promises.push ((this as any).swap2OpenApiPrivatePostSwapV2TradeLeverage (this.extend (request, params)));
+        } else {
+            if (buyLeverage !== undefined) {
+                request['leverage'] = this.parseToInt (buyLeverage);
+                request['side'] = 'LONG';
+                promises.push ((this as any).swap2OpenApiPrivatePostSwapV2TradeLeverage (this.extend (request, params)));
+            }
+            if (sellLeverage !== undefined) {
+                request['leverage'] = this.parseToInt (sellLeverage);
+                request['side'] = 'SHORT';
+                promises.push ((this as any).swap2OpenApiPrivatePostSwapV2TradeLeverage (this.extend (request, params)));
+            }
         }
         promises = await Promise.all (promises);
         if (promises.length === 1) {
