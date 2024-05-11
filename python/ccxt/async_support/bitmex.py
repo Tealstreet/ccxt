@@ -556,9 +556,19 @@ class bitmex(Exchange):
         #         }
         #     ]
         #
-        result = {'info': response}
-        for i in range(0, len(response)):
-            balance = response[i]
+        result = {}
+        # assume wallet is complete or its snapshot
+        prev_balance_info = self.safe_value(self.balance, 'info', response)
+        new_info = []
+        for i in range(0, len(prev_balance_info)):
+            prev_balance_entry = prev_balance_info[i]
+            currencyId = self.safe_string(prev_balance_entry, 'currency')
+            new_balance_entry = next(iter([new_balance_entry for new_balance_entry in response if self.safe_string(new_balance_entry, 'currency') == currencyId]), {})
+            new_info.append(self.deep_extend(prev_balance_entry, new_balance_entry))
+
+
+        for i in range(0, len(new_info)):
+            balance = new_info[i]
             currencyId = self.safe_string(balance, 'currency')
             code = self.safe_currency_code(currencyId)
             account = {}
@@ -594,7 +604,9 @@ class bitmex(Exchange):
             if freeStr is not None:
                 account['free'] = freeStr
             result[code] = account
-        return self.safe_balance(result)
+        result = self.safe_balance(result)
+        result['info'] = new_info
+        return result
 
     async def fetch_balance(self, params={}):
         """
