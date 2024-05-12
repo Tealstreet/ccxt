@@ -597,7 +597,7 @@ class bitmex(Exchange):
                 account['free'] = freeStr
             result[code] = account
         result = self.safe_balance(result)
-        result['info'] = new_info
+        result['info'] = response
         return result
 
     async def fetch_balance(self, params={}):
