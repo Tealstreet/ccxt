@@ -170,6 +170,7 @@ export default class woo extends Exchange {
                             'funding_fee/history': 30,
                             'positions': 3.33, // 30 requests per 10 seconds
                             'position/{symbol}': 3.33,
+                            'client/futures_leverage': 60,
                         },
                         'post': {
                             'order': 5, // 2 requests per 1 second per symbol
@@ -178,6 +179,7 @@ export default class woo extends Exchange {
                             'interest/repay': 60,
                             'client/account_mode': 120,
                             'client/leverage': 120,
+                            'client/futures_leverage': 120,
                         },
                         'delete': {
                             'order': 1,
@@ -2433,7 +2435,12 @@ export default class woo extends Exchange {
 
     async fetchLeverage (symbol, params = {}) {
         await this.loadMarkets ();
-        const response = await (this as any).v3PrivateGetAccountinfo (params);
+        const request = {
+            'symbol': symbol,
+            'position_mode': 'ONE_WAY',
+            'margin_mode': 'CROSS',
+        };
+        const response = await (this as any).v1PrivateGetClientFuturesLeverage (this.extend (request, params));
         //
         //     {
         //         "success": true,
@@ -2462,8 +2469,10 @@ export default class woo extends Exchange {
         //         "timestamp": 1673323685109
         //     }
         //
-        const result = this.safeValue (response, 'data');
-        const leverage = this.safeNumber (result, 'leverage');
+        const data = this.safeValue (response, 'data');
+        const details = this.safeValue (data, 'details', {});
+        const detail = details[0];
+        const leverage = this.safeNumber (detail, 'leverage');
         return {
             'info': response,
             'leverage': leverage,
@@ -2472,13 +2481,17 @@ export default class woo extends Exchange {
 
     async setLeverage (leverage, symbol: string = undefined, params = {}) {
         await this.loadMarkets ();
+        const market = this.market (symbol);
         if ((leverage !== 1) && (leverage !== 2) && (leverage !== 3) && (leverage !== 4) && (leverage !== 5) && (leverage !== 10) && (leverage !== 15) && (leverage !== 20) && (leverage !== 50)) {
             throw new BadRequest (this.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50');
         }
         const request = {
+            'symbol': market['id'],
+            'margin_mode': 'CROSS',
+            'position_side': 'BOTH',
             'leverage': leverage,
         };
-        return await (this as any).v1PrivatePostClientLeverage (this.extend (request, params));
+        return await (this as any).v1PrivatePostClientFuturesLeverage (this.extend (request, params));
     }
 
     async fetchPosition (symbol: string = undefined, params = {}) {
@@ -2568,6 +2581,7 @@ export default class woo extends Exchange {
         const entryPrice = this.safeString (position, 'averageOpenPrice');
         const priceDifference = Precise.stringSub (markPrice, entryPrice);
         const unrealisedPnl = Precise.stringMul (priceDifference, size);
+        const leverage = this.safeInteger (position, 'leverage', 1);
         return {
             'info': position,
             'id': market['symbol'] + ':' + side,
@@ -2591,7 +2605,7 @@ export default class woo extends Exchange {
             'collateral': undefined,
             'initialMargin': undefined,
             'initialMarginPercentage': undefined,
-            'leverage': undefined,
+            'leverage': leverage,
             'marginRatio': undefined,
         };
     }

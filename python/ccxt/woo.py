@@ -178,6 +178,7 @@ class woo(Exchange):
                             'funding_fee/history': 30,
                             'positions': 3.33,  # 30 requests per 10 seconds
                             'position/{symbol}': 3.33,
+                            'client/futures_leverage': 60,
                         },
                         'post': {
                             'order': 5,  # 2 requests per 1 second per symbol
@@ -186,6 +187,7 @@ class woo(Exchange):
                             'interest/repay': 60,
                             'client/account_mode': 120,
                             'client/leverage': 120,
+                            'client/futures_leverage': 120,
                         },
                         'delete': {
                             'order': 1,
@@ -2254,7 +2256,12 @@ class woo(Exchange):
 
     def fetch_leverage(self, symbol, params={}):
         self.load_markets()
-        response = self.v3PrivateGetAccountinfo(params)
+        request = {
+            'symbol': symbol,
+            'position_mode': 'ONE_WAY',
+            'margin_mode': 'CROSS',
+        }
+        response = self.v1PrivateGetClientFuturesLeverage(self.extend(request, params))
         #
         #     {
         #         "success": True,
@@ -2283,8 +2290,10 @@ class woo(Exchange):
         #         "timestamp": 1673323685109
         #     }
         #
-        result = self.safe_value(response, 'data')
-        leverage = self.safe_number(result, 'leverage')
+        data = self.safe_value(response, 'data')
+        details = self.safe_value(data, 'details', {})
+        detail = details[0]
+        leverage = self.safe_number(detail, 'leverage')
         return {
             'info': response,
             'leverage': leverage,
@@ -2292,12 +2301,16 @@ class woo(Exchange):
 
     def set_leverage(self, leverage, symbol=None, params={}):
         self.load_markets()
+        market = self.market(symbol)
         if (leverage != 1) and (leverage != 2) and (leverage != 3) and (leverage != 4) and (leverage != 5) and (leverage != 10) and (leverage != 15) and (leverage != 20) and (leverage != 50):
             raise BadRequest(self.id + ' leverage should be 1, 2, 3, 4, 5, 10, 15, 20 or 50')
         request = {
+            'symbol': market['id'],
+            'margin_mode': 'CROSS',
+            'position_side': 'BOTH',
             'leverage': leverage,
         }
-        return self.v1PrivatePostClientLeverage(self.extend(request, params))
+        return self.v1PrivatePostClientFuturesLeverage(self.extend(request, params))
 
     def fetch_position(self, symbol=None, params={}):
         self.load_markets()
@@ -2383,6 +2396,7 @@ class woo(Exchange):
         entryPrice = self.safe_string(position, 'averageOpenPrice')
         priceDifference = Precise.string_sub(markPrice, entryPrice)
         unrealisedPnl = Precise.string_mul(priceDifference, size)
+        leverage = self.safe_integer(position, 'leverage', 1)
         return {
             'info': position,
             'id': market['symbol'] + ':' + side,
@@ -2406,7 +2420,7 @@ class woo(Exchange):
             'collateral': None,
             'initialMargin': None,
             'initialMarginPercentage': None,
-            'leverage': None,
+            'leverage': leverage,
             'marginRatio': None,
         }
 
