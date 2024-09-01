@@ -3714,7 +3714,7 @@ export default class bybit extends Exchange {
             } else if (market['linear']) {
                 request['category'] = 'linear';
             } else {
-                throw new NotSupported (this.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets');
+                request['category'] = 'inverse';
             }
         }
         const isStop = this.safeValue (params, 'stop', false);

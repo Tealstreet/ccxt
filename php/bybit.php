@@ -3665,7 +3665,7 @@ class bybit extends Exchange {
             } elseif ($market['linear']) {
                 $request['category'] = 'linear';
             } else {
-                throw new NotSupported($this->id . ' fetchOpenOrders() does not allow inverse $market orders for ' . $symbol . ' markets');
+                $request['category'] = 'inverse';
             }
         }
         $isStop = $this->safe_value($params, 'stop', false);

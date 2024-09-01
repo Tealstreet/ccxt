@@ -3490,7 +3490,7 @@ class bybit(Exchange):
             elif market['linear']:
                 request['category'] = 'linear'
             else:
-                raise NotSupported(self.id + ' fetchOpenOrders() does not allow inverse market orders for ' + symbol + ' markets')
+                request['category'] = 'inverse'
         isStop = self.safe_value(params, 'stop', False)
         params = self.omit(params, ['stop'])
         # TEALSTREET BEGIN
