@@ -3324,47 +3324,6 @@ class bybit extends Exchange {
         return $this->parse_order($result, $market);
     }
 
-    public function cancel_usdc_order($id, $symbol = null, $params = array ()) {
-        if ($symbol === null) {
-            throw new ArgumentsRequired($this->id . ' cancelUSDCOrder() requires a $symbol argument');
-        }
-        $this->load_markets();
-        $market = $this->market($symbol);
-        $request = array(
-            'symbol' => $market['id'],
-            // 'orderLinkId' => 'string', // one of order_id, stop_order_id or order_link_id is required
-            // 'orderId' => $id,
-        );
-        $isStop = $this->safe_value($params, 'stop', false);
-        $params = $this->omit($params, array( 'stop' ));
-        $method = null;
-        if ($id !== null) { // The user can also use argument $params["order_link_id"]
-            $request['orderId'] = $id;
-        }
-        if ($market['option']) {
-            $method = 'privatePostOptionUsdcOpenapiPrivateV1CancelOrder';
-        } else {
-            $method = 'privatePostPerpetualUsdcOpenapiPrivateV1CancelOrder';
-            $request['orderFilter'] = $isStop ? 'StopOrder' : 'Order';
-        }
-        $response = $this->$method (array_merge($request, $params));
-        //
-        //     {
-        //         "retCode" => 0,
-        //         "retMsg" => "OK",
-        //         "result" => array(
-        //             "outRequestId" => "",
-        //             "symbol" => "BTC-13MAY22-40000-C",
-        //             "orderId" => "8c65df91-91fc-461d-9b14-786379ef138c",
-        //             "orderLinkId" => ""
-        //         ),
-        //         "retExtMap" => array()
-        //     }
-        //
-        $result = $this->safe_value($response, 'result', array());
-        return $this->parse_order($result, $market);
-    }
-
     public function cancel_order($id, $symbol = null, $params = array ()) {
         /**
          * cancels an open order
@@ -3929,63 +3888,6 @@ class bybit extends Exchange {
         return $parsedTrades;
     }
 
-    public function fetch_my_usdc_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
-        $this->load_markets();
-        $market = null;
-        $request = array();
-        if ($symbol !== null) {
-            $market = $this->market($symbol);
-            $request['symbol'] = $market['id'];
-            $request['category'] = $market['option'] ? 'OPTION' : 'PERPETUAL';
-        } else {
-            $request['category'] = 'PERPETUAL';
-        }
-        $response = $this->privatePostOptionUsdcOpenapiPrivateV1ExecutionList (array_merge($request, $params));
-        //
-        //     {
-        //       "result" => array(
-        //         "cursor" => "29%3A1%2C28%3A1",
-        //         "resultTotalSize" => 2,
-        //         "dataList" => array(
-        //           array(
-        //             "symbol" => "ETHPERP",
-        //             "orderLinkId" => "",
-        //             "side" => "Sell",
-        //             "orderId" => "d83f8b4d-2f60-4e04-a64a-a3f207989dc6",
-        //             "execFee" => "0.0210",
-        //             "feeRate" => "0.000600",
-        //             "blockTradeId" => "",
-        //             "tradeTime" => "1669196423581",
-        //             "execPrice" => "1161.45",
-        //             "lastLiquidityInd" => "TAKER",
-        //             "execValue" => "34.8435",
-        //             "execType" => "Trade",
-        //             "execQty" => "0.030",
-        //             "tradeId" => "d9aa8590-9e6a-575e-a1be-d6261e6ed2e5"
-        //           ), ...
-        //         )
-        //       ),
-        //       "retCode" => 0,
-        //       "retMsg" => "Success."
-        //     }
-        //
-        $result = $this->safe_value($response, 'result', array());
-        $trades = $this->safe_value($result, 'dataList', array());
-        $parsedTrades = $this->parse_trades($trades, $market, $since, $limit);
-        $paginationCursor = $this->safe_string($result, 'cursor');
-        if ($paginationCursor !== null) {
-            while ($paginationCursor !== null) {
-                $params['cursor'] = $paginationCursor;
-                $response = $this->privatePostOptionUsdcOpenapiPrivateV1ExecutionList (array_merge($request, $params));
-                $result = $this->safe_value($response, 'result', array());
-                $trades = $this->safe_value($result, 'dataList', array());
-                $parsedTrades = $this->array_concat($parsedTrades, $this->parse_trades($trades, $market, $since, $limit));
-                $paginationCursor = $this->safe_string($result, 'cursor');
-            }
-        }
-        return $parsedTrades;
-    }
-
     public function fetch_my_trades($symbol = null, $since = null, $limit = null, $params = array ()) {
         /**
          * fetch all trades made by the user
@@ -4021,7 +3923,7 @@ class bybit extends Exchange {
         // eslint-disable-next-line no-unused-vars
         list($type, $query) = $this->handle_market_type_and_params('fetchMyTrades', $market, $params);
         if ($isUsdcSettled) {
-            // return $this->fetch_my_usdc_trades($symbol, $since, $limit, $query);
+            // return $this->fetchMyUsdcTrades ($symbol, $since, $limit, $query);
             return array();
         } else {
             $orderId = $this->safe_string($params, 'orderId');
@@ -4969,7 +4871,7 @@ class bybit extends Exchange {
         $args['buyLeverage'] = $this->number_to_string($args['buyLeverage']);
         $args['sellLeverage'] = $this->number_to_string($args['sellLeverage']);
         // TEALSTREET
-        $response = $this->privatePostContractV3PrivatePositionSwitchIsolated ($args);
+        $response = $this->privatePostV5PositionSwitchIsolated ($args);
         //
         //     {
         //         "retCode" => 0,
@@ -4995,7 +4897,6 @@ class bybit extends Exchange {
         $market = $this->market($symbol);
         // WARNING => THIS WILL INCREASE LIQUIDATION PRICE FOR OPEN ISOLATED LONG POSITIONS
         // AND DECREASE LIQUIDATION PRICE FOR OPEN ISOLATED SHORT POSITIONS
-        $isUsdcSettled = $market['settle'] === 'USDC';
         list($enableUnifiedMargin, $enableUnifiedAccount) = $this->is_unified_enabled();
         // engage in $leverage setting
         // we reuse the code here instead of having two methods
@@ -5004,37 +4905,29 @@ class bybit extends Exchange {
         $sellLeverage = $this->safe_string($params, 'sellLeverage', $leverage);
         $method = null;
         $request = null;
-        if ($enableUnifiedMargin || $enableUnifiedAccount || !$isUsdcSettled) {
-            $request = array(
-                'symbol' => $market['id'],
-                'buyLeverage' => $buyLeverage,
-                'sellLeverage' => $sellLeverage,
-            );
-            if ($enableUnifiedAccount) {
-                if ($market['linear']) {
-                    $request['category'] = 'linear';
-                } else {
-                    $request['category'] = 'inverse';
-                }
-                $method = 'privatePostV5PositionSetLeverage';
-            } elseif ($enableUnifiedMargin) {
-                if ($market['option']) {
-                    $request['category'] = 'option';
-                } elseif ($market['linear']) {
-                    $request['category'] = 'linear';
-                } else {
-                    $request['category'] = 'inverse';
-                }
-                $method = 'privatePostUnifiedV3PrivatePositionSetLeverage';
+        $request = array(
+            'symbol' => $market['id'],
+            'buyLeverage' => $buyLeverage,
+            'sellLeverage' => $sellLeverage,
+        );
+        if ($enableUnifiedAccount) {
+            if ($market['linear']) {
+                $request['category'] = 'linear';
             } else {
-                $method = 'privatePostContractV3PrivatePositionSetLeverage';
+                $request['category'] = 'inverse';
             }
+            $method = 'privatePostV5PositionSetLeverage';
+        } elseif ($enableUnifiedMargin) {
+            if ($market['option']) {
+                $request['category'] = 'option';
+            } elseif ($market['linear']) {
+                $request['category'] = 'linear';
+            } else {
+                $request['category'] = 'inverse';
+            }
+            $method = 'privatePostV5PositionSetLeverage';
         } else {
-            $request = array(
-                'symbol' => $market['id'],
-                'leverage' => $leverage,
-            );
-            $method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave';
+            $method = 'privatePostV5PositionSetLeverage';
         }
         // TEALSTREET
         $params = array(

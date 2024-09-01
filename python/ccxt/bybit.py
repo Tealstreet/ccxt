@@ -3179,43 +3179,6 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         return self.parse_order(result, market)
 
-    def cancel_usdc_order(self, id, symbol=None, params={}):
-        if symbol is None:
-            raise ArgumentsRequired(self.id + ' cancelUSDCOrder() requires a symbol argument')
-        self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'symbol': market['id'],
-            # 'orderLinkId': 'string',  # one of order_id, stop_order_id or order_link_id is required
-            # 'orderId': id,
-        }
-        isStop = self.safe_value(params, 'stop', False)
-        params = self.omit(params, ['stop'])
-        method = None
-        if id is not None:  # The user can also use argument params["order_link_id"]
-            request['orderId'] = id
-        if market['option']:
-            method = 'privatePostOptionUsdcOpenapiPrivateV1CancelOrder'
-        else:
-            method = 'privatePostPerpetualUsdcOpenapiPrivateV1CancelOrder'
-            request['orderFilter'] = 'StopOrder' if isStop else 'Order'
-        response = getattr(self, method)(self.extend(request, params))
-        #
-        #     {
-        #         "retCode": 0,
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "outRequestId": "",
-        #             "symbol": "BTC-13MAY22-40000-C",
-        #             "orderId": "8c65df91-91fc-461d-9b14-786379ef138c",
-        #             "orderLinkId": ""
-        #         },
-        #         "retExtMap": {}
-        #     }
-        #
-        result = self.safe_value(response, 'result', {})
-        return self.parse_order(result, market)
-
     def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order
@@ -3731,59 +3694,6 @@ class bybit(Exchange):
                 paginationCursor = self.safe_string(result, 'nextPageCursor')
         return parsedTrades
 
-    def fetch_my_usdc_trades(self, symbol=None, since=None, limit=None, params={}):
-        self.load_markets()
-        market = None
-        request = {}
-        if symbol is not None:
-            market = self.market(symbol)
-            request['symbol'] = market['id']
-            request['category'] = 'OPTION' if market['option'] else 'PERPETUAL'
-        else:
-            request['category'] = 'PERPETUAL'
-        response = self.privatePostOptionUsdcOpenapiPrivateV1ExecutionList(self.extend(request, params))
-        #
-        #     {
-        #       "result": {
-        #         "cursor": "29%3A1%2C28%3A1",
-        #         "resultTotalSize": 2,
-        #         "dataList": [
-        #           {
-        #             "symbol": "ETHPERP",
-        #             "orderLinkId": "",
-        #             "side": "Sell",
-        #             "orderId": "d83f8b4d-2f60-4e04-a64a-a3f207989dc6",
-        #             "execFee": "0.0210",
-        #             "feeRate": "0.000600",
-        #             "blockTradeId": "",
-        #             "tradeTime": "1669196423581",
-        #             "execPrice": "1161.45",
-        #             "lastLiquidityInd": "TAKER",
-        #             "execValue": "34.8435",
-        #             "execType": "Trade",
-        #             "execQty": "0.030",
-        #             "tradeId": "d9aa8590-9e6a-575e-a1be-d6261e6ed2e5"
-        #           }, ...
-        #         ]
-        #       },
-        #       "retCode": 0,
-        #       "retMsg": "Success."
-        #     }
-        #
-        result = self.safe_value(response, 'result', {})
-        trades = self.safe_value(result, 'dataList', [])
-        parsedTrades = self.parse_trades(trades, market, since, limit)
-        paginationCursor = self.safe_string(result, 'cursor')
-        if paginationCursor is not None:
-            while(paginationCursor is not None):
-                params['cursor'] = paginationCursor
-                response = self.privatePostOptionUsdcOpenapiPrivateV1ExecutionList(self.extend(request, params))
-                result = self.safe_value(response, 'result', {})
-                trades = self.safe_value(result, 'dataList', [])
-                parsedTrades = self.array_concat(parsedTrades, self.parse_trades(trades, market, since, limit))
-                paginationCursor = self.safe_string(result, 'cursor')
-        return parsedTrades
-
     def fetch_my_trades(self, symbol=None, since=None, limit=None, params={}):
         """
         fetch all trades made by the user
@@ -3815,7 +3725,7 @@ class bybit(Exchange):
         # eslint-disable-next-line no-unused-vars
         type, query = self.handle_market_type_and_params('fetchMyTrades', market, params)
         if isUsdcSettled:
-            # return self.fetch_my_usdc_trades(symbol, since, limit, query)
+            # return self.fetchMyUsdcTrades(symbol, since, limit, query)
             return []
         else:
             orderId = self.safe_string(params, 'orderId')
@@ -4692,7 +4602,7 @@ class bybit(Exchange):
         args['buyLeverage'] = self.number_to_string(args['buyLeverage'])
         args['sellLeverage'] = self.number_to_string(args['sellLeverage'])
         # TEALSTREET
-        response = self.privatePostContractV3PrivatePositionSwitchIsolated(args)
+        response = self.privatePostV5PositionSwitchIsolated(args)
         #
         #     {
         #         "retCode": 0,
@@ -4717,7 +4627,6 @@ class bybit(Exchange):
         market = self.market(symbol)
         # WARNING: THIS WILL INCREASE LIQUIDATION PRICE FOR OPEN ISOLATED LONG POSITIONS
         # AND DECREASE LIQUIDATION PRICE FOR OPEN ISOLATED SHORT POSITIONS
-        isUsdcSettled = market['settle'] == 'USDC'
         enableUnifiedMargin, enableUnifiedAccount = self.is_unified_enabled()
         # engage in leverage setting
         # we reuse the code here instead of having two methods
@@ -4726,34 +4635,27 @@ class bybit(Exchange):
         sellLeverage = self.safe_string(params, 'sellLeverage', leverage)
         method = None
         request = None
-        if enableUnifiedMargin or enableUnifiedAccount or not isUsdcSettled:
-            request = {
-                'symbol': market['id'],
-                'buyLeverage': buyLeverage,
-                'sellLeverage': sellLeverage,
-            }
-            if enableUnifiedAccount:
-                if market['linear']:
-                    request['category'] = 'linear'
-                else:
-                    request['category'] = 'inverse'
-                method = 'privatePostV5PositionSetLeverage'
-            elif enableUnifiedMargin:
-                if market['option']:
-                    request['category'] = 'option'
-                elif market['linear']:
-                    request['category'] = 'linear'
-                else:
-                    request['category'] = 'inverse'
-                method = 'privatePostUnifiedV3PrivatePositionSetLeverage'
+        request = {
+            'symbol': market['id'],
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+        }
+        if enableUnifiedAccount:
+            if market['linear']:
+                request['category'] = 'linear'
             else:
-                method = 'privatePostContractV3PrivatePositionSetLeverage'
+                request['category'] = 'inverse'
+            method = 'privatePostV5PositionSetLeverage'
+        elif enableUnifiedMargin:
+            if market['option']:
+                request['category'] = 'option'
+            elif market['linear']:
+                request['category'] = 'linear'
+            else:
+                request['category'] = 'inverse'
+            method = 'privatePostV5PositionSetLeverage'
         else:
-            request = {
-                'symbol': market['id'],
-                'leverage': leverage,
-            }
-            method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave'
+            method = 'privatePostV5PositionSetLeverage'
         # TEALSTREET
         params = {
             'buyLeverage': buyLeverage or request['buyLeverage'],

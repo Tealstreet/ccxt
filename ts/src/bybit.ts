@@ -3363,47 +3363,6 @@ export default class bybit extends Exchange {
         return this.parseOrder (result, market);
     }
 
-    async cancelUSDCOrder (id, symbol: string = undefined, params = {}) {
-        if (symbol === undefined) {
-            throw new ArgumentsRequired (this.id + ' cancelUSDCOrder() requires a symbol argument');
-        }
-        await this.loadMarkets ();
-        const market = this.market (symbol);
-        const request = {
-            'symbol': market['id'],
-            // 'orderLinkId': 'string', // one of order_id, stop_order_id or order_link_id is required
-            // 'orderId': id,
-        };
-        const isStop = this.safeValue (params, 'stop', false);
-        params = this.omit (params, [ 'stop' ]);
-        let method = undefined;
-        if (id !== undefined) { // The user can also use argument params["order_link_id"]
-            request['orderId'] = id;
-        }
-        if (market['option']) {
-            method = 'privatePostOptionUsdcOpenapiPrivateV1CancelOrder';
-        } else {
-            method = 'privatePostPerpetualUsdcOpenapiPrivateV1CancelOrder';
-            request['orderFilter'] = isStop ? 'StopOrder' : 'Order';
-        }
-        const response = await this[method] (this.extend (request, params));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "outRequestId": "",
-        //             "symbol": "BTC-13MAY22-40000-C",
-        //             "orderId": "8c65df91-91fc-461d-9b14-786379ef138c",
-        //             "orderLinkId": ""
-        //         },
-        //         "retExtMap": {}
-        //     }
-        //
-        const result = this.safeValue (response, 'result', {});
-        return this.parseOrder (result, market);
-    }
-
     async cancelOrder (id, symbol: string = undefined, params = {}) {
         /**
          * @method
@@ -3977,63 +3936,6 @@ export default class bybit extends Exchange {
                 const trades = this.safeValue (result, 'list', []);
                 parsedTrades = this.arrayConcat (parsedTrades, this.parseTrades (trades, market, since, limit));
                 paginationCursor = this.safeString (result, 'nextPageCursor');
-            }
-        }
-        return parsedTrades;
-    }
-
-    async fetchMyUsdcTrades (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        await this.loadMarkets ();
-        let market = undefined;
-        const request = {};
-        if (symbol !== undefined) {
-            market = this.market (symbol);
-            request['symbol'] = market['id'];
-            request['category'] = market['option'] ? 'OPTION' : 'PERPETUAL';
-        } else {
-            request['category'] = 'PERPETUAL';
-        }
-        const response = await (this as any).privatePostOptionUsdcOpenapiPrivateV1ExecutionList (this.extend (request, params));
-        //
-        //     {
-        //       "result": {
-        //         "cursor": "29%3A1%2C28%3A1",
-        //         "resultTotalSize": 2,
-        //         "dataList": [
-        //           {
-        //             "symbol": "ETHPERP",
-        //             "orderLinkId": "",
-        //             "side": "Sell",
-        //             "orderId": "d83f8b4d-2f60-4e04-a64a-a3f207989dc6",
-        //             "execFee": "0.0210",
-        //             "feeRate": "0.000600",
-        //             "blockTradeId": "",
-        //             "tradeTime": "1669196423581",
-        //             "execPrice": "1161.45",
-        //             "lastLiquidityInd": "TAKER",
-        //             "execValue": "34.8435",
-        //             "execType": "Trade",
-        //             "execQty": "0.030",
-        //             "tradeId": "d9aa8590-9e6a-575e-a1be-d6261e6ed2e5"
-        //           }, ...
-        //         ]
-        //       },
-        //       "retCode": 0,
-        //       "retMsg": "Success."
-        //     }
-        //
-        const result = this.safeValue (response, 'result', {});
-        const trades = this.safeValue (result, 'dataList', []);
-        let parsedTrades = this.parseTrades (trades, market, since, limit);
-        let paginationCursor = this.safeString (result, 'cursor');
-        if (paginationCursor !== undefined) {
-            while (paginationCursor !== undefined) {
-                params['cursor'] = paginationCursor;
-                const response = await (this as any).privatePostOptionUsdcOpenapiPrivateV1ExecutionList (this.extend (request, params));
-                const result = this.safeValue (response, 'result', {});
-                const trades = this.safeValue (result, 'dataList', []);
-                parsedTrades = this.arrayConcat (parsedTrades, this.parseTrades (trades, market, since, limit));
-                paginationCursor = this.safeString (result, 'cursor');
             }
         }
         return parsedTrades;
@@ -5030,7 +4932,7 @@ export default class bybit extends Exchange {
         args['buyLeverage'] = this.numberToString (args['buyLeverage']);
         args['sellLeverage'] = this.numberToString (args['sellLeverage']);
         // TEALSTREET
-        const response = await (this as any).privatePostContractV3PrivatePositionSwitchIsolated (args);
+        const response = await (this as any).privatePostV5PositionSwitchIsolated (args);
         //
         //     {
         //         "retCode": 0,
@@ -5058,7 +4960,6 @@ export default class bybit extends Exchange {
         const market = this.market (symbol);
         // WARNING: THIS WILL INCREASE LIQUIDATION PRICE FOR OPEN ISOLATED LONG POSITIONS
         // AND DECREASE LIQUIDATION PRICE FOR OPEN ISOLATED SHORT POSITIONS
-        const isUsdcSettled = market['settle'] === 'USDC';
         const [ enableUnifiedMargin, enableUnifiedAccount ] = await this.isUnifiedEnabled ();
         // engage in leverage setting
         // we reuse the code here instead of having two methods
@@ -5067,37 +4968,29 @@ export default class bybit extends Exchange {
         const sellLeverage = this.safeString (params, 'sellLeverage', leverage);
         let method = undefined;
         let request = undefined;
-        if (enableUnifiedMargin || enableUnifiedAccount || !isUsdcSettled) {
-            request = {
-                'symbol': market['id'],
-                'buyLeverage': buyLeverage,
-                'sellLeverage': sellLeverage,
-            };
-            if (enableUnifiedAccount) {
-                if (market['linear']) {
-                    request['category'] = 'linear';
-                } else {
-                    request['category'] = 'inverse';
-                }
-                method = 'privatePostV5PositionSetLeverage';
-            } else if (enableUnifiedMargin) {
-                if (market['option']) {
-                    request['category'] = 'option';
-                } else if (market['linear']) {
-                    request['category'] = 'linear';
-                } else {
-                    request['category'] = 'inverse';
-                }
-                method = 'privatePostUnifiedV3PrivatePositionSetLeverage';
+        request = {
+            'symbol': market['id'],
+            'buyLeverage': buyLeverage,
+            'sellLeverage': sellLeverage,
+        };
+        if (enableUnifiedAccount) {
+            if (market['linear']) {
+                request['category'] = 'linear';
             } else {
-                method = 'privatePostContractV3PrivatePositionSetLeverage';
+                request['category'] = 'inverse';
             }
+            method = 'privatePostV5PositionSetLeverage';
+        } else if (enableUnifiedMargin) {
+            if (market['option']) {
+                request['category'] = 'option';
+            } else if (market['linear']) {
+                request['category'] = 'linear';
+            } else {
+                request['category'] = 'inverse';
+            }
+            method = 'privatePostV5PositionSetLeverage';
         } else {
-            request = {
-                'symbol': market['id'],
-                'leverage': leverage,
-            };
-            method = 'privatePostPerpetualUsdcOpenapiPrivateV1PositionLeverageSave';
+            method = 'privatePostV5PositionSetLeverage';
         }
         // TEALSTREET
         params = {
