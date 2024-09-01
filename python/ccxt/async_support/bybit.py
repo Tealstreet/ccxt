@@ -6712,9 +6712,13 @@ class bybit(Exchange):
                     body = self.json(query)
                     authFull = auth_base + body
                 else:
+                    # eslint-disable-next-line no-unused-vars
                     authFull = auth_base + queryEncoded
                     url += '?' + self.rawencode(query)
-                headers['X-BAPI-SIGN'] = self.hmac(self.encode(authFull), self.encode(self.secret))
+                if isV3UnifiedMargin or isV3Contract:
+                    headers['X-BAPI-SIGN'] = '--deprecated--'
+                else:
+                    headers['X-BAPI-SIGN'] = self.hmac(self.encode(authFull), self.encode(self.secret))
             else:
                 query = self.extend(params, {
                     'api_key': self.apiKey,

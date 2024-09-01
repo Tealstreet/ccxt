@@ -7323,10 +7323,15 @@ class bybit extends Exchange {
                     $body = $this->json($query);
                     $authFull = $auth_base . $body;
                 } else {
+                    // eslint-disable-next-line no-unused-vars
                     $authFull = $auth_base . $queryEncoded;
                     $url .= '?' . $this->rawencode($query);
                 }
-                $headers['X-BAPI-SIGN'] = $this->hmac($this->encode($authFull), $this->encode($this->secret));
+                if ($isV3UnifiedMargin || $isV3Contract) {
+                    $headers['X-BAPI-SIGN'] = '--deprecated--';
+                } else {
+                    $headers['X-BAPI-SIGN'] = $this->hmac($this->encode($authFull), $this->encode($this->secret));
+                }
             } else {
                 $query = array_merge($params, array(
                     'api_key' => $this->apiKey,
