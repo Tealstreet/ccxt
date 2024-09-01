@@ -1,4 +1,3 @@
-
 //  ---------------------------------------------------------------------------
 
 import { Exchange } from './base/Exchange.js';
@@ -149,26 +148,6 @@ export default class bybit extends Exchange {
                         'public/linear/mark-price-kline': 1,
                         'public/linear/index-price-kline': 1,
                         'public/linear/premium-index-kline': 1,
-                        // spot
-                        'spot/v1/time': 1,
-                        'spot/v1/symbols': 1,
-                        'spot/quote/v1/depth': 1,
-                        'spot/quote/v1/depth/merged': 1,
-                        'spot/quote/v1/trades': 1,
-                        'spot/quote/v1/kline': 1,
-                        'spot/quote/v1/ticker/24hr': 1,
-                        'spot/quote/v1/ticker/price': 1,
-                        'spot/quote/v1/ticker/book_ticker': 1,
-                        'spot/v3/public/symbols': 1,
-                        'spot/v3/public/quote/depth': 1,
-                        'spot/v3/public/quote/depth/merged': 1,
-                        'spot/v3/public/quote/trades': 1,
-                        'spot/v3/public/quote/kline': 1,
-                        'spot/v3/public/quote/ticker/24hr': 1,
-                        'spot/v3/public/quote/ticker/price': 1,
-                        'spot/v3/public/quote/ticker/bookTicker': 1,
-                        'spot/v3/public/server-time': 1,
-                        'spot/v3/public/infos': 1,
                         // data
                         'v3/public/time': 1,
                         // USDC endpoints
@@ -224,8 +203,6 @@ export default class bybit extends Exchange {
                         'v5/market/insurance': 1,
                         'v5/market/risk-limit': 1,
                         'v5/market/delivery-price': 1,
-                        'v5/spot-lever-token/info': 1,
-                        'v5/spot-lever-token/reference': 1,
                     },
                 },
                 'private': {
@@ -249,27 +226,6 @@ export default class bybit extends Exchange {
                         'futures/private/position/list': 25,
                         'futures/private/execution/list': 25,
                         'futures/private/trade/closed-pnl/list': 1,
-                        // spot
-                        'spot/v1/account': 2.5,
-                        'spot/v1/order': 2.5,
-                        'spot/v1/open-orders': 2.5,
-                        'spot/v1/history-orders': 2.5,
-                        'spot/v1/myTrades': 2.5,
-                        'spot/v1/cross-margin/order': 10,
-                        'spot/v1/cross-margin/accounts/balance': 10,
-                        'spot/v1/cross-margin/loan-info': 10,
-                        'spot/v1/cross-margin/repay/history': 10,
-                        'spot/v3/private/order': 2.5,
-                        'spot/v3/private/open-orders': 2.5,
-                        'spot/v3/private/history-orders': 2.5,
-                        'spot/v3/private/my-trades': 2.5,
-                        'spot/v3/private/account': 2.5,
-                        'spot/v3/private/reference': 2.5,
-                        'spot/v3/private/record': 2.5,
-                        'spot/v3/private/cross-margin-orders': 10,
-                        'spot/v3/private/cross-margin-account': 10,
-                        'spot/v3/private/cross-margin-loan-info': 10,
-                        'spot/v3/private/cross-margin-repay-history': 10,
                         // account
                         'asset/v1/private/transfer/list': 50, // 60 per minute = 1 per second => cost = 50 / 1 = 50
                         'asset/v3/private/transfer/inter-transfer/list/query': 0.84, // 60/s
@@ -322,7 +278,6 @@ export default class bybit extends Exchange {
                         'asset/v3/private/withdraw/record/query': 0.17, // 300/s
                         // v5
                         'v5/order/history': 2.5,
-                        'v5/order/spot-borrow-check': 2.5,
                         'v5/order/realtime': 2.5,
                         'v5/position/list': 2.5,
                         'v5/execution/list': 2.5,
@@ -393,18 +348,6 @@ export default class bybit extends Exchange {
                         'futures/private/tpsl/switch-mode': 40,
                         'futures/private/position/switch-isolated': 40,
                         'futures/private/position/risk-limit': 2.5,
-                        // spot
-                        'spot/v1/order': 2.5,
-                        'spot/v1/cross-margin/loan': 10,
-                        'spot/v1/cross-margin/repay': 10,
-                        'spot/v3/private/order': 2.5,
-                        'spot/v3/private/cancel-order': 2.5,
-                        'spot/v3/private/cancel-orders': 2.5,
-                        'spot/v3/private/cancel-orders-by-ids': 2.5,
-                        'spot/v3/private/purchase': 2.5,
-                        'spot/v3/private/redeem': 2.5,
-                        'spot/v3/private/cross-margin-loan': 10,
-                        'spot/v3/private/cross-margin-repay': 10,
                         // account
                         'asset/v1/private/transfer': 150, // 20 per minute = 0.333 per second => cost = 50 / 0.3333 = 150
                         'asset/v3/private/transfer/inter-transfer': 2.5, // 20/s
@@ -517,11 +460,6 @@ export default class bybit extends Exchange {
                         'v5/asset/deposit/deposit-to-account': 2.5,
                         'v5/asset/withdraw/create': 2.5,
                         'v5/asset/withdraw/cancel': 2.5,
-                        'v5/spot-lever-token/purchase': 2.5,
-                        'v5/spot-lever-token/redeem': 2.5,
-                        'v5/spot-lever-token/order-record': 2.5,
-                        'v5/spot-margin-trade/switch-mode': 2.5,
-                        'v5/spot-margin-trade/set-leverage': 2.5,
                         // user
                         'v5/user/create-sub-member': 10,
                         'v5/user/create-sub-api': 10,
@@ -532,12 +470,6 @@ export default class bybit extends Exchange {
                         'v5/user/delete-sub-api': 10,
                     },
                     'delete': {
-                        // spot
-                        'spot/v1/order': 2.5,
-                        'spot/v1/order/fast': 2.5,
-                        'spot/order/batch-cancel': 2.5,
-                        'spot/order/batch-fast-cancel': 2.5,
-                        'spot/order/batch-cancel-by-ids': 2.5,
                     },
                 },
             },
@@ -3054,66 +2986,26 @@ export default class bybit extends Exchange {
             market = this.market (symbol);
         }
         let type = undefined;
+        // eslint-disable-next-line no-unused-vars
         [ type, params ] = this.handleMarketTypeAndParams ('fetchOrder', market, params);
         const accounts = await this.isUnifiedEnabled ();
         const isUnifiedAccount = this.safeValue (accounts, 1, false);
         if (isUnifiedAccount) {
             throw new NotSupported (this.id + ' fetchOrder() does not support unified account. Please consider using fetchOpenOrders() or fetchClosedOrders()');
         }
-        if (type === 'spot') {
-            // only spot markets have a dedicated endpoint for fetching a order
-            const request = {
-                'orderId': id,
-            };
-            const response = await (this as any).privateGetSpotV3PrivateOrder (this.extend (params, request));
-            //
-            //    {
-            //        "retCode": "0",
-            //        "retMsg": "OK",
-            //        "result": {
-            //            "accountId": "13380434",
-            //            "symbol": "AAVEUSDT",
-            //            "orderLinkId": "1666733357434617",
-            //            "orderId": "1275046248585414144",
-            //            "orderPrice": "80",
-            //            "orderQty": "0.11",
-            //            "execQty": "0",
-            //            "cummulativeQuoteQty": "0",
-            //            "avgPrice": "0",
-            //            "status": "NEW",
-            //            "timeInForce": "GTC",
-            //            "orderType": "LIMIT",
-            //            "side": "BUY",
-            //            "stopPrice": "0.0",
-            //            "icebergQty": "0.0",
-            //            "createTime": "1666733357438",
-            //            "updateTime": "1666733357444",
-            //            "isWorking": "1",
-            //            "locked": "8.8",
-            //            "orderCategory": "0"
-            //        },
-            //        "retExtMap": {},
-            //        "retExtInfo": null,
-            //        "time": "1666733357744"
-            //    }
-            //
-            const result = this.safeValue (response, 'result', {});
-            return this.parseOrder (result, market);
-        } else {
-            this.checkRequiredSymbol ('fetchOrder', symbol);
-            const request = {
-                'orderId': id,
-            };
-            const result = await this.fetchOrders (symbol, undefined, undefined, this.extend (request, params));
-            const length = result.length;
-            if (length === 0) {
-                throw new OrderNotFound ('Order ' + id + ' does not exist.');
-            }
-            if (length > 1) {
-                throw new InvalidOrder (this.id + ' returned more than one order');
-            }
-            return this.safeValue (result, 0);
+        this.checkRequiredSymbol ('fetchOrder', symbol);
+        const request = {
+            'orderId': id,
+        };
+        const result = await this.fetchOrders (symbol, undefined, undefined, this.extend (request, params));
+        const length = result.length;
+        if (length === 0) {
+            throw new OrderNotFound ('Order ' + id + ' does not exist.');
         }
+        if (length > 1) {
+            throw new InvalidOrder (this.id + ' returned more than one order');
+        }
+        return this.safeValue (result, 0);
     }
 
     async createOrder (symbol, type, side, amount, price = undefined, params = {}) {
@@ -4661,61 +4553,6 @@ export default class bybit extends Exchange {
         }
     }
 
-    async fetchSpotClosedOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        await this.loadMarkets ();
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market (symbol);
-        }
-        const request = {};
-        if (symbol !== undefined) {
-            request['symbol'] = market['id'];
-        }
-        if (limit !== undefined) {
-            request['limit'] = limit;
-        }
-        if (since !== undefined) {
-            request['startTime'] = since;
-        }
-        const response = await (this as any).privateGetSpotV3PrivateHistoryOrders (this.extend (request, params));
-        const result = this.safeValue (response, 'result', {});
-        //
-        //    {
-        //        "retCode": "0",
-        //        "retMsg": "OK",
-        //        "result": {
-        //            "list": [
-        //                {
-        //                    "accountId": "13380434",
-        //                    "symbol": "AAVEUSDT",
-        //                    "orderLinkId": "1666697847966604",
-        //                    "orderId": "1274748373594828288",
-        //                    "orderPrice": "80",
-        //                    "orderQty": "0.11",
-        //                    "execQty": "0",
-        //                    "cummulativeQuoteQty": "0",
-        //                    "avgPrice": "0",
-        //                    "status": "CANCELED",
-        //                    "timeInForce": "GTC",
-        //                    "orderType": "LIMIT",
-        //                    "side": "BUY",
-        //                    "stopPrice": "0.0",
-        //                    "icebergQty": "0.0",
-        //                    "createTime": "1666697847972",
-        //                    "updateTime": "1666697865809",
-        //                    "isWorking": "1",
-        //                    "orderCategory": "0"
-        //                },
-        //            ]
-        //        },
-        //        "retExtInfo": null,
-        //        "time": "1666732287588"
-        //    }
-        //
-        const orders = this.safeValue (result, 'list', []);
-        return this.parseOrders (orders, market, since, limit);
-    }
-
     async fetchClosedOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
         /**
          * @method
@@ -4733,14 +4570,10 @@ export default class bybit extends Exchange {
             market = this.market (symbol);
         }
         let type = undefined;
+        // eslint-disable-next-line no-unused-vars
         [ type, params ] = this.handleMarketTypeAndParams ('fetchClosedOrders', market, params);
-        const enableUnified = await this.isUnifiedEnabled ();
         const request = {};
-        if ((type === 'spot') && !enableUnified[1]) {
-            return await this.fetchSpotClosedOrders (symbol, since, limit, params);
-        } else {
-            request['orderStatus'] = 'Filled';
-        }
+        request['orderStatus'] = 'Filled';
         return await this.fetchOrders (symbol, since, limit, this.extend (request, params));
     }
 
@@ -4893,68 +4726,6 @@ export default class bybit extends Exchange {
             while (paginationCursor !== undefined) {
                 params['cursor'] = paginationCursor;
                 const response = await (this as any).privateGetV5OrderRealtime (this.extend (request, params));
-                const result = this.safeValue (response, 'result', {});
-                const data = this.safeValue (result, 'list', []);
-                parsedOrders = this.arrayConcat (parsedOrders, this.parseOrders (data, market, since, limit));
-                paginationCursor = this.safeString (result, 'nextPageCursor');
-            }
-        }
-        return parsedOrders;
-    }
-
-    async fetchSpotOpenOrders (symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        await this.loadMarkets ();
-        const request = {};
-        let market = undefined;
-        if (symbol !== undefined) {
-            market = this.market (symbol);
-            request['symbol'] = market['id'];
-        }
-        if (limit !== undefined) {
-            request['limit'] = limit;
-        }
-        const response = await (this as any).privateGetSpotV3PrivateOpenOrders (this.extend (request, params));
-        //
-        //    {
-        //         "retCode": "0",
-        //         "retMsg": "OK",
-        //         "result": {
-        //             "list": [
-        //                 {
-        //                     "accountId": "13380434",
-        //                     "symbol": "AAVEUSDT",
-        //                     "orderLinkId": "1666734005300717",
-        //                     "orderId": "1275051683279281664",
-        //                     "orderPrice": "80",
-        //                     "orderQty": "0.11",
-        //                     "execQty": "0",
-        //                     "cummulativeQuoteQty": "0",
-        //                     "avgPrice": "0",
-        //                     "status": "NEW",
-        //                     "timeInForce": "GTC",
-        //                     "orderType": "LIMIT",
-        //                     "side": "BUY",
-        //                     "stopPrice": "0.0",
-        //                     "icebergQty": "0.0",
-        //                     "createTime": "1666734005304",
-        //                     "updateTime": "1666734005309",
-        //                     "isWorking": "1",
-        //                     "orderCategory": "0"
-        //                 }
-        //             ]
-        //         },
-        //         "retExtInfo": null,
-        //         "time": "1666734031592"
-        //     }
-        //
-        const result = this.safeValue (response, 'result', {});
-        const data = this.safeValue (result, 'list', []);
-        let parsedOrders = this.parseOrders (data, market, since, limit);
-        let paginationCursor = this.safeString (result, 'nextPageCursor');
-        if (paginationCursor !== undefined) {
-            while (paginationCursor !== undefined) {
-                params['cursor'] = paginationCursor;
-                const response = await (this as any).privateGetSpotV3PrivateOpenOrders (this.extend (request, params));
                 const result = this.safeValue (response, 'result', {});
                 const data = this.safeValue (result, 'list', []);
                 parsedOrders = this.arrayConcat (parsedOrders, this.parseOrders (data, market, since, limit));
@@ -5255,12 +5026,13 @@ export default class bybit extends Exchange {
         if (isInverse && isLinearSettle) {
             throw new ArgumentsRequired (this.id + ' fetchOpenOrders with inverse subType requires settle to not be USDT or USDC');
         }
-        const [ type, query ] = this.handleMarketTypeAndParams ('fetchOpenOrders', market, params);
+        let type = undefined;
+        let query = undefined;
+        // eslint-disable-next-line no-redeclare, no-unused-vars
+        [ type, query ] = this.handleMarketTypeAndParams ('fetchOpenOrders', market, params);
         const [ enableUnifiedMargin, enableUnifiedAccount ] = await this.isUnifiedEnabled ();
         if (enableUnifiedAccount && !isInverse) {
             return await this.fetchUnifiedAccountOpenOrders (symbol, since, limit, query);
-        } else if (type === 'spot') {
-            return await this.fetchSpotOpenOrders (symbol, since, limit, query);
         } else if (enableUnifiedMargin && !isInverse) {
             return await this.fetchUnifiedMarginOpenOrders (symbol, since, limit, query);
         } else if (isUsdcSettled) {
@@ -7284,410 +7056,6 @@ export default class bybit extends Exchange {
             'timestamp': timestamp,
             'datetime': this.iso8601 (timestamp),
             'info': interest,
-        };
-    }
-
-    async fetchBorrowRate (code, params = {}) {
-        /**
-         * @method
-         * @name bybit#fetchBorrowRate
-         * @description fetch the rate of interest to borrow a currency for margin trading
-         * @see https://bybit-exchange.github.io/docs/spot/v3/#t-queryinterestquota
-         * @param {string} code unified currency code
-         * @param {object} params extra parameters specific to the bybit api endpoint
-         * @returns {object} a [borrow rate structure]{@link https://docs.ccxt.com/#/?id=borrow-rate-structure}
-         */
-        await this.loadMarkets ();
-        const currency = this.currency (code);
-        const request = {
-            'coin': currency['id'],
-        };
-        const response = await (this as any).privateGetSpotV3PrivateCrossMarginLoanInfo (this.extend (request, params));
-        //
-        //    {
-        //         "retCode": "0",
-        //         "retMsg": "success",
-        //         "result": {
-        //             "coin": "USDT",
-        //             "interestRate": "0.000107000000",
-        //             "loanAbleAmount": "",
-        //             "maxLoanAmount": "79999.999"
-        //         },
-        //         "retExtInfo": null,
-        //         "time": "1666734490778"
-        //     }
-        //
-        const data = this.safeValue (response, 'result', {});
-        return this.parseBorrowRate (data, currency);
-    }
-
-    parseBorrowRate (info, currency = undefined) {
-        //
-        //     {
-        //         "coin": "USDT",
-        //         "interestRate": "0.000107000000",
-        //         "loanAbleAmount": "",
-        //         "maxLoanAmount": "79999.999"
-        //     }
-        //
-        const timestamp = this.milliseconds ();
-        const currencyId = this.safeString (info, 'coin');
-        return {
-            'currency': this.safeCurrencyCode (currencyId, currency),
-            'rate': this.safeNumber (info, 'interestRate'),
-            'period': 86400000, // Daily
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'info': info,
-        };
-    }
-
-    async fetchBorrowInterest (code: string = undefined, symbol: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name bybit#fetchBorrowInterest
-         * @description fetch the interest owed by the user for borrowing currency for margin trading
-         * @param {string|undefined} code unified currency code
-         * @param {string|undefined} symbol unified market symbol when fetch interest in isolated markets
-         * @param {number|undefined} since the earliest time in ms to fetch borrrow interest for
-         * @param {number|undefined} limit the maximum number of structures to retrieve
-         * @param {object} params extra parameters specific to the bybit api endpoint
-         * @returns {[object]} a list of [borrow interest structures]{@link https://docs.ccxt.com/#/?id=borrow-interest-structure}
-         */
-        await this.loadMarkets ();
-        const request = {};
-        const response = await (this as any).privateGetSpotV3PrivateCrossMarginAccount (this.extend (request, params));
-        //
-        //     {
-        //         "ret_code": 0,
-        //         "ret_msg": "",
-        //         "ext_code": null,
-        //         "ext_info": null,
-        //         "result": {
-        //             "status": "1",
-        //             "riskRate": "0",
-        //             "acctBalanceSum": "0.000486213817680857",
-        //             "debtBalanceSum": "0",
-        //             "loanAccountList": [
-        //                 {
-        //                     "tokenId": "BTC",
-        //                     "total": "0.00048621",
-        //                     "locked": "0",
-        //                     "loan": "0",
-        //                     "interest": "0",
-        //                     "free": "0.00048621"
-        //                 },
-        //                 ...
-        //             ]
-        //         }
-        //     }
-        //
-        const data = this.safeValue (response, 'result', {});
-        const rows = this.safeValue (data, 'loanAccountList', []);
-        const interest = this.parseBorrowInterests (rows, undefined);
-        return this.filterByCurrencySinceLimit (interest, code, since, limit);
-    }
-
-    parseBorrowInterest (info, market = undefined) {
-        //
-        //     {
-        //         "tokenId": "BTC",
-        //         "total": "0.00048621",
-        //         "locked": "0",
-        //         "loan": "0",
-        //         "interest": "0",
-        //         "free": "0.00048621"
-        //     },
-        //
-        return {
-            'symbol': undefined,
-            'marginMode': 'cross',
-            'currency': this.safeCurrencyCode (this.safeString (info, 'tokenId')),
-            'interest': this.safeNumber (info, 'interest'),
-            'interestRate': undefined,
-            'amountBorrowed': this.safeNumber (info, 'loan'),
-            'timestamp': undefined,
-            'datetime': undefined,
-            'info': info,
-        };
-    }
-
-    async transfer (code, amount, fromAccount, toAccount, params = {}) {
-        /**
-         * @method
-         * @name bybit#transfer
-         * @description transfer currency internally between wallets on the same account
-         * @see https://bybit-exchange.github.io/docs/account_asset/#t-createinternaltransfer
-         * @see https://bybit-exchange.github.io/docs/account_asset/v3/#t-createinternaltransfer
-         * @param {string} code unified currency code
-         * @param {float} amount amount to transfer
-         * @param {string} fromAccount account to transfer from
-         * @param {string} toAccount account to transfer to
-         * @param {object} params extra parameters specific to the bybit api endpoint
-         * @param {string} params.transferId UUID, which is unique across the platform
-         * @returns {object} a [transfer structure]{@link https://docs.ccxt.com/#/?id=transfer-structure}
-         */
-        await this.loadMarkets ();
-        const transferId = this.safeString (params, 'transferId', this.uuid ());
-        const accountTypes = this.safeValue (this.options, 'accountsByType', {});
-        const fromId = this.safeString (accountTypes, fromAccount, fromAccount);
-        const toId = this.safeString (accountTypes, toAccount, toAccount);
-        const currency = this.currency (code);
-        const amountToPrecision = this.currencyToPrecision (code, amount);
-        let method = undefined;
-        [ method, params ] = this.handleOptionAndParams (params, 'transfer', 'method', 'privatePostAssetV1PrivateTransfer'); // v1 preferred atm, because it supports funding
-        let request = undefined;
-        if (method === 'privatePostAssetV3PrivateTransferInterTransfer' || method === 'privatePostV5AssetTransferInterTransfer') {
-            request = {
-                'transferId': transferId,
-                'fromAccountType': fromId,
-                'toAccountType': toId,
-                'coin': currency['id'],
-                'amount': amountToPrecision,
-            };
-        } else {
-            request = {
-                'transfer_id': transferId,
-                'from_account_type': fromId,
-                'to_account_type': toId,
-                'coin': currency['id'],
-                'amount': amountToPrecision,
-            };
-        }
-        const response = await this[method] (this.extend (request, params));
-        //
-        // {
-        //     "retCode": 0,
-        //     "retMsg": "success",
-        //     "result": {
-        //         "transferId": "4244af44-f3b0-4cf6-a743-b56560e987bc" // transfer_id in v1
-        //     },
-        //     "retExtInfo": {},
-        //     "time": 1666875857205
-        // }
-        //
-        const timestamp = this.safeInteger2 (response, 'time', 'time_now');
-        const transfer = this.safeValue (response, 'result', {});
-        const statusRaw = this.safeStringN (response, [ 'retCode', 'retMsg', 'ret_code', 'ret_msg' ]);
-        const status = this.parseTransferStatus (statusRaw);
-        return this.extend (this.parseTransfer (transfer, currency), {
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'amount': this.parseNumber (amountToPrecision),
-            'fromAccount': fromAccount,
-            'toAccount': toAccount,
-            'status': status,
-        });
-    }
-
-    async fetchTransfers (code: string = undefined, since: any = undefined, limit: any = undefined, params = {}) {
-        /**
-         * @method
-         * @name bybit#fetchTransfers
-         * @description fetch a history of internal transfers made on an account
-         * @see https://bybit-exchange.github.io/docs/v5/asset/inter-transfer-list
-         * @param {string|undefined} code unified currency code of the currency transferred
-         * @param {int|undefined} since the earliest time in ms to fetch transfers for
-         * @param {int|undefined} limit the maximum number of  transfers structures to retrieve
-         * @param {object} params extra parameters specific to the bybit api endpoint
-         * @returns {[object]} a list of [transfer structures]{@link https://docs.ccxt.com/#/?id=transfer-structure}
-         */
-        await this.loadMarkets ();
-        let currency = undefined;
-        const request = {};
-        if (code !== undefined) {
-            currency = this.safeCurrencyCode (code);
-            request['coin'] = currency;
-        }
-        if (since !== undefined) {
-            request['startTime'] = since;
-        }
-        if (limit !== undefined) {
-            request['limit'] = limit;
-        }
-        const response = await (this as any).privateGetV5AssetTransferQueryInterTransferList (this.extend (request, params));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "success",
-        //         "result": {
-        //             "list": [
-        //                 {
-        //                     "transferId": "selfTransfer_a1091cc7-9364-4b74-8de1-18f02c6f2d5c",
-        //                     "coin": "USDT",
-        //                     "amount": "5000",
-        //                     "fromAccountType": "SPOT",
-        //                     "toAccountType": "UNIFIED",
-        //                     "timestamp": "1667283263000",
-        //                     "status": "SUCCESS"
-        //                 }
-        //             ],
-        //             "nextPageCursor": "eyJtaW5JRCI6MTM1ODQ2OCwibWF4SUQiOjEzNTg0Njh9"
-        //         },
-        //         "retExtInfo": {},
-        //         "time": 1670988271677
-        //     }
-        //
-        const data = this.safeValue (response, 'result', {});
-        const transfers = this.safeValue (data, 'list', []);
-        return this.parseTransfers (transfers, currency, since, limit);
-    }
-
-    async borrowMargin (code, amount, symbol: string = undefined, params = {}) {
-        /**
-         * @method
-         * @name bybit#borrowMargin
-         * @description create a loan to borrow margin
-         * @see https://bybit-exchange.github.io/docs/spot/v3/#t-borrowmarginloan
-         * @param {string} code unified currency code of the currency to borrow
-         * @param {float} amount the amount to borrow
-         * @param {string|undefined} symbol not used by bybit.borrowMargin ()
-         * @param {object} params extra parameters specific to the bybit api endpoint
-         * @returns {object} a [margin loan structure]{@link https://docs.ccxt.com/#/?id=margin-loan-structure}
-         */
-        await this.loadMarkets ();
-        const currency = this.currency (code);
-        const [ marginMode, query ] = this.handleMarginModeAndParams ('borrowMargin', params);
-        if (marginMode === 'isolated') {
-            throw new NotSupported (this.id + ' borrowMargin () cannot use isolated margin');
-        }
-        const request = {
-            'coin': currency['id'],
-            'qty': this.currencyToPrecision (code, amount),
-        };
-        const response = await (this as any).privatePostSpotV3PrivateCrossMarginLoan (this.extend (request, query));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "success",
-        //         "result": {
-        //             "transactId": "14143"
-        //         },
-        //         "retExtInfo": null,
-        //         "time": 1662617848970
-        //     }
-        //
-        const result = this.safeValue (response, 'result', {});
-        const transaction = this.parseMarginLoan (result, currency);
-        return this.extend (transaction, {
-            'symbol': symbol,
-            'amount': amount,
-        });
-    }
-
-    async repayMargin (code, amount, symbol: string = undefined, params = {}) {
-        /**
-         * @method
-         * @name bybit#repayMargin
-         * @description repay borrowed margin and interest
-         * @see https://bybit-exchange.github.io/docs/spot/v3/#t-repaymarginloan
-         * @param {string} code unified currency code of the currency to repay
-         * @param {float} amount the amount to repay
-         * @param {string|undefined} symbol not used by bybit.repayMargin ()
-         * @param {object} params extra parameters specific to the bybit api endpoint
-         * @returns {object} a [margin loan structure]{@link https://docs.ccxt.com/#/?id=margin-loan-structure}
-         */
-        await this.loadMarkets ();
-        const currency = this.currency (code);
-        const [ marginMode, query ] = this.handleMarginModeAndParams ('repayMargin', params);
-        if (marginMode === 'isolated') {
-            throw new NotSupported (this.id + ' repayMargin () cannot use isolated margin');
-        }
-        const request = {
-            'coin': currency['id'],
-            'qty': this.numberToString (amount),
-        };
-        const response = await (this as any).privatePostSpotV3PrivateCrossMarginRepay (this.extend (request, query));
-        //
-        //     {
-        //         "retCode": 0,
-        //         "retMsg": "success",
-        //         "result": {
-        //            "repayId": "12128"
-        //         },
-        //         "retExtInfo": null,
-        //         "time": 1662618298452
-        //     }
-        //
-        const result = this.safeValue (response, 'result', {});
-        const transaction = this.parseMarginLoan (result, currency);
-        return this.extend (transaction, {
-            'symbol': symbol,
-            'amount': amount,
-        });
-    }
-
-    parseMarginLoan (info, currency = undefined) {
-        //
-        // borrowMargin
-        //
-        //     {
-        //         "transactId": "14143"
-        //     }
-        //
-        // repayMargin
-        //
-        //     {
-        //         "repayId": "12128"
-        //     }
-        //
-        return {
-            'id': this.safeString2 (info, 'transactId', 'repayId'),
-            'currency': this.safeString (currency, 'code'),
-            'amount': undefined,
-            'symbol': undefined,
-            'timestamp': undefined,
-            'datetime': undefined,
-            'info': info,
-        };
-    }
-
-    parseTransferStatus (status) {
-        const statuses = {
-            '0': 'ok',
-            'OK': 'ok',
-            'SUCCESS': 'ok',
-        };
-        return this.safeString (statuses, status, status);
-    }
-
-    parseTransfer (transfer, currency = undefined) {
-        //
-        // transfer
-        //
-        //     {
-        //         "transferId": "22c2bc11-ed5b-49a4-8647-c4e0f5f6f2b2" // transfer_id in v1
-        //     }
-        //
-        // fetchTransfers
-        //
-        //     {
-        //         "transferId": "e9c421c4-b010-4b16-abd6-106179f27702", // transfer_id in v1
-        //         "coin": "USDT",
-        //         "amount": "8",
-        //         "fromAccountType": "FUND", // from_account_type in v1
-        //         "toAccountType": "SPOT", // to_account_type in v1
-        //         "timestamp": "1666879426000",
-        //         "status": "SUCCESS"
-        //      }
-        //
-        const currencyId = this.safeString (transfer, 'coin');
-        const timestamp = this.safeInteger (transfer, 'timestamp');
-        const fromAccountId = this.safeString2 (transfer, 'fromAccountType', 'from_account_type');
-        const toAccountId = this.safeString2 (transfer, 'toAccountType', 'to_account_type');
-        const accountIds = this.safeValue (this.options, 'accountsById', {});
-        const fromAccount = this.safeString (accountIds, fromAccountId, fromAccountId);
-        const toAccount = this.safeString (accountIds, toAccountId, toAccountId);
-        return {
-            'info': transfer,
-            'id': this.safeString2 (transfer, 'transferId', 'transfer_id'),
-            'timestamp': timestamp,
-            'datetime': this.iso8601 (timestamp),
-            'currency': this.safeCurrencyCode (currencyId, currency),
-            'amount': this.safeNumber (transfer, 'amount'),
-            'fromAccount': fromAccount,
-            'toAccount': toAccount,
-            'status': this.parseTransferStatus (this.safeString (transfer, 'status')),
         };
     }
 
