@@ -1019,12 +1019,6 @@ class bybit(Exchange):
         enableUnifiedMargin = self.safe_value(self.options, 'enableUnifiedMargin')
         enableUnifiedAccount = self.safe_value(self.options, 'enableUnifiedAccount')
         if enableUnifiedMargin is None or enableUnifiedAccount is None:
-            if self.options['enableDemoTrading']:
-                # info endpoint is not available in demo trading
-                # so we're assuming UTA is enabled
-                self.options['enableUnifiedMargin'] = False
-                self.options['enableUnifiedAccount'] = True
-                return [self.options['enableUnifiedMargin'], self.options['enableUnifiedAccount']]
             response = await self.privateGetV5UserQueryApi(params)
             #
             #     {
@@ -2891,12 +2885,10 @@ class bybit(Exchange):
         # eslint-disable-next-line no-unused-vars
         enableUnifiedMargin, enableUnifiedAccount = await self.is_unified_enabled()
         isUSDCSettled = market['settle'] == 'USDC'
-        if enableUnifiedAccount and not market['inverse']:
-            return await self.create_unified_account_order(symbol, type, side, amount, price, params)
-        elif isUSDCSettled:
+        if isUSDCSettled:
             return await self.create_usdc_order(symbol, type, side, amount, price, params)
         else:
-            return await self.create_contract_v3_order(symbol, type, side, amount, price, params)
+            return await self.create_unified_account_order(symbol, type, side, amount, price, params)
 
     async def create_position_trade_stop(self, symbol, type, side, amount, price=None, params={}):
         await self.load_markets()
@@ -3017,7 +3009,7 @@ class bybit(Exchange):
         elif market['option']:
             request['category'] = 'option'
         else:
-            raise NotSupported(self.id + ' createOrder does not allow inverse market orders for ' + symbol + ' markets')
+            request['category'] = 'inverse'
         isMarket = lowerCaseType == 'market'
         isLimit = lowerCaseType == 'limit'
         if isLimit:
@@ -3083,125 +3075,6 @@ class bybit(Exchange):
             request['stopLoss'] = self.price_to_precision(symbol, stopLoss)
         params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId', 'positionMode', 'close'])
         response = await self.privatePostV5OrderCreate(self.extend(request, params))
-        order = self.safe_value(response, 'result', {})
-        return self.parse_order(order)
-
-    async def create_contract_v3_order(self, symbol, type, side, amount, price=None, params={}):
-        await self.load_markets()
-        market = self.market(symbol)
-        lowerCaseType = type.lower()
-        isStop = False
-        bindStops = self.safe_value(params, 'bindStops', True)
-        if lowerCaseType == 'stop':
-            isStop = True
-            lowerCaseType = 'market'
-            if bindStops:
-                return self.create_position_trade_stop(symbol, type, side, amount, price, params)
-        elif lowerCaseType == 'stopLimit':
-            isStop = True
-            lowerCaseType = 'limit'
-        if (price is None) and (lowerCaseType == 'limit'):
-            raise ArgumentsRequired(self.id + ' createContractV3Order requires a price argument for limit orders')
-        closeOnTrigger = self.safe_value(params, 'close', False)
-        reduceOnly = self.safe_value(params, 'reduceOnly', False)
-        request = {
-            'symbol': market['id'],
-            'side': self.capitalize(side),
-            'orderType': self.capitalize(lowerCaseType),  # limit or market
-            'timeInForce': 'GoodTillCancel',  # ImmediateOrCancel, FillOrKill, PostOnly
-            'qty': self.amount_to_precision(symbol, amount),
-            # 'takeProfit': 123.45,  # take profit price, only take effect upon opening the position
-            # 'stopLoss': 123.45,  # stop loss price, only take effect upon opening the position
-            'reduceOnly': reduceOnly,
-            # when creating a closing order, bybit recommends a True value for
-            #  closeOnTrigger to avoid failing due to insufficient available margin
-            'closeOnTrigger': closeOnTrigger,
-            # 'orderLinkId': 'string',  # unique client order id, max 36 characters
-            # 'triggerPrice': 123.45,  # trigger price, required for conditional orders
-            # 'triggerBy': 'MarkPrice',  # IndexPrice, MarkPrice
-            # 'tptriggerby': 'MarkPrice',  # IndexPrice, MarkPrice
-            # 'slTriggerBy': 'MarkPrice',  # IndexPrice, MarkPrice
-            # 'positionIdx': 0,  # Position mode. unified margin account is only available in One-Way mode, which is 0
-            # 'triggerDirection': 1,  # Trigger direction. Mainly used in conditional order. Trigger the order when market price rises to triggerPrice or falls to triggerPrice. 1: rise; 2: fall
-            'orderLinkId': getattr(self, 'refCode') + self.uuid22(),
-        }
-        if market['future']:
-            positionIdx = self.safe_integer(params, 'position_idx', 0)  # 0 One-Way Mode, 1 Buy-side, 2 Sell-side
-            request['position_idx'] = positionIdx
-            params = self.omit(params, 'position_idx')
-        isMarket = lowerCaseType == 'market'
-        isLimit = lowerCaseType == 'limit'
-        if isLimit:
-            request['price'] = self.price_to_precision(symbol, price)
-        exchangeSpecificParam = self.safe_string(params, 'time_in_force')
-        timeInForce = self.safe_string_lower(params, 'timeInForce')
-        postOnly = self.is_post_only(isMarket, exchangeSpecificParam == 'PostOnly', params)
-        if postOnly:
-            request['timeInForce'] = 'PostOnly'
-        elif timeInForce == 'gtc':
-            request['timeInForce'] = 'GoodTillCancel'
-        elif timeInForce == 'fok':
-            request['timeInForce'] = 'FillOrKill'
-        elif timeInForce == 'ioc':
-            request['timeInForce'] = 'ImmediateOrCancel'
-        positionMode = self.safe_value(params, 'positionMode', 'oneway')
-        request['positionIdx'] = 0
-        if positionMode != 'oneway':
-            if isStop:
-                if (side == 'buy' and not closeOnTrigger) or (side == 'sell' and closeOnTrigger):
-                    request['positionIdx'] = 1
-                elif (side == 'sell' and not closeOnTrigger) or (side == 'buy' and closeOnTrigger):
-                    request['positionIdx'] = 2
-            else:
-                if (side == 'buy' and not reduceOnly) or (side == 'sell' and reduceOnly):
-                    request['positionIdx'] = 1
-                elif (side == 'sell' and not reduceOnly) or (side == 'buy' and reduceOnly):
-                    request['positionIdx'] = 2
-        request['tpslMode'] = 'Partial'
-        if amount == 0:
-            request['tpslMode'] = 'Full'
-            request['tpOrderType'] = 'Market'
-            request['slOrderType'] = 'Market'
-        triggerPrice = self.safe_number_2(params, 'stopPrice', 'triggerPrice')
-        basePrice = self.safe_number(params, 'basePrice')
-        if isStop:
-            if not basePrice:
-                raise InvalidOrder(self.id + ' createOrder() requires both the triggerPrice and basePrice params for ' + type + ' orders')
-            if triggerPrice is None:
-                raise InvalidOrder(self.id + ' createOrder() requires a triggerPrice param for ' + type + ' orders')
-            triggerBy = 'LastPrice'
-            if params['trigger'] == 'Index':
-                triggerBy = 'IndexPrice'
-            elif params['trigger'] == 'Mark':
-                triggerBy = 'MarkPrice'
-            request['triggerBy'] = triggerBy
-            request['slTriggerBy'] = triggerBy
-            request['tpTriggerBy'] = triggerBy
-            request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
-            if triggerPrice > basePrice:
-                request['triggerDirection'] = 1
-            else:
-                request['triggerDirection'] = 2
-        takeProfit = self.safe_string(params, 'takeProfit')
-        if takeProfit is not None:
-            request['takeProfit'] = self.price_to_precision(symbol, takeProfit)
-        stopLoss = self.safe_string(params, 'stopLoss')
-        if stopLoss is not None:
-            request['stopLoss'] = self.price_to_precision(symbol, stopLoss)
-        params = self.omit(params, ['stopPrice', 'timeInForce', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'clientOrderId'])
-        response = await self.privatePostContractV3PrivateOrderCreate(self.extend(request, params))
-        #
-        #     {
-        #         "retCode": 0,
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "orderId": "e10b0716-7c91-4091-b98a-1fa0f401c7d5",
-        #             "orderLinkId": "test0000003"
-        #         },
-        #         "retExtInfo": null,
-        #         "time": 1664441344238
-        #     }
-        #
         order = self.safe_value(response, 'result', {})
         return self.parse_order(order)
 
@@ -3319,8 +3192,6 @@ class bybit(Exchange):
     async def edit_unified_account_order(self, id, symbol, type, side, amount=None, price=None, params={}):
         await self.load_markets()
         market = self.market(symbol)
-        if not market['linear'] and not market['option']:
-            raise NotSupported(self.id + ' editOrder does not allow inverse market orders for ' + symbol + ' markets')
         request = {
             'symbol': market['id'],
             'orderId': id,
@@ -3340,8 +3211,10 @@ class bybit(Exchange):
             request['qty'] = '0'
         if market['linear']:
             request['category'] = 'linear'
-        else:
+        elif market['option']:
             request['category'] = 'option'
+        else:
+            request['category'] = 'inverse'
         if price is not None:
             request['price'] = self.price_to_precision(symbol, price)
         triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
@@ -3453,62 +3326,16 @@ class bybit(Exchange):
         order = self.safe_value(response, 'result', {})
         return self.parse_order(order)
 
-    async def edit_contract_v3_order(self, id, symbol, type, side, amount=None, price=None, params={}):
-        await self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'symbol': market['id'],
-            'orderId': id,
-            'qty': self.amount_to_precision(symbol, amount),
-        }
-        if price is not None:
-            request['price'] = self.price_to_precision(symbol, price)
-        triggerPrice = self.safe_value_2(params, 'stopPrice', 'triggerPrice')
-        stopLossPrice = self.safe_value_2(params, 'stopLossPrice', 'stopLoss')
-        isStopLossOrder = stopLossPrice is not None and stopLossPrice > 0
-        takeProfitPrice = self.safe_value_2(params, 'takeProfitPrice', 'takeProfit')
-        isTakeProfitOrder = takeProfitPrice is not None and takeProfitPrice > 0
-        if isStopLossOrder:
-            request['stopLoss'] = self.price_to_precision(symbol, stopLossPrice)
-        if isTakeProfitOrder:
-            request['takeProfit'] = self.price_to_precision(symbol, takeProfitPrice)
-        if triggerPrice is not None:
-            request['triggerPrice'] = self.price_to_precision(symbol, triggerPrice)
-        params = self.omit(params, ['stopPrice', 'triggerPrice', 'stopLossPrice', 'takeProfitPrice', 'stopLoss', 'takeProfit'])
-        response = await self.privatePostContractV3PrivateOrderReplace(self.extend(request, params))
-        #
-        # contract v3
-        #
-        #     {
-        #         "retCode": 0,
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "orderId": "db8b74b3-72d3-4264-bf3f-52d39b41956e",
-        #             "orderLinkId": "x002"
-        #         },
-        #         "retExtInfo": {},
-        #         "time": 1658902610749
-        #     }
-        #
-        result = self.safe_value(response, 'result', {})
-        return {
-            'info': response,
-            'id': self.safe_string(result, 'orderId'),
-        }
-
     async def edit_order(self, id, symbol, type, side, amount=None, price=None, params={}):
         if symbol is None:
             raise ArgumentsRequired(self.id + ' editOrder() requires an symbol argument')
         await self.load_markets()
-        market = self.market(symbol)
         enableUnifiedMargin, enableUnifiedAccount = await self.is_unified_enabled()
-        if enableUnifiedAccount and not market['inverse']:
+        if enableUnifiedAccount:
             return await self.edit_unified_account_order(id, symbol, type, side, amount, price, params)
-        elif market['spot']:
-            raise NotSupported(self.id + ' editOrder() does not support spot markets')
-        elif enableUnifiedMargin and not market['inverse']:
+        elif enableUnifiedMargin:
             return await self.edit_unified_margin_order(id, symbol, type, side, amount, price, params)
-        return await self.edit_contract_v3_order(id, symbol, type, side, amount, price, params)
+        return await self.edit_unified_account_order(id, symbol, type, side, amount, price, params)
 
     async def cancel_unified_account_order(self, id, symbol=None, params={}):
         if symbol is None:
@@ -3536,7 +3363,7 @@ class bybit(Exchange):
         elif market['linear']:
             request['category'] = 'linear'
         else:
-            raise NotSupported(self.id + ' cancelOrder() does not allow inverse market orders for ' + symbol + ' markets')
+            request['category'] = 'inverse'
         response = await self.privatePostV5OrderCancel(self.extend(request, params))
         #
         #     {
@@ -3628,33 +3455,6 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         return self.parse_order(result, market)
 
-    async def cancel_derivatives_order(self, id, symbol=None, params={}):
-        if symbol is None:
-            raise ArgumentsRequired(self.id + ' cancelDerivativesOrder() requires a symbol argument')
-        await self.load_markets()
-        market = self.market(symbol)
-        request = {
-            'symbol': market['id'],
-            'orderId': id,
-        }
-        response = await self.privatePostContractV3PrivateOrderCancel(self.extend(request, params))
-        #
-        # contract v3
-        #
-        #     {
-        #         "retCode":0,
-        #         "retMsg":"OK",
-        #         "result":{
-        #             "orderId": "4030430d-1dba-4134-ac77-3d81c14aaa00",
-        #             "orderLinkId": ""
-        #         },
-        #         "retExtInfo":null,
-        #         "time":1658850321861
-        #     }
-        #
-        result = self.safe_value(response, 'result', {})
-        return self.parse_order(result, market)
-
     async def cancel_order(self, id, symbol=None, params={}):
         """
         cancels an open order
@@ -3675,7 +3475,7 @@ class bybit(Exchange):
             return await self.cancel_unified_margin_order(id, symbol, params)
         elif isUsdcSettled:
             return await self.cancel_usdc_order(id, symbol, params)
-        return await self.cancel_derivatives_order(id, symbol, params)
+        return await self.cancel_unified_account_order(id, symbol, params)
 
     async def cancel_all_unified_account_orders(self, symbol=None, params={}):
         await self.load_markets()
@@ -3699,7 +3499,7 @@ class bybit(Exchange):
         elif subType == 'linear':
             request['category'] = 'linear'
         else:
-            raise NotSupported(self.id + ' cancelAllOrders() does not allow inverse market orders for ' + type + ' markets')
+            request['category'] = 'inverse'
         request['settleCoin'] = settle
         isStop = self.safe_value(params, 'stop', False)
         params = self.omit(params, ['stop'])
@@ -3931,7 +3731,7 @@ class bybit(Exchange):
         elif isUsdcSettled:
             return await self.cancel_all_usdc_orders(symbol, query)
         else:
-            return await self.cancel_all_derivatives_orders(symbol, query)
+            return await self.cancel_all_unified_account_orders(symbol, query)
 
     async def fetch_unified_account_orders(self, symbol=None, since=None, limit=None, params={}):
         await self.load_markets()
