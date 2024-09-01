@@ -556,9 +556,7 @@ class bitmex(Exchange):
         #         }
         #     ]
         #
-        result = {}
-
-
+        result = {'info': response}
         for i in range(0, len(response)):
             balance = response[i]
             currencyId = self.safe_string(balance, 'currency')
@@ -596,9 +594,7 @@ class bitmex(Exchange):
             if freeStr is not None:
                 account['free'] = freeStr
             result[code] = account
-        result = self.safe_balance(result)
-        result['info'] = response
-        return result
+        return self.safe_balance(result)
 
     async def fetch_balance(self, params={}):
         """

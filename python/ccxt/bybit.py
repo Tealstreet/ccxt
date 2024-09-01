@@ -119,7 +119,6 @@ class bybit(Exchange):
                 'test': {
                     'spot': 'https://api-testnet.{hostname}',
                     'futures': 'https://api-testnet.{hostname}',
-                    'v2': 'https://api-testnet.{hostname}',
                     'public': 'https://api-testnet.{hostname}',
                     'private': 'https://api-testnet.{hostname}',
                 },
@@ -127,7 +126,6 @@ class bybit(Exchange):
                 'api': {
                     'spot': 'https://api.{hostname}',
                     'futures': 'https://api.{hostname}',
-                    'v2': 'https://api.{hostname}',
                     'public': 'https://api.{hostname}',
                     'private': 'https://api.{hostname}',
                 },
@@ -143,22 +141,6 @@ class bybit(Exchange):
             'api': {
                 'public': {
                     'get': {
-                        # inverse swap
-                        'v2/public/orderBook/L2': 1,
-                        'v2/public/kline/list': 3,
-                        'v2/public/tickers': 1,
-                        'v2/public/trading-records': 1,
-                        'v2/public/symbols': 1,
-                        'v2/public/mark-price-kline': 3,
-                        'v2/public/index-price-kline': 3,
-                        'v2/public/premium-index-kline': 2,
-                        'v2/public/open-interest': 1,
-                        'v2/public/big-deal': 1,
-                        'v2/public/account-ratio': 1,
-                        'v2/public/funding-rate': 1,
-                        'v2/public/elite-ratio': 1,
-                        'v2/public/funding/prev-funding-rate': 1,
-                        'v2/public/risk-limit/list': 1,
                         # linear swap USDT
                         'public/linear/kline': 3,
                         'public/linear/recent-trading-records': 1,
@@ -188,9 +170,7 @@ class bybit(Exchange):
                         'spot/v3/public/server-time': 1,
                         'spot/v3/public/infos': 1,
                         # data
-                        'v2/public/time': 1,
                         'v3/public/time': 1,
-                        'v2/public/announcement': 1,
                         # USDC endpoints
                         # option USDC
                         'option/usdc/openapi/public/v1/order-book': 1,
@@ -250,25 +230,6 @@ class bybit(Exchange):
                 },
                 'private': {
                     'get': {
-                        # inverse swap
-                        'v2/private/order/list': 5,
-                        'v2/private/order': 5,
-                        'v2/private/stop-order/list': 5,
-                        'v2/private/stop-order': 1,
-                        'v2/private/position/list': 25,
-                        'v2/private/position/fee-rate': 40,
-                        'v2/private/execution/list': 25,
-                        'v2/private/trade/closed-pnl/list': 1,
-                        'v2/public/risk-limit/list': 1,  # TODO check
-                        'v2/public/funding/prev-funding-rate': 25,  # TODO check
-                        'v2/private/funding/prev-funding': 25,
-                        'v2/private/funding/predicted-funding': 25,
-                        'v2/private/account/api-key': 5,
-                        'v2/private/account/lcp': 1,
-                        'v2/private/wallet/balance': 25,  # 120 per minute = 2 per second => cost = 50 / 2 = 25
-                        'v2/private/wallet/fund/records': 25,
-                        'v2/private/wallet/withdraw/list': 25,
-                        'v2/private/exchange-order/list': 1,
                         # linear swap USDT
                         'private/linear/order/list': 5,  # 600 per minute = 10 per second => cost = 50 / 10 =  5
                         'private/linear/order/search': 5,
@@ -346,7 +307,6 @@ class bybit(Exchange):
                         'unified/v3/private/settlement-record': 1,
                         'unified/v3/private/account/wallet/balance': 1,
                         'unified/v3/private/account/transaction-log': 1,
-                        'asset/v2/private/exchange/exchange-order-all': 1,
                         'unified/v3/private/account/borrow-history': 1,
                         'unified/v3/private/account/borrow-rate': 1,
                         'unified/v3/private/account/info': 1,
@@ -400,22 +360,6 @@ class bybit(Exchange):
                         'v5/user/get-member-type': 10,
                     },
                     'post': {
-                        # inverse swap
-                        'v2/private/order/create': 30,
-                        'v2/private/order/cancel': 30,
-                        'v2/private/order/cancelAll': 300,  # 100 per minute + 'consumes 10 requests'
-                        'v2/private/order/replace': 30,
-                        'v2/private/stop-order/create': 30,
-                        'v2/private/stop-order/cancel': 30,
-                        'v2/private/stop-order/cancelAll': 300,
-                        'v2/private/stop-order/replace': 30,
-                        'v2/private/position/change-position-margin': 40,
-                        'v2/private/position/trading-stop': 40,
-                        'v2/private/position/leverage/save': 40,
-                        'v2/private/tpsl/switch-mode': 40,
-                        'v2/private/position/switch-isolated': 2.5,
-                        'v2/private/position/risk-limit': 2.5,
-                        'v2/private/position/switch-mode': 2.5,
                         # linear swap USDT
                         'private/linear/order/create': 30,  # 100 per minute = 1.666 per second => cost = 50 / 1.6666 = 30
                         'private/linear/order/cancel': 30,
@@ -5647,255 +5591,6 @@ class bybit(Exchange):
             'updated': updated,
             'fee': fee,
         }
-
-    def fetch_ledger(self, code=None, since=None, limit=None, params={}):
-        """
-        fetch the history of changes, actions done by the user or operations that altered balance of the user
-        see https://bybit-exchange.github.io/docs/v5/account/transaction-log
-        :param str|None code: unified currency code, default is None
-        :param int|None since: timestamp in ms of the earliest ledger entry, default is None
-        :param int|None limit: max number of ledger entrys to return, default is None
-        :param dict params: extra parameters specific to the bybit api endpoint
-        :returns dict: a `ledger structure <https://docs.ccxt.com/#/?id=ledger-structure>`
-        """
-        self.load_markets()
-        request = {
-            # 'coin': currency['id'],
-            # 'currency': currency['id'],  # alias
-            # 'start_date': self.iso8601(since),
-            # 'end_date': self.iso8601(till),
-            # 'wallet_fund_type': 'Deposit',  # Withdraw, RealisedPNL, Commission, Refund, Prize, ExchangeOrderWithdraw, ExchangeOrderDeposit
-            # 'page': 1,
-            # 'limit': 20,  # max 50
-            # v5 transaction log
-            # 'accountType': '', Account Type. UNIFIED
-            # 'category': '', Product type. spot,linear,option
-            # 'currency': '', Currency
-            # 'baseCoin': '', BaseCoin. e.g., BTC of BTCPERP
-            # 'type': '', Types of transaction logs
-            # 'startTime': 0, The start timestamp(ms)
-            # 'endTime': 0, The end timestamp(ms)
-            # 'limit': 0, Limit for data size per page. [1, 50]. Default: 20
-            # 'cursor': '', Cursor. Used for pagination
-        }
-        enableUnified = self.is_unified_enabled()
-        currency = None
-        currencyKey = 'coin'
-        if enableUnified[1]:
-            currencyKey = 'currency'
-            if since is not None:
-                request['startTime'] = since
-        else:
-            if since is not None:
-                request['start_date'] = self.yyyymmdd(since)
-        method = 'privateGetV5AccountTransactionLog' if (enableUnified[1]) else 'privateGetV2PrivateWalletFundRecords'
-        if code is not None:
-            currency = self.currency(code)
-            request[currencyKey] = currency['id']
-        if limit is not None:
-            request['limit'] = limit
-        response = getattr(self, method)(self.extend(request, params))
-        #
-        #     {
-        #         "ret_code": 0,
-        #         "ret_msg": "ok",
-        #         "ext_code": "",
-        #         "result": {
-        #             "data": [
-        #                 {
-        #                     "id": 234467,
-        #                     "user_id": 1,
-        #                     "coin": "BTC",
-        #                     "wallet_id": 27913,
-        #                     "type": "Realized P&L",
-        #                     "amount": "-0.00000006",
-        #                     "tx_id": "",
-        #                     "address": "BTCUSD",
-        #                     "wallet_balance": "0.03000330",
-        #                     "exec_time": "2019-12-09T00:00:25.000Z",
-        #                     "cross_seq": 0
-        #                 }
-        #             ]
-        #         },
-        #         "ext_info": null,
-        #         "time_now": "1577481867.115552",
-        #         "rate_limit_status": 119,
-        #         "rate_limit_reset_ms": 1577481867122,
-        #         "rate_limit": 120
-        #     }
-        #
-        # v5 transaction log
-        #
-        #     {
-        #         "retCode": 0,
-        #         "retMsg": "OK",
-        #         "result": {
-        #             "nextPageCursor": "21963%3A1%2C14954%3A1",
-        #             "list": [
-        #                 {
-        #                     "symbol": "XRPUSDT",
-        #                     "side": "Buy",
-        #                     "funding": "-0.003676",
-        #                     "orderLinkId": "",
-        #                     "orderId": "1672128000-8-592324-1-2",
-        #                     "fee": "0.00000000",
-        #                     "change": "-0.003676",
-        #                     "cashFlow": "0",
-        #                     "transactionTime": "1672128000000",
-        #                     "type": "SETTLEMENT",
-        #                     "feeRate": "0.0001",
-        #                     "size": "100",
-        #                     "qty": "100",
-        #                     "cashBalance": "5086.55825002",
-        #                     "currency": "USDT",
-        #                     "category": "linear",
-        #                     "tradePrice": "0.3676",
-        #                     "tradeId": "534c0003-4bf7-486f-aa02-78cee36825e4"
-        #                 },
-        #                 {
-        #                     "symbol": "XRPUSDT",
-        #                     "side": "Buy",
-        #                     "funding": "",
-        #                     "orderLinkId": "linear-order",
-        #                     "orderId": "592b7e41-78fd-42e2-9aa3-91e1835ef3e1",
-        #                     "fee": "0.01908720",
-        #                     "change": "-0.0190872",
-        #                     "cashFlow": "0",
-        #                     "transactionTime": "1672121182224",
-        #                     "type": "TRADE",
-        #                     "feeRate": "0.0006",
-        #                     "size": "100",
-        #                     "qty": "88",
-        #                     "cashBalance": "5086.56192602",
-        #                     "currency": "USDT",
-        #                     "category": "linear",
-        #                     "tradePrice": "0.3615",
-        #                     "tradeId": "5184f079-88ec-54c7-8774-5173cafd2b4e"
-        #                 },
-        #                 {
-        #                     "symbol": "XRPUSDT",
-        #                     "side": "Buy",
-        #                     "funding": "",
-        #                     "orderLinkId": "linear-order",
-        #                     "orderId": "592b7e41-78fd-42e2-9aa3-91e1835ef3e1",
-        #                     "fee": "0.00260280",
-        #                     "change": "-0.0026028",
-        #                     "cashFlow": "0",
-        #                     "transactionTime": "1672121182224",
-        #                     "type": "TRADE",
-        #                     "feeRate": "0.0006",
-        #                     "size": "12",
-        #                     "qty": "12",
-        #                     "cashBalance": "5086.58101322",
-        #                     "currency": "USDT",
-        #                     "category": "linear",
-        #                     "tradePrice": "0.3615",
-        #                     "tradeId": "8569c10f-5061-5891-81c4-a54929847eb3"
-        #                 }
-        #             ]
-        #         },
-        #         "retExtInfo": {},
-        #         "time": 1672132481405
-        #     }
-        #
-        result = self.safe_value(response, 'result', {})
-        data = self.safe_value_2(result, 'data', 'list', [])
-        return self.parse_ledger(data, currency, since, limit)
-
-    def parse_ledger_entry(self, item, currency=None):
-        #
-        #     {
-        #         "id": 234467,
-        #         "user_id": 1,
-        #         "coin": "BTC",
-        #         "wallet_id": 27913,
-        #         "type": "Realized P&L",
-        #         "amount": "-0.00000006",
-        #         "tx_id": "",
-        #         "address": "BTCUSD",
-        #         "wallet_balance": "0.03000330",
-        #         "exec_time": "2019-12-09T00:00:25.000Z",
-        #         "cross_seq": 0
-        #     }
-        #
-        #     {
-        #         "symbol": "XRPUSDT",
-        #         "side": "Buy",
-        #         "funding": "",
-        #         "orderLinkId": "linear-order",
-        #         "orderId": "592b7e41-78fd-42e2-9aa3-91e1835ef3e1",
-        #         "fee": "0.00260280",
-        #         "change": "-0.0026028",
-        #         "cashFlow": "0",
-        #         "transactionTime": "1672121182224",
-        #         "type": "TRADE",
-        #         "feeRate": "0.0006",
-        #         "size": "12",
-        #         "qty": "12",
-        #         "cashBalance": "5086.58101322",
-        #         "currency": "USDT",
-        #         "category": "linear",
-        #         "tradePrice": "0.3615",
-        #         "tradeId": "8569c10f-5061-5891-81c4-a54929847eb3"
-        #     }
-        #
-        currencyId = self.safe_string_2(item, 'coin', 'currency')
-        code = self.safe_currency_code(currencyId, currency)
-        amount = self.safe_string_2(item, 'amount', 'change')
-        after = self.safe_string_2(item, 'wallet_balance', 'cashBalance')
-        direction = 'out' if Precise.string_lt(amount, '0') else 'in'
-        before = None
-        if after is not None and amount is not None:
-            difference = amount if (direction == 'out') else Precise.string_neg(amount)
-            before = Precise.string_add(after, difference)
-        timestamp = self.parse8601(self.safe_string(item, 'exec_time'))
-        if timestamp is None:
-            timestamp = self.safe_integer(item, 'transactionTime')
-        type = self.parse_ledger_entry_type(self.safe_string(item, 'type'))
-        id = self.safe_string(item, 'id')
-        referenceId = self.safe_string(item, 'tx_id')
-        return {
-            'id': id,
-            'currency': code,
-            'account': self.safe_string(item, 'wallet_id'),
-            'referenceAccount': None,
-            'referenceId': referenceId,
-            'status': None,
-            'amount': self.parse_number(amount),
-            'before': self.parse_number(before),
-            'after': self.parse_number(after),
-            'fee': self.parse_number(self.safe_string(item, 'fee')),
-            'direction': direction,
-            'timestamp': timestamp,
-            'datetime': self.iso8601(timestamp),
-            'type': type,
-            'info': item,
-        }
-
-    def parse_ledger_entry_type(self, type):
-        types = {
-            'Deposit': 'transaction',
-            'Withdraw': 'transaction',
-            'RealisedPNL': 'trade',
-            'Commission': 'fee',
-            'Refund': 'cashback',
-            'Prize': 'prize',  # ?
-            'ExchangeOrderWithdraw': 'transaction',
-            'ExchangeOrderDeposit': 'transaction',
-            # v5
-            'TRANSFER_IN': 'transaction',
-            'TRANSFER_OUT': 'transaction',
-            'TRADE': 'trade',
-            'SETTLEMENT': 'trade',
-            'DELIVERY': 'trade',
-            'LIQUIDATION': 'trade',
-            'BONUS': 'Prize',
-            'FEE_REFUND': 'cashback',
-            'INTEREST': 'transaction',
-            'CURRENCY_BUY': 'trade',
-            'CURRENCY_SELL': 'trade',
-        }
-        return self.safe_string(types, type, type)
 
     def withdraw(self, code, amount, address, tag=None, params={}):
         """
