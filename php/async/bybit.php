@@ -1016,7 +1016,14 @@ class bybit extends Exchange {
             $enableUnifiedMargin = $this->safe_value($this->options, 'enableUnifiedMargin');
             $enableUnifiedAccount = $this->safe_value($this->options, 'enableUnifiedAccount');
             if ($enableUnifiedMargin === null || $enableUnifiedAccount === null) {
-                $response = Async\await($this->privateGetUserV3PrivateQueryApi ($params));
+                if ($this->options['enableDemoTrading']) {
+                    // info endpoint is not available in demo trading
+                    // so we're assuming UTA is enabled
+                    $this->options['enableUnifiedMargin'] = false;
+                    $this->options['enableUnifiedAccount'] = true;
+                    return [ $this->options['enableUnifiedMargin'], $this->options['enableUnifiedAccount'] ];
+                }
+                $response = Async\await($this->privateGetV5UserQueryApi ($params));
                 //
                 //     {
                 //         "retCode":0,

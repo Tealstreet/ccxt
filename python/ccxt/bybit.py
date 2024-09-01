@@ -1018,7 +1018,13 @@ class bybit(Exchange):
         enableUnifiedMargin = self.safe_value(self.options, 'enableUnifiedMargin')
         enableUnifiedAccount = self.safe_value(self.options, 'enableUnifiedAccount')
         if enableUnifiedMargin is None or enableUnifiedAccount is None:
-            response = self.privateGetUserV3PrivateQueryApi(params)
+            if self.options['enableDemoTrading']:
+                # info endpoint is not available in demo trading
+                # so we're assuming UTA is enabled
+                self.options['enableUnifiedMargin'] = False
+                self.options['enableUnifiedAccount'] = True
+                return [self.options['enableUnifiedMargin'], self.options['enableUnifiedAccount']]
+            response = self.privateGetV5UserQueryApi(params)
             #
             #     {
             #         "retCode":0,
