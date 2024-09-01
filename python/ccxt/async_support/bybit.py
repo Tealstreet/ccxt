@@ -2553,7 +2553,9 @@ class bybit(Exchange):
         type = None
         type, params = self.handle_market_type_and_params('fetchBalance', None, params)
         category = self.safe_string(self.options, 'defaultSubType', 'spot')
-        if enableUnifiedAccount or enableUnifiedMargin:
+        if category == 'inverse':
+            type = 'contract'
+        elif enableUnifiedAccount or enableUnifiedMargin:
             if type == 'swap':
                 type = 'unified'
         else:
@@ -2561,10 +2563,7 @@ class bybit(Exchange):
                 type = 'contract'
         accountTypes = self.safe_value(self.options, 'accountsByType', {})
         unifiedType = self.safe_string_upper(accountTypes, type, type)
-        if enableUnifiedAccount and category != 'inverse':
-            method = 'privateGetV5AccountWalletBalance'
-        else:
-            method = 'privateGetContractV3PrivateAccountWalletBalance'
+        method = 'privateGetV5AccountWalletBalance'
         request['accountType'] = unifiedType
         response = await getattr(self, method)(self.extend(request, params))
         #

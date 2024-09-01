@@ -2655,7 +2655,9 @@ class bybit extends Exchange {
             $type = null;
             list($type, $params) = $this->handle_market_type_and_params('fetchBalance', null, $params);
             $category = $this->safe_string($this->options, 'defaultSubType', 'spot');
-            if ($enableUnifiedAccount || $enableUnifiedMargin) {
+            if ($category === 'inverse') {
+                $type = 'contract';
+            } elseif ($enableUnifiedAccount || $enableUnifiedMargin) {
                 if ($type === 'swap') {
                     $type = 'unified';
                 }
@@ -2666,11 +2668,7 @@ class bybit extends Exchange {
             }
             $accountTypes = $this->safe_value($this->options, 'accountsByType', array());
             $unifiedType = $this->safe_string_upper($accountTypes, $type, $type);
-            if ($enableUnifiedAccount && $category !== 'inverse') {
-                $method = 'privateGetV5AccountWalletBalance';
-            } else {
-                $method = 'privateGetContractV3PrivateAccountWalletBalance';
-            }
+            $method = 'privateGetV5AccountWalletBalance';
             $request['accountType'] = $unifiedType;
             $response = Async\await($this->$method (array_merge($request, $params)));
             //

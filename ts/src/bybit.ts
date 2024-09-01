@@ -2652,7 +2652,9 @@ export default class bybit extends Exchange {
         let type = undefined;
         [ type, params ] = this.handleMarketTypeAndParams ('fetchBalance', undefined, params);
         const category = this.safeString (this.options, 'defaultSubType', 'spot');
-        if (enableUnifiedAccount || enableUnifiedMargin) {
+        if (category === 'inverse') {
+            type = 'contract';
+        } else if (enableUnifiedAccount || enableUnifiedMargin) {
             if (type === 'swap') {
                 type = 'unified';
             }
@@ -2663,11 +2665,7 @@ export default class bybit extends Exchange {
         }
         const accountTypes = this.safeValue (this.options, 'accountsByType', {});
         const unifiedType = this.safeStringUpper (accountTypes, type, type);
-        if (enableUnifiedAccount && category !== 'inverse') {
-            method = 'privateGetV5AccountWalletBalance';
-        } else {
-            method = 'privateGetContractV3PrivateAccountWalletBalance';
-        }
+        method = 'privateGetV5AccountWalletBalance';
         request['accountType'] = unifiedType;
         const response = await this[method] (this.extend (request, params));
         //
