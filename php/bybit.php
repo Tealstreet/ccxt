@@ -135,8 +135,6 @@ class bybit extends Exchange {
                         'public/linear/mark-price-kline' => 1,
                         'public/linear/index-price-kline' => 1,
                         'public/linear/premium-index-kline' => 1,
-                        // data
-                        'v3/public/time' => 1,
                         // USDC endpoints
                         // option USDC
                         'option/usdc/openapi/public/v1/order-book' => 1,
@@ -166,7 +164,6 @@ class bybit extends Exchange {
                         'derivatives/v3/public/order-book/L2' => 1,
                         'derivatives/v3/public/kline' => 1,
                         'derivatives/v3/public/tickers' => 1,
-                        'derivatives/v3/public/instruments-info' => 1,
                         'derivatives/v3/public/mark-price-kline' => 1,
                         'derivatives/v3/public/index-price-kline' => 1,
                         'derivatives/v3/public/funding/history-funding-rate' => 1,
@@ -183,6 +180,7 @@ class bybit extends Exchange {
                         'v5/market/instruments-info' => 1,
                         'v5/market/orderbook' => 1,
                         'v5/market/tickers' => 1,
+                        'v5/market/time' => 1,
                         'v5/market/funding/history' => 1,
                         'v5/market/recent-trade' => 1,
                         'v5/market/open-interest' => 1,
@@ -1062,14 +1060,6 @@ class bybit extends Exchange {
         return $result;
     }
 
-    public function upgrade_unified_account($params = array ()) {
-        $createUnifiedMarginAccount = $this->safe_value($this->options, 'createUnifiedMarginAccount');
-        if (!$createUnifiedMarginAccount) {
-            throw new NotSupported($this->id . ' upgradeUnifiedAccount() warning this method can only be called once, it is not reverseable and you will be stuck with a unified margin account, you also need at least 5000 USDT in your bybit account to do $this-> If you want to disable this warning set exchange.options["createUnifiedMarginAccount"]=true.');
-        }
-        return $this->privatePostUnifiedV3PrivateAccountUpgradeUnifiedAccount ($params);
-    }
-
     public function upgrade_unified_trade_account($params = array ()) {
         return $this->privatePostV5AccountUpgradeToUta ($params);
     }
@@ -1081,7 +1071,7 @@ class bybit extends Exchange {
          * @param {array} $params extra parameters specific to the bybit api endpoint
          * @return {int} the current integer timestamp in milliseconds from the exchange server
          */
-        $response = $this->publicGetV3PublicTime ($params);
+        $response = $this->publicGetV5PublicMarketTime ($params);
         //
         //    {
         //         "retCode" => "0",
@@ -1230,7 +1220,7 @@ class bybit extends Exchange {
         if ($paginationCursor !== null) {
             while ($paginationCursor !== null) {
                 $params['cursor'] = $paginationCursor;
-                $response = $this->publicGetDerivativesV3PublicInstrumentsInfo ($params);
+                $response = $this->publicGetV5MarketInstrumentsInfo ($params);
                 $data = $this->safe_value($response, 'result', array());
                 $rawMarkets = $this->safe_value($data, 'list', array());
                 $rawMarketsLength = count($rawMarkets);

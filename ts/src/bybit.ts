@@ -148,8 +148,6 @@ export default class bybit extends Exchange {
                         'public/linear/mark-price-kline': 1,
                         'public/linear/index-price-kline': 1,
                         'public/linear/premium-index-kline': 1,
-                        // data
-                        'v3/public/time': 1,
                         // USDC endpoints
                         // option USDC
                         'option/usdc/openapi/public/v1/order-book': 1,
@@ -179,7 +177,6 @@ export default class bybit extends Exchange {
                         'derivatives/v3/public/order-book/L2': 1,
                         'derivatives/v3/public/kline': 1,
                         'derivatives/v3/public/tickers': 1,
-                        'derivatives/v3/public/instruments-info': 1,
                         'derivatives/v3/public/mark-price-kline': 1,
                         'derivatives/v3/public/index-price-kline': 1,
                         'derivatives/v3/public/funding/history-funding-rate': 1,
@@ -196,6 +193,7 @@ export default class bybit extends Exchange {
                         'v5/market/instruments-info': 1,
                         'v5/market/orderbook': 1,
                         'v5/market/tickers': 1,
+                        'v5/market/time': 1,
                         'v5/market/funding/history': 1,
                         'v5/market/recent-trade': 1,
                         'v5/market/open-interest': 1,
@@ -1021,7 +1019,14 @@ export default class bybit extends Exchange {
         const enableUnifiedMargin = this.safeValue (this.options, 'enableUnifiedMargin');
         const enableUnifiedAccount = this.safeValue (this.options, 'enableUnifiedAccount');
         if (enableUnifiedMargin === undefined || enableUnifiedAccount === undefined) {
-            const response = await (this as any).privateGetUserV3PrivateQueryApi (params);
+            if (this.options['enableDemoTrading']) {
+                // info endpoint is not available in demo trading
+                // so we're assuming UTA is enabled
+                this.options['enableUnifiedMargin'] = false;
+                this.options['enableUnifiedAccount'] = true;
+                return [ this.options['enableUnifiedMargin'], this.options['enableUnifiedAccount'] ];
+            }
+            const response = await (this as any).privateGetV5UserQueryApi (params);
             //
             //     {
             //         "retCode":0,
@@ -1075,14 +1080,6 @@ export default class bybit extends Exchange {
         return result;
     }
 
-    async upgradeUnifiedAccount (params = {}) {
-        const createUnifiedMarginAccount = this.safeValue (this.options, 'createUnifiedMarginAccount');
-        if (!createUnifiedMarginAccount) {
-            throw new NotSupported (this.id + ' upgradeUnifiedAccount() warning this method can only be called once, it is not reverseable and you will be stuck with a unified margin account, you also need at least 5000 USDT in your bybit account to do this. If you want to disable this warning set exchange.options["createUnifiedMarginAccount"]=true.');
-        }
-        return await (this as any).privatePostUnifiedV3PrivateAccountUpgradeUnifiedAccount (params);
-    }
-
     async upgradeUnifiedTradeAccount (params = {}) {
         return await (this as any).privatePostV5AccountUpgradeToUta (params);
     }
@@ -1096,7 +1093,7 @@ export default class bybit extends Exchange {
          * @param {object} params extra parameters specific to the bybit api endpoint
          * @returns {int} the current integer timestamp in milliseconds from the exchange server
          */
-        const response = await (this as any).publicGetV3PublicTime (params);
+        const response = await (this as any).publicGetV5PublicMarketTime (params);
         //
         //    {
         //         "retCode": "0",
@@ -1249,7 +1246,7 @@ export default class bybit extends Exchange {
         if (paginationCursor !== undefined) {
             while (paginationCursor !== undefined) {
                 params['cursor'] = paginationCursor;
-                const response = await (this as any).publicGetDerivativesV3PublicInstrumentsInfo (params);
+                const response = await (this as any).publicGetV5MarketInstrumentsInfo (params);
                 const data = this.safeValue (response, 'result', {});
                 const rawMarkets = this.safeValue (data, 'list', []);
                 const rawMarketsLength = rawMarkets.length;

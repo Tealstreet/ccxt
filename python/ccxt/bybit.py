@@ -149,8 +149,6 @@ class bybit(Exchange):
                         'public/linear/mark-price-kline': 1,
                         'public/linear/index-price-kline': 1,
                         'public/linear/premium-index-kline': 1,
-                        # data
-                        'v3/public/time': 1,
                         # USDC endpoints
                         # option USDC
                         'option/usdc/openapi/public/v1/order-book': 1,
@@ -180,7 +178,6 @@ class bybit(Exchange):
                         'derivatives/v3/public/order-book/L2': 1,
                         'derivatives/v3/public/kline': 1,
                         'derivatives/v3/public/tickers': 1,
-                        'derivatives/v3/public/instruments-info': 1,
                         'derivatives/v3/public/mark-price-kline': 1,
                         'derivatives/v3/public/index-price-kline': 1,
                         'derivatives/v3/public/funding/history-funding-rate': 1,
@@ -197,6 +194,7 @@ class bybit(Exchange):
                         'v5/market/instruments-info': 1,
                         'v5/market/orderbook': 1,
                         'v5/market/tickers': 1,
+                        'v5/market/time': 1,
                         'v5/market/funding/history': 1,
                         'v5/market/recent-trade': 1,
                         'v5/market/open-interest': 1,
@@ -1070,12 +1068,6 @@ class bybit(Exchange):
         result = self.safe_value(response, 'result', {})
         return result
 
-    def upgrade_unified_account(self, params={}):
-        createUnifiedMarginAccount = self.safe_value(self.options, 'createUnifiedMarginAccount')
-        if not createUnifiedMarginAccount:
-            raise NotSupported(self.id + ' upgradeUnifiedAccount() warning self method can only be called once, it is not reverseable and you will be stuck with a unified margin account, you also need at least 5000 USDT in your bybit account to do self. If you want to disable self warning set exchange.options["createUnifiedMarginAccount"]=true.')
-        return self.privatePostUnifiedV3PrivateAccountUpgradeUnifiedAccount(params)
-
     def upgrade_unified_trade_account(self, params={}):
         return self.privatePostV5AccountUpgradeToUta(params)
 
@@ -1086,7 +1078,7 @@ class bybit(Exchange):
         :param dict params: extra parameters specific to the bybit api endpoint
         :returns int: the current integer timestamp in milliseconds from the exchange server
         """
-        response = self.publicGetV3PublicTime(params)
+        response = self.publicGetV5PublicMarketTime(params)
         #
         #    {
         #         "retCode": "0",
@@ -1228,7 +1220,7 @@ class bybit(Exchange):
         if paginationCursor is not None:
             while(paginationCursor is not None):
                 params['cursor'] = paginationCursor
-                response = self.publicGetDerivativesV3PublicInstrumentsInfo(params)
+                response = self.publicGetV5MarketInstrumentsInfo(params)
                 data = self.safe_value(response, 'result', {})
                 rawMarkets = self.safe_value(data, 'list', [])
                 rawMarketsLength = len(rawMarkets)
