@@ -2561,15 +2561,10 @@ class bybit(Exchange):
                 type = 'contract'
         accountTypes = self.safe_value(self.options, 'accountsByType', {})
         unifiedType = self.safe_string_upper(accountTypes, type, type)
-        if unifiedType == 'FUND':
-            # use self endpoint only we have no other choice
-            # because it requires transfer permission
-            method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery'
+        if enableUnifiedAccount and category != 'inverse':
+            method = 'privateGetV5AccountWalletBalance'
         else:
-            if enableUnifiedAccount and category != 'inverse':
-                method = 'privateGetV5AccountWalletBalance'
-            else:
-                method = 'privateGetContractV3PrivateAccountWalletBalance'
+            method = 'privateGetContractV3PrivateAccountWalletBalance'
         request['accountType'] = unifiedType
         response = await getattr(self, method)(self.extend(request, params))
         #
@@ -5375,49 +5370,6 @@ class bybit(Exchange):
             'updated': updated,
             'fee': fee,
         }
-
-    async def withdraw(self, code, amount, address, tag=None, params={}):
-        """
-        make a withdrawal
-        see https://bybit-exchange.github.io/docs/v5/asset/withdraw
-        :param str code: unified currency code
-        :param float amount: the amount to withdraw
-        :param str address: the address to withdraw to
-        :param str|None tag:
-        :param dict params: extra parameters specific to the bybit api endpoint
-        :returns dict: a `transaction structure <https://docs.ccxt.com/#/?id=transaction-structure>`
-        """
-        tag, params = self.handle_withdraw_tag_and_params(tag, params)
-        await self.load_markets()
-        self.check_address(address)
-        currency = self.currency(code)
-        request = {
-            'coin': currency['id'],
-            'amount': self.number_to_string(amount),
-            'address': address,
-        }
-        if tag is not None:
-            request['tag'] = tag
-        networkCode, query = self.handle_network_code_and_params(params)
-        networkId = self.network_code_to_id(networkCode)
-        if networkId is not None:
-            request['chain'] = networkId.upper()
-        enableUnified = await self.is_unified_enabled()
-        method = 'privatePostV5AssetWithdrawCreate' if (enableUnified[1]) else 'privatePostAssetV3PrivateWithdrawCreate'
-        response = await getattr(self, method)(self.extend(request, query))
-        #
-        #    {
-        #         "retCode": "0",
-        #         "retMsg": "success",
-        #         "result": {
-        #             "id": "9377266"
-        #         },
-        #         "retExtInfo": {},
-        #         "time": "1666892894902"
-        #     }
-        #
-        result = self.safe_value(response, 'result', {})
-        return self.parse_transaction(result, currency)
 
     async def fetch_position(self, symbol, params={}, first=True):
         """

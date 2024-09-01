@@ -2666,16 +2666,10 @@ class bybit extends Exchange {
             }
             $accountTypes = $this->safe_value($this->options, 'accountsByType', array());
             $unifiedType = $this->safe_string_upper($accountTypes, $type, $type);
-            if ($unifiedType === 'FUND') {
-                // use this endpoint only we have no other choice
-                // because it requires transfer permission
-                $method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery';
+            if ($enableUnifiedAccount && $category !== 'inverse') {
+                $method = 'privateGetV5AccountWalletBalance';
             } else {
-                if ($enableUnifiedAccount && $category !== 'inverse') {
-                    $method = 'privateGetV5AccountWalletBalance';
-                } else {
-                    $method = 'privateGetContractV3PrivateAccountWalletBalance';
-                }
+                $method = 'privateGetContractV3PrivateAccountWalletBalance';
             }
             $request['accountType'] = $unifiedType;
             $response = Async\await($this->$method (array_merge($request, $params)));
@@ -5845,54 +5839,6 @@ class bybit extends Exchange {
             'updated' => $updated,
             'fee' => $fee,
         );
-    }
-
-    public function withdraw($code, $amount, $address, $tag = null, $params = array ()) {
-        return Async\async(function () use ($code, $amount, $address, $tag, $params) {
-            /**
-             * make a withdrawal
-             * @see https://bybit-exchange.github.io/docs/v5/asset/withdraw
-             * @param {string} $code unified $currency $code
-             * @param {float} $amount the $amount to withdraw
-             * @param {string} $address the $address to withdraw to
-             * @param {string|null} $tag
-             * @param {array} $params extra parameters specific to the bybit api endpoint
-             * @return {array} a ~@link https://docs.ccxt.com/#/?id=transaction-structure transaction structure~
-             */
-            list($tag, $params) = $this->handle_withdraw_tag_and_params($tag, $params);
-            Async\await($this->load_markets());
-            $this->check_address($address);
-            $currency = $this->currency($code);
-            $request = array(
-                'coin' => $currency['id'],
-                'amount' => $this->number_to_string($amount),
-                'address' => $address,
-            );
-            if ($tag !== null) {
-                $request['tag'] = $tag;
-            }
-            list($networkCode, $query) = $this->handle_network_code_and_params($params);
-            $networkId = $this->network_code_to_id($networkCode);
-            if ($networkId !== null) {
-                $request['chain'] = strtoupper($networkId);
-            }
-            $enableUnified = Async\await($this->is_unified_enabled());
-            $method = ($enableUnified[1]) ? 'privatePostV5AssetWithdrawCreate' : 'privatePostAssetV3PrivateWithdrawCreate';
-            $response = Async\await($this->$method (array_merge($request, $query)));
-            //
-            //    {
-            //         "retCode" => "0",
-            //         "retMsg" => "success",
-            //         "result" => array(
-            //             "id" => "9377266"
-            //         ),
-            //         "retExtInfo" => array(),
-            //         "time" => "1666892894902"
-            //     }
-            //
-            $result = $this->safe_value($response, 'result', array());
-            return $this->parse_transaction($result, $currency);
-        }) ();
     }
 
     public function fetch_position($symbol, $params = array (), $first = true) {

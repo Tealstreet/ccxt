@@ -2663,16 +2663,10 @@ export default class bybit extends Exchange {
         }
         const accountTypes = this.safeValue (this.options, 'accountsByType', {});
         const unifiedType = this.safeStringUpper (accountTypes, type, type);
-        if (unifiedType === 'FUND') {
-            // use this endpoint only we have no other choice
-            // because it requires transfer permission
-            method = 'privateGetAssetV3PrivateTransferAccountCoinsBalanceQuery';
+        if (enableUnifiedAccount && category !== 'inverse') {
+            method = 'privateGetV5AccountWalletBalance';
         } else {
-            if (enableUnifiedAccount && category !== 'inverse') {
-                method = 'privateGetV5AccountWalletBalance';
-            } else {
-                method = 'privateGetContractV3PrivateAccountWalletBalance';
-            }
+            method = 'privateGetContractV3PrivateAccountWalletBalance';
         }
         request['accountType'] = unifiedType;
         const response = await this[method] (this.extend (request, params));
@@ -5785,54 +5779,6 @@ export default class bybit extends Exchange {
             'updated': updated,
             'fee': fee,
         };
-    }
-
-    async withdraw (code, amount, address, tag = undefined, params = {}) {
-        /**
-         * @method
-         * @name bybit#withdraw
-         * @description make a withdrawal
-         * @see https://bybit-exchange.github.io/docs/v5/asset/withdraw
-         * @param {string} code unified currency code
-         * @param {float} amount the amount to withdraw
-         * @param {string} address the address to withdraw to
-         * @param {string|undefined} tag
-         * @param {object} params extra parameters specific to the bybit api endpoint
-         * @returns {object} a [transaction structure]{@link https://docs.ccxt.com/#/?id=transaction-structure}
-         */
-        [ tag, params ] = this.handleWithdrawTagAndParams (tag, params);
-        await this.loadMarkets ();
-        this.checkAddress (address);
-        const currency = this.currency (code);
-        const request = {
-            'coin': currency['id'],
-            'amount': this.numberToString (amount),
-            'address': address,
-        };
-        if (tag !== undefined) {
-            request['tag'] = tag;
-        }
-        const [ networkCode, query ] = this.handleNetworkCodeAndParams (params);
-        const networkId = this.networkCodeToId (networkCode);
-        if (networkId !== undefined) {
-            request['chain'] = networkId.toUpperCase ();
-        }
-        const enableUnified = await this.isUnifiedEnabled ();
-        const method = (enableUnified[1]) ? 'privatePostV5AssetWithdrawCreate' : 'privatePostAssetV3PrivateWithdrawCreate';
-        const response = await this[method] (this.extend (request, query));
-        //
-        //    {
-        //         "retCode": "0",
-        //         "retMsg": "success",
-        //         "result": {
-        //             "id": "9377266"
-        //         },
-        //         "retExtInfo": {},
-        //         "time": "1666892894902"
-        //     }
-        //
-        const result = this.safeValue (response, 'result', {});
-        return this.parseTransaction (result, currency);
     }
 
     async fetchPosition (symbol, params = {}, first = true) {
