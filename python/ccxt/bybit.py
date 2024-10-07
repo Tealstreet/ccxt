@@ -2672,7 +2672,7 @@ class bybit(Exchange):
                 del parsedBalance['free']['USDC']
                 del parsedBalance['used']['USDC']
             except Exception as e:
-                # Ignored
+                return parsedBalance
             return parsedBalance
         return parsedBalance
 

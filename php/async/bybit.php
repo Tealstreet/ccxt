@@ -2782,7 +2782,7 @@ class bybit extends Exchange {
                     unset($parsedBalance['free']['USDC']);
                     unset($parsedBalance['used']['USDC']);
                 } catch (Exception $e) {
-                    // Ignored
+                    return $parsedBalance;
                 }
                 return $parsedBalance;
             }

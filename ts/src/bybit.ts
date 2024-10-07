@@ -2777,7 +2777,7 @@ export default class bybit extends Exchange {
                 delete parsedBalance['free']['USDC'];
                 delete parsedBalance['used']['USDC'];
             } catch (e) {
-                // Ignored
+                return parsedBalance;
             }
             return parsedBalance;
         }
