@@ -930,6 +930,7 @@ export default class bybit extends Exchange {
             'options': {
                 'enableUnifiedMargin': undefined,
                 'enableUnifiedAccount': undefined,
+                'enableUta2': undefined,
                 'createMarketBuyOrderRequiresPrice': true,
                 'createUnifiedMarginAccount': false,
                 'defaultType': 'swap',  // 'swap', 'future', 'option', 'spot'
@@ -1010,6 +1011,16 @@ export default class bybit extends Exchange {
 
     nonce () {
         return this.milliseconds () - this.options['timeDifference'];
+    }
+
+    async isUta2 (params = {}) {
+        const enableUta2 = this.safeValue (this.options, 'enableUta2');
+        if (enableUta2 === undefined) {
+            const response = await (this as any).privateGetV5AccountInfo ();
+            const result = this.safeValue (response, 'result', {});
+            this.options['enableUta2'] = this.safeInteger (result, 'unifiedMarginStatus') === 5 || this.safeInteger (result, 'unifiedMarginStatus') === 6;
+        }
+        return this.options['enableUta2'];
     }
 
     async isUnifiedEnabled (params = {}) {
@@ -2642,11 +2653,18 @@ export default class bybit extends Exchange {
         const request = {};
         let method = undefined;
         const [ enableUnifiedMargin, enableUnifiedAccount ] = await this.isUnifiedEnabled ();
+        const enableUta2 = await this.isUta2 ();
         let type = undefined;
         [ type, params ] = this.handleMarketTypeAndParams ('fetchBalance', undefined, params);
         const category = this.safeString (this.options, 'defaultSubType', 'spot');
+        let unifiedInverse = false;
         if (category === 'inverse') {
-            type = 'contract';
+            if (enableUta2) {
+                type = 'unified';
+                unifiedInverse = true;
+            } else {
+                type = 'contract';
+            }
         } else if (enableUnifiedAccount || enableUnifiedMargin) {
             if (type === 'swap') {
                 type = 'unified';
@@ -2745,7 +2763,25 @@ export default class bybit extends Exchange {
         //         "time": 1675865290069
         //     }
         //
-        return this.parseBalance (response);
+        const parsedBalance = this.parseBalance (response);
+        if (unifiedInverse && parsedBalance['info'].length > 0) {
+            try {
+                // parsedBalance['info'][0]['accountType'] = 'CONTRACT';
+                delete parsedBalance['info'];
+                delete parsedBalance['USDT'];
+                delete parsedBalance['USDC'];
+                delete parsedBalance['total']['USDT'];
+                delete parsedBalance['free']['USDT'];
+                delete parsedBalance['used']['USDT'];
+                delete parsedBalance['total']['USDC'];
+                delete parsedBalance['free']['USDC'];
+                delete parsedBalance['used']['USDC'];
+            } catch (e) {
+                // Ignored
+            }
+            return parsedBalance;
+        }
+        return parsedBalance;
     }
 
     parseOrderStatus (status) {

@@ -931,6 +931,7 @@ class bybit(Exchange):
             'options': {
                 'enableUnifiedMargin': None,
                 'enableUnifiedAccount': None,
+                'enableUta2': None,
                 'createMarketBuyOrderRequiresPrice': True,
                 'createUnifiedMarginAccount': False,
                 'defaultType': 'swap',  # 'swap', 'future', 'option', 'spot'
@@ -1010,6 +1011,14 @@ class bybit(Exchange):
 
     def nonce(self):
         return self.milliseconds() - self.options['timeDifference']
+
+    def is_uta_2(self, params={}):
+        enableUta2 = self.safe_value(self.options, 'enableUta2')
+        if enableUta2 is None:
+            response = self.privateGetV5AccountInfo()
+            result = self.safe_value(response, 'result', {})
+            self.options['enableUta2'] = self.safe_integer(result, 'unifiedMarginStatus') == 5 or self.safe_integer(result, 'unifiedMarginStatus') == 6
+        return self.options['enableUta2']
 
     def is_unified_enabled(self, params={}):
         # The API key of user id must own one of permissions will be allowed to call following API endpoints.
@@ -2543,11 +2552,17 @@ class bybit(Exchange):
         request = {}
         method = None
         enableUnifiedMargin, enableUnifiedAccount = self.is_unified_enabled()
+        enableUta2 = self.is_uta_2()
         type = None
         type, params = self.handle_market_type_and_params('fetchBalance', None, params)
         category = self.safe_string(self.options, 'defaultSubType', 'spot')
+        unifiedInverse = False
         if category == 'inverse':
-            type = 'contract'
+            if enableUta2:
+                type = 'unified'
+                unifiedInverse = True
+            else:
+                type = 'contract'
         elif enableUnifiedAccount or enableUnifiedMargin:
             if type == 'swap':
                 type = 'unified'
@@ -2643,7 +2658,23 @@ class bybit(Exchange):
         #         "time": 1675865290069
         #     }
         #
-        return self.parse_balance(response)
+        parsedBalance = self.parse_balance(response)
+        if unifiedInverse and len(parsedBalance['info']) > 0:
+            try:
+                # parsedBalance['info'][0]['accountType'] = 'CONTRACT'
+                del parsedBalance['info']
+                del parsedBalance['USDT']
+                del parsedBalance['USDC']
+                del parsedBalance['total']['USDT']
+                del parsedBalance['free']['USDT']
+                del parsedBalance['used']['USDT']
+                del parsedBalance['total']['USDC']
+                del parsedBalance['free']['USDC']
+                del parsedBalance['used']['USDC']
+            except Exception as e:
+                # Ignored
+            return parsedBalance
+        return parsedBalance
 
     def parse_order_status(self, status):
         statuses = {

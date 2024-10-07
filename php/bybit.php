@@ -917,6 +917,7 @@ class bybit extends Exchange {
             'options' => array(
                 'enableUnifiedMargin' => null,
                 'enableUnifiedAccount' => null,
+                'enableUta2' => null,
                 'createMarketBuyOrderRequiresPrice' => true,
                 'createUnifiedMarginAccount' => false,
                 'defaultType' => 'swap',  // 'swap', 'future', 'option', 'spot'
@@ -997,6 +998,16 @@ class bybit extends Exchange {
 
     public function nonce() {
         return $this->milliseconds() - $this->options['timeDifference'];
+    }
+
+    public function is_uta_2($params = array ()) {
+        $enableUta2 = $this->safe_value($this->options, 'enableUta2');
+        if ($enableUta2 === null) {
+            $response = $this->privateGetV5AccountInfo ();
+            $result = $this->safe_value($response, 'result', array());
+            $this->options['enableUta2'] = $this->safe_integer($result, 'unifiedMarginStatus') === 5 || $this->safe_integer($result, 'unifiedMarginStatus') === 6;
+        }
+        return $this->options['enableUta2'];
     }
 
     public function is_unified_enabled($params = array ()) {
@@ -2607,11 +2618,18 @@ class bybit extends Exchange {
         $request = array();
         $method = null;
         list($enableUnifiedMargin, $enableUnifiedAccount) = $this->is_unified_enabled();
+        $enableUta2 = $this->is_uta_2();
         $type = null;
         list($type, $params) = $this->handle_market_type_and_params('fetchBalance', null, $params);
         $category = $this->safe_string($this->options, 'defaultSubType', 'spot');
+        $unifiedInverse = false;
         if ($category === 'inverse') {
-            $type = 'contract';
+            if ($enableUta2) {
+                $type = 'unified';
+                $unifiedInverse = true;
+            } else {
+                $type = 'contract';
+            }
         } elseif ($enableUnifiedAccount || $enableUnifiedMargin) {
             if ($type === 'swap') {
                 $type = 'unified';
@@ -2710,7 +2728,25 @@ class bybit extends Exchange {
         //         "time" => 1675865290069
         //     }
         //
-        return $this->parse_balance($response);
+        $parsedBalance = $this->parse_balance($response);
+        if ($unifiedInverse && strlen($parsedBalance['info']) > 0) {
+            try {
+                // $parsedBalance['info'][0]['accountType'] = 'CONTRACT';
+                unset($parsedBalance['info']);
+                unset($parsedBalance['USDT']);
+                unset($parsedBalance['USDC']);
+                unset($parsedBalance['total']['USDT']);
+                unset($parsedBalance['free']['USDT']);
+                unset($parsedBalance['used']['USDT']);
+                unset($parsedBalance['total']['USDC']);
+                unset($parsedBalance['free']['USDC']);
+                unset($parsedBalance['used']['USDC']);
+            } catch (Exception $e) {
+                // Ignored
+            }
+            return $parsedBalance;
+        }
+        return $parsedBalance;
     }
 
     public function parse_order_status($status) {
