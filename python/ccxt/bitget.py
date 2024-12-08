@@ -2510,6 +2510,8 @@ class bitget(Exchange):
                 if reduceOnly:
                     request['cancelOrder'] = True
             request['marginCoin'] = market['settleId']
+            if market['inverse']:
+                request['marginCoin'] = market['baseId']
         omitted = self.omit(query, ['stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'positionMode', 'marginMode', 'reduceOnly', 'close'])
         response = getattr(self, method)(self.extend(request, omitted))
         #

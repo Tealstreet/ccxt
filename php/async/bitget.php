@@ -2661,6 +2661,9 @@ class bitget extends Exchange {
                     }
                 }
                 $request['marginCoin'] = $market['settleId'];
+                if ($market['inverse']) {
+                    $request['marginCoin'] = $market['baseId'];
+                }
             }
             $omitted = $this->omit($query, array( 'stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'positionMode', 'marginMode', 'reduceOnly', 'close' ));
             $response = Async\await($this->$method (array_merge($request, $omitted)));

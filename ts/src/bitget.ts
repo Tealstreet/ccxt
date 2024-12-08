@@ -2649,6 +2649,9 @@ export default class bitget extends Exchange {
                 }
             }
             request['marginCoin'] = market['settleId'];
+            if (market['inverse']) {
+                request['marginCoin'] = market['baseId'];
+            }
         }
         const omitted = this.omit (query, [ 'stopPrice', 'triggerType', 'stopLossPrice', 'takeProfitPrice', 'postOnly', 'positionMode', 'marginMode', 'reduceOnly', 'close' ]);
         const response = await this[method] (this.extend (request, omitted));
