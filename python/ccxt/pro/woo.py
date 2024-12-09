@@ -29,14 +29,14 @@ class woo(ccxt.async_support.woo):
             'urls': {
                 'api': {
                     'ws': {
-                        'public': 'wss://wss.woox.io/ws/stream',
-                        'private': 'wss://wss.woox.io/v2/ws/private/stream',
+                        'public': 'wss://wss.woo.org/ws/stream',
+                        'private': 'wss://wss.woo.network/v2/ws/private/stream',
                     },
                 },
                 'test': {
                     'ws': {
-                        'public': 'wss://wss.staging.woox.io/ws/stream',
-                        'private': 'wss://wss.staging.woox.io/v2/ws/private/stream',
+                        'public': 'wss://wss.staging.woo.org/ws/stream',
+                        'private': 'wss://wss.staging.woo.org/v2/ws/private/stream',
                     },
                 },
             },

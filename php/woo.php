@@ -18,7 +18,7 @@ class woo extends Exchange {
             'version' => 'v1',
             'certified' => false,
             'pro' => true,
-            'hostname' => 'woox.io',
+            'hostname' => 'woo.org',
             'has' => array(
                 'CORS' => null,
                 'spot' => true,
@@ -110,9 +110,9 @@ class woo extends Exchange {
                     'private' => 'https://api.{hostname}',
                 ),
                 'test' => array(
-                    'pub' => 'https://api-pub.staging.woox.io',
-                    'public' => 'https://api.staging.woox.io',
-                    'private' => 'https://api.staging.woox.io',
+                    'pub' => 'https://api-pub.staging.woo.org',
+                    'public' => 'https://api.staging.woo.org',
+                    'private' => 'https://api.staging.woo.org',
                 ),
                 'www' => 'https://woo.org/',
                 'doc' => array(
