@@ -2713,6 +2713,9 @@ export default class bitget extends Exchange {
         }
         if (marketType === 'swap') {
             request['marginCoin'] = market['settleId'];
+            if (market['inverse']) {
+                request['marginCoin'] = market['baseId'];
+            }
         }
         const response = await this[method] (this.extend (request, query));
         return this.parseOrder (response, market);

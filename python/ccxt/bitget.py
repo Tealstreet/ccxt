@@ -2565,6 +2565,8 @@ class bitget(Exchange):
             params = self.omit(params, ['stop', 'planType'])
         if marketType == 'swap':
             request['marginCoin'] = market['settleId']
+            if market['inverse']:
+                request['marginCoin'] = market['baseId']
         response = getattr(self, method)(self.extend(request, query))
         return self.parse_order(response, market)
 

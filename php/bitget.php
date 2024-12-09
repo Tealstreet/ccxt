@@ -2677,6 +2677,9 @@ class bitget extends Exchange {
         }
         if ($marketType === 'swap') {
             $request['marginCoin'] = $market['settleId'];
+            if ($market['inverse']) {
+                $request['marginCoin'] = $market['baseId'];
+            }
         }
         $response = $this->$method (array_merge($request, $query));
         return $this->parse_order($response, $market);
