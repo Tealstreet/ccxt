@@ -26,7 +26,7 @@ class woo(Exchange):
             'version': 'v1',
             'certified': False,
             'pro': True,
-            'hostname': 'woo.org',
+            'hostname': 'woox.io',
             'has': {
                 'CORS': None,
                 'spot': True,
@@ -118,9 +118,9 @@ class woo(Exchange):
                     'private': 'https://api.{hostname}',
                 },
                 'test': {
-                    'pub': 'https://api-pub.staging.woo.org',
-                    'public': 'https://api.staging.woo.org',
-                    'private': 'https://api.staging.woo.org',
+                    'pub': 'https://api-pub.staging.woox.io',
+                    'public': 'https://api.staging.woox.io',
+                    'private': 'https://api.staging.woox.io',
                 },
                 'www': 'https://woo.org/',
                 'doc': [
