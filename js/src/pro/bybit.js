@@ -452,7 +452,7 @@ export default class bybit extends bybitRest {
                 }
             }
         }
-        const topics = ['orderbook.' + limit.toString() + '.' + market['id']];
+        const topics = ['orderbook.' + '1000' + '.' + market['id']];
         const orderbook = await this.watchTopics(url, messageHash, topics, params);
         return orderbook.limit();
     }
